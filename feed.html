@@ -3249,35 +3249,6 @@ body::after {
 
 <canvas id="bg-canvas"></canvas>
 
-<!-- ── Auth-loading splash — covers everything while Firebase checks
-     the persisted session. Dismissed by onAuthStateChanged callback.
-     Using inline style so it is guaranteed visible even before style.css
-     finishes parsing, and before any JS runs. ── -->
-<div id="snx-auth-splash" aria-hidden="true" style="
-    position: fixed; inset: 0; z-index: 99999;
-    background: #0B1F3A;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 18px;
-    transition: opacity 0.35s ease;">
-    <div style="
-        width: 72px; height: 72px; border-radius: 50%;
-        background: radial-gradient(circle at 38% 35%, #003d99 0%, #071428 100%);
-        border: 2.5px solid rgba(0,174,239,0.72);
-        display: flex; align-items: center; justify-content: center;
-        font-size: 34px;
-        box-shadow: 0 0 36px rgba(0,174,239,0.58);">🌑</div>
-    <div style="font-size: 13px; color: rgba(0,174,239,0.75); letter-spacing: 2px; text-transform: uppercase; font-weight: 700;">Shadow Nexus Social</div>
-    <div style="
-        width: 36px; height: 36px; border-radius: 50%;
-        border: 3px solid rgba(0,174,239,0.18);
-        border-top-color: #00AEEF;
-        animation: snxSpin 0.8s linear infinite;"></div>
-</div>
-<style>
-@keyframes snxSpin { to { transform: rotate(360deg); } }
-#snx-auth-splash.fade-out { opacity: 0; pointer-events: none; }
-</style>
-
 <!-- Hamburger button -->
 <button class="menuBtn" id="menuButton" aria-label="Open navigation" aria-expanded="false">☰</button>
 
@@ -3344,7 +3315,7 @@ body::after {
 
 </nav>
 
-<div class="page" id="login">
+<div class="page active" id="login">
     <div class="section-card" style="text-align:center; max-width:400px; margin:0 auto;">
 
         <!-- Logo mark -->
@@ -4623,23 +4594,6 @@ body::after {
       }
   });
 
-  // Helper — fades out and removes the auth-loading splash.
-  // Safe to call multiple times; does nothing if already removed.
-  function _dismissAuthSplash() {
-      const splash = document.getElementById('snx-auth-splash');
-      if (!splash) return;
-      splash.classList.add('fade-out');
-      setTimeout(() => { if (splash.parentNode) splash.remove(); }, 380);
-  }
-
-  // Safety net: if Firebase hasn't resolved auth within 8 s (e.g. no network
-  // on first ever load) dismiss the splash and show the login screen so the
-  // user is never stuck staring at a spinner forever.
-  setTimeout(() => {
-      const splash = document.getElementById('snx-auth-splash');
-      if (splash) { _dismissAuthSplash(); show('login'); }
-  }, 8000);
-
   onAuthStateChanged(auth, async (user) => {
       if (user) {
           currentUser = user;
@@ -4705,8 +4659,6 @@ body::after {
               const adminNavBtn = document.getElementById("navAdmin");
               if (adminNavBtn) adminNavBtn.style.display = window._snxRole === 'founder' ? 'flex' : 'none';
           } catch(_) {}
-          // ── User is authenticated — dismiss splash and go straight to feed ──
-          _dismissAuthSplash();
           navTo('feed');          initTimelineStream();
           presenceUnsubscribe = initPresenceStrip();
           inboxUnsubscribe    = initInboxMonitor();
@@ -4732,8 +4684,6 @@ body::after {
           document.getElementById("menuButton").style.display = "none";
           const _adminBtn = document.getElementById("navAdmin");
           if (_adminBtn) _adminBtn.style.display = "none";
-          // ── Not signed in — dismiss splash and show login screen ──
-          _dismissAuthSplash();
           show('login');
       }
   });
