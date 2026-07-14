@@ -5054,8 +5054,7 @@ body::after {
       // Tear down any existing listener before (re)subscribing with a new limit
       if (feedUnsubscribe) { feedUnsubscribe(); feedUnsubscribe = null; }
 
-      // No orderBy — avoids needing a Firestore index; we sort client-side instead
-      const qElements = query(collection(db, "posts"), limit(scrollLimit));
+      const qElements = collection(db, "posts");
       feedUnsubscribe = onSnapshot(qElements, (snapshot) => {
           try {
           const container = document.getElementById("feedPosts");
@@ -5073,8 +5072,11 @@ body::after {
           });
           validDocs.sort((a, b) => b.ts - a.ts);
 
+          // Apply scroll limit after sorting
+          const limitedDocs = validDocs.slice(0, scrollLimit);
+
           // Collect the set of post IDs in this snapshot (after TTL filter)
-          const incomingIds = new Set(validDocs.map(v => v.pDoc.id));
+          const incomingIds = new Set(limitedDocs.map(v => v.pDoc.id));
 
           // Remove DOM nodes for posts no longer in the snapshot (deleted / expired)
           container.querySelectorAll('.postBox[id^="post-"]').forEach(el => {
@@ -5083,7 +5085,7 @@ body::after {
           });
 
           // Build an ordered list of post IDs to maintain correct DOM order
-          const finalOrderedIds = validDocs.map(v => v.pDoc.id);
+          const finalOrderedIds = limitedDocs.map(v => v.pDoc.id);
 
           // Empty feed state — show only when Firestore confirms zero posts
           if (incomingIds.size === 0) {
@@ -5096,7 +5098,7 @@ body::after {
               return;
           }
 
-          validDocs.forEach(({ pDoc, ts }, idx) => {
+          limitedDocs.forEach(({ pDoc, ts }, idx) => {
               const post = pDoc.data();
 
               const isLiked = post.likedBy?.includes(currentUser.uid);
@@ -5283,8 +5285,8 @@ body::after {
       }, (err) => {
           console.error('[Feed] onSnapshot error:', err);
           const container = document.getElementById("feedPosts");
-          if (container && !container.querySelector('.postBox')) {
-              container.innerHTML = `<div style="text-align:center;padding:48px 20px;color:#3a5a7a;"><div style="font-size:13px;color:#ff6680;">⚠️ Could not load posts: ${err.code || err.message}</div></div>`;
+          if (container) {
+              container.innerHTML = `<div style="text-align:center;padding:48px 20px;"><div style="font-size:13px;color:#ff6680;padding:14px;background:rgba(255,0,0,0.1);border-radius:10px;">⚠️ Feed error: ${err.code || err.message}<br><small style="color:#aaa;">Check Firebase Console → Firestore → Rules</small></div></div>`;
           }
       });
   }
