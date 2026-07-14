@@ -670,6 +670,69 @@ input:focus, textarea:focus, select:focus {
 .post-char-counter { font-size:11px; color:#3a5a7a; text-align:right; margin-top:-4px; margin-bottom:6px; transition:color 0.15s; }
 .post-char-counter.warn  { color:#ffaa44; }
 .post-char-counter.limit { color:#ff4466; }
+/* ── User Tagging — @mention autocomplete dropdown ── */
+#postTagDropdown {
+    position: absolute; z-index: 2000;
+    background: #071428; border: 1px solid rgba(0,174,239,0.45);
+    border-radius: 10px; max-height: 200px; overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,40,120,0.55);
+    min-width: 220px; width: max-content; max-width: 90vw;
+}
+.tag-dropdown-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; cursor: pointer;
+    transition: background 0.12s;
+}
+.tag-dropdown-item:hover, .tag-dropdown-item.focused {
+    background: rgba(0,174,239,0.14);
+}
+.tag-dropdown-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #0B1F3A; border: 1px solid rgba(0,174,239,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #00AEEF;
+    flex-shrink: 0; background-size: cover; background-position: center;
+    overflow: hidden;
+}
+.tag-dropdown-name { font-size: 13px; font-weight: 600; color: #d8eeff; }
+.tag-dropdown-handle { font-size: 11px; color: #4a7aaa; }
+#postTaggedStrip {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin: 6px 0 4px; min-height: 0;
+}
+.tag-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(0,174,239,0.12); border: 1px solid rgba(0,174,239,0.38);
+    color: #00AEEF; font-size: 12px; font-weight: 600;
+    border-radius: 20px; padding: 3px 10px 3px 8px; cursor: default;
+}
+.tag-chip-remove {
+    background: none; border: none; color: #6a90b8;
+    font-size: 14px; line-height: 1; cursor: pointer; padding: 0 0 0 2px;
+}
+.tag-chip-remove:hover { color: #ff5577; }
+.post-tag-link {
+    color: #00AEEF; font-weight: 600; cursor: pointer; text-decoration: none;
+}
+.post-tag-link:hover { text-decoration: underline; }
+.post-tags-bar {
+    display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+    margin-top: 6px; font-size: 11px; color: #4a7aaa;
+}
+.post-tags-bar-label { color: #3a6a9a; font-weight: 600; margin-right: 2px; }
+.post-tag-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: #00AEEF; cursor: pointer; font-weight: 600;
+    padding: 2px 8px; border-radius: 12px;
+    background: rgba(0,174,239,0.08); border: 1px solid rgba(0,174,239,0.25);
+}
+.post-tag-pill:hover { background: rgba(0,174,239,0.18); }
+.post-tag-pill-remove {
+    background: none; border: none; color: #6a90b8;
+    font-size: 12px; cursor: pointer; padding: 0 0 0 2px; line-height: 1;
+}
+.post-tag-pill-remove:hover { color: #ff5577; }
+
 /* Notification action buttons */
 .notif-mark-all { background:none; border:1px solid rgba(0,174,239,0.32); color:#6a90b8; font-size:11px; padding:4px 12px; border-radius:12px; cursor:pointer; transition:color 0.15s,border-color 0.15s; }
 .notif-mark-all:hover { color:#00AEEF; border-color:rgba(0,174,239,0.62); }
@@ -3398,6 +3461,12 @@ body::after {
         <!-- Hidden: stores the final uploaded URL -->
         <input type="hidden" id="postMediaUrl" value="">
 
+        <!-- Tagged users strip + autocomplete dropdown anchor -->
+        <div id="postTaggedStrip"></div>
+        <div id="postTagDropdown" style="display:none;"></div>
+
+
+
         <button id="btnBroadcast" style="margin-top:10px; width:100%; border-radius:10px; padding:11px; background:linear-gradient(135deg,#003d99,#0077dd); border-color:rgba(0,174,239,0.65); color:#fff; font-size:14px; box-shadow:0 0 20px rgba(0,174,239,0.40);">⚡ Post to the Eclipse</button>
     </div>
 
@@ -3910,6 +3979,18 @@ body::after {
                     <option value="open">Everyone</option>
                     <option value="friends">Friends only</option>
                     <option value="closed">Nobody</option>
+                </select>
+            </div>
+
+            <div class="settings-row" style="border-bottom:none;">
+                <div class="settings-label">
+                    🏷️ Who can tag me in posts?
+                    <small>Controls who can @mention and tag you</small>
+                </div>
+                <select id="privTagging" onchange="savePrivacySetting('tagging', this.value)">
+                    <option value="everyone">Everyone</option>
+                    <option value="friends">Friends only</option>
+                    <option value="nobody">Nobody</option>
                 </select>
             </div>
         </div>
@@ -4523,7 +4604,8 @@ body::after {
                   sendRequests: "everyone",
                   message:      "everyone",
                   findMe:       "everyone",
-                  wall:         "open"
+                  wall:         "open",
+                  tagging:      "everyone"
               }
           });
           toastNotification(isFounder
@@ -4660,6 +4742,7 @@ body::after {
               sel('privMessage',      ps.message);
               sel('privFindMe',       ps.findMe);
               sel('privWall',         ps.wall || userData.privacy);
+              sel('privTagging',      ps.tagging || 'everyone');
           });
 
           document.getElementById("menuButton").style.display = "flex";
@@ -5130,8 +5213,17 @@ body::after {
                             ${ageLabel}
                         </div>
                     </div>
-                    <p style="margin:8px 0;">${escFeed(post.text)}</p>
+                    <p style="margin:8px 0;">${renderPostText(post.text)}</p>
                     ${mediaHTML}
+                    ${(post.taggedUsers && post.taggedUsers.length) ? `
+                    <div class="post-tags-bar">
+                        <span class="post-tags-bar-label">🏷️ With:</span>
+                        ${post.taggedUsers.map(t => `
+                            <span class="post-tag-pill" onclick="viewProfile('${escFeed(t.uid)}')">
+                                @${escFeed(t.username)}
+                                ${t.uid === currentUser.uid ? `<button class="post-tag-pill-remove" onclick="event.stopPropagation();window.removeTagFromPost('${pDoc.id}','${escFeed(t.uid)}')" title="Remove tag">✕</button>` : ''}
+                            </span>`).join('')}
+                    </div>` : ''}
                     <div class="action-row">
                         <button class="react-btn ${isLiked ? 'liked' : ''}" id="like-btn-${pDoc.id}" onclick="processPostReaction('${pDoc.id}','like',this)">❤️ <span class="like-count">${post.likes || 0}</span></button>
                         ${!post.isRepost ? `<button class="react-btn" id="repost-btn-${pDoc.id}" onclick="processPostReaction('${pDoc.id}','repost',this)">🔄 <span class="repost-count">${post.repostCount || 0}</span></button>` : ''}
@@ -5259,19 +5351,114 @@ body::after {
       });
   }, { passive: true });
 
-  // ── Character counter for post composer ──
-  document.getElementById("postText").addEventListener("input", function() {
-      const remaining = 500 - this.value.length;
-      const counter = document.getElementById("postCharCounter");
-      if (counter) {
-          counter.textContent = remaining + " characters left";
-          counter.className = "post-char-counter" + (remaining < 50 ? ' limit' : remaining < 150 ? ' warn' : '');
-      }
-  });
+  /* ═══════════════════════════════════════════════════════════
+     USER TAGGING ENGINE
+     ═══════════════════════════════════════════════════════════ */
+  (function initTaggingEngine() {
+      const textarea = document.getElementById('postText');
+      const dropdown = document.getElementById('postTagDropdown');
+      const strip    = document.getElementById('postTaggedStrip');
+      if (!textarea || !dropdown || !strip) return;
 
-  // ── Ctrl+Enter / Cmd+Enter to post ──
-  document.getElementById("postText").addEventListener("keydown", (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); document.getElementById("btnBroadcast").click(); }
+      let _userCache = null, _cachePromise = null;
+      async function loadUserCache() {
+          if (_userCache) return _userCache;
+          if (_cachePromise) return _cachePromise;
+          _cachePromise = getDocs(collection(db, 'users')).then(snap => {
+              _userCache = [];
+              snap.forEach(d => {
+                  const u = d.data();
+                  if (u.uid && u.username && !u.suspended)
+                      _userCache.push({ uid: u.uid, displayName: u.displayName || u.username, username: u.username, avatar: u.avatar || '', privacySettings: u.privacySettings || {} });
+              });
+              return _userCache;
+          });
+          return _cachePromise;
+      }
+
+      let _activeQuery = null, _activeStart = -1, _focusedIdx = -1, _taggedUsers = [];
+
+      function refreshStrip() {
+          strip.innerHTML = _taggedUsers.map((t, i) =>
+              `<span class="tag-chip">@${escFeed(t.username)}<button class="tag-chip-remove" title="Remove" onclick="window._snxRemoveTagChip(${i})">✕</button></span>`
+          ).join('');
+      }
+      window._snxRemoveTagChip = function(i) { _taggedUsers.splice(i, 1); refreshStrip(); };
+
+      function closeDropdown() {
+          dropdown.style.display = 'none'; dropdown.innerHTML = '';
+          _activeQuery = null; _activeStart = -1; _focusedIdx = -1;
+      }
+
+      function showDropdown(users, query) {
+          const matches = users.filter(u => u.uid !== currentUser.uid)
+              .filter(u => u.username.toLowerCase().startsWith(query.toLowerCase()) || u.displayName.toLowerCase().includes(query.toLowerCase()))
+              .slice(0, 8);
+          if (!matches.length) { closeDropdown(); return; }
+          dropdown.innerHTML = matches.map((u, i) => {
+              const avatarStyle = u.avatar ? `background-image:url('${escFeed(u.avatar)}');` : '';
+              const initial = (u.displayName || '?')[0].toUpperCase();
+              return `<div class="tag-dropdown-item" data-uid="${escFeed(u.uid)}" data-username="${escFeed(u.username)}" data-name="${escFeed(u.displayName)}" data-avatar="${escFeed(u.avatar||'')}">
+                  <div class="tag-dropdown-avatar" style="${avatarStyle}">${u.avatar ? '' : escFeed(initial)}</div>
+                  <div><div class="tag-dropdown-name">${escFeed(u.displayName)}</div><div class="tag-dropdown-handle">@${escFeed(u.username)}</div></div>
+              </div>`;
+          }).join('');
+          dropdown.style.display = 'block';
+          dropdown.style.top  = (textarea.offsetTop + textarea.offsetHeight + 4) + 'px';
+          dropdown.style.left = textarea.offsetLeft + 'px';
+          dropdown.querySelectorAll('.tag-dropdown-item').forEach(el => {
+              el.addEventListener('mousedown', e => { e.preventDefault(); selectUser(el); });
+              el.addEventListener('touchend', e => { e.preventDefault(); selectUser(el); });
+          });
+          _focusedIdx = -1;
+      }
+
+      function selectUser(el) {
+          const uid = el.dataset.uid, username = el.dataset.username, name = el.dataset.name, avatar = el.dataset.avatar || '';
+          if (_taggedUsers.some(t => t.uid === uid)) { closeDropdown(); return; }
+          const val = textarea.value;
+          const before = val.slice(0, _activeStart);
+          const after  = val.slice(_activeStart + 1 + (_activeQuery || '').length);
+          textarea.value = before + '@' + username + ' ' + after;
+          const newPos = before.length + username.length + 2;
+          textarea.setSelectionRange(newPos, newPos);
+          _taggedUsers.push({ uid, displayName: name, username, avatar });
+          refreshStrip(); closeDropdown(); textarea.focus();
+      }
+
+      textarea.addEventListener('input', async function() {
+          const remaining = 500 - this.value.length;
+          const counter = document.getElementById('postCharCounter');
+          if (counter) { counter.textContent = remaining + ' characters left'; counter.className = 'post-char-counter' + (remaining < 50 ? ' limit' : remaining < 150 ? ' warn' : ''); }
+          const val = this.value, caret = this.selectionStart;
+          const match = val.slice(0, caret).match(/@([a-zA-Z0-9_]*)$/);
+          if (!match) { closeDropdown(); return; }
+          _activeQuery = match[1]; _activeStart = caret - 1 - match[1].length;
+          const users = await loadUserCache();
+          if (textarea.selectionStart !== caret) return;
+          showDropdown(users, _activeQuery);
+      });
+
+      textarea.addEventListener('keydown', e => {
+          if (dropdown.style.display === 'none') return;
+          const items = dropdown.querySelectorAll('.tag-dropdown-item');
+          if (!items.length) return;
+          if (e.key === 'ArrowDown') { e.preventDefault(); _focusedIdx = Math.min(_focusedIdx + 1, items.length - 1); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); _focusedIdx = Math.max(_focusedIdx - 1, 0); }
+          else if (e.key === 'Enter' && _focusedIdx >= 0) { e.preventDefault(); selectUser(items[_focusedIdx]); return; }
+          else if (e.key === 'Escape') { closeDropdown(); return; }
+          else { return; }
+          items.forEach((el, i) => el.classList.toggle('focused', i === _focusedIdx));
+          if (items[_focusedIdx]) items[_focusedIdx].scrollIntoView({ block: 'nearest' });
+      });
+
+      document.addEventListener('click', e => { if (!dropdown.contains(e.target) && e.target !== textarea) closeDropdown(); });
+      window._snxResetTagStrip = function() { _taggedUsers = []; refreshStrip(); closeDropdown(); };
+      window._snxGetTaggedUsers = function() { return [..._taggedUsers]; };
+  })();
+
+  document.getElementById("postText").addEventListener("keydown", e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); document.getElementById("btnBroadcast").click(); }
   });
 
   let _postBusy = false;
@@ -5286,29 +5473,32 @@ body::after {
       btn.disabled = true; btn.textContent = "Posting…";
       try {
           const now = Date.now();
-          // Support multiple uploaded URLs (stored as comma-separated in postMediaUrl for multi-upload)
           const mediaUrlsRaw = mediaUrl.split(',').map(u => u.trim()).filter(Boolean);
+          const taggedUsers = typeof window._snxGetTaggedUsers === 'function' ? window._snxGetTaggedUsers() : [];
           const postRef = await addDoc(collection(db, "posts"), {
-              uid: currentUser.uid,
-              authorName: userData.displayName,
-              authorHandle: userData.username,
-              authorAvatar: userData.avatar || '',
-              authorBadges: userData.badges || [],
-              authorRole:   userData.role   || 'member',
-              text,
-              mediaUrl: mediaUrlsRaw[0] || '',
-              mediaUrls: mediaUrlsRaw,
-              timestamp: now,
-              createdAt: now,
-              likes: 0,
-              likedBy: [],
-              comments: [],
-              repostCount: 0
+              uid: currentUser.uid, authorName: userData.displayName,
+              authorHandle: userData.username, authorAvatar: userData.avatar || '',
+              authorBadges: userData.badges || [], authorRole: userData.role || 'member',
+              text, mediaUrl: mediaUrlsRaw[0] || '', mediaUrls: mediaUrlsRaw,
+              taggedUsers: taggedUsers.map(t => ({ uid: t.uid, username: t.username, displayName: t.displayName })),
+              timestamp: now, createdAt: now, likes: 0, likedBy: [], comments: [], repostCount: 0
           });
-          // Detect @mentions in post text
+          for (const t of taggedUsers) {
+              try {
+                  const tSnap = await getDoc(doc(db, 'users', t.uid));
+                  if (!tSnap.exists()) continue;
+                  const tData = tSnap.data();
+                  if (tData.suspended) continue;
+                  const tagPref = tData.privacySettings?.tagging || 'everyone';
+                  if (tagPref === 'nobody') continue;
+                  if (tagPref === 'friends' && !(tData.friends || []).includes(currentUser.uid)) continue;
+                  await pushNotification(t.uid, { type:'tag', fromUid:currentUser.uid, fromName:userData.displayName, fromAvatar:userData.avatar||'', postId:postRef.id });
+              } catch(_) {}
+          }
           detectAndNotifyMentions(text, postRef.id);
           document.getElementById("postText").value = "";
           document.getElementById("postMediaUrl").value = "";
+          if (typeof window._snxResetTagStrip === 'function') window._snxResetTagStrip();
           const counter = document.getElementById("postCharCounter");
           if (counter) { counter.textContent = "500 characters left"; counter.className = "post-char-counter"; }
           toastNotification("⚡ Post published! Auto-deletes in 24 hours.");
@@ -5330,6 +5520,7 @@ body::after {
       friendRequest: '🦋 Friend Request',
       friendAccepted:'✅ Friend Request Accepted',
       mention:       '@ You were mentioned',
+      tag:           '🏷️ You were tagged',
       repost:        '🔄 Post Reposted',
       wallPost:      '📝 New Wall Post',
       announcement:  '📢 Announcement',
@@ -5346,6 +5537,7 @@ body::after {
           case 'friendRequest':  return `${name} sent you a friend request`;
           case 'friendAccepted': return `${name} accepted your friend request`;
           case 'mention':        return `${name} mentioned you in a post`;
+          case 'tag':            return `${name} tagged you in a post`;
           case 'repost':         return `${name} reposted your post`;
           case 'wallPost':       return `${name} posted on your wall`;
           case 'announcement':   return notif.body || 'New announcement from admin';
@@ -5977,7 +6169,12 @@ body::after {
           } else if (n.type === 'mention') {
               icon = '@';
               text = `<b>${escFeed(n.fromName)}</b> mentioned you in a post.`;
-              navFn = `navTo('feed')`;
+              navFn = n.postId ? `window._snxScrollToPost&&window._snxScrollToPost('${n.postId}')` : `navTo('feed')`;
+          } else if (n.type === 'tag') {
+              icon = '🏷️';
+              text = `<b>${escFeed(n.fromName)}</b> tagged you in a post.`;
+              navFn = n.postId ? `window._snxScrollToPost&&window._snxScrollToPost('${n.postId}')` : `navTo('feed')`;
+              actHtml = `<div class="notif-actions"><button class="btn-decline" onclick="event.stopPropagation();window.removeTagFromPost&&window.removeTagFromPost('${n.postId||''}','${currentUser?.uid||''}');markNotifRead(${origIdx})">✕ Remove tag</button></div>`;
           } else if (n.type === 'announcement') {
               icon = '📢';
               text = `<b>Admin</b>: ${escFeed(n.body || 'New announcement')}`;
