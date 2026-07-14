@@ -3245,7 +3245,13 @@ body::after {
 }
 </style>
 
-<body>
+<!-- Hide everything until Firebase resolves the auth state.
+     onAuthStateChanged (both branches) removes this class immediately,
+     so logged-in users go straight to the feed with zero login flash,
+     and logged-out users see the login page appear cleanly. -->
+<style> body.snx-auth-pending { visibility: hidden; } </style>
+
+<body class="snx-auth-pending">
 
 <canvas id="bg-canvas"></canvas>
 
@@ -4594,6 +4600,10 @@ body::after {
       }
   });
 
+  // Safety net: if Firebase never resolves (no network, first ever load)
+  // unhide the body after 5s so the user sees the login page.
+  setTimeout(() => document.body.classList.remove('snx-auth-pending'), 5000);
+
   onAuthStateChanged(auth, async (user) => {
       if (user) {
           currentUser = user;
@@ -4659,6 +4669,7 @@ body::after {
               const adminNavBtn = document.getElementById("navAdmin");
               if (adminNavBtn) adminNavBtn.style.display = window._snxRole === 'founder' ? 'flex' : 'none';
           } catch(_) {}
+          document.body.classList.remove('snx-auth-pending');
           navTo('feed');          initTimelineStream();
           presenceUnsubscribe = initPresenceStrip();
           inboxUnsubscribe    = initInboxMonitor();
@@ -4684,6 +4695,7 @@ body::after {
           document.getElementById("menuButton").style.display = "none";
           const _adminBtn = document.getElementById("navAdmin");
           if (_adminBtn) _adminBtn.style.display = "none";
+          document.body.classList.remove('snx-auth-pending');
           show('login');
       }
   });
