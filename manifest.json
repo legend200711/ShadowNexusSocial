@@ -5,7 +5,7 @@
   "start_url": "/ShadowNexusSocial/",
   "scope": "/ShadowNexusSocial/",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "lang": "en-US",
   "theme_color": "#0066FF",
   "background_color": "#000000",

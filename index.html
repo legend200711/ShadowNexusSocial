@@ -3702,18 +3702,6 @@ body::after {
 }
 .arcade-fs-btn:hover, .arcade-fs-btn:active { border-color: #00AEEF; color: #fff; }
 
-/* Rotate hint */
-.arcade-rotate-hint {
-    font-size: 11px;
-    color: #556;
-    text-align: center;
-    flex: 1;
-    padding: 0 6px;
-}
-@media (orientation: landscape) {
-    .arcade-rotate-hint { display: none; }
-}
-
 /* ── On-screen D-Pad ── */
 .arcade-dpad {
     display: grid;
@@ -3794,7 +3782,6 @@ body::after {
         justify-content: center;
         gap: 10px;
     }
-    .arcade-canvas-wrap.snx-fullscreen .arcade-rotate-hint { display: none; }
 }
 </style>
 
@@ -4344,7 +4331,6 @@ body::after {
                                 <button class="arcade-dpad-btn arcade-dpad-right" id="dpadRight" aria-label="Right" ontouchstart="arcadeDpadPress('right')" ontouchend="arcadeDpadRelease('right')" onmousedown="arcadeDpadPress('right')" onmouseup="arcadeDpadRelease('right')">▶</button>
                                 <button class="arcade-dpad-btn arcade-dpad-down"  id="dpadDown"  aria-label="Down"  ontouchstart="arcadeDpadPress('down')"  ontouchend="arcadeDpadRelease('down')"  onmousedown="arcadeDpadPress('down')"  onmouseup="arcadeDpadRelease('down')">▼</button>
                             </div>
-                            <span class="arcade-rotate-hint" id="arcadeRotateHint">↺ Rotate for best experience</span>
                             <button class="arcade-fs-btn" id="arcadeFsBtn" onclick="arcadeToggleFullscreen()" aria-label="Fullscreen">⛶</button>
                         </div>
                     </div>
@@ -9503,17 +9489,12 @@ function arcadeStartGame() {
     else if (ARCADE.currentGame === 'breakout') _breakoutInit();
     else if (ARCADE.currentGame === 'pong')     _pongInit();
 
-    // Show portrait hint immediately if needed
-    if (typeof _arcadeUpdateOrientationHint === 'function') _arcadeUpdateOrientationHint();
 }
 
 // ── Stop / game over ──
 function arcadeStopGame(isFinal) {
     ARCADE.running = false;
     if (ARCADE.rafId) { cancelAnimationFrame(ARCADE.rafId); ARCADE.rafId = null; }
-    // Hide the portrait hint when game is no longer running
-    if (typeof _arcadeUpdateOrientationHint === 'function') _arcadeUpdateOrientationHint();
-
     if (isFinal) {
         const best = ARCADE.bestScores[ARCADE.currentGame];
         if (ARCADE.score > best) {
@@ -9612,21 +9593,14 @@ function arcadeToggleFullscreen() {
     if (!wrap) return;
     const isFs = wrap.classList.toggle('snx-fullscreen');
     if (btn) btn.textContent = isFs ? '✕' : '⛶';
-    // Attempt native fullscreen API
+    // Attempt native fullscreen API (no orientation lock — user keeps their preferred orientation)
     if (isFs) {
         const el = wrap;
         if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
         else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-        // Lock orientation to landscape when going fullscreen
-        if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock('landscape').catch(() => {});
-        }
     } else {
         if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
         else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-        if (screen.orientation && screen.orientation.unlock) {
-            screen.orientation.unlock();
-        }
     }
     // Resize canvas after layout settles
     setTimeout(_arcadeResizeCanvas, 80);
@@ -9662,8 +9636,23 @@ function _arcadeResizeCanvas() {
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     if (rect.width < 10 || rect.height < 10) return;
-    // Keep 400×280 logical resolution — CSS width:100% already scales it via image-rendering
-    // For fullscreen we just let CSS handle scaling; no logical resize needed.
+    // Resize the logical canvas buffer to match its displayed CSS size so
+    // the game never looks stretched or cropped in any orientation.
+    // The games use a fixed 400×280 coordinate space internally; we scale
+    // the buffer to fill the available area while preserving that 10:7 ratio.
+    const TARGET_RATIO = 400 / 280; // ≈ 1.4286
+    let w = Math.round(rect.width);
+    let h = Math.round(rect.height);
+    // Fit inside the available space without distortion
+    if (w / h > TARGET_RATIO) {
+        w = Math.round(h * TARGET_RATIO);
+    } else {
+        h = Math.round(w / TARGET_RATIO);
+    }
+    if (canvas.width !== w || canvas.height !== h) {
+        canvas.width  = w;
+        canvas.height = h;
+    }
 }
 
 /* ════════════════════
