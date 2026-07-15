@@ -2305,9 +2305,12 @@ img.post-media-preview::before {
 #game-player {
     width: 22px; height: 22px; background: #0088ff;
     position: absolute; bottom: 2px; left: 40px;
+    /* Crisp jump arc — ease-in up, ease-out landing */
     transition: bottom 0.16s cubic-bezier(0.33,1,0.68,1);
     border-radius: 4px;
     box-shadow: 0 0 10px rgba(0,140,255,0.7);
+    /* GPU-composited layer avoids layout recalcs on every jump */
+    will-change: bottom;
 }
 .game-obstacle {
     width: 18px; background: #ff3366;
@@ -4579,6 +4582,10 @@ body.arcade-fs-ios body::after { display:none !important; }
     touch-action:none;
     -webkit-tap-highlight-color:transparent;
     image-rendering:auto;
+    /* GPU composite layer — eliminates per-frame rasterisation cost on mobile */
+    will-change:contents;
+    /* Tell the browser this element repaints itself — skip stacking context overhead */
+    contain:strict;
 }
 .arcade-game-controls {
     width:100%; flex-shrink:0;
@@ -11945,8 +11952,11 @@ document.addEventListener("click", (e) => {
    Player: fixed left 40–62px, height 22px, jumps via `bottom` CSS transition.
    Obstacles: spawn at right edge with random height, move left each tick.
    Collision: horizontal + vertical overlap → game over. Tap/Space to restart.
+   Uses rAF + delta-time so speed is consistent across 60 Hz and 120 Hz devices.
 */
-let gameInterval = null, score = 0, bestScore = 0, isJumping = false, gameRunning = false;
+let _miniRaf = null, score = 0, bestScore = 0, isJumping = false, gameRunning = false;
+// Keep gameInterval as alias for legacy references (set to true when running)
+let gameInterval = null;
 
 function triggerGameEngine() {
     const box = document.getElementById("game-container");
@@ -11960,18 +11970,28 @@ function triggerGameEngine() {
     document.getElementById("game-over-msg").style.display = "none";
     document.getElementById("game-player").style.bottom = "2px";
     document.querySelectorAll(".game-obstacle").forEach(o => o.remove());
-    if(gameInterval) { clearInterval(gameInterval); gameInterval = null; }
-    gameRunning = true;
+    if(_miniRaf) { cancelAnimationFrame(_miniRaf); _miniRaf = null; }
+    gameRunning = true; gameInterval = true;
 
     const boxWidth = box.offsetWidth || 400;
+    // Base speed at 60 fps equivalent (px per 16.67 ms frame)
+    const BASE_OBS_SPEED = 5; // px/frame @60fps
+    const SCORE_RATE     = 1 / 16.67; // score points per ms
+    let _lastTs = 0, _spawnAccum = 0;
 
-    gameInterval = setInterval(() => {
-        if (!gameRunning) return;
-        score++;
-        document.getElementById("game-score").textContent = "Score: " + score;
+    function _miniLoop(ts) {
+        if (!gameRunning) { _miniRaf = null; gameInterval = null; return; }
+        _miniRaf = requestAnimationFrame(_miniLoop);
+        const dt = Math.min(ts - (_lastTs || ts), 50); // cap at 50 ms (tab unfocus)
+        _lastTs = ts;
 
-        // Spawn obstacle with variable height for increasing difficulty
-        if (Math.random() > 0.96) {
+        score += SCORE_RATE * dt;
+        document.getElementById("game-score").textContent = "Score: " + Math.floor(score);
+
+        // Spawn obstacle — accumulate time-based probability
+        _spawnAccum += dt;
+        if (_spawnAccum > 400 + Math.random() * 800) { // spawn every ~400-1200 ms
+            _spawnAccum = 0;
             const obs = document.createElement("div");
             obs.className = "game-obstacle";
             obs.style.height = (20 + Math.floor(Math.random() * 26)) + "px"; // 20–45px
@@ -11979,10 +11999,13 @@ function triggerGameEngine() {
             box.appendChild(obs);
         }
 
+        // Speed scales with score (capped): px per ms
+        const obsSpeed = (BASE_OBS_SPEED + Math.floor(score / 200) * 0.5) / 16.67;
+
         // Move obstacles left + collision detection
         document.querySelectorAll(".game-obstacle").forEach(o => {
             let x = parseFloat(o.style.left);
-            x -= 5;
+            x -= obsSpeed * dt;
             o.style.left = x + "px";
             if (x < -20) { o.remove(); return; }
 
@@ -11996,16 +12019,18 @@ function triggerGameEngine() {
             const vOverlap = playerBottom < (obsH + 2);
 
             if (vOverlap) {
-                gameRunning = false;
-                clearInterval(gameInterval); gameInterval = null;
-                if(score > bestScore) bestScore = score;
+                gameRunning = false; gameInterval = null;
+                cancelAnimationFrame(_miniRaf); _miniRaf = null;
+                const finalScore = Math.floor(score);
+                if(finalScore > bestScore) bestScore = finalScore;
                 document.getElementById("game-best").textContent      = "Best: " + bestScore;
-                document.getElementById("goScoreText").textContent    = "Score: " + score;
+                document.getElementById("goScoreText").textContent    = "Score: " + finalScore;
                 document.getElementById("game-over-msg").style.display = "flex";
                 document.getElementById("game-hint").style.display    = "none";
             }
         });
-    }, 30);
+    }
+    _miniRaf = requestAnimationFrame(_miniLoop);
 }
 
 function jump() {
@@ -15212,6 +15237,7 @@ let _arcadeResizeTimer = null;
 function _arcadeHandleResize() {
   if (!_arcadeCurrentGame) return;
   if (_arcadeResizeTimer) clearTimeout(_arcadeResizeTimer);
+  // 60 ms is enough for most browsers to finish the layout reflow after resize/orientation
   _arcadeResizeTimer = setTimeout(() => {
     const wrap = document.querySelector('.arcade-game-canvas-wrap');
     if (!wrap || !_arcadeCurrentGame) return;
@@ -15227,7 +15253,7 @@ function _arcadeHandleResize() {
       document.getElementById('arcadeGameOver').classList.remove('show');
       _startGame(_arcadeCurrentGame);
     }
-  }, 120);
+  }, 60);
 }
 
 /* Centralised game starter — avoids duplicating the switch everywhere */
@@ -15544,15 +15570,16 @@ window.challengeToGame = async function(targetUid, targetName) {
 
 /* ── Hold-repeat helper for D-pad buttons ──
    Fires the action immediately on touchstart/mousedown,
-   then repeats after a 300 ms delay at ~10 Hz while held. */
+   then repeats after a 160 ms initial delay at ~16 Hz while held.
+   Shorter delay + faster repeat = snappier feel on mobile, matching PC responsiveness. */
 let _dpadHoldTimer = null, _dpadHoldInterval = null;
 function _dpadStart(dir, btn) {
   _dpadCancel();
   _arcadeDpad(dir);
   if (btn) btn.classList.add('pressed');
   _dpadHoldTimer = setTimeout(() => {
-    _dpadHoldInterval = setInterval(() => _arcadeDpad(dir), 90);
-  }, 280);
+    _dpadHoldInterval = setInterval(() => _arcadeDpad(dir), 60);
+  }, 160);
 }
 function _dpadCancel(btn) {
   if (_dpadHoldTimer)    { clearTimeout(_dpadHoldTimer);  _dpadHoldTimer = null; }
@@ -15708,7 +15735,8 @@ function _cvXY(e) {
    ═══════════════════════════════════════════════════════════ */
 function _snakeInit() {
   const cv  = document.getElementById('arcadeGameCanvas');
-  const ctx = cv.getContext('2d');
+  // alpha:false → browser skips compositing the transparent layer; faster on mobile
+  const ctx = cv.getContext('2d', { alpha: false });
   const SZ  = 20;
   const COLS = Math.floor(cv.width  / SZ);
   const ROWS = Math.floor(cv.height / SZ);
@@ -15733,7 +15761,8 @@ function _snakeInit() {
       const dx = t.clientX - _swipeStart.x;
       const dy = t.clientY - _swipeStart.y;
       _swipeStart = null;
-      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return; // tap — ignore
+      // 20 px threshold — large enough for fat fingers, small enough to be responsive
+      if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return; // short tap — ignore
       if (Math.abs(dx) > Math.abs(dy)) {
         s.onKey(dx > 0 ? 'right' : 'left');
       } else {
@@ -15799,7 +15828,7 @@ function _snakeFood(cols, rows) {
    ═══════════════════════════════════════════════════════════ */
 function _tetrisInit() {
   const cv  = document.getElementById('arcadeGameCanvas');
-  const ctx = cv.getContext('2d');
+  const ctx = cv.getContext('2d', { alpha: false });
   const COLS=10, ROWS=20;
   const SZ = Math.min(Math.floor(cv.width/COLS), Math.floor(cv.height/ROWS));
   const OX = Math.floor((cv.width  - COLS*SZ)/2);
@@ -15902,7 +15931,8 @@ function _tetrisInit() {
       const dx = t.clientX - _tSwipe.x;
       const dy = t.clientY - _tSwipe.y;
       _tSwipe = null;
-      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+      // 20 px threshold — distinguishes intentional swipes from accidental taps
+      if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
         // short tap = hard drop
         s.onKey('space');
         return;
@@ -15933,21 +15963,24 @@ function _tetrisInit() {
 
 /* ═══════════════════════════════════════════════════════════
    GAME 3 — PONG
+   Delta-time physics so ball speed is identical on 60 Hz and 120 Hz devices.
    ═══════════════════════════════════════════════════════════ */
 function _pongInit() {
   const cv  = document.getElementById('arcadeGameCanvas');
-  const ctx = cv.getContext('2d');
+  const ctx = cv.getContext('2d', { alpha: false });
   const W=cv.width, H=cv.height;
-  const PH=80, PW=12, SPEED=5.75;
+  const PH=80, PW=12;
+  // All speeds in px per second — dt scaling makes them display-rate independent
+  const PADDLE_SPEED = 345;   // px/s player paddle keyboard speed
+  const BALL_VX0     = 276;   // px/s initial ball horizontal speed (≈4.6 px/frame @60fps)
+  const BALL_VY0     = 221;   // px/s initial ball vertical speed
   const s = {
-    ball:{x:W/2,y:H/2,vx:4.6,vy:3.68},
+    ball:{x:W/2,y:H/2,vx:BALL_VX0,vy:BALL_VY0},
     p1:{y:H/2-PH/2}, p2:{y:H/2-PH/2},
     score:[0,0], up:false, down:false,
     onKey(dir){
-      // Both keyboard hold (continuous) and dpad hold-repeat (discrete) work:
-      // keyboard sets flags; the hold-repeat already calls onKey repeatedly
-      if(dir==='up')   { s.up=true;  s.p1.y=Math.max(0,    s.p1.y-SPEED*2); }
-      if(dir==='down') { s.down=true; s.p1.y=Math.min(H-PH, s.p1.y+SPEED*2); }
+      if(dir==='up')   { s.up=true;  s.p1.y=Math.max(0,    s.p1.y-PADDLE_SPEED/10); }
+      if(dir==='down') { s.down=true; s.p1.y=Math.min(H-PH, s.p1.y+PADDLE_SPEED/10); }
     }
   };
   const _pongKeyup = e=>{
@@ -15955,7 +15988,6 @@ function _pongInit() {
     if(e.key==='ArrowDown'||e.key==='s') s.down=false;
   };
   document.addEventListener('keyup', _pongKeyup);
-  // Store cleanup fn so _removeGameListeners can call it
   s._cleanup = () => document.removeEventListener('keyup', _pongKeyup);
   // Mouse drag on canvas for desktop
   s.onMousedown = ()=>{ s._drag=true; };
@@ -15965,7 +15997,7 @@ function _pongInit() {
     const pos = _cvXY(e);
     s.p1.y = Math.max(0, Math.min(H-PH, pos.y - PH/2));
   };
-  // Touch: finger directly controls paddle — no drag flag needed
+  // Touch: finger directly controls paddle — no drag flag needed, always responsive
   s.onTouchstart = s.onTouchmove = (e)=>{
     const pos = _cvXY(e);
     s.p1.y = Math.max(0, Math.min(H-PH, pos.y - PH/2));
@@ -15973,28 +16005,31 @@ function _pongInit() {
   _arcadeGameState = s;
   _attachGameListeners();
 
-  function loop() {
+  let _prevTs = 0;
+  function loop(ts) {
     _arcadeRAF = requestAnimationFrame(loop);
-    // Player input
-    if(s.up)   s.p1.y = Math.max(0,    s.p1.y - SPEED);
-    if(s.down) s.p1.y = Math.min(H-PH, s.p1.y + SPEED);
-    // Simple AI
+    const dt = Math.min((ts - (_prevTs || ts)) / 1000, 0.05); // seconds, capped at 50ms
+    _prevTs = ts;
+    // Player keyboard input (dt-scaled)
+    if(s.up)   s.p1.y = Math.max(0,    s.p1.y - PADDLE_SPEED * dt);
+    if(s.down) s.p1.y = Math.min(H-PH, s.p1.y + PADDLE_SPEED * dt);
+    // Simple AI (dt-scaled, same speed target)
     const aiTarget = s.ball.y - PH/2;
-    s.p2.y += (aiTarget - s.p2.y) * 0.08;
+    s.p2.y += (aiTarget - s.p2.y) * Math.min(1, 4.8 * dt);
     s.p2.y = Math.max(0, Math.min(H-PH, s.p2.y));
-    // Ball move
-    s.ball.x += s.ball.vx; s.ball.y += s.ball.vy;
+    // Ball move (dt-scaled)
+    s.ball.x += s.ball.vx * dt; s.ball.y += s.ball.vy * dt;
     // Top/bottom bounce
     if(s.ball.y<=6||s.ball.y>=H-6) s.ball.vy*=-1;
     // Player paddle (left)
     if(s.ball.x<=PW+14 && s.ball.y>=s.p1.y && s.ball.y<=s.p1.y+PH) {
       s.ball.vx=Math.abs(s.ball.vx)*1.04;
-      s.ball.vy+=(s.ball.y-(s.p1.y+PH/2))*0.07;
+      s.ball.vy+=(s.ball.y-(s.p1.y+PH/2))*4.2;
     }
     // AI paddle (right)
     if(s.ball.x>=W-PW-14 && s.ball.y>=s.p2.y && s.ball.y<=s.p2.y+PH) {
       s.ball.vx=-Math.abs(s.ball.vx)*1.02;
-      s.ball.vy+=(s.ball.y-(s.p2.y+PH/2))*0.07;
+      s.ball.vy+=(s.ball.y-(s.p2.y+PH/2))*4.2;
     }
     // Score
     if(s.ball.x<0) { s.score[1]++; _reset(); }
@@ -16023,7 +16058,7 @@ function _pongInit() {
     ctx.fillText(s.score[1], 3*W/4, 40);
   }
   function _reset() {
-    s.ball={x:W/2,y:H/2, vx:(Math.random()>0.5?1:-1)*4.6, vy:(Math.random()-0.5)*5.75};
+    s.ball={x:W/2,y:H/2, vx:(Math.random()>0.5?1:-1)*BALL_VX0, vy:(Math.random()-0.5)*BALL_VY0*2};
   }
   _arcadeRAF = requestAnimationFrame(loop);
 }
@@ -16033,7 +16068,7 @@ function _pongInit() {
    ═══════════════════════════════════════════════════════════ */
 function _tttInit() {
   const cv  = document.getElementById('arcadeGameCanvas');
-  const ctx = cv.getContext('2d');
+  const ctx = cv.getContext('2d', { alpha: false });
   const W=cv.width, H=cv.height;
   const SZ=Math.min(W,H)*0.8, OX=(W-SZ)/2, OY=(H-SZ)/2, CS=SZ/3;
   const s = { board:Array(9).fill(0), turn:1, over:false, wins:0, losses:0 };
@@ -16061,7 +16096,7 @@ function _tttInit() {
       if(w2){ s.over=true; s.losses++; drawBoard(); _gameOver(s.wins*100); return; }
       if(s.board.every(v=>v)){ s.over=true; drawBoard(); _gameOver(s.wins*100); return; }
       s.turn=1; drawBoard();
-    },330);
+    }, 180);
   };
   s.onTouchend = s.onClick;
 
@@ -16129,7 +16164,7 @@ function _tttAI(s) {
    GAME 5 — CONNECT FOUR
    ═══════════════════════════════════════════════════════════ */
 function _c4Init() {
-  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d');
+  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d', { alpha: false });
   const W=cv.width, H=cv.height, COLS=7, ROWS=6;
   const SZ=Math.min(Math.floor((W-20)/COLS), Math.floor((H-40)/ROWS));
   const OX=Math.floor((W-COLS*SZ)/2), OY=Math.floor((H-ROWS*SZ)/2)+20;
@@ -16145,7 +16180,7 @@ function _c4Init() {
     if(_c4Check(s.board,1)){s.over=true;s.wins++;_setScore(s.wins*200);draw();_gameOver(s.wins*200);return;}
     if(s.board[0].every(v=>v)){s.over=true;draw();_gameOver(s.wins*200);return;}
     s.turn=2; draw();
-    setTimeout(()=>{ _c4AI(s); draw(); },305);
+    setTimeout(()=>{ _c4AI(s); draw(); }, 175);
   };
 
   function draw(){
@@ -16205,7 +16240,7 @@ function _c4AI(s){
    GAME 6 — MEMORY MATCH
    ═══════════════════════════════════════════════════════════ */
 function _memoryInit(){
-  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d');
+  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d', { alpha: false });
   const W=cv.width, H=cv.height;
   const ICONS=['🐱','🐸','🦊','🐼','🦋','🌙','⚡','🔥'];
   const cards=[...ICONS,...ICONS].sort(()=>Math.random()-0.5).map((v,i)=>({v,i,flipped:false,matched:false}));
@@ -16266,7 +16301,7 @@ function _memoryInit(){
    GAME 7 — CHECKERS (draughts)
    ═══════════════════════════════════════════════════════════ */
 function _checkersInit(){
-  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d');
+  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d', { alpha: false });
   const W=cv.width, H=cv.height, N=8;
   const SZ=Math.min(Math.floor(W/N),Math.floor(H/N));
   const OX=Math.floor((W-N*SZ)/2), OY=Math.floor((H-N*SZ)/2);
@@ -16294,7 +16329,7 @@ function _checkersInit(){
         if(r===0) s.board[r][c]=3; // king
         s.score+=mv.cap?20:5; _setScore(s.score);
         s.sel=null; s.turn=2; draw();
-        setTimeout(()=>{ _chkAI(s); draw(); },348);
+        setTimeout(()=>{ _chkAI(s); draw(); }, 200);
       } else if((s.board[r][c]===1||s.board[r][c]===3)&&(r!==s.sel.r||c!==s.sel.c)){
         s.sel={r,c};
       } else s.sel=null;
@@ -16369,7 +16404,7 @@ function _chkAI(s){
    GAME 8 — CHESS (simplified — legal moves + AI)
    ═══════════════════════════════════════════════════════════ */
 function _chessInit(){
-  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d');
+  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d', { alpha: false });
   const W=cv.width, H=cv.height, N=8;
   const SZ=Math.min(Math.floor(W/N), Math.floor(H/N));
   const OX=Math.floor((W-N*SZ)/2), OY=Math.floor((H-N*SZ)/2);
@@ -16403,7 +16438,7 @@ function _chessInit(){
         const capVal={p:10,r:50,n:30,b:30,q:90}[captured[1]]||0;
         s.score+=capVal; _setScore(s.score);
         s.sel=null; s.moves=[]; s.turn='b'; draw();
-        setTimeout(()=>{ _chessAI(s); draw(); },435);
+        setTimeout(()=>{ _chessAI(s); draw(); }, 220);
       } else {
         s.sel=null; s.moves=[];
         if(board[r][c]&&board[r][c][0]==='w'){ s.sel={r,c}; s.moves=_chessMoves(board,r,c,'w'); }
@@ -16481,11 +16516,14 @@ function _chessAI(s){
 
 /* ═══════════════════════════════════════════════════════════
    GAME 9 — POOL (top-down billiards)
+   Delta-time physics ensures consistent ball speed on all refresh rates.
    ═══════════════════════════════════════════════════════════ */
 function _poolInit(){
-  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d');
+  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d', { alpha: false });
   const W=cv.width, H=cv.height;
-  const FRICTION=0.988, POCKET_R=18, BALL_R=10;
+  // FRICTION is per-second; per-frame value derived as FRICTION^(dt*60)
+  const FRICTION_PS=0.988, POCKET_R=18, BALL_R=10;
+  const FRICTION = FRICTION_PS; // kept for readability; applied per-frame with dt below
   const pockets=[
     {x:POCKET_R,y:POCKET_R},{x:W/2,y:POCKET_R/2},{x:W-POCKET_R,y:POCKET_R},
     {x:POCKET_R,y:H-POCKET_R},{x:W/2,y:H-POCKET_R/2},{x:W-POCKET_R,y:H-POCKET_R},
@@ -16508,11 +16546,15 @@ function _poolInit(){
   let balls=initBalls(), score=0, shots=0;
   let aim=null; // {sx,sy} start of drag
 
+  // Increase cue-ball touch hit-zone radius on mobile for easier aiming
+  const _isMobile = window.matchMedia('(pointer: coarse)').matches;
+  const _cueHitR  = _isMobile ? 56 : 30; // larger tap target on touch devices
+
   const s={
     onMousedown(e){const p=_cvXY(e);if(balls[0]&&!balls[0].pocketed&&_dist(p,balls[0])<30)aim={sx:p.x,sy:p.y,ex:p.x,ey:p.y};},
     onMousemove(e){if(aim){const p=_cvXY(e);aim.ex=p.x;aim.ey=p.y;}},
     onMouseup(e){if(aim){const p=_cvXY(e);aim.ex=p.x;aim.ey=p.y;_shoot();aim=null;}},
-    onTouchstart(e){const p=_cvXY(e);if(balls[0]&&!balls[0].pocketed&&_dist(p,balls[0])<40)aim={sx:p.x,sy:p.y,ex:p.x,ey:p.y};},
+    onTouchstart(e){const p=_cvXY(e);if(balls[0]&&!balls[0].pocketed&&_dist(p,balls[0])<_cueHitR)aim={sx:p.x,sy:p.y,ex:p.x,ey:p.y};},
     onTouchmove(e){if(aim){const p=_cvXY(e);aim.ex=p.x;aim.ey=p.y;}},
     onTouchend(e){if(aim){const p=_cvXY(e);aim.ex=p.x;aim.ey=p.y;_shoot();aim=null;}},
   };
@@ -16522,17 +16564,24 @@ function _poolInit(){
   function _shoot(){
     if(!balls[0]||balls[0].pocketed)return;
     const dx=aim.sx-aim.ex, dy=aim.sy-aim.ey;
-    const pow=Math.min(Math.hypot(dx,dy)*0.207,16.1);
+    // Scale shot power relative to canvas width so it feels the same on any screen size
+    const maxPow = W * 0.055;
+    const pow=Math.min(Math.hypot(dx,dy)*(maxPow/W)*1.2, maxPow);
     balls[0].vx=dx/Math.hypot(dx,dy)*pow; balls[0].vy=dy/Math.hypot(dx,dy)*pow;
     shots++;
   }
 
-  function loop(){
+  let _poolPrevTs = 0;
+  function loop(ts){
     _arcadeRAF=requestAnimationFrame(loop);
+    const dt60 = Math.min((ts - (_poolPrevTs || ts)) / 16.667, 3); // frames elapsed at 60fps
+    _poolPrevTs = ts;
+    // Per-frame friction adjusted for dt so slow-down rate matches 60 fps on any display
+    const frameFriction = Math.pow(FRICTION_PS, dt60);
     // Physics
     balls.forEach(b=>{
       if(b.pocketed)return;
-      b.x+=b.vx; b.y+=b.vy; b.vx*=FRICTION; b.vy*=FRICTION;
+      b.x+=b.vx*dt60; b.y+=b.vy*dt60; b.vx*=frameFriction; b.vy*=frameFriction;
       if(Math.abs(b.vx)<0.05) b.vx=0; if(Math.abs(b.vy)<0.05) b.vy=0;
       // Wall bounce
       if(b.x<BALL_R){b.x=BALL_R;b.vx*=-0.8;} if(b.x>W-BALL_R){b.x=W-BALL_R;b.vx*=-0.8;}
@@ -16581,9 +16630,10 @@ function _poolInit(){
 
 /* ═══════════════════════════════════════════════════════════
    GAME 10 — BREAKOUT
+   Delta-time physics ensures consistent speed on 60 Hz and 120 Hz displays.
    ═══════════════════════════════════════════════════════════ */
 function _breakoutInit(){
-  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d');
+  const cv=document.getElementById('arcadeGameCanvas'), ctx=cv.getContext('2d', { alpha: false });
   const W=cv.width, H=cv.height;
   const PAD_W=90, PAD_H=12, BALL_R=8;
   const COLS=10, ROWS=5, BR_W=Math.floor((W-20)/COLS)-4, BR_H=18;
@@ -16592,11 +16642,15 @@ function _breakoutInit(){
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
     bricks.push({x:10+c*(BR_W+4),y:40+r*(BR_H+4),alive:true,col:colors[r]});
   }
-  let pad={x:W/2-PAD_W/2,y:H-30}, ball={x:W/2,y:H-50,vx:4.6,vy:-5.18}, score=0, lives=3;
-  let mousePad=null;
+  // Speeds in px/s; dt scaling makes them display-rate independent
+  const BALL_VX0=276, BALL_VY0=-311; // ≈4.6 and -5.18 px/frame @60fps
+  const PAD_KEY_SPD=1500; // px/s when using keyboard/d-pad
+  let pad={x:W/2-PAD_W/2,y:H-30}, ball={x:W/2,y:H-50,vx:BALL_VX0,vy:BALL_VY0}, score=0, lives=3;
 
   const s={
     onMousemove(e){const p=_cvXY(e);pad.x=Math.max(0,Math.min(W-PAD_W,p.x-PAD_W/2));},
+    // Touchstart also moves paddle for instant response (no waiting for touchmove)
+    onTouchstart(e){const p=_cvXY(e);pad.x=Math.max(0,Math.min(W-PAD_W,p.x-PAD_W/2));},
     onTouchmove(e){const p=_cvXY(e);pad.x=Math.max(0,Math.min(W-PAD_W,p.x-PAD_W/2));},
     onKey(dir){
       if(dir==='left')  pad.x=Math.max(0,pad.x-25);
@@ -16605,16 +16659,19 @@ function _breakoutInit(){
   };
   _arcadeGameState=s; _attachGameListeners();
 
-  function loop(){
+  let _brkPrevTs=0;
+  function loop(ts){
     _arcadeRAF=requestAnimationFrame(loop);
-    ball.x+=ball.vx; ball.y+=ball.vy;
+    const dt=Math.min((ts-(_brkPrevTs||ts))/1000, 0.05); // seconds, capped 50ms
+    _brkPrevTs=ts;
+    ball.x+=ball.vx*dt; ball.y+=ball.vy*dt;
     if(ball.x<=BALL_R||ball.x>=W-BALL_R) ball.vx*=-1;
     if(ball.y<=BALL_R) ball.vy=Math.abs(ball.vy);
-    if(ball.y>H){lives--;_setScore(score);if(!lives){_gameOver(score);return;}ball={x:W/2,y:H-50,vx:4.6,vy:-5.18};}
+    if(ball.y>H){lives--;_setScore(score);if(!lives){_gameOver(score);return;}ball={x:W/2,y:H-50,vx:BALL_VX0,vy:BALL_VY0};}
     // Paddle
     if(ball.y+BALL_R>=pad.y&&ball.y<pad.y+PAD_H&&ball.x>=pad.x&&ball.x<=pad.x+PAD_W){
       ball.vy=-Math.abs(ball.vy);
-      ball.vx=((ball.x-(pad.x+PAD_W/2))/(PAD_W/2))*6.9;
+      ball.vx=((ball.x-(pad.x+PAD_W/2))/(PAD_W/2))*414; // 414 px/s ≈6.9 px/frame @60fps
     }
     // Bricks
     bricks.forEach(b=>{
@@ -16704,7 +16761,7 @@ window._arcadeRenderProfileSection = async function(targetUid, containerEl) {
    ───────────────────────────────────────────── */
 window.addEventListener('orientationchange', () => {
   if (!_arcadeCurrentGame) return;
-  // Wait for the browser to finish rotating (OS animation + layout reflow)
+  // 250 ms covers most device OS rotation animations + layout reflow
   setTimeout(() => {
     // Use the full wrap — no artificial size cap so landscape gets full width
     const wrap = document.querySelector('.arcade-game-canvas-wrap');
@@ -16718,7 +16775,7 @@ window.addEventListener('orientationchange', () => {
     _removeGameListeners();
     document.getElementById('arcadeGameOver').classList.remove('show');
     _startGame(_arcadeCurrentGame);
-  }, 350);
+  }, 250);
 });
 
 /* Expose open function for nav item */
