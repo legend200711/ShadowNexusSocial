@@ -4754,10 +4754,11 @@ body::after {
   } catch(_) { /* browser may not support SW messaging */ }
 
   // ── Expose Firestore helpers to non-module scripts ──
-  window._snxDb         = db;
-  window._snxDoc        = doc;
-  window._snxGetDoc     = getDoc;
-  window._snxUpdateDoc  = updateDoc;
+  window._snxDb                = db;
+  window._snxDoc               = doc;
+  window._snxGetDoc            = getDoc;
+  window._snxUpdateDoc         = updateDoc;
+  window._snxPushNotification  = (...a) => pushNotification(...a);
 
   // ── VAPID public key for FCM web push ──
   // Generate your own at: Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
@@ -5042,6 +5043,7 @@ body::after {
           userDataUnsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
               if (!docSnap.exists()) return;
               userData = docSnap.data();
+              window._snxUserData = userData;
               // Founder email always takes priority — never let Firestore override it
               const isFounderEmail = user.email && user.email.toLowerCase() === FOUNDER_EMAIL.toLowerCase();
               if (!isFounderEmail) {
@@ -9053,20 +9055,21 @@ window.addEventListener('message', (e) => {
     }
     const scoreBest = document.getElementById('arcadeScoreBest');
     if (scoreBest) scoreBest.textContent = 'Best: ' + best;
-    if (typeof currentUser !== 'undefined' && currentUser && typeof db !== 'undefined') {
+    if (window._snxCurrentUser && window._snxDb) {
         saveArcadeScore(_arcadeCurrentGame, val);
     }
 });
 
 async function saveArcadeScore(gameKey, value) {
     try {
-        if (!currentUser || value <= 0) return;
-        const userRef = doc(db, 'users', currentUser.uid);
-        const snap = await getDoc(userRef);
+        const cu = window._snxCurrentUser;
+        if (!cu || value <= 0) return;
+        const userRef = window._snxDoc(window._snxDb, 'users', cu.uid);
+        const snap = await window._snxGetDoc(userRef);
         if (!snap.exists()) return;
         const existing = snap.data().arcadeScores || {};
         if ((existing[gameKey] || 0) >= value) return;
-        await updateDoc(userRef, { [`arcadeScores.${gameKey}`]: value });
+        await window._snxUpdateDoc(userRef, { [`arcadeScores.${gameKey}`]: value });
         if (_arcadeActiveProfileUid) loadArcadeLeaderboard(_arcadeActiveProfileUid, gameKey);
     } catch(_) {}
 }
@@ -9075,12 +9078,12 @@ async function loadArcadeLeaderboard(profileUid, gameKey) {
     const box = document.getElementById('arcadeLeaderboard');
     if (!box) return;
     try {
-        const ownerSnap = await getDoc(doc(db, 'users', profileUid));
+        const ownerSnap = await window._snxGetDoc(window._snxDoc(window._snxDb, 'users', profileUid));
         if (!ownerSnap.exists()) return;
         const ownerData = ownerSnap.data();
         const pool = [profileUid, ...(ownerData.friends || [])];
         const uids = [...new Set(pool)].slice(0, 10);
-        const snaps = await Promise.all(uids.map(u => getDoc(doc(db, 'users', u))));
+        const snaps = await Promise.all(uids.map(u => window._snxGetDoc(window._snxDoc(window._snxDb, 'users', u))));
         const rows = snaps
             .filter(s => s.exists())
             .map(s => { const d = s.data(); return { uid: s.id, name: d.displayName || d.username || '?', avatar: d.avatar || '', score: (d.arcadeScores || {})[gameKey] || 0 }; })
@@ -9104,8 +9107,8 @@ function initProfileArcade(profileUid, isSelf) {
     if (challengeBtn) challengeBtn.style.display = isSelf ? 'none' : '';
     const firstTab = document.querySelector('.arcade-tab');
     if (firstTab) switchArcadeGame('runner', firstTab);
-    if (isSelf && typeof userData !== 'undefined' && userData.arcadeScores) {
-        Object.assign(_arcadeBestScores, userData.arcadeScores);
+    if (isSelf && window._snxUserData && window._snxUserData.arcadeScores) {
+        Object.assign(_arcadeBestScores, window._snxUserData.arcadeScores);
         const sb = document.getElementById('arcadeScoreBest');
         if (sb && _arcadeBestScores['runner']) sb.textContent = 'Best: ' + _arcadeBestScores['runner'];
     }
@@ -9122,12 +9125,14 @@ function closeArcadeChallenge() {
     document.getElementById('arcadeChallengeModal').classList.remove('open');
 }
 async function sendArcadeChallenge() {
-    if (!_arcadeChallengeTargetUid || typeof currentUser === 'undefined' || !currentUser) return;
+    const cu = window._snxCurrentUser;
+    const ud = window._snxUserData;
+    if (!_arcadeChallengeTargetUid || !cu || !ud) return;
     const gameKey = document.getElementById('challengeGameSelect').value;
     const myScore = (_arcadeBestScores[gameKey] || 0);
     const gameName = { runner:'Runner', breakout:'Breakout', memory:'Memory Match', reaction:'Reaction Grid' }[gameKey] || gameKey;
     try {
-        await pushNotification(_arcadeChallengeTargetUid, { type:'arcadeChallenge', fromUid:currentUser.uid, fromName:userData.displayName, fromAvatar:userData.avatar||'', game:gameKey, gameName, score:myScore, body:`${userData.displayName} challenged you to beat ${myScore} in ${gameName}! 🕹️` });
+        await window._snxPushNotification(_arcadeChallengeTargetUid, { type:'arcadeChallenge', fromUid:cu.uid, fromName:ud.displayName, fromAvatar:ud.avatar||'', game:gameKey, gameName, score:myScore, body:`${ud.displayName} challenged you to beat ${myScore} in ${gameName}! 🕹️` });
         closeArcadeChallenge();
         toastNotification(`⚔️ Challenge sent! Your best in ${gameName}: ${myScore}`);
     } catch(e) { toastNotification('Could not send challenge.'); }
