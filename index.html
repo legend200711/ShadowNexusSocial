@@ -4885,32 +4885,11 @@ body::after {
         </div>
     </div>
 
-    <!-- ── Family Section ── -->
-    <div id="profileFamilySection" data-section-id="family" style="display:none;">
-        <div class="profile-family-section">
-            <div class="profile-family-header">
-                <span class="profile-family-title">❤️ Family</span>
-                <span class="profile-family-privacy-badge" id="familyPrivacyBadge" title="Click to change visibility (owner only)">🌐 Public</span>
-            </div>
-            <div class="profile-family-list" id="profileFamilyList"></div>
-            <button class="profile-family-invite-btn" id="btnSendFamilyInvite" style="display:none;" onclick="openFamilyInviteModal()">+ Send Family Invitation</button>
-        </div>
-    </div>
-
-    <!-- ── Friends Section ── -->
-    <div id="profileFriendsSection" data-section-id="friends-list" style="display:none;">
-        <div class="profile-friends-section">
-            <div class="profile-friends-header">
-                <span class="profile-friends-title">👥 Friends</span>
-                <span class="profile-friends-privacy-badge" id="friendsListPrivacyBadge" title="Click to change visibility (owner only)">🌐 Public</span>
-            </div>
-            <div class="profile-friends-list" id="profileFriendsList"></div>
-        </div>
-    </div>
-
     <!-- ── Profile tabs ── -->
     <div class="profile-tabs">
         <button class="tab-btn active" id="tabWallLink" onclick="switchProfileTab('wall')">📝 Wall</button>
+        <button class="tab-btn" id="tabFamilyLink" onclick="switchProfileTab('family')">❤️ Family</button>
+        <button class="tab-btn" id="tabFriendsLink" onclick="switchProfileTab('friends')">👥 Friends</button>
         <button class="tab-btn" id="tabMessagesLink" onclick="switchProfileTab('messages')" style="display:none;">💬 Message</button>
     </div>
 
@@ -4921,6 +4900,33 @@ body::after {
             <div id="wallInputRow" style="display:flex;gap:8px;margin-top:10px;align-items:center;">
                 <input id="wallInput" placeholder="Write on this wall…" style="flex:1;margin:0;" maxlength="300">
                 <button id="btnWallSubmit" style="flex-shrink:0;">Post</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Family tab -->
+    <div id="tabContentFamily" style="display:none;">
+        <div id="profileFamilySection" data-section-id="family">
+            <div class="profile-family-section">
+                <div class="profile-family-header">
+                    <span class="profile-family-title">❤️ Family</span>
+                    <span class="profile-family-privacy-badge" id="familyPrivacyBadge" title="Click to change visibility (owner only)">🌐 Public</span>
+                </div>
+                <div class="profile-family-list" id="profileFamilyList"></div>
+                <button class="profile-family-invite-btn" id="btnSendFamilyInvite" style="display:none;" onclick="openFamilyInviteModal()">+ Send Family Invitation</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Friends tab -->
+    <div id="tabContentFriendsList" style="display:none;">
+        <div id="profileFriendsSection" data-section-id="friends-list">
+            <div class="profile-friends-section">
+                <div class="profile-friends-header">
+                    <span class="profile-friends-title">👥 Friends</span>
+                    <span class="profile-friends-privacy-badge" id="friendsListPrivacyBadge" title="Click to change visibility (owner only)">🌐 Public</span>
+                </div>
+                <div class="profile-friends-list" id="profileFriendsList"></div>
             </div>
         </div>
     </div>
@@ -10697,18 +10703,27 @@ function toastNotification(msg) {
 }
 function switchProfileTab(t) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    ['tabContentWall','tabContentMessages'].forEach(id => {
+    ['tabContentWall','tabContentFamily','tabContentFriendsList','tabContentMessages'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });
     if (t === 'wall') {
-        document.getElementById('tabWallLink').classList.add('active');
+        const tl = document.getElementById('tabWallLink');
+        if (tl) tl.classList.add('active');
         document.getElementById('tabContentWall').style.display = 'block';
+    } else if (t === 'family') {
+        const tl = document.getElementById('tabFamilyLink');
+        if (tl) tl.classList.add('active');
+        const el = document.getElementById('tabContentFamily');
+        if (el) el.style.display = 'block';
+    } else if (t === 'friends') {
+        const tl = document.getElementById('tabFriendsLink');
+        if (tl) tl.classList.add('active');
+        const el = document.getElementById('tabContentFriendsList');
+        if (el) el.style.display = 'block';
     } else if (t === 'messages') {
-        // Messages tab is now handled by the modal — just mark the tab active
         const tl = document.getElementById('tabMessagesLink');
         if (tl) { tl.classList.add('active'); tl.style.display = ''; }
-        // Focus the modal input if it's open
         setTimeout(() => {
             const inp = document.getElementById('ipcModalInput');
             if (inp && !inp.disabled) inp.focus();
@@ -11152,22 +11167,32 @@ function switchFriendsTab(tab) {
 
 /* ── Profile Family & Friends section loaders ── */
 async function snxLoadFamilySection(profileUid, isSelf) {
-    const section  = document.getElementById("profileFamilySection");
-    const listEl   = document.getElementById("profileFamilyList");
+    const listEl    = document.getElementById("profileFamilyList");
     const inviteBtn = document.getElementById("btnSendFamilyInvite");
-    const badgeEl  = document.getElementById("familyPrivacyBadge");
-    if (!section || !listEl) return;
-    listEl.innerHTML = '';
+    const badgeEl   = document.getElementById("familyPrivacyBadge");
+    const tabBtn    = document.getElementById("tabFamilyLink");
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="empty-state" style="padding:14px 0;font-size:12px;color:#3a5a7a;">Loading…</div>';
     try {
         const snap = await getDoc(doc(db, 'users', profileUid));
-        if (!snap.exists()) { section.style.display = 'none'; return; }
+        if (!snap.exists()) { listEl.innerHTML = ''; return; }
         const p = snap.data();
         const familyUids = p.family || [];
         const privacyMap = { public:'🌐 Public', friends:'🦋 Friends', private:'🔒 Private' };
         const familyPrivacy = p.privacySettings?.familyList || 'public';
         const isFriend = (userData?.friends||[]).includes(profileUid);
-        if (familyPrivacy === 'private' && !isSelf) { section.style.display = 'none'; return; }
-        if (familyPrivacy === 'friends' && !isSelf && !isFriend) { section.style.display = 'none'; return; }
+
+        // Update tab label with count
+        if (tabBtn) tabBtn.textContent = `❤️ Family${familyUids.length ? ` (${familyUids.length})` : ''}`;
+
+        // Privacy gate
+        if (familyPrivacy === 'private' && !isSelf) {
+            listEl.innerHTML = '<div class="empty-state" style="padding:14px 0;font-size:12px;color:#3a5a7a;">🔒 Private</div>'; return;
+        }
+        if (familyPrivacy === 'friends' && !isSelf && !isFriend) {
+            listEl.innerHTML = '<div class="empty-state" style="padding:14px 0;font-size:12px;color:#3a5a7a;">🦋 Friends only</div>'; return;
+        }
+
         if (badgeEl) {
             badgeEl.textContent = privacyMap[familyPrivacy] || '🌐 Public';
             if (isSelf) {
@@ -11183,48 +11208,70 @@ async function snxLoadFamilySection(profileUid, isSelf) {
             } else { badgeEl.style.cursor = 'default'; badgeEl.onclick = null; }
         }
         if (inviteBtn) inviteBtn.style.display = isSelf ? '' : 'none';
+
         if (!familyUids.length) {
-            listEl.innerHTML = `<div class="empty-state" style="padding:10px 0 4px;font-size:12px;color:#3a5a7a;">${isSelf ? 'No family members yet. Send a Family Invitation.' : 'No family members.'}</div>`;
-            section.style.display = ''; return;
+            listEl.innerHTML = `<div class="empty-state" style="padding:14px 0;font-size:12px;color:#3a5a7a;">${isSelf ? 'No family members yet. Send a Family Invitation below.' : 'No family members.'}</div>`;
+            return;
         }
+
         const chunks = [];
-        for (let i=0; i<familyUids.length; i+=10) chunks.push(familyUids.slice(i,i+10));
+        for (let i = 0; i < familyUids.length; i += 10) chunks.push(familyUids.slice(i, i+10));
         const users = [];
         for (const chunk of chunks) {
-            const q = query(collection(db,'users'), where('uid','in',chunk));
-            const qs = await getDocs(q);
+            const qs = await getDocs(query(collection(db,'users'), where('uid','in',chunk)));
             qs.forEach(d => users.push(d.data()));
         }
-        section.style.display = '';
+        listEl.innerHTML = '';
         users.forEach(u => {
             const card = document.createElement('div'); card.className = 'profile-fl-card';
             const avStyle = u.avatar ? `background-image:url('${u.avatar}');background-size:cover;background-position:center;` : '';
-            const avLetter = u.avatar ? '' : (u.displayName||u.username||'?')[0].toUpperCase();
-            const onlineIndicator = u.status === 'online' ? '<div style="position:absolute;bottom:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#39FF14;border:2px solid #0d2444;"></div>' : '';
-            card.innerHTML=`<div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')">${avLetter}${onlineIndicator}</div>
-              <div class="profile-fl-meta" onclick="viewProfile('${u.uid}')"><div class="profile-fl-name">${escFeed(u.displayName||u.username||'?')}${buildBadgeHtml(u.badges||[],u.role||'member')}</div><div class="profile-fl-handle">@${escFeed(u.username||'')}</div></div>
-              ${isSelf?`<div class="profile-fl-actions"><button style="background:rgba(255,51,102,0.07);border-color:rgba(255,51,102,0.3);color:#ff88aa;font-size:11px;" onclick="removeFamilyMember('${u.uid}')">✕ Remove</button></div>`:''}`;
+            const avLetter = u.avatar ? '' : escFeed((u.displayName||u.username||'?')[0].toUpperCase());
+            const onlineDot = u.status === 'online'
+                ? '<div style="position:absolute;bottom:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#39FF14;border:2px solid #0d2444;box-shadow:0 0 6px rgba(57,255,20,0.8);"></div>' : '';
+            const onlineLabel = u.status === 'online' ? '<span style="color:#39FF14;font-size:10px;margin-left:4px;">● Online</span>' : '';
+            card.innerHTML = `
+                <div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')" title="View profile">${avLetter}${onlineDot}</div>
+                <div class="profile-fl-meta" onclick="viewProfile('${u.uid}')">
+                    <div class="profile-fl-name">${escFeed(u.displayName||u.username||'?')}${buildBadgeHtml(u.badges||[],u.role||'member')}</div>
+                    <div class="profile-fl-handle">@${escFeed(u.username||'')}${onlineLabel}</div>
+                </div>
+                <div class="profile-fl-actions">
+                    <button title="Send message" style="font-size:13px;padding:5px 10px;border-radius:10px;" onclick="if(typeof window.ipcOpen==='function')window.ipcOpen('${u.uid}')">💬</button>
+                    ${isSelf ? `<button style="background:rgba(255,51,102,0.07);border-color:rgba(255,51,102,0.3);color:#ff88aa;font-size:11px;padding:5px 10px;border-radius:10px;" onclick="removeFamilyMember('${u.uid}')">✕ Remove</button>` : ''}
+                </div>`;
             listEl.appendChild(card);
         });
-    } catch(_) { section.style.display = 'none'; }
+    } catch(e) {
+        listEl.innerHTML = '<div class="empty-state" style="padding:14px 0;font-size:12px;color:#3a5a7a;">Could not load family.</div>';
+    }
 }
 
 async function snxLoadFriendsSection(profileUid, isSelf) {
-    const section = document.getElementById("profileFriendsSection");
     const listEl  = document.getElementById("profileFriendsList");
     const badgeEl = document.getElementById("friendsListPrivacyBadge");
-    if (!section || !listEl) return;
-    listEl.innerHTML = '';
+    const tabBtn  = document.getElementById("tabFriendsLink");
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="empty-state" style="padding:14px 0;font-size:12px;color:#3a5a7a;">Loading…</div>';
     try {
         const snap = await getDoc(doc(db,'users',profileUid));
-        if (!snap.exists()) { section.style.display = 'none'; return; }
+        if (!snap.exists()) { listEl.innerHTML = ''; return; }
         const p = snap.data();
         const friendUids = p.friends || [];
         const privacyMap = { public:'🌐 Public', friends:'🦋 Friends', private:'🔒 Private' };
         const friendsPrivacy = p.privacySettings?.friendsList || 'public';
         const isFriend = (userData?.friends||[]).includes(profileUid);
-        if (friendsPrivacy === 'private' && !isSelf) { section.style.display = 'none'; return; }
-        if (friendsPrivacy === 'friends' && !isSelf && !isFriend) { section.style.display = 'none'; return; }
+
+        // Update tab label with count
+        if (tabBtn) tabBtn.textContent = `👥 Friends${friendUids.length ? ` (${friendUids.length})` : ''}`;
+
+        // Privacy gate
+        if (friendsPrivacy === 'private' && !isSelf) {
+            listEl.innerHTML = '<div class="empty-state" style="padding:14px 0;font-size:12px;color:#3a5a7a;">🔒 Private</div>'; return;
+        }
+        if (friendsPrivacy === 'friends' && !isSelf && !isFriend) {
+            listEl.innerHTML = '<div class="empty-state" style="padding:14px 0;font-size:12px;color:#3a5a7a;">🦋 Friends only</div>'; return;
+        }
+
         if (badgeEl) {
             badgeEl.textContent = privacyMap[friendsPrivacy] || '🌐 Public';
             if (isSelf) {
@@ -11239,37 +11286,71 @@ async function snxLoadFriendsSection(profileUid, isSelf) {
                 };
             } else { badgeEl.style.cursor = 'default'; badgeEl.onclick = null; }
         }
+
         if (!friendUids.length) {
-            listEl.innerHTML = `<div class="empty-state" style="padding:10px 0 4px;font-size:12px;color:#3a5a7a;">No friends yet.</div>`;
-            section.style.display = ''; return;
+            listEl.innerHTML = `<div class="empty-state" style="padding:14px 0;font-size:12px;color:#3a5a7a;">${isSelf ? 'No friends added yet.' : 'No friends.'}</div>`;
+            return;
         }
-        const show = friendUids.slice(0, 20);
+
+        const show = friendUids.slice(0, 30);
         const chunks = [];
-        for (let i=0; i<show.length; i+=10) chunks.push(show.slice(i,i+10));
+        for (let i = 0; i < show.length; i += 10) chunks.push(show.slice(i, i+10));
         const users = [];
         for (const chunk of chunks) {
-            const q = query(collection(db,'users'), where('uid','in',chunk));
-            const qs = await getDocs(q);
+            const qs = await getDocs(query(collection(db,'users'), where('uid','in',chunk)));
             qs.forEach(d => users.push(d.data()));
         }
-        section.style.display = '';
+        listEl.innerHTML = '';
         users.forEach(u => {
             const card = document.createElement('div'); card.className = 'profile-fl-card';
             const avStyle = u.avatar ? `background-image:url('${u.avatar}');background-size:cover;background-position:center;` : '';
-            const avLetter = u.avatar ? '' : (u.displayName||u.username||'?')[0].toUpperCase();
-            const onlineIndicator = u.status === 'online' ? '<div style="position:absolute;bottom:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#39FF14;border:2px solid #0d2444;"></div>' : '';
-            card.innerHTML=`<div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')">${avLetter}${onlineIndicator}</div>
-              <div class="profile-fl-meta" onclick="viewProfile('${u.uid}')"><div class="profile-fl-name">${escFeed(u.displayName||u.username||'?')}${buildBadgeHtml(u.badges||[],u.role||'member')}</div><div class="profile-fl-handle">@${escFeed(u.username||'')} ${u.status==='online'?'<span style="color:#39FF14;font-size:10px;">● Online</span>':''}</div></div>`;
+            const avLetter = u.avatar ? '' : escFeed((u.displayName||u.username||'?')[0].toUpperCase());
+            const onlineDot = u.status === 'online'
+                ? '<div style="position:absolute;bottom:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#39FF14;border:2px solid #0d2444;box-shadow:0 0 6px rgba(57,255,20,0.8);"></div>' : '';
+            const onlineLabel = u.status === 'online' ? '<span style="color:#39FF14;font-size:10px;margin-left:4px;">● Online</span>' : '';
+            card.innerHTML = `
+                <div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')" title="View profile">${avLetter}${onlineDot}</div>
+                <div class="profile-fl-meta" onclick="viewProfile('${u.uid}')">
+                    <div class="profile-fl-name">${escFeed(u.displayName||u.username||'?')}${buildBadgeHtml(u.badges||[],u.role||'member')}</div>
+                    <div class="profile-fl-handle">@${escFeed(u.username||'')}${onlineLabel}</div>
+                </div>
+                <div class="profile-fl-actions">
+                    <button title="Send message" style="font-size:13px;padding:5px 10px;border-radius:10px;" onclick="if(typeof window.ipcOpen==='function')window.ipcOpen('${u.uid}')">💬</button>
+                    ${isSelf ? `<button style="background:rgba(255,51,102,0.07);border-color:rgba(255,51,102,0.3);color:#ff88aa;font-size:11px;padding:5px 10px;border-radius:10px;" onclick="window.snxRemoveFriend('${u.uid}','${escFeed(u.displayName||'')}')">✕ Remove</button>` : ''}
+                </div>`;
             listEl.appendChild(card);
         });
-        if (friendUids.length > 20) {
+        if (friendUids.length > 30) {
             const more = document.createElement('div');
-            more.style.cssText='font-size:11px;color:#3a5a7a;padding:6px 0 2px;text-align:center;';
-            more.textContent=`+ ${friendUids.length - 20} more`;
+            more.style.cssText = 'font-size:11px;color:#3a5a7a;padding:8px 0 2px;text-align:center;';
+            more.textContent = `+ ${friendUids.length - 30} more`;
             listEl.appendChild(more);
         }
-    } catch(_) { section.style.display = 'none'; }
+    } catch(e) {
+        listEl.innerHTML = '<div class="empty-state" style="padding:14px 0;font-size:12px;color:#3a5a7a;">Could not load friends.</div>';
+    }
 }
+
+window.snxRemoveFriend = async function(fUid, name) {
+    if (!currentUser || !confirm(`Remove ${name || 'this person'} from your friends?`)) return;
+    try {
+        const [myS, thS] = await Promise.all([
+            getDoc(doc(db,'users',currentUser.uid)),
+            getDoc(doc(db,'users',fUid))
+        ]);
+        await updateDoc(doc(db,'users',currentUser.uid), {
+            friends: (myS.data().friends||[]).filter(x => x !== fUid)
+        });
+        if (thS.exists()) {
+            await updateDoc(doc(db,'users',fUid), {
+                friends: (thS.data().friends||[]).filter(x => x !== currentUser.uid)
+            });
+        }
+        toastNotification(`✅ Removed ${name || 'friend'}.`);
+        snxLoadFriendsSection(currentUser.uid, true);
+        if (typeof renderFriendsPage === 'function') renderFriendsPage();
+    } catch(e) { toastNotification('Failed: ' + e.message); }
+};
 
 /* ── Family Invite Modal helpers ── */
 function openFamilyInviteModal() {
