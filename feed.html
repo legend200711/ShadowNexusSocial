@@ -699,11 +699,64 @@ input:focus, textarea:focus, select:focus {
 .psp-name { font-size:16px; font-weight:700; color:#e0f0ff; }
 .psp-handle { font-size:12px; color:#3a6a9a; }
 .psp-bio { font-size:12px; color:#5a8ab8; margin-top:2px; }
-/* CSS Sandbox */
-.css-sandbox-allowed { font-size:11px; color:#3a6a9a; background:rgba(0,50,120,0.15); border:1px solid rgba(0,80,160,0.2); border-radius:6px; padding:6px 10px; margin-bottom:8px; line-height:1.5; }
-.ep-css-preview-btn { background:rgba(0,80,180,0.2); border:1px solid rgba(0,174,239,0.3); color:#00AEEF; border-radius:8px; padding:6px 14px; font-size:12px; cursor:pointer; }
-.ep-css-preview-btn:hover { background:rgba(0,100,220,0.3); }
-.css-sandbox-frame { width:100%; height:180px; border:1px solid rgba(0,80,160,0.3); border-radius:10px; background:#0a1830; margin-top:4px; }
+/* ── Profile Decorations ── */
+/* Pattern overlay on the profile header */
+.profile-pattern-overlay {
+    position:absolute; inset:0; pointer-events:none; z-index:1;
+    opacity:0.18; background-repeat:repeat; background-size:32px 32px;
+}
+/* Decoration strip — floating emoji/stickers over the cover banner */
+.profile-deco-strip {
+    position:absolute; bottom:48px; left:0; right:0;
+    display:flex; gap:6px; padding:0 14px; flex-wrap:wrap;
+    pointer-events:none; z-index:3;
+}
+.profile-deco-item {
+    font-size:24px; line-height:1;
+    animation: moodBounce 1.6s ease-in-out infinite;
+    animation-delay: calc(var(--di) * 0.22s);
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.55));
+    user-select:none;
+}
+/* Frame ring around the avatar */
+.p-avatar.frame-rainbow { animation: rainbowBorder 2.5s linear infinite, blueFlame 3s infinite !important; }
+.p-avatar.frame-gold    { border-color:#ffcc44 !important; box-shadow:0 0 22px rgba(255,200,50,0.6), 0 0 8px rgba(255,200,50,0.3) !important; }
+.p-avatar.frame-pink    { border-color:#ff00aa !important; box-shadow:0 0 22px rgba(255,0,170,0.6)  !important; }
+.p-avatar.frame-green   { border-color:#39FF14 !important; box-shadow:0 0 22px rgba(57,255,20,0.6)  !important; }
+.p-avatar.frame-fire    { border-color:#ff6622 !important; box-shadow:0 0 22px rgba(255,100,20,0.65) !important; }
+.p-avatar.frame-ice     { border-color:#88eeff !important; box-shadow:0 0 22px rgba(80,220,255,0.6)  !important; }
+.p-avatar.frame-none    { border-color:transparent !important; box-shadow:none !important; animation:none !important; }
+/* Decoration picker in the editor */
+.deco-section-label { font-size:10px; color:#3a5a7a; text-transform:uppercase; letter-spacing:0.8px; font-weight:700; width:100%; margin:8px 0 4px; }
+.deco-grid { display:flex; flex-wrap:wrap; gap:6px; padding:4px 0; max-height:140px; overflow-y:auto; }
+.deco-item {
+    font-size:22px; cursor:pointer; padding:5px 8px; border-radius:8px;
+    border:2px solid transparent; transition:all 0.12s; line-height:1;
+    background:rgba(0,30,80,0.3);
+}
+.deco-item:hover  { background:rgba(0,174,239,0.12); border-color:rgba(0,174,239,0.3); }
+.deco-item.picked { border-color:rgba(0,255,136,0.7); background:rgba(0,255,136,0.1); }
+/* Frame picker row */
+.frame-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.frame-pick-btn {
+    background:rgba(0,30,80,0.4); border:2px solid rgba(0,120,255,0.25);
+    color:#6a90b8; border-radius:10px; padding:6px 12px; font-size:12px;
+    cursor:pointer; transition:all 0.15s; white-space:nowrap;
+}
+.frame-pick-btn:hover   { background:rgba(0,100,220,0.2); color:#00AEEF; }
+.frame-pick-btn.active  { border-color:rgba(0,255,136,0.7); color:#00ff88; background:rgba(0,255,136,0.08); }
+/* Pattern picker row */
+.pattern-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.pattern-pick-btn {
+    background:rgba(0,30,80,0.4); border:2px solid rgba(0,120,255,0.25);
+    color:#6a90b8; border-radius:10px; padding:6px 12px; font-size:12px;
+    cursor:pointer; transition:all 0.15s; white-space:nowrap;
+}
+.pattern-pick-btn:hover  { background:rgba(0,100,220,0.2); color:#00AEEF; }
+.pattern-pick-btn.active { border-color:rgba(0,255,136,0.7); color:#00ff88; background:rgba(0,255,136,0.08); }
+/* Decoration preview strip inside the style preview card */
+.psp-deco-strip { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; min-height:30px; }
+.psp-deco-item  { font-size:20px; line-height:1; }
 /* Rainbow border animation */
 @keyframes rainbowBorder { 0%{border-color:#ff0066;} 16%{border-color:#ff9900;} 33%{border-color:#ffff00;} 50%{border-color:#00ff88;} 66%{border-color:#00AEEF;} 83%{border-color:#9900ff;} 100%{border-color:#ff0066;} }
 .profile-border-rainbow { border:2px solid #ff0066 !important; animation:rainbowBorder 3s linear infinite !important; }
@@ -3654,6 +3707,10 @@ body::after {
     <div class="profile-header">
         <!-- Cover photo -->
         <div class="cover-banner" id="profileBanner">
+            <!-- Pattern overlay (set by applyProfileStyles) -->
+            <div class="profile-pattern-overlay" id="profilePatternOverlay" style="display:none;"></div>
+            <!-- Decoration sticker strip -->
+            <div class="profile-deco-strip" id="profileDecoStrip"></div>
             <button class="cover-edit-btn" id="btnCoverEdit" style="display:none;" onclick="openEditProfileModal()">🖼 Edit Cover</button>
         </div>
 
@@ -3717,7 +3774,7 @@ body::after {
                 <button class="ep-tab active" onclick="switchEpTab('info',this)">👤 Info</button>
                 <button class="ep-tab" onclick="switchEpTab('mood',this)">✨ Mood</button>
                 <button class="ep-tab" onclick="switchEpTab('style',this)">🎨 Style</button>
-                <button class="ep-tab" onclick="switchEpTab('css',this)">⚙️ CSS</button>
+                <button class="ep-tab" onclick="switchEpTab('deco',this)">🎭 Decorate</button>
             </div>
 
             <!-- ── Tab: Info ── -->
@@ -3882,19 +3939,44 @@ body::after {
                 </div>
             </div>
 
-            <!-- ── Tab: CSS Sandbox ── -->
-            <div class="ep-tab-pane" id="ep-pane-css">
-                <p style="font-size:12px;color:#6a90b8;margin:0 0 6px;">Write custom CSS for your profile card. Only safe properties are applied — scripts and external URLs are blocked.</p>
-                <div class="css-sandbox-allowed">
-                    ✅ Allowed: color, background, font, border, padding, margin, border-radius, text-shadow, box-shadow, opacity, transform (no scripts/URLs)
+            <!-- ── Tab: Decorations ── -->
+            <div class="ep-tab-pane" id="ep-pane-deco">
+                <p style="font-size:12px;color:#6a90b8;margin:0 0 10px;">Pick decorations for your profile. No code — just choose and save.</p>
+
+                <!-- Avatar frame -->
+                <label>Avatar Frame</label>
+                <div class="frame-grid" id="framePickerGrid"></div>
+
+                <!-- Background pattern -->
+                <label style="margin-top:14px;">Background Pattern</label>
+                <div class="pattern-grid" id="patternPickerGrid"></div>
+
+                <!-- Decoration stickers -->
+                <label style="margin-top:14px;">Profile Stickers <span style="font-size:10px;color:#3a5a7a;">(pick up to 5 — shown on your cover)</span></label>
+                <div class="deco-grid" id="decoPickerGrid"></div>
+
+                <!-- Reset -->
+                <div style="margin-top:14px;">
+                    <button class="mood-fmt-btn" onclick="resetDecorations()" style="border-color:rgba(255,60,60,0.3);color:#ff7788;">↩ Reset Decorations</button>
                 </div>
-                <textarea id="profileCustomCSS" rows="8" placeholder="/* Example */&#10;.profile-header { border: 2px solid #ff00ff; }&#10;.profile-display-name { color: #ff88ff; }" style="resize:vertical;font-family:monospace;font-size:12px;" oninput="updateCSSPreview()"></textarea>
-                <div style="display:flex;gap:8px;margin-top:8px;">
-                    <button class="ep-css-preview-btn" onclick="updateCSSPreview()">👁 Preview</button>
-                    <button class="ep-css-preview-btn" onclick="clearCustomCSS()">✕ Clear</button>
+
+                <!-- Hidden storage fields -->
+                <input type="hidden" id="editProfileFrame" value="">
+                <input type="hidden" id="editProfilePattern" value="">
+                <input type="hidden" id="editProfileDecos" value="[]">
+
+                <!-- Live preview of chosen decorations -->
+                <label style="margin-top:14px;">Preview</label>
+                <div id="decoPreviewCard" style="background:#0d2444;border:1px solid rgba(0,174,239,0.3);border-radius:12px;padding:14px;margin-top:6px;min-height:60px;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <div id="decoPreviewAvatar" style="width:52px;height:52px;border-radius:50%;background:#0B1F3A;border:3px solid rgba(0,174,239,0.6);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;transition:border-color 0.2s,box-shadow 0.2s;">👤</div>
+                        <div>
+                            <div style="font-size:14px;font-weight:700;color:#e0f0ff;">Your Name</div>
+                            <div style="font-size:11px;color:#3a6a9a;">@handle</div>
+                        </div>
+                    </div>
+                    <div class="psp-deco-strip" id="decoPreviewStrip"></div>
                 </div>
-                <div style="margin-top:10px;font-size:11px;color:#3a5a7a;">Preview (sandboxed):</div>
-                <iframe id="cssPreviewFrame" class="css-sandbox-frame" sandbox="allow-same-origin" title="CSS Preview"></iframe>
             </div>
 
             <button class="edit-modal-save" id="btnSaveProfile">Save Changes</button>
@@ -6974,8 +7056,11 @@ body::after {
           document.getElementById("profileNameColor").value   = userData.profileNameColor  || '#e0f0ff';
           document.getElementById("profileNameColorHex").value= userData.profileNameColor  || '#e0f0ff';
           document.getElementById("profileBorderStyle").value = userData.profileBorderStyle|| 'default';
-          document.getElementById("profileCustomCSS").value   = userData.profileCustomCSS  || '';
           updateStylePreview();
+          // Pre-fill decoration fields
+          document.getElementById("editProfileFrame").value   = userData.profileFrame   || '';
+          document.getElementById("editProfilePattern").value = userData.profilePattern || '';
+          document.getElementById("editProfileDecos").value   = userData.profileDecos   || '[]';
       }
 
       // Tear down previous snapshot listener
@@ -7176,22 +7261,26 @@ body::after {
   document.getElementById("btnSaveProfile").onclick = async () => {
       const moodVal = document.getElementById("editMoodValue").value || document.getElementById("editMood")?.value || '';
       const moodFmt = document.getElementById("editMoodFmt").value || 'emoji';
+      let profileDecosParsed = [];
+      try { profileDecosParsed = JSON.parse(document.getElementById("editProfileDecos").value || '[]'); } catch(e) {}
       await updateDoc(doc(db, "users", currentUser.uid), {
-          displayName:      document.getElementById("editUsername").value.trim(),
-          bio:              document.getElementById("editBio").value.trim(),
-          avatar:           document.getElementById("editAvatar").value.trim(),
-          banner:           document.getElementById("editBanner").value.trim(),
-          mood:             moodVal,
-          moodFmt:          moodFmt,
-          privacy:          document.getElementById("editPrivacy").value,
-          aesthetic:        document.getElementById("editAesthetic").value,
-          profileBgColor:   document.getElementById("profileBgColor").value,
-          profileBgColor2:  document.getElementById("profileBgColor2").value,
-          profileBgGradient:document.getElementById("profileBgGradient").value,
-          profileFontFamily:document.getElementById("profileFontFamily").value,
-          profileNameColor: document.getElementById("profileNameColor").value,
+          displayName:       document.getElementById("editUsername").value.trim(),
+          bio:               document.getElementById("editBio").value.trim(),
+          avatar:            document.getElementById("editAvatar").value.trim(),
+          banner:            document.getElementById("editBanner").value.trim(),
+          mood:              moodVal,
+          moodFmt:           moodFmt,
+          privacy:           document.getElementById("editPrivacy").value,
+          aesthetic:         document.getElementById("editAesthetic").value,
+          profileBgColor:    document.getElementById("profileBgColor").value,
+          profileBgColor2:   document.getElementById("profileBgColor2").value,
+          profileBgGradient: document.getElementById("profileBgGradient").value,
+          profileFontFamily: document.getElementById("profileFontFamily").value,
+          profileNameColor:  document.getElementById("profileNameColor").value,
           profileBorderStyle:document.getElementById("profileBorderStyle").value,
-          profileCustomCSS: sanitizeProfileCSS(document.getElementById("profileCustomCSS").value)
+          profileFrame:      document.getElementById("editProfileFrame").value   || '',
+          profilePattern:    document.getElementById("editProfilePattern").value || '',
+          profileDecos:      JSON.stringify(profileDecosParsed),
       });
       closeEditProfileModal();
       toastNotification("Profile updated!");
@@ -9054,8 +9143,189 @@ function switchEpTab(name, btn) {
     if (btn) btn.classList.add('active');
     const pane = document.getElementById('ep-pane-' + name);
     if (pane) pane.classList.add('active');
-    if (name === 'css') updateCSSPreview();
+    if (name === 'deco') initDecoPicker();
 }
+
+// ── Decoration Picker ──
+const DECO_FRAMES = [
+    { id: 'none',    label: '⬜ None' },
+    { id: 'gold',    label: '🟡 Gold' },
+    { id: 'rainbow', label: '🌈 Rainbow' },
+    { id: 'pink',    label: '🩷 Pink' },
+    { id: 'green',   label: '💚 Neon Green' },
+    { id: 'fire',    label: '🔥 Fire' },
+    { id: 'ice',     label: '🧊 Ice' },
+];
+const DECO_PATTERNS = [
+    { id: '',        label: '⬜ None' },
+    { id: 'dots',    label: '· · Dots' },
+    { id: 'grid',    label: '# Grid' },
+    { id: 'stars',   label: '✦ Stars' },
+    { id: 'hex',     label: '⬡ Hex' },
+    { id: 'chevron', label: '» Chevron' },
+    { id: 'diamonds',label: '◆ Diamonds' },
+];
+const DECO_STICKERS = [
+    '🌙','⭐','✨','💫','🔥','❄️','🌊','🌸',
+    '🌺','🍀','🌵','🌈','☁️','⛅','🌩️','🌠',
+    '🎮','🕹️','🎲','🃏','🎯','🏆','🥇','🎖️',
+    '💎','💍','👑','🔮','🧿','🪄','⚔️','🛡️',
+    '🐉','🦊','🐱','🐺','🦁','🐸','🦄','🐧',
+    '🎸','🎵','🎤','🎬','📸','🎆','🎇','🧨',
+];
+
+function initDecoPicker() {
+    const frameGrid   = document.getElementById('framePickerGrid');
+    const patternGrid = document.getElementById('patternPickerGrid');
+    const decoGrid    = document.getElementById('decoPickerGrid');
+    if (!frameGrid || !patternGrid || !decoGrid) return;
+
+    const curFrame   = document.getElementById('editProfileFrame').value   || '';
+    const curPattern = document.getElementById('editProfilePattern').value || '';
+    let   curDecos   = [];
+    try { curDecos = JSON.parse(document.getElementById('editProfileDecos').value || '[]'); } catch(e) {}
+
+    // Frame picker
+    frameGrid.innerHTML = '';
+    DECO_FRAMES.forEach(f => {
+        const btn = document.createElement('button');
+        btn.className = 'frame-pick-btn' + (curFrame === f.id ? ' active' : '');
+        btn.textContent = f.label;
+        btn.onclick = () => pickFrame(f.id);
+        frameGrid.appendChild(btn);
+    });
+
+    // Pattern picker
+    patternGrid.innerHTML = '';
+    DECO_PATTERNS.forEach(pt => {
+        const btn = document.createElement('button');
+        btn.className = 'pattern-pick-btn' + (curPattern === pt.id ? ' active' : '');
+        btn.textContent = pt.label;
+        btn.onclick = () => pickPattern(pt.id);
+        patternGrid.appendChild(btn);
+    });
+
+    // Sticker picker
+    decoGrid.innerHTML = '';
+    DECO_STICKERS.forEach(em => {
+        const span = document.createElement('span');
+        span.className = 'deco-item' + (curDecos.includes(em) ? ' picked' : '');
+        span.textContent = em;
+        span.title = curDecos.includes(em) ? 'Click to remove' : 'Click to add';
+        span.onclick = () => toggleDecoItem(em);
+        decoGrid.appendChild(span);
+    });
+
+    updateDecoPreview();
+}
+
+function pickFrame(id) {
+    document.getElementById('editProfileFrame').value = id;
+    document.querySelectorAll('.frame-pick-btn').forEach(b => b.classList.remove('active'));
+    const active = Array.from(document.querySelectorAll('.frame-pick-btn')).find(b => b.textContent.includes(id === 'none' ? 'None' : id));
+    if (active) active.classList.add('active');
+    // Re-render frame buttons cleanly via initDecoPicker partial
+    const frameGrid = document.getElementById('framePickerGrid');
+    if (frameGrid) {
+        Array.from(frameGrid.querySelectorAll('.frame-pick-btn')).forEach(b => {
+            const fid = DECO_FRAMES.find(f => b.textContent === f.label)?.id ?? null;
+            if (fid !== null) b.classList.toggle('active', fid === id);
+        });
+    }
+    updateDecoPreview();
+}
+
+function pickPattern(id) {
+    document.getElementById('editProfilePattern').value = id;
+    const patternGrid = document.getElementById('patternPickerGrid');
+    if (patternGrid) {
+        Array.from(patternGrid.querySelectorAll('.pattern-pick-btn')).forEach(b => {
+            const pid = DECO_PATTERNS.find(p => b.textContent === p.label)?.id ?? null;
+            if (pid !== null) b.classList.toggle('active', pid === id);
+        });
+    }
+    updateDecoPreview();
+}
+
+function toggleDecoItem(emoji) {
+    let decos = [];
+    try { decos = JSON.parse(document.getElementById('editProfileDecos').value || '[]'); } catch(e) {}
+    if (decos.includes(emoji)) {
+        decos = decos.filter(e => e !== emoji);
+    } else {
+        if (decos.length >= 5) { toastNotification('Max 5 stickers — remove one first.'); return; }
+        decos.push(emoji);
+    }
+    document.getElementById('editProfileDecos').value = JSON.stringify(decos);
+    // Update picked state on the item
+    const decoGrid = document.getElementById('decoPickerGrid');
+    if (decoGrid) {
+        Array.from(decoGrid.querySelectorAll('.deco-item')).forEach(el => {
+            const picked = decos.includes(el.textContent);
+            el.classList.toggle('picked', picked);
+            el.title = picked ? 'Click to remove' : 'Click to add';
+        });
+    }
+    updateDecoPreview();
+}
+
+function resetDecorations() {
+    document.getElementById('editProfileFrame').value   = '';
+    document.getElementById('editProfilePattern').value = '';
+    document.getElementById('editProfileDecos').value   = '[]';
+    initDecoPicker();
+}
+
+function updateDecoPreview() {
+    const frame   = document.getElementById('editProfileFrame')?.value   || '';
+    const pattern = document.getElementById('editProfilePattern')?.value || '';
+    let   decos   = [];
+    try { decos = JSON.parse(document.getElementById('editProfileDecos')?.value || '[]'); } catch(e) {}
+
+    // Avatar frame preview
+    const previewAvatar = document.getElementById('decoPreviewAvatar');
+    if (previewAvatar) {
+        previewAvatar.classList.remove('frame-rainbow','frame-gold','frame-pink','frame-green','frame-fire','frame-ice','frame-none');
+        const frameStyleMap = {
+            gold:    'border-color:#ffcc44;box-shadow:0 0 18px rgba(255,200,50,0.6);',
+            pink:    'border-color:#ff00aa;box-shadow:0 0 18px rgba(255,0,170,0.6);',
+            green:   'border-color:#39FF14;box-shadow:0 0 18px rgba(57,255,20,0.6);',
+            fire:    'border-color:#ff6622;box-shadow:0 0 18px rgba(255,100,20,0.65);',
+            ice:     'border-color:#88eeff;box-shadow:0 0 18px rgba(80,220,255,0.6);',
+            rainbow: 'border-color:#ff0066;',
+            none:    'border-color:transparent;box-shadow:none;',
+        };
+        const base = 'width:52px;height:52px;border-radius:50%;background:#0B1F3A;border:3px solid rgba(0,174,239,0.6);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;transition:all 0.2s;';
+        previewAvatar.style.cssText = base + (frameStyleMap[frame] || '');
+    }
+
+    // Pattern preview in the preview card background
+    const previewCard = document.getElementById('decoPreviewCard');
+    if (previewCard) {
+        const patternMap = {
+            dots:    'radial-gradient(circle, #00AEEF 1px, transparent 1px)',
+            grid:    'linear-gradient(rgba(0,174,239,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(0,174,239,0.35) 1px, transparent 1px)',
+            stars:   'radial-gradient(circle, #fff 1px, transparent 1px)',
+            hex:     'repeating-linear-gradient(60deg, rgba(0,174,239,0.25) 0px, rgba(0,174,239,0.25) 1px, transparent 1px, transparent 16px), repeating-linear-gradient(-60deg, rgba(0,174,239,0.25) 0px, rgba(0,174,239,0.25) 1px, transparent 1px, transparent 16px)',
+            chevron: 'repeating-linear-gradient(135deg, rgba(0,174,239,0.2) 0px, rgba(0,174,239,0.2) 2px, transparent 2px, transparent 12px)',
+            diamonds:'repeating-linear-gradient(45deg, rgba(0,174,239,0.2) 0px, rgba(0,174,239,0.2) 2px, transparent 2px, transparent 14px)',
+        };
+        if (pattern && patternMap[pattern]) {
+            previewCard.style.backgroundImage = patternMap[pattern];
+            previewCard.style.backgroundSize  = pattern === 'grid' ? '24px 24px' : '20px 20px';
+        } else {
+            previewCard.style.backgroundImage = 'none';
+        }
+    }
+
+    // Sticker strip preview
+    const strip = document.getElementById('decoPreviewStrip');
+    if (strip) {
+        strip.innerHTML = decos.map(em => `<span class="psp-deco-item">${em}</span>`).join('');
+    }
+}
+
+
 
 // ── Mood Picker ──
 const MOOD_EMOJIS = [
@@ -9294,12 +9564,49 @@ function applyProfileStyles(p) {
     else if (p.profileBorderStyle === 'rainbow')header.classList.add('profile-border-rainbow');
     else if (p.profileBorderStyle === 'none')   header.classList.add('profile-border-none');
 
-    // Custom CSS — re-scoped to .profile-header so rules can't bleed into the feed
-    const styleTag = document.getElementById('profileCustomCSSTag');
-    if (styleTag) {
-        styleTag.textContent = p.profileCustomCSS
-            ? rescopeCSS(p.profileCustomCSS, '#profile .profile-header')
-            : '';
+    // Avatar frame
+    const avatarEl = document.getElementById('profileAvatar');
+    if (avatarEl) {
+        avatarEl.classList.remove('frame-rainbow','frame-gold','frame-pink','frame-green','frame-fire','frame-ice','frame-none');
+        const f = p.profileFrame || '';
+        if (f && f !== 'none') avatarEl.classList.add('frame-' + f);
+        if (f === 'none') avatarEl.classList.add('frame-none');
+    }
+
+    // Background pattern overlay
+    const patternOverlay = document.getElementById('profilePatternOverlay');
+    if (patternOverlay) {
+        const pat = p.profilePattern || '';
+        const patternMap = {
+            dots:    'radial-gradient(circle, #00AEEF 1px, transparent 1px)',
+            grid:    'linear-gradient(rgba(0,174,239,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(0,174,239,0.35) 1px, transparent 1px)',
+            stars:   'radial-gradient(circle, #fff 1px, transparent 1px)',
+            hex:     'repeating-linear-gradient(60deg, rgba(0,174,239,0.25) 0px, rgba(0,174,239,0.25) 1px, transparent 1px, transparent 16px), repeating-linear-gradient(-60deg, rgba(0,174,239,0.25) 0px, rgba(0,174,239,0.25) 1px, transparent 1px, transparent 16px)',
+            chevron: 'repeating-linear-gradient(135deg, rgba(0,174,239,0.2) 0px, rgba(0,174,239,0.2) 2px, transparent 2px, transparent 12px)',
+            diamonds:'repeating-linear-gradient(45deg, rgba(0,174,239,0.2) 0px, rgba(0,174,239,0.2) 2px, transparent 2px, transparent 14px)',
+        };
+        if (pat && patternMap[pat]) {
+            patternOverlay.style.backgroundImage = patternMap[pat];
+            patternOverlay.style.backgroundSize  = pat === 'grid' ? '24px 24px' : '20px 20px';
+            patternOverlay.style.display = 'block';
+        } else {
+            patternOverlay.style.display = 'none';
+        }
+    }
+
+    // Decoration sticker strip on cover banner
+    const decoStrip = document.getElementById('profileDecoStrip');
+    if (decoStrip) {
+        decoStrip.innerHTML = '';
+        let decos = [];
+        try { decos = JSON.parse(p.profileDecos || '[]'); } catch(e) { decos = []; }
+        decos.forEach((emoji, i) => {
+            const span = document.createElement('span');
+            span.className = 'profile-deco-item';
+            span.style.setProperty('--di', i);
+            span.textContent = emoji;
+            decoStrip.appendChild(span);
+        });
     }
 }
 
