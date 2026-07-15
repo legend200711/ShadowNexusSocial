@@ -2914,6 +2914,142 @@ input:focus, textarea:focus, select:focus {
 .storm-msg.mine .storm-msg-name { color: #39FF14; }
 .storm-msg-ts     { color: #4a6a8a; }
 
+/* ── Community Hub page ── */
+.comm-header-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 6px;
+}
+.comm-section-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: #00AEEF; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+}
+.comm-section-title::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(90deg, rgba(0,174,239,0.35), transparent);
+}
+.comm-quote-card {
+    background: linear-gradient(135deg, rgba(0,30,80,0.7) 0%, rgba(0,60,140,0.5) 100%);
+    border: 1px solid rgba(0,174,239,0.35);
+    border-left: 3px solid #00AEEF;
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 16px;
+    position: relative; overflow: hidden;
+}
+.comm-quote-card::before {
+    content: '"'; position: absolute; top: -8px; left: 10px;
+    font-size: 72px; color: rgba(0,174,239,0.12); font-family: Georgia, serif;
+    line-height: 1; pointer-events: none;
+}
+.comm-quote-text { font-size: 15px; line-height: 1.65; color: #d8eeff; font-style: italic; margin-bottom: 8px; position: relative; }
+.comm-quote-author { font-size: 12px; color: #39FF14; font-weight: 600; }
+.comm-quote-refresh {
+    background: none; border: 1px solid rgba(0,174,239,0.3);
+    color: #6a90b8; font-size: 11px; padding: 3px 10px;
+    border-radius: 12px; cursor: pointer; margin-top: 10px;
+    transition: color 0.15s, border-color 0.15s;
+}
+.comm-quote-refresh:hover { color: #00AEEF; border-color: rgba(0,174,239,0.7); }
+.comm-challenge-card {
+    background: rgba(11,31,58,0.92); border: 1px solid rgba(57,255,20,0.22);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 16px;
+    transition: border-color 0.25s, box-shadow 0.25s;
+}
+.comm-challenge-card:hover { border-color: rgba(57,255,20,0.45); box-shadow: 0 0 16px rgba(57,255,20,0.1); }
+.comm-challenge-text { font-size: 14px; color: #c8e8ff; line-height: 1.55; margin-bottom: 10px; }
+.comm-challenge-claim {
+    background: linear-gradient(135deg, #003320, #005533);
+    border: 1px solid rgba(57,255,20,0.5); color: #66ffaa;
+    padding: 7px 18px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    cursor: pointer; transition: all 0.18s; letter-spacing: 0.4px;
+}
+.comm-challenge-claim:hover { background: linear-gradient(135deg,#004428,#007744); box-shadow: 0 0 14px rgba(57,255,20,0.3); }
+.comm-challenge-claim.claimed { background: rgba(0,30,15,0.6); border-color: rgba(57,255,20,0.25); color: #3a7a55; cursor: default; }
+.comm-challenge-xp {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; color: #39FF14; font-weight: 700;
+    background: rgba(57,255,20,0.1); border: 1px solid rgba(57,255,20,0.3);
+    padding: 2px 8px; border-radius: 12px; margin-left: 8px;
+}
+.comm-goal-item { margin-bottom: 12px; }
+.comm-goal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+.comm-goal-label { font-size: 13px; color: #c8e0f8; }
+.comm-goal-pct { font-size: 11px; color: #39FF14; font-weight: 700; }
+.comm-goal-bar { height: 8px; background: rgba(0,60,120,0.4); border-radius: 6px; overflow: hidden; }
+.comm-goal-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #00AEEF, #39FF14); transition: width 1.2s cubic-bezier(0.4,0,0.2,1); box-shadow: 0 0 8px rgba(0,174,239,0.45); }
+.comm-badges-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-bottom: 4px; }
+.comm-badge-tile {
+    background: rgba(0,20,55,0.7); border: 1px solid rgba(0,174,239,0.2);
+    border-radius: 12px; padding: 14px 10px; text-align: center;
+    cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+.comm-badge-tile:hover { border-color: rgba(0,174,239,0.5); box-shadow: 0 0 16px rgba(0,174,239,0.18); transform: translateY(-2px); }
+.comm-badge-tile.unlocked { border-color: rgba(57,255,20,0.45); box-shadow: 0 0 14px rgba(57,255,20,0.15); }
+.comm-badge-icon { font-size: 28px; margin-bottom: 6px; }
+.comm-badge-name { font-size: 11px; font-weight: 700; color: #a0c8e8; letter-spacing: 0.3px; }
+.comm-badge-desc { font-size: 10px; color: #3a6a8a; margin-top: 3px; line-height: 1.4; }
+.comm-badge-tile.unlocked .comm-badge-name { color: #39FF14; }
+.comm-reactions-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.comm-react-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    background: rgba(0,20,55,0.7); border: 1px solid rgba(0,100,180,0.25);
+    border-radius: 12px; padding: 10px 14px; cursor: pointer; min-width: 60px;
+    transition: border-color 0.18s, box-shadow 0.18s, transform 0.12s;
+}
+.comm-react-btn:hover { border-color: rgba(0,174,239,0.55); transform: scale(1.06); }
+.comm-react-btn.active { border-color: rgba(57,255,20,0.6); box-shadow: 0 0 10px rgba(57,255,20,0.2); }
+.comm-react-emoji { font-size: 22px; }
+.comm-react-count { font-size: 11px; color: #6a90b8; font-weight: 700; }
+.comm-react-btn.active .comm-react-count { color: #39FF14; }
+.comm-anon-feed { display: flex; flex-direction: column; gap: 10px; }
+.comm-anon-post {
+    background: rgba(5,15,38,0.88); border: 1px solid rgba(0,100,180,0.22);
+    border-radius: 12px; padding: 14px 16px;
+    animation: postSlideIn 0.22s ease-out both; transition: border-color 0.2s;
+}
+.comm-anon-post:hover { border-color: rgba(0,174,239,0.35); }
+.comm-anon-post.support-post { border-left: 3px solid rgba(57,255,20,0.5); }
+.comm-anon-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.comm-anon-avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(0,80,180,0.3); border: 1px solid rgba(0,174,239,0.35);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;
+}
+.comm-anon-name { font-size: 12px; color: #6a90b8; }
+.comm-anon-ts { font-size: 10px; color: #334; margin-left: auto; }
+.comm-anon-tag { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; background: rgba(0,174,239,0.12); border: 1px solid rgba(0,174,239,0.3); color: #6abcdd; letter-spacing: 0.3px; }
+.comm-anon-tag.support { background: rgba(57,255,20,0.1); border-color: rgba(57,255,20,0.3); color: #4add88; }
+.comm-anon-text { font-size: 13px; color: #a8c8e8; line-height: 1.55; margin-bottom: 8px; }
+.comm-anon-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.comm-anon-react {
+    background: none; border: 1px solid rgba(0,80,160,0.25);
+    color: #4a7a9a; font-size: 12px; padding: 4px 10px; border-radius: 16px;
+    cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 4px;
+}
+.comm-anon-react:hover { border-color: rgba(0,174,239,0.5); color: #00AEEF; background: rgba(0,174,239,0.07); }
+.comm-anon-react.hugged { border-color: rgba(57,255,20,0.5); color: #39FF14; background: rgba(57,255,20,0.07); }
+.comm-anon-form { background: rgba(7,20,42,0.9); border: 1px solid rgba(0,174,239,0.25); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+.comm-anon-form textarea { background: rgba(0,15,40,0.8); border: 1px solid rgba(0,174,239,0.25); color: #d8eeff; border-radius: 8px; padding: 10px; width: 100%; box-sizing: border-box; resize: none; font-family: inherit; font-size: 13px; line-height: 1.5; min-height: 80px; margin-bottom: 8px; transition: border-color 0.15s; }
+.comm-anon-form textarea:focus { outline: none; border-color: rgba(0,174,239,0.6); }
+.comm-anon-form-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.comm-anon-tag-select { background: rgba(0,15,40,0.8); border: 1px solid rgba(0,174,239,0.25); color: #a0c0e0; border-radius: 8px; padding: 7px 10px; font-family: inherit; font-size: 12px; cursor: pointer; flex-shrink: 0; margin: 0; }
+.comm-anon-submit { background: linear-gradient(135deg, #003388, #0066cc); border: 1px solid rgba(0,180,255,0.6); color: #fff; padding: 7px 18px; border-radius: 20px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.18s; margin-left: auto; }
+.comm-anon-submit:hover { background: linear-gradient(135deg,#004499,#0088ff); box-shadow: 0 0 14px rgba(0,174,239,0.4); }
+.comm-anon-toggle { font-size: 11px; color: #3a6a8a; display: flex; align-items: center; gap: 6px; }
+.comm-anon-toggle input { width: auto; margin: 0; cursor: pointer; }
+.comm-rooms-list { display: flex; flex-direction: column; gap: 8px; }
+.comm-room-item {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(0,15,40,0.7); border: 1px solid rgba(0,100,180,0.2);
+    border-radius: 12px; padding: 12px 14px; cursor: pointer;
+    transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+}
+.comm-room-item:hover { border-color: rgba(0,174,239,0.45); background: rgba(0,30,70,0.5); box-shadow: 0 0 12px rgba(0,174,239,0.12); }
+.comm-room-icon { font-size: 24px; flex-shrink: 0; }
+.comm-room-info { flex: 1; min-width: 0; }
+.comm-room-name { font-size: 13px; font-weight: 700; color: #d0e8ff; margin-bottom: 2px; }
+.comm-room-desc { font-size: 11px; color: #4a7a9a; }
+.comm-room-count { font-size: 11px; color: #39FF14; font-weight: 700; background: rgba(57,255,20,0.1); border: 1px solid rgba(57,255,20,0.25); padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+
 /* ── Friends & Requests ── */
 .friends-tab-btn.active { color: #39FF14; border-bottom-color: #39FF14; text-shadow: 0 0 8px rgba(57,255,20,0.48); }
 .friend-name  { color: #ffffff; }
@@ -3303,6 +3439,9 @@ body::after {
         </button>
         <button class="nav-item" id="navStorm" onclick="navTo('stormRoomsPage')">
             <span class="nav-icon">⚡</span> Storm Rooms
+        </button>
+        <button class="nav-item" id="navCommunity" onclick="navTo('communityPage')">
+            <span class="nav-icon">💜</span> Community Hub
         </button>
         <!-- Admin Panel — only visible to the Founder; toggled in JS after auth -->
         <button class="nav-item nav-item-admin" id="navAdmin" onclick="navTo('adminPage')" style="display:none;">
@@ -4279,6 +4418,117 @@ body::after {
     </div>
 
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     COMMUNITY HUB PAGE
+     ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="communityPage">
+
+<h2 class="eclipse-title">💜 Community Hub</h2>
+<p style="text-align:center;color:#6a90b8;font-size:13px;margin:-12px 0 20px;">A safe space to grow, heal, and uplift each other</p>
+
+<div class="section-card" style="margin-bottom:16px;">
+    <div class="comm-section-title">✨ Positive Quote of the Day</div>
+    <div class="comm-quote-card" id="commQuoteCard">
+        <div class="comm-quote-text" id="commQuoteText">Loading today's quote…</div>
+        <div class="comm-quote-author" id="commQuoteAuthor"></div>
+        <button class="comm-quote-refresh" onclick="commNextQuote()">↻ New quote</button>
+    </div>
+</div>
+
+<div class="section-card" style="margin-bottom:16px;">
+    <div class="comm-section-title">⚡ Daily Challenge</div>
+    <div class="comm-challenge-card">
+        <div class="comm-challenge-text" id="commChallengeText">Loading today's challenge…</div>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
+            <button class="comm-challenge-claim" id="commClaimBtn" onclick="commClaimChallenge()">✔ Complete Challenge</button>
+            <span class="comm-challenge-xp" id="commChallengeXP">+50 XP</span>
+        </div>
+    </div>
+</div>
+
+<div class="section-card" style="margin-bottom:16px;">
+    <div class="comm-section-title">🎯 Community Goals</div>
+    <div id="commGoalsContainer"></div>
+</div>
+
+<div class="section-card" style="margin-bottom:16px;">
+    <div class="comm-section-title">🏅 Kindness Badges</div>
+    <p style="font-size:12px;color:#4a7a9a;margin:0 0 12px;">Earn badges by being a positive force in the community.</p>
+    <div class="comm-badges-grid" id="commBadgesGrid"></div>
+</div>
+
+<div class="section-card" style="margin-bottom:16px;">
+    <div class="comm-section-title">💓 Community Pulse</div>
+    <p style="font-size:12px;color:#4a7a9a;margin:0 0 12px;">Send a silent wave of energy to the whole community.</p>
+    <div class="comm-reactions-row" id="commReactionsRow"></div>
+</div>
+
+<div class="section-card" style="margin-bottom:16px;">
+    <div class="comm-section-title">🫂 Support Rooms</div>
+    <p style="font-size:12px;color:#4a7a9a;margin:0 0 12px;">Moderated safe spaces. No judgment, only support.</p>
+    <div class="comm-rooms-list">
+        <div class="comm-room-item" onclick="navTo('stormRoomsPage')">
+            <div class="comm-room-icon">🌙</div>
+            <div class="comm-room-info">
+                <div class="comm-room-name">Night Owls — Anxiety Support</div>
+                <div class="comm-room-desc">Anonymous · For those who struggle at night</div>
+            </div>
+            <div class="comm-room-count">Join →</div>
+        </div>
+        <div class="comm-room-item" onclick="navTo('stormRoomsPage')">
+            <div class="comm-room-icon">🌅</div>
+            <div class="comm-room-info">
+                <div class="comm-room-name">Morning Light — Depression</div>
+                <div class="comm-room-desc">Anonymous · Start the day together</div>
+            </div>
+            <div class="comm-room-count">Join →</div>
+        </div>
+        <div class="comm-room-item" onclick="navTo('stormRoomsPage')">
+            <div class="comm-room-icon">🔥</div>
+            <div class="comm-room-info">
+                <div class="comm-room-name">Venting Lounge</div>
+                <div class="comm-room-desc">Anonymous · Say what's on your mind</div>
+            </div>
+            <div class="comm-room-count">Join →</div>
+        </div>
+        <div class="comm-room-item" onclick="navTo('stormRoomsPage')">
+            <div class="comm-room-icon">🌿</div>
+            <div class="comm-room-info">
+                <div class="comm-room-name">Healing Circle</div>
+                <div class="comm-room-desc">Anonymous · Trauma &amp; recovery support</div>
+            </div>
+            <div class="comm-room-count">Join →</div>
+        </div>
+    </div>
+</div>
+
+<div class="section-card">
+    <div class="comm-section-title">🤍 Anonymous Support Board</div>
+    <p style="font-size:12px;color:#4a7a9a;margin:0 0 12px;">Share what you're feeling. No names. Just support.</p>
+    <div class="comm-anon-form">
+        <textarea id="commAnonInput" placeholder="Share something on your mind… (anonymous)" maxlength="500"></textarea>
+        <div class="comm-anon-form-row">
+            <label class="comm-anon-toggle">
+                <input type="checkbox" id="commAnonToggle" checked>
+                Post anonymously
+            </label>
+            <select class="comm-anon-tag-select" id="commAnonTag">
+                <option value="sharing">💭 Just sharing</option>
+                <option value="support">🤍 Need support</option>
+                <option value="venting">🌊 Venting</option>
+                <option value="grateful">✨ Grateful</option>
+                <option value="milestone">🎉 Milestone</option>
+            </select>
+            <button class="comm-anon-submit" onclick="commPostAnon()">Post</button>
+        </div>
+    </div>
+    <div class="comm-anon-feed" id="commAnonFeed">
+        <div style="text-align:center;color:#334;font-size:13px;padding:20px;">Loading posts…</div>
+    </div>
+</div>
+
+</div><!-- end communityPage -->
 
 <!-- ═══════════════════════════════════════════════════════════
      ADMIN PANEL PAGE — Founder only
@@ -8036,7 +8286,8 @@ function navTo(pageId) {
         feed:'navHome', profile:'navProfile', messagesInbox:'navMessages',
         searchPage:'navSearch', friendsPage:'navFriends',
         notificationsPage:'navNotifs', settingsPage:'navSettings',
-        stormRoomsPage:'navStorm', adminPage:'navAdmin'
+        stormRoomsPage:'navStorm', adminPage:'navAdmin',
+        communityPage:'navCommunity'
     };
     const navEl = document.getElementById(map[pageId]);
     if (navEl) navEl.classList.add('active-nav');
@@ -8051,7 +8302,10 @@ function navTo(pageId) {
     if (pageId === 'settingsPage') {
         if (typeof window._loadNotifPrefs === 'function') window._loadNotifPrefs();
         if (typeof window._showFounderUI === 'function') window._showFounderUI();
-    }    // Auto-close sidebar on mobile after navigation
+    }
+    // Init community hub on first visit
+    if (pageId === 'communityPage') commInitPage();
+    // Auto-close sidebar on mobile after navigation
     closeSidebar();
 }
 
@@ -9326,6 +9580,208 @@ window.handleAvatarPick    = handleAvatarPick;
 window.clearAvatarUpload   = clearAvatarUpload;
 window.handleBannerPick    = handleBannerPick;
 window.clearBannerUpload   = clearBannerUpload;
+
+/* ═══════════════════════════════════════════════════════════════
+   COMMUNITY HUB — client-side logic
+   ═══════════════════════════════════════════════════════════════ */
+(function() {
+    const QUOTES = [
+        { text: "You are enough. You have always been enough.", author: "Shadow Nexus Community" },
+        { text: "It's okay to not be okay. What matters is that you keep going.", author: "Unknown" },
+        { text: "Storms don't last forever. Neither does pain.", author: "Shadow Nexus Community" },
+        { text: "Every day you survive is a day of strength.", author: "Unknown" },
+        { text: "You don't have to have it all figured out. Just take the next step.", author: "Shadow Nexus Community" },
+        { text: "Your feelings are valid. Your story matters.", author: "Shadow Nexus Community" },
+        { text: "Be kind to yourself the way you would be to someone you love.", author: "Unknown" },
+        { text: "Small progress is still progress. Celebrate every step.", author: "Shadow Nexus Community" },
+        { text: "You are not alone — even in the darkest moments.", author: "Shadow Nexus Community" },
+        { text: "Healing isn't linear. That's okay.", author: "Unknown" },
+        { text: "Your darkness doesn't define you. Your courage to face it does.", author: "Shadow Nexus Community" },
+        { text: "Reach out. Someone is always listening.", author: "Shadow Nexus Community" },
+        { text: "One breath at a time. One moment at a time.", author: "Unknown" },
+        { text: "You've survived 100% of your hardest days so far.", author: "Unknown" },
+        { text: "Kindness costs nothing but means everything.", author: "Shadow Nexus Community" },
+    ];
+    const CHALLENGES = [
+        { text: "💬 Reach out to someone you haven't talked to in a while and let them know you're thinking of them.", xp: 50 },
+        { text: "🌟 Write down 3 things you're genuinely grateful for today — no matter how small.", xp: 30 },
+        { text: "🤝 Leave an encouraging comment on someone's post in the feed.", xp: 40 },
+        { text: "🧘 Take 5 minutes to breathe deeply and check in with yourself.", xp: 25 },
+        { text: "💌 Send a kind message to a friend or family member.", xp: 45 },
+        { text: "🎯 Set one small goal for today and commit to completing it.", xp: 35 },
+        { text: "🌱 Do one thing that makes you feel good about yourself.", xp: 30 },
+        { text: "🙌 Compliment someone in the community (post, comment, or DM).", xp: 40 },
+        { text: "📖 Read or listen to something uplifting for 10 minutes.", xp: 25 },
+        { text: "🌙 Before you sleep, think of one good thing that happened today.", xp: 20 },
+        { text: "💪 Check in on someone you know has been struggling lately.", xp: 60 },
+        { text: "✨ Share a positive quote or thought on the anonymous support board.", xp: 35 },
+        { text: "🤍 React to 3 posts with a support reaction.", xp: 30 },
+        { text: "🛡️ Report any harmful content you see — protect our community.", xp: 50 },
+    ];
+    const GOALS = [
+        { label: "Kind messages sent this week", target: 500, current: 312 },
+        { label: "Support reactions given today", target: 200, current: 134 },
+        { label: "Anonymous posts this week", target: 100, current: 67 },
+        { label: "Daily challenges completed", target: 300, current: 189 },
+    ];
+    const KINDNESS_BADGES = [
+        { icon: "🕊️", name: "Peacekeeper", desc: "Never been reported", key: "peacekeeper", unlocked: true },
+        { icon: "🤗", name: "Big Hug", desc: "Sent 10 support reactions", key: "big_hug", unlocked: false },
+        { icon: "🌟", name: "Bright Light", desc: "Posted 5 grateful messages", key: "bright_light", unlocked: false },
+        { icon: "💬", name: "Good Listener", desc: "Replied to 20 support posts", key: "good_listener", unlocked: false },
+        { icon: "🌱", name: "Seed of Hope", desc: "Completed 7 daily challenges", key: "seed_hope", unlocked: false },
+        { icon: "🛡️", name: "Guardian", desc: "Reported harmful content", key: "guardian", unlocked: false },
+        { icon: "🔥", name: "Legendary", desc: "Active 30 days straight", key: "legendary", unlocked: false },
+        { icon: "🤍", name: "Pure Heart", desc: "Anonymous board milestone", key: "pure_heart", unlocked: false },
+    ];
+    const REACTIONS = [
+        { emoji: "🤍", label: "Love", key: "love" },
+        { emoji: "💪", label: "Strength", key: "strength" },
+        { emoji: "🫂", label: "Hug", key: "hug" },
+        { emoji: "✨", label: "Shine", key: "shine" },
+        { emoji: "🕊️", label: "Peace", key: "peace" },
+        { emoji: "🔥", label: "Fire", key: "fire" },
+    ];
+    const TAG_LABELS = { sharing:'💭 Sharing', support:'🤍 Support', venting:'🌊 Venting', grateful:'✨ Grateful', milestone:'🎉 Milestone' };
+
+    let _quoteIdx = Math.floor(Math.random() * QUOTES.length);
+    let _challengeIdx = (new Date().getDate() + new Date().getMonth()) % CHALLENGES.length;
+    let _reactCache = {};
+    let _myReacts   = JSON.parse(localStorage.getItem('snx_comm_reacts') || '{}');
+    let _claimedKey = localStorage.getItem('snx_comm_claimed') || '';
+    let _anonUnsub  = null;
+
+    function _todayKey() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+    function _relTime(ts) {
+        if (!ts) return '';
+        const diff = Date.now() - (ts.toMillis ? ts.toMillis() : ts);
+        if (diff < 60000) return 'just now';
+        if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+        if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+        return Math.floor(diff/86400000) + 'd ago';
+    }
+
+    window.commInitPage = function() {
+        _renderQuote(); _renderChallenge(); _renderGoals(); _renderBadges(); _renderReactions(); _loadAnonPosts();
+    };
+
+    function _renderQuote() {
+        const q = QUOTES[_quoteIdx];
+        const el = document.getElementById('commQuoteText'); const auth = document.getElementById('commQuoteAuthor');
+        if (el) el.textContent = q.text; if (auth) auth.textContent = '— ' + q.author;
+    }
+    window.commNextQuote = function() {
+        _quoteIdx = (_quoteIdx + 1) % QUOTES.length;
+        const card = document.getElementById('commQuoteCard');
+        if (card) { card.style.opacity='0'; card.style.transition='opacity 0.2s'; }
+        setTimeout(() => { _renderQuote(); if (card) card.style.opacity='1'; }, 200);
+    };
+
+    function _renderChallenge() {
+        const ch = CHALLENGES[_challengeIdx];
+        const el = document.getElementById('commChallengeText'); const btn = document.getElementById('commClaimBtn'); const xp = document.getElementById('commChallengeXP');
+        if (el) el.textContent = ch.text; if (xp) xp.textContent = '+' + ch.xp + ' XP';
+        const claimed = _claimedKey === _todayKey();
+        if (btn) { btn.textContent = claimed ? '✅ Completed!' : '✔ Complete Challenge'; btn.classList.toggle('claimed', claimed); }
+    }
+    window.commClaimChallenge = function() {
+        if (_claimedKey === _todayKey()) return;
+        _claimedKey = _todayKey(); localStorage.setItem('snx_comm_claimed', _claimedKey);
+        _renderChallenge(); toastNotification('⚡ Challenge complete! Keep being legendary.');
+        if (typeof db !== 'undefined' && typeof currentUser !== 'undefined' && currentUser) {
+            db.collection('community').doc('challenges').collection('completions')
+              .doc(currentUser.uid + '_' + _todayKey()).set({ uid: currentUser.uid, ts: firebase.firestore.FieldValue.serverTimestamp() }).catch(()=>{});
+        }
+    };
+
+    function _renderGoals() {
+        const cont = document.getElementById('commGoalsContainer'); if (!cont) return;
+        cont.innerHTML = GOALS.map(g => {
+            const pct = Math.min(100, Math.round((g.current/g.target)*100));
+            return `<div class="comm-goal-item"><div class="comm-goal-header"><span class="comm-goal-label">${g.label}</span><span class="comm-goal-pct">${g.current}/${g.target} (${pct}%)</span></div><div class="comm-goal-bar"><div class="comm-goal-fill" style="width:0%" data-target="${pct}"></div></div></div>`;
+        }).join('');
+        requestAnimationFrame(() => { cont.querySelectorAll('.comm-goal-fill').forEach(el => { el.style.width = el.dataset.target + '%'; }); });
+    }
+
+    function _renderBadges() {
+        const grid = document.getElementById('commBadgesGrid'); if (!grid) return;
+        grid.innerHTML = KINDNESS_BADGES.map(b => `<div class="comm-badge-tile ${b.unlocked?'unlocked':''}" title="${b.desc}"><div class="comm-badge-icon">${b.icon}</div><div class="comm-badge-name">${b.name}</div><div class="comm-badge-desc">${b.desc}</div></div>`).join('');
+    }
+
+    function _renderReactions() {
+        const row = document.getElementById('commReactionsRow'); if (!row) return;
+        row.innerHTML = REACTIONS.map(r => `<button class="comm-react-btn ${_myReacts[r.key]?'active':''}" id="commReact_${r.key}" onclick="commSendReaction('${r.key}')"><span class="comm-react-emoji">${r.emoji}</span><span class="comm-react-count" id="commReactCount_${r.key}">${_reactCache[r.key]||'—'}</span></button>`).join('');
+        if (typeof db !== 'undefined') {
+            db.collection('community').doc('reactions').get().then(doc => {
+                const data = doc.exists ? doc.data() : {};
+                REACTIONS.forEach(r => { _reactCache[r.key]=data[r.key]||0; const cnt=document.getElementById('commReactCount_'+r.key); if(cnt) cnt.textContent=_reactCache[r.key]; });
+            }).catch(()=>{});
+        }
+    }
+    window.commSendReaction = function(key) {
+        if (_myReacts[key]) return;
+        _myReacts[key]=true; localStorage.setItem('snx_comm_reacts', JSON.stringify(_myReacts));
+        _reactCache[key]=(_reactCache[key]||0)+1;
+        const btn=document.getElementById('commReact_'+key); const cnt=document.getElementById('commReactCount_'+key);
+        if(btn) btn.classList.add('active'); if(cnt) cnt.textContent=_reactCache[key];
+        if (btn) {
+            const rect=btn.getBoundingClientRect(); const fe=document.createElement('div');
+            fe.className='floating-emoji'; fe.textContent=REACTIONS.find(r=>r.key===key)?.emoji||'💙';
+            fe.style.left=(rect.left+rect.width/2)+'px'; fe.style.top=rect.top+'px';
+            document.body.appendChild(fe); fe.addEventListener('animationend',()=>fe.remove());
+        }
+        if (typeof db !== 'undefined') { db.collection('community').doc('reactions').set({[key]:firebase.firestore.FieldValue.increment(1)},{merge:true}).catch(()=>{}); }
+    };
+
+    function _loadAnonPosts() {
+        if (_anonUnsub) { _anonUnsub(); _anonUnsub=null; }
+        const feed=document.getElementById('commAnonFeed'); if(!feed) return;
+        if (typeof db==='undefined') { feed.innerHTML='<div style="text-align:center;color:#334;font-size:13px;padding:20px;">Sign in to view posts.</div>'; return; }
+        feed.innerHTML='<div style="text-align:center;color:#334;font-size:13px;padding:20px;">Loading…</div>';
+        _anonUnsub = db.collection('community').doc('anonBoard').collection('posts').orderBy('ts','desc').limit(30)
+            .onSnapshot(snap => {
+                if(snap.empty){feed.innerHTML='<div style="text-align:center;color:#334;font-size:13px;padding:20px;">No posts yet. Be the first to share 💙</div>';return;}
+                feed.innerHTML='';
+                snap.forEach(doc => {
+                    const d=doc.data(); const tagClass=d.tag==='support'?'support':''; const tagLabel=TAG_LABELS[d.tag]||d.tag; const hugged=d.hugs||0;
+                    const postEl=document.createElement('div'); postEl.className='comm-anon-post'+(d.tag==='support'?' support-post':'');
+                    postEl.innerHTML=`<div class="comm-anon-meta"><div class="comm-anon-avatar">${d.anon?'🌑':(d.initials||'?')}</div><span class="comm-anon-name">${d.anon?'Anonymous':(d.displayName||'Member')}</span><span class="comm-anon-tag ${tagClass}">${tagLabel}</span><span class="comm-anon-ts">${_relTime(d.ts)}</span></div><div class="comm-anon-text">${d.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div><div class="comm-anon-actions"><button class="comm-anon-react" onclick="commHugPost('${doc.id}',this)">🤍 ${hugged>0?hugged+' Hugs':'Send a Hug'}</button><button class="comm-anon-react" onclick="commReplySupport(this)">💬 Respond</button></div>`;
+                    feed.appendChild(postEl);
+                });
+            }, () => { feed.innerHTML='<div style="text-align:center;color:#334;font-size:13px;padding:20px;">Unable to load posts.</div>'; });
+    }
+
+    window.commPostAnon = function() {
+        const input=document.getElementById('commAnonInput'); const anon=document.getElementById('commAnonToggle'); const tag=document.getElementById('commAnonTag');
+        if(!input||!input.value.trim()){toastNotification('Write something first 💙');return;}
+        const text=input.value.trim(); const isAnon=anon?anon.checked:true; const tagVal=tag?tag.value:'sharing';
+        if(typeof db==='undefined'||!currentUser){toastNotification('Sign in to post.');return;}
+        const payload={text,tag:tagVal,anon:isAnon,ts:firebase.firestore.FieldValue.serverTimestamp(),hugs:0,uid:isAnon?null:currentUser.uid,displayName:isAnon?null:(userData?.displayName||'Member'),initials:isAnon?null:(userData?.displayName?.[0]||'?').toUpperCase()};
+        input.value='';
+        db.collection('community').doc('anonBoard').collection('posts').add(payload).then(()=>toastNotification('Posted 🤍 You\'re not alone.')).catch(e=>toastNotification('Could not post: '+e.message));
+    };
+
+    window.commHugPost = function(docId, btn) {
+        if(btn.classList.contains('hugged')) return; btn.classList.add('hugged');
+        if(typeof db!=='undefined'){db.collection('community').doc('anonBoard').collection('posts').doc(docId).update({hugs:firebase.firestore.FieldValue.increment(1)}).catch(()=>{});}
+        const fe=document.createElement('div'); fe.className='floating-emoji'; fe.textContent='🤍';
+        const rect=btn.getBoundingClientRect(); fe.style.left=(rect.left+rect.width/2)+'px'; fe.style.top=rect.top+'px';
+        document.body.appendChild(fe); fe.addEventListener('animationend',()=>fe.remove());
+        toastNotification('🤍 Hug sent — they needed that.');
+    };
+
+    window.commReplySupport = function(btn) {
+        const postEl=btn.closest('.comm-anon-post'); if(!postEl||postEl.querySelector('.comm-reply-wrap')) return;
+        const wrap=document.createElement('div'); wrap.className='comm-reply-wrap'; wrap.style.cssText='margin-top:8px;display:flex;gap:6px;';
+        wrap.innerHTML=`<input style="flex:1;font-size:12px;padding:6px 10px;margin:0;" placeholder="Send an encouraging reply…" maxlength="200" class="comm-reply-input"><button style="font-size:11px;padding:6px 12px;border-radius:14px;" onclick="commSubmitReply(this)">Send</button>`;
+        postEl.appendChild(wrap); wrap.querySelector('.comm-reply-input').focus();
+    };
+
+    window.commSubmitReply = function(btn) {
+        const wrap=btn.closest('.comm-reply-wrap'); const input=wrap.querySelector('.comm-reply-input');
+        if(!input.value.trim()) return; toastNotification('💬 Your encouragement was sent 💙'); wrap.remove();
+    };
+})();
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════
