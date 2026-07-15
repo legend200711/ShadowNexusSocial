@@ -3225,6 +3225,174 @@ body::after {
     background: rgba(0,174,239,0.72) !important;
     box-shadow: 0 0 6px rgba(0,174,239,0.60) !important;
 }
+
+/* ── Profile Customization ─────────────────────────────────── */
+/* Animated background keyframes */
+@keyframes pcBgPulse {
+    0%,100% { background-position: 0% 50%; }
+    50%      { background-position: 100% 50%; }
+}
+@keyframes pcBgScan {
+    0%   { background-position: 0 0; }
+    100% { background-position: 0 120px; }
+}
+@keyframes pcBgFloat {
+    0%,100% { background-position: 50% 0%; }
+    50%      { background-position: 50% 100%; }
+}
+@keyframes pcBgWave {
+    0%   { background-position: 0 0, 0 0; }
+    100% { background-position: 60px 60px, -60px -60px; }
+}
+@keyframes pcSparkle {
+    0%,100% { opacity:.15; transform: scale(1) rotate(0deg); }
+    50%      { opacity:.55; transform: scale(1.15) rotate(180deg); }
+}
+
+/* Profile-page animated BG wrapper */
+.profile-bg-animated {
+    position: absolute; inset: 0; pointer-events: none; z-index: 0; border-radius: 14px 14px 0 0;
+}
+.profile-bg-animated.anim-pulse {
+    background: linear-gradient(270deg,#071428,#0B1F3A,#00183a,#00375c);
+    background-size: 400% 400%;
+    animation: pcBgPulse 6s ease infinite;
+}
+.profile-bg-animated.anim-scan {
+    background:
+        repeating-linear-gradient(0deg,rgba(0,174,239,0.07) 0px,rgba(0,174,239,0.07) 1px,transparent 1px,transparent 20px),
+        linear-gradient(180deg,#071428,#0B1F3A);
+    background-size: auto, auto;
+    animation: pcBgScan 3s linear infinite;
+}
+.profile-bg-animated.anim-float {
+    background: radial-gradient(ellipse at 50% 0%,rgba(57,255,20,0.18) 0%,transparent 70%),
+                radial-gradient(ellipse at 50% 100%,rgba(0,174,239,0.22) 0%,transparent 70%),
+                #071428;
+    background-size: 100% 200%, 100% 200%, auto;
+    animation: pcBgFloat 8s ease infinite;
+}
+.profile-bg-animated.anim-wave {
+    background:
+        repeating-linear-gradient(45deg,rgba(0,174,239,0.05) 0,rgba(0,174,239,0.05) 2px,transparent 2px,transparent 30px),
+        repeating-linear-gradient(-45deg,rgba(57,255,20,0.04) 0,rgba(57,255,20,0.04) 2px,transparent 2px,transparent 30px),
+        #071428;
+    animation: pcBgWave 4s linear infinite;
+}
+/* Solid / gradient banner overrides (applied inline via style, but these are helpers) */
+.pcc-banner-solid       { background-image: none !important; }
+.pcc-banner-gradient    { background-image: none !important; background-size: cover !important; }
+
+/* Avatar frames */
+.p-avatar.frame-glow-blue  { box-shadow: 0 0 0 3px #00AEEF, 0 0 22px 4px rgba(0,174,239,0.7) !important; border-color: #00AEEF !important; }
+.p-avatar.frame-glow-green { box-shadow: 0 0 0 3px #39FF14, 0 0 22px 4px rgba(57,255,20,0.7) !important; border-color: #39FF14 !important; }
+.p-avatar.frame-glow-pink  { box-shadow: 0 0 0 3px #ff4ec7, 0 0 22px 4px rgba(255,78,199,0.7) !important; border-color: #ff4ec7 !important; }
+.p-avatar.frame-glow-gold  { box-shadow: 0 0 0 3px #ffd700, 0 0 22px 4px rgba(255,215,0,0.7) !important; border-color: #ffd700 !important; }
+.p-avatar.frame-ring-double { box-shadow: 0 0 0 3px #0B1F3A, 0 0 0 6px #00AEEF !important; }
+.p-avatar.frame-hex { clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%); border-radius: 0 !important; }
+.p-avatar.frame-none { box-shadow: 0 0 26px rgba(0,174,239,0.52) !important; border-color: rgba(0,174,239,0.68) !important; clip-path: none !important; }
+
+/* Name accent / glow */
+#profileName.accent-blue  { color: #00AEEF !important; text-shadow: 0 0 14px rgba(0,174,239,0.9); }
+#profileName.accent-green { color: #39FF14 !important; text-shadow: 0 0 14px rgba(57,255,20,0.85); }
+#profileName.accent-pink  { color: #ff4ec7 !important; text-shadow: 0 0 14px rgba(255,78,199,0.85); }
+#profileName.accent-gold  { color: #ffd700 !important; text-shadow: 0 0 14px rgba(255,215,0,0.85); }
+#profileName.accent-white { color: #ffffff !important; text-shadow: 0 0 10px rgba(255,255,255,0.6); }
+#profileName.accent-none  { color: inherit !important; text-shadow: none; }
+
+/* Banner decoration overlay */
+#profileBannerDeco { position: absolute; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; border-radius: 14px 14px 0 0; }
+.bdeco-sparkle::before, .bdeco-sparkle::after {
+    content: '✦'; position: absolute; font-size: 22px; color: rgba(255,215,0,.55);
+    animation: pcSparkle 2.5s ease-in-out infinite;
+}
+.bdeco-sparkle::before { top: 22%; left: 14%; animation-delay: 0s; }
+.bdeco-sparkle::after  { top: 42%; right: 18%; animation-delay: 1.2s; }
+.bdeco-stars::before { content: '★ ✦ ☆ ✦ ★'; position: absolute; top: 18%; left: 8%; color: rgba(255,255,255,0.35); font-size: 18px; letter-spacing: 10px; }
+.bdeco-cyber::before  { content: '◈ ◈ ◈ ◈ ◈ ◈ ◈ ◈'; position: absolute; top: 10%; left: 4%; color: rgba(0,174,239,.30); font-size: 16px; letter-spacing: 14px; }
+.bdeco-cyber::after   { content: '◈ ◈ ◈ ◈ ◈ ◈ ◈ ◈'; position: absolute; bottom: 14%; right: 4%; color: rgba(57,255,20,.22); font-size: 16px; letter-spacing: 14px; }
+.bdeco-flowers::before { content: '🌸 🌺 🌸 🌺 🌸'; position: absolute; top: 12%; left: 6%; font-size: 20px; letter-spacing: 8px; }
+.bdeco-hearts::before  { content: '♥ ♡ ♥ ♡ ♥'; position: absolute; top: 18%; left: 8%; font-size: 20px; color: rgba(255,78,199,.65); letter-spacing: 14px; }
+.bdeco-fire::before    { content: '🔥 🔥 🔥'; position: absolute; bottom: 10%; left: 10%; font-size: 22px; letter-spacing: 16px; }
+.bdeco-snow::before    { content: '❄ ❅ ❆ ❅ ❄'; position: absolute; top: 14%; left: 8%; font-size: 20px; color: rgba(180,230,255,.65); letter-spacing: 12px; }
+
+/* ── Customize Modal ── */
+.profile-customize-modal {
+    display: none; position: fixed; inset: 0; background: rgba(5,12,28,0.88);
+    z-index: 3000; align-items: center; justify-content: center;
+    backdrop-filter: blur(6px);
+}
+.profile-customize-modal.open { display: flex; }
+.pc-modal-inner {
+    background: linear-gradient(160deg,#0d1e3a,#071428);
+    border: 1px solid rgba(0,174,239,0.28);
+    border-radius: 18px; width: min(560px, 96vw);
+    max-height: 92vh; overflow-y: auto;
+    padding: 24px; position: relative;
+    box-shadow: 0 8px 50px rgba(0,50,150,0.45);
+}
+.pc-modal-inner h3 { margin: 0 0 18px; font-size: 17px; color: #00AEEF; }
+.pc-close-btn {
+    position: absolute; top: 14px; right: 16px;
+    background: none; border: none; color: #888; font-size: 20px;
+    cursor: pointer; line-height: 1;
+}
+.pc-close-btn:hover { color: #fff; }
+.pc-section-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: #557; margin: 18px 0 8px; font-weight: 600;
+}
+/* Option pills */
+.pc-option-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.pc-opt {
+    padding: 6px 13px; border-radius: 20px; font-size: 12px; cursor: pointer;
+    border: 1.5px solid rgba(0,174,239,0.22); background: rgba(0,20,60,0.55);
+    color: #aac; transition: border-color .15s, background .15s;
+    user-select: none;
+}
+.pc-opt:hover  { border-color: #00AEEF; background: rgba(0,174,239,0.1); }
+.pc-opt.active { border-color: #39FF14; background: rgba(57,255,20,0.12); color: #fff; }
+/* Color swatches */
+.pc-swatch-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
+.pc-swatch {
+    width: 38px; height: 38px; border-radius: 10px; cursor: pointer;
+    border: 2px solid transparent; transition: border-color .15s, transform .1s;
+    flex-shrink: 0;
+}
+.pc-swatch:hover  { transform: scale(1.08); }
+.pc-swatch.active { border-color: #39FF14 !important; }
+/* Preview strip */
+.pc-preview-wrap {
+    margin: 16px 0 0; border-radius: 12px; overflow: hidden;
+    border: 1px solid rgba(0,174,239,0.2); position: relative;
+}
+.pc-preview-banner {
+    height: 90px; background: linear-gradient(135deg,#071428,#0B1F3A);
+    position: relative; overflow: hidden;
+}
+.pc-preview-avatar {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: #0B1F3A; border: 3px solid rgba(0,174,239,0.68);
+    position: absolute; bottom: -18px; left: 16px;
+    box-shadow: 0 0 14px rgba(0,174,239,0.42);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; color: #00AEEF; font-weight: 700;
+    overflow: hidden;
+}
+.pc-preview-name { padding: 26px 16px 10px; font-size: 15px; font-weight: 700; color: #e8f4ff; }
+.pc-save-btn {
+    margin-top: 22px; width: 100%; padding: 11px; border-radius: 10px;
+    background: linear-gradient(90deg,#005fa3,#00AEEF); border: none;
+    color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: opacity .15s;
+}
+.pc-save-btn:hover { opacity: .88; }
+.pc-reset-btn {
+    margin-top: 8px; width: 100%; padding: 9px; border-radius: 10px;
+    background: transparent; border: 1px solid rgba(255,60,60,0.35);
+    color: #f87; font-size: 13px; cursor: pointer; transition: background .15s;
+}
+.pc-reset-btn:hover { background: rgba(255,60,60,0.1); }
 </style>
 
 <body>
@@ -3387,6 +3555,10 @@ body::after {
     <div class="profile-header">
         <!-- Cover photo -->
         <div class="cover-banner" id="profileBanner">
+            <!-- animated background layer (injected by applyProfileCustomization) -->
+            <div id="profileBgAnimated"></div>
+            <!-- banner decoration overlay -->
+            <div id="profileBannerDeco"></div>
             <button class="cover-edit-btn" id="btnCoverEdit" style="display:none;" onclick="openEditProfileModal()">🖼 Edit Cover</button>
         </div>
 
@@ -3432,6 +3604,7 @@ body::after {
                     <button id="btnFollowAction">+ Follow</button>
                     <button id="btnMessageAction">💬 Message</button>
                     <button id="btnEditProfile" style="display:none;" onclick="openEditProfileModal()">✏️ Edit Profile</button>
+                    <button id="btnCustomizeProfile" style="display:none;" onclick="openCustomizeModal()">🎨 Customize</button>
                 </div>
 
                 <div class="badge-container" id="profileBadges"></div>
@@ -3499,6 +3672,119 @@ body::after {
             </select>
 
             <button class="edit-modal-save" id="btnSaveProfile">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- ── Profile Customize Modal ── -->
+    <div class="profile-customize-modal" id="profileCustomizeModal">
+        <div class="pc-modal-inner">
+            <button class="pc-close-btn" onclick="closeCustomizeModal()">✕</button>
+            <h3>🎨 Customize Profile</h3>
+
+            <!-- Live preview -->
+            <div class="pc-preview-wrap">
+                <div class="pc-preview-banner" id="pcPreviewBanner">
+                    <div id="pcPreviewAnimLayer" style="position:absolute;inset:0;pointer-events:none;"></div>
+                    <div id="pcPreviewDeco" style="position:absolute;inset:0;pointer-events:none;overflow:hidden;"></div>
+                    <div class="pc-preview-avatar" id="pcPreviewAvatar">S</div>
+                </div>
+                <div class="pc-preview-name" id="pcPreviewName">Display Name</div>
+            </div>
+
+            <!-- ── Banner Background ── -->
+            <div class="pc-section-title">Banner Background</div>
+            <div class="pc-option-row" id="pcBgTypeRow">
+                <span class="pc-opt active" data-group="bgType" data-val="default">Default</span>
+                <span class="pc-opt" data-group="bgType" data-val="solid">Solid Color</span>
+                <span class="pc-opt" data-group="bgType" data-val="gradient">Gradient</span>
+                <span class="pc-opt" data-group="bgType" data-val="pattern">Pattern</span>
+                <span class="pc-opt" data-group="bgType" data-val="animated">Animated</span>
+            </div>
+
+            <!-- Solid colors (shown when bgType=solid) -->
+            <div id="pcSolidColors" style="display:none;">
+                <div class="pc-swatch-row">
+                    <div class="pc-swatch active" data-group="solidColor" data-val="#071428" style="background:#071428;border-color:rgba(255,255,255,.15);" title="Midnight"></div>
+                    <div class="pc-swatch" data-group="solidColor" data-val="#0B1F3A" style="background:#0B1F3A;" title="Navy"></div>
+                    <div class="pc-swatch" data-group="solidColor" data-val="#001a00" style="background:#001a00;" title="Deep Green"></div>
+                    <div class="pc-swatch" data-group="solidColor" data-val="#1a0030" style="background:#1a0030;" title="Deep Purple"></div>
+                    <div class="pc-swatch" data-group="solidColor" data-val="#1a0010" style="background:#1a0010;" title="Deep Red"></div>
+                    <div class="pc-swatch" data-group="solidColor" data-val="#00101a" style="background:#00101a;" title="Teal Black"></div>
+                    <div class="pc-swatch" data-group="solidColor" data-val="#111111" style="background:#111111;" title="Charcoal"></div>
+                    <div class="pc-swatch" data-group="solidColor" data-val="#0d0d22" style="background:#0d0d22;" title="Indigo Dark"></div>
+                </div>
+            </div>
+
+            <!-- Gradients (shown when bgType=gradient) -->
+            <div id="pcGradients" style="display:none;">
+                <div class="pc-swatch-row">
+                    <div class="pc-swatch active" data-group="gradient" data-val="linear-gradient(135deg,#071428,#0B1F3A)" style="background:linear-gradient(135deg,#071428,#0B1F3A);" title="Deep Ocean"></div>
+                    <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#001a00,#003300)" style="background:linear-gradient(135deg,#001a00,#003300);" title="Matrix Green"></div>
+                    <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#1a0030,#3a0060)" style="background:linear-gradient(135deg,#1a0030,#3a0060);" title="Void Purple"></div>
+                    <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#1a0010,#3a0020)" style="background:linear-gradient(135deg,#1a0010,#3a0020);" title="Crimson Dark"></div>
+                    <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#0B1F3A,#00375c)" style="background:linear-gradient(135deg,#0B1F3A,#00375c);" title="Cyber Blue"></div>
+                    <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#071428,#39FF1422,#071428)" style="background:linear-gradient(135deg,#071428,#1a3a10,#071428);" title="Neon Fade"></div>
+                </div>
+            </div>
+
+            <!-- Patterns (shown when bgType=pattern) -->
+            <div id="pcPatterns" style="display:none;">
+                <div class="pc-option-row">
+                    <span class="pc-opt active" data-group="pattern" data-val="grid">◻ Grid</span>
+                    <span class="pc-opt" data-group="pattern" data-val="dots">• Dots</span>
+                    <span class="pc-opt" data-group="pattern" data-val="hex">⬡ Hex</span>
+                    <span class="pc-opt" data-group="pattern" data-val="diagonal">╱ Diagonal</span>
+                </div>
+            </div>
+
+            <!-- Animated (shown when bgType=animated) -->
+            <div id="pcAnimated" style="display:none;">
+                <div class="pc-option-row">
+                    <span class="pc-opt active" data-group="animated" data-val="pulse">🌊 Pulse</span>
+                    <span class="pc-opt" data-group="animated" data-val="scan">📡 Scan Lines</span>
+                    <span class="pc-opt" data-group="animated" data-val="float">🌟 Float</span>
+                    <span class="pc-opt" data-group="animated" data-val="wave">〜 Wave</span>
+                </div>
+            </div>
+
+            <!-- ── Avatar Frame ── -->
+            <div class="pc-section-title">Avatar Frame</div>
+            <div class="pc-option-row">
+                <span class="pc-opt active" data-group="frame" data-val="none">None</span>
+                <span class="pc-opt" data-group="frame" data-val="glow-blue">💙 Blue Glow</span>
+                <span class="pc-opt" data-group="frame" data-val="glow-green">💚 Green Glow</span>
+                <span class="pc-opt" data-group="frame" data-val="glow-pink">💗 Pink Glow</span>
+                <span class="pc-opt" data-group="frame" data-val="glow-gold">✨ Gold Glow</span>
+                <span class="pc-opt" data-group="frame" data-val="ring-double">◎ Double Ring</span>
+                <span class="pc-opt" data-group="frame" data-val="hex">⬡ Hex Shape</span>
+            </div>
+
+            <!-- ── Name Accent ── -->
+            <div class="pc-section-title">Name Glow</div>
+            <div class="pc-option-row">
+                <span class="pc-opt active" data-group="nameAccent" data-val="none">None</span>
+                <span class="pc-opt" data-group="nameAccent" data-val="blue">💙 Blue</span>
+                <span class="pc-opt" data-group="nameAccent" data-val="green">💚 Green</span>
+                <span class="pc-opt" data-group="nameAccent" data-val="pink">💗 Pink</span>
+                <span class="pc-opt" data-group="nameAccent" data-val="gold">✨ Gold</span>
+                <span class="pc-opt" data-group="nameAccent" data-val="white">⬜ White</span>
+            </div>
+
+            <!-- ── Banner Decoration ── -->
+            <div class="pc-section-title">Banner Decoration</div>
+            <div class="pc-option-row">
+                <span class="pc-opt active" data-group="bannerDeco" data-val="none">None</span>
+                <span class="pc-opt" data-group="bannerDeco" data-val="sparkle">✦ Sparkle</span>
+                <span class="pc-opt" data-group="bannerDeco" data-val="stars">★ Stars</span>
+                <span class="pc-opt" data-group="bannerDeco" data-val="cyber">◈ Cyber</span>
+                <span class="pc-opt" data-group="bannerDeco" data-val="flowers">🌸 Flowers</span>
+                <span class="pc-opt" data-group="bannerDeco" data-val="hearts">♥ Hearts</span>
+                <span class="pc-opt" data-group="bannerDeco" data-val="fire">🔥 Fire</span>
+                <span class="pc-opt" data-group="bannerDeco" data-val="snow">❄ Snow</span>
+            </div>
+
+            <button class="pc-save-btn" onclick="saveProfileCustomization()">💾 Save Customization</button>
+            <button class="pc-reset-btn" onclick="resetProfileCustomization()">↺ Reset to Default</button>
         </div>
     </div>
 
@@ -4624,6 +4910,7 @@ body::after {
           userDataUnsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
               if (!docSnap.exists()) return;
               userData = docSnap.data();
+              window.userData = userData; // expose to non-module scripts
               // Founder email always takes priority — never let Firestore override it
               const isFounderEmail = user.email && user.email.toLowerCase() === FOUNDER_EMAIL.toLowerCase();
               if (!isFounderEmail) {
@@ -6155,6 +6442,8 @@ body::after {
       document.getElementById("btnEditProfile").style.display  = isSelf ? "" : "none";
       document.getElementById("btnAvatarEdit").style.display   = isSelf ? "flex" : "none";
       document.getElementById("btnCoverEdit").style.display    = isSelf ? "" : "none";
+      const customizeBtn = document.getElementById("btnCustomizeProfile");
+      if (customizeBtn) customizeBtn.style.display = isSelf ? "" : "none";
 
       if(isSelf) {
           // Pre-fill edit form
@@ -6352,6 +6641,11 @@ body::after {
               }
               wallBox.appendChild(div);
           });
+
+          // Apply profile customization
+          if (typeof window.applyProfileCustomization === 'function') {
+              window.applyProfileCustomization(p.profileCustomization || null);
+          }
       });
   };
 
@@ -6368,6 +6662,12 @@ body::after {
       closeEditProfileModal();
       toastNotification("Profile updated!");
   };
+
+  // Expose updateDoc + doc to non-module scope so customization save can call Firestore
+  window._firestoreUpdateDoc = updateDoc;
+  window._firestoreDoc       = doc;
+  window._firestoreDb        = db;
+  window._getCurrentUser     = () => currentUser;
 
   async function submitWallPost() {
       let text = document.getElementById("wallInput").value.trim();
@@ -7960,6 +8260,268 @@ document.getElementById('editProfileModal').addEventListener('click', function(e
 
 function applyAestheticMatrix(type) {
     globalAestheticMode = type;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Profile Customization System
+   ══════════════════════════════════════════════════════════════ */
+
+// Current working state inside the modal (mutated by picker clicks)
+const _pcState = {
+    bgType:    'default',
+    solidColor: '#071428',
+    gradient:  'linear-gradient(135deg,#071428,#0B1F3A)',
+    pattern:   'grid',
+    animated:  'pulse',
+    frame:     'none',
+    nameAccent:'none',
+    bannerDeco:'none'
+};
+
+// CSS map for pattern type → inline background style
+const _pcPatterns = {
+    grid:     'repeating-linear-gradient(0deg,rgba(0,174,239,0.08) 0,rgba(0,174,239,0.08) 1px,transparent 1px,transparent 24px),repeating-linear-gradient(90deg,rgba(0,174,239,0.08) 0,rgba(0,174,239,0.08) 1px,transparent 1px,transparent 24px),#071428',
+    dots:     'radial-gradient(circle,rgba(0,174,239,0.30) 1.5px,transparent 1.5px) 0 0 / 18px 18px,#071428',
+    hex:      'repeating-linear-gradient(60deg,rgba(0,174,239,0.06) 0,rgba(0,174,239,0.06) 1px,transparent 1px,transparent 22px),repeating-linear-gradient(-60deg,rgba(57,255,20,0.05) 0,rgba(57,255,20,0.05) 1px,transparent 1px,transparent 22px),#071428',
+    diagonal: 'repeating-linear-gradient(45deg,rgba(0,174,239,0.08) 0,rgba(0,174,239,0.08) 1px,transparent 1px,transparent 16px),#071428'
+};
+
+// ── Compute banner CSS from current state ──
+function _pcBannerCss(state) {
+    if (state.bgType === 'solid')    return { background: state.solidColor, backgroundImage: 'none', animClass: '' };
+    if (state.bgType === 'gradient') return { background: state.gradient,   backgroundImage: 'none', animClass: '' };
+    if (state.bgType === 'pattern')  return { background: _pcPatterns[state.pattern] || _pcPatterns.grid, backgroundImage: 'none', animClass: '' };
+    if (state.bgType === 'animated') return { background: '', backgroundImage: '', animClass: 'anim-' + state.animated };
+    // default
+    return { background: 'linear-gradient(135deg,#071428,#0B1F3A)', backgroundImage: 'none', animClass: '' };
+}
+
+// ── Apply to real profile header ──
+window.applyProfileCustomization = function(data) {
+    const s = data || {};
+    const state = {
+        bgType:    s.bgType    || 'default',
+        solidColor:s.solidColor|| '#071428',
+        gradient:  s.gradient  || 'linear-gradient(135deg,#071428,#0B1F3A)',
+        pattern:   s.pattern   || 'grid',
+        animated:  s.animated  || 'pulse',
+        frame:     s.frame     || 'none',
+        nameAccent:s.nameAccent|| 'none',
+        bannerDeco:s.bannerDeco|| 'none'
+    };
+
+    // Banner background (only if no custom image set)
+    const bannerEl = document.getElementById('profileBanner');
+    if (bannerEl && !bannerEl.style.backgroundImage.startsWith('url(')) {
+        const { background, animClass } = _pcBannerCss(state);
+        if (background) bannerEl.style.background = background;
+    }
+    // Animated layer
+    const animEl = document.getElementById('profileBgAnimated');
+    if (animEl) {
+        animEl.className = 'profile-bg-animated';
+        if (state.bgType === 'animated') {
+            animEl.classList.add('anim-' + state.animated);
+        }
+    }
+    // Banner decoration
+    const decoEl = document.getElementById('profileBannerDeco');
+    if (decoEl) {
+        decoEl.className = state.bannerDeco !== 'none' ? 'bdeco-' + state.bannerDeco : '';
+    }
+    // Avatar frame
+    const avatarEl = document.getElementById('profileAvatar');
+    if (avatarEl) {
+        ['frame-glow-blue','frame-glow-green','frame-glow-pink','frame-glow-gold','frame-ring-double','frame-hex','frame-none'].forEach(c => avatarEl.classList.remove(c));
+        if (state.frame !== 'none') avatarEl.classList.add('frame-' + state.frame);
+    }
+    // Name accent
+    const nameEl = document.getElementById('profileName');
+    if (nameEl) {
+        ['accent-blue','accent-green','accent-pink','accent-gold','accent-white','accent-none'].forEach(c => nameEl.classList.remove(c));
+        nameEl.classList.add('accent-' + state.nameAccent);
+    }
+};
+
+// ── Open modal, seed state from current saved data ──
+function openCustomizeModal() {
+    const saved = (window.userData && window.userData.profileCustomization) || {};
+    _pcState.bgType     = saved.bgType     || 'default';
+    _pcState.solidColor = saved.solidColor || '#071428';
+    _pcState.gradient   = saved.gradient   || 'linear-gradient(135deg,#071428,#0B1F3A)';
+    _pcState.pattern    = saved.pattern    || 'grid';
+    _pcState.animated   = saved.animated   || 'pulse';
+    _pcState.frame      = saved.frame      || 'none';
+    _pcState.nameAccent = saved.nameAccent || 'none';
+    _pcState.bannerDeco = saved.bannerDeco || 'none';
+
+    // Seed preview user info
+    const dn = (window.userData && window.userData.displayName) || 'You';
+    const av = (window.userData && window.userData.avatar) || '';
+    const prevAvEl = document.getElementById('pcPreviewAvatar');
+    if (prevAvEl) {
+        if (av) {
+            prevAvEl.style.backgroundImage = `url('${av}')`;
+            prevAvEl.style.backgroundSize = 'cover';
+            prevAvEl.style.backgroundPosition = 'center';
+            prevAvEl.textContent = '';
+        } else {
+            prevAvEl.style.backgroundImage = 'none';
+            prevAvEl.textContent = dn[0].toUpperCase();
+        }
+    }
+    const prevNameEl = document.getElementById('pcPreviewName');
+    if (prevNameEl) prevNameEl.textContent = dn;
+
+    // Sync option pills/swatches to state
+    _pcSyncAllPills();
+    // Show/hide sub-panels
+    _pcShowSubpanel(_pcState.bgType);
+    // Render preview
+    _pcUpdatePreview();
+
+    document.getElementById('profileCustomizeModal').classList.add('open');
+}
+
+function closeCustomizeModal() {
+    document.getElementById('profileCustomizeModal').classList.remove('open');
+}
+document.getElementById('profileCustomizeModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCustomizeModal();
+});
+
+// ── Pill / swatch click delegation ──
+document.getElementById('profileCustomizeModal').addEventListener('click', function(e) {
+    const el = e.target.closest('[data-group]');
+    if (!el) return;
+    const group = el.dataset.group;
+    const val   = el.dataset.val;
+
+    // Deactivate siblings in same group
+    document.querySelectorAll(`[data-group="${group}"]`).forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+
+    if (group === 'bgType') {
+        _pcState.bgType = val;
+        _pcShowSubpanel(val);
+    } else if (group === 'solidColor') {
+        _pcState.solidColor = val;
+    } else if (group === 'gradient') {
+        _pcState.gradient = val;
+    } else if (group === 'pattern') {
+        _pcState.pattern = val;
+    } else if (group === 'animated') {
+        _pcState.animated = val;
+    } else if (group === 'frame') {
+        _pcState.frame = val;
+    } else if (group === 'nameAccent') {
+        _pcState.nameAccent = val;
+    } else if (group === 'bannerDeco') {
+        _pcState.bannerDeco = val;
+    }
+    _pcUpdatePreview();
+});
+
+function _pcShowSubpanel(type) {
+    ['pcSolidColors','pcGradients','pcPatterns','pcAnimated'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    const map = { solid:'pcSolidColors', gradient:'pcGradients', pattern:'pcPatterns', animated:'pcAnimated' };
+    if (map[type]) {
+        const el = document.getElementById(map[type]);
+        if (el) el.style.display = '';
+    }
+}
+
+function _pcSyncAllPills() {
+    const sync = (group, val) => {
+        document.querySelectorAll(`[data-group="${group}"]`).forEach(el => {
+            el.classList.toggle('active', el.dataset.val === val);
+        });
+    };
+    sync('bgType',     _pcState.bgType);
+    sync('solidColor', _pcState.solidColor);
+    sync('gradient',   _pcState.gradient);
+    sync('pattern',    _pcState.pattern);
+    sync('animated',   _pcState.animated);
+    sync('frame',      _pcState.frame);
+    sync('nameAccent', _pcState.nameAccent);
+    sync('bannerDeco', _pcState.bannerDeco);
+}
+
+// ── Live preview updater ──
+function _pcUpdatePreview() {
+    const bannerEl = document.getElementById('pcPreviewBanner');
+    const animEl   = document.getElementById('pcPreviewAnimLayer');
+    const decoEl   = document.getElementById('pcPreviewDeco');
+    const avatarEl = document.getElementById('pcPreviewAvatar');
+    const nameEl   = document.getElementById('pcPreviewName');
+
+    if (bannerEl) {
+        const { background, animClass } = _pcBannerCss(_pcState);
+        if (background) {
+            bannerEl.style.background = background;
+        } else {
+            bannerEl.style.background = 'linear-gradient(135deg,#071428,#0B1F3A)';
+        }
+    }
+    if (animEl) {
+        animEl.className = '';
+        animEl.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+        if (_pcState.bgType === 'animated') {
+            animEl.classList.add('profile-bg-animated', 'anim-' + _pcState.animated);
+        }
+    }
+    if (decoEl) {
+        decoEl.className = _pcState.bannerDeco !== 'none' ? 'bdeco-' + _pcState.bannerDeco : '';
+        decoEl.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;';
+    }
+    if (avatarEl) {
+        ['frame-glow-blue','frame-glow-green','frame-glow-pink','frame-glow-gold','frame-ring-double','frame-hex','frame-none'].forEach(c => avatarEl.classList.remove(c));
+        if (_pcState.frame !== 'none') avatarEl.classList.add('frame-' + _pcState.frame);
+    }
+    if (nameEl) {
+        ['accent-blue','accent-green','accent-pink','accent-gold','accent-white','accent-none'].forEach(c => nameEl.classList.remove(c));
+        nameEl.classList.add('accent-' + _pcState.nameAccent);
+    }
+}
+
+// ── Save to Firestore ──
+async function saveProfileCustomization() {
+    const updateDoc = window._firestoreUpdateDoc;
+    const docFn     = window._firestoreDoc;
+    const db        = window._firestoreDb;
+    const user      = window._getCurrentUser && window._getCurrentUser();
+    if (!updateDoc || !docFn || !db || !user) {
+        if (typeof toastNotification === 'function') toastNotification('Not ready yet — try again in a moment.');
+        return;
+    }
+    const data = {
+        bgType:    _pcState.bgType,
+        solidColor:_pcState.solidColor,
+        gradient:  _pcState.gradient,
+        pattern:   _pcState.pattern,
+        animated:  _pcState.animated,
+        frame:     _pcState.frame,
+        nameAccent:_pcState.nameAccent,
+        bannerDeco:_pcState.bannerDeco
+    };
+    await updateDoc(docFn(db, 'users', user.uid), { profileCustomization: data });
+    closeCustomizeModal();
+    if (typeof toastNotification === 'function') toastNotification('Profile customization saved! 🎨');
+}
+
+// ── Reset to default ──
+async function resetProfileCustomization() {
+    const updateDoc = window._firestoreUpdateDoc;
+    const docFn     = window._firestoreDoc;
+    const db        = window._firestoreDb;
+    const user      = window._getCurrentUser && window._getCurrentUser();
+    if (!updateDoc || !docFn || !db || !user) return;
+    await updateDoc(docFn(db, 'users', user.uid), { profileCustomization: null });
+    closeCustomizeModal();
+    if (typeof toastNotification === 'function') toastNotification('Profile customization reset.');
 }
 
 /* ── Friends tabs ── */
