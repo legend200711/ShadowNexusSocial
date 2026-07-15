@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2033,6 +2033,66 @@ img.post-media-preview::before {
 .btn-family-on  { border-color:#ff3366 !important; color:#ff3366 !important; }
 .btn-family-off { border-color:rgba(255,255,255,0.2) !important; color:#9bbdd8 !important; }
 
+/* ── Family invite card (pending invites in family tab) ── */
+.fam-invite-card { display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid rgba(0,51,102,0.35); }
+.fam-invite-card:last-child { border-bottom:none; }
+.fam-invite-pending-label { font-size:10px; background:rgba(255,51,102,0.15); color:#ff6688; border:1px solid rgba(255,51,102,0.3); padding:2px 7px; border-radius:8px; margin-left:6px; font-weight:bold; }
+.fam-invite-actions { display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap; }
+.fam-invite-actions button { padding:5px 10px; font-size:11px; border-radius:12px; }
+
+/* ── Profile page: Family & Friends sections ── */
+.profile-family-section,.profile-friends-section {
+    background: var(--bg-card,#0d2444);
+    border: 1px solid var(--pc-card-border, rgba(0,174,239,0.22));
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+.profile-family-header, .profile-friends-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; flex-wrap: wrap; gap: 8px;
+}
+.profile-family-title, .profile-friends-title {
+    font-size: 13px; font-weight: 700; color: #c8e8ff;
+    letter-spacing: 0.4px;
+}
+.profile-family-title { color: #ff88aa; }
+.profile-family-privacy-badge, .profile-friends-privacy-badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 8px;
+    border: 1px solid rgba(0,174,239,0.3); color: #6a90b8;
+    cursor: pointer; transition: border-color 0.15s;
+}
+.profile-family-privacy-badge:hover, .profile-friends-privacy-badge:hover {
+    border-color: rgba(0,174,239,0.6); color: #c8e8ff;
+}
+.profile-family-list, .profile-friends-list {
+    display: flex; flex-direction: column; gap: 8px;
+}
+.profile-family-invite-btn {
+    margin-top: 10px; width: 100%; padding: 7px 0; font-size: 12px;
+    background: rgba(255,51,102,0.07); border-color: rgba(255,51,102,0.3);
+    color: #ff88aa;
+}
+.profile-family-invite-btn:hover { background: rgba(255,51,102,0.14); border-color: rgba(255,51,102,0.55); }
+.profile-fl-card {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 0; border-bottom: 1px solid rgba(0,40,90,0.4);
+}
+.profile-fl-card:last-child { border-bottom: none; }
+.profile-fl-avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: #0B1F3A; background-size: cover; background-position: center;
+    border: 2px solid rgba(0,174,239,0.3); flex-shrink: 0;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: bold; color: #00AEEF; overflow: hidden;
+}
+.profile-fl-avatar .online-pip { width:9px; height:9px; bottom:1px; right:1px; }
+.profile-fl-meta { flex: 1; min-width: 0; cursor: pointer; }
+.profile-fl-name { font-size: 13px; font-weight: 600; color: #e0f0ff; display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+.profile-fl-handle { font-size: 11px; color: #4a6a8a; }
+.profile-fl-actions { display:flex; gap:5px; flex-shrink:0; }
+.profile-fl-actions button { padding:4px 9px; font-size:11px; border-radius:10px; }
+
 .req-card {
     display:flex; align-items:center; gap:12px;
     padding:11px 0; border-bottom:1px solid rgba(0,51,102,0.35);
@@ -2186,436 +2246,6 @@ img.post-media-preview::before {
 #game-over-msg .go-title { font-size: 16px; font-weight: bold; color: #ff3366; font-family: monospace; }
 #game-over-msg .go-sub { font-size: 12px; color: #888; font-family: monospace; }
 
-/* ════════════════════════════════════════════
-   RETRO ARCADE — profile sidebar widget
-   ════════════════════════════════════════════ */
-
-/* Compact sidebar card */
-.arcade-widget {
-    background: rgba(5,12,28,0.97);
-    border: 1px solid rgba(0,174,239,0.28);
-    border-radius: 14px;
-    padding: 0;
-    margin-bottom: 20px;
-    overflow: hidden;
-    position: relative;
-}
-.arcade-widget-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px;
-    background: linear-gradient(135deg, rgba(0,30,70,0.9) 0%, rgba(0,10,30,0.95) 100%);
-    border-bottom: 1px solid rgba(0,174,239,0.18);
-}
-.arcade-widget-title {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 13px; font-weight: 700; color: #00d4ff;
-    text-transform: uppercase; letter-spacing: 0.8px;
-    text-shadow: 0 0 10px rgba(0,200,255,0.5);
-}
-.arcade-widget-title span { font-size: 16px; }
-.arcade-badge-live {
-    font-size: 9px; font-weight: 800; letter-spacing: 0.8px;
-    background: rgba(57,255,20,0.15); border: 1px solid rgba(57,255,20,0.4);
-    color: #39FF14; padding: 1px 6px; border-radius: 8px;
-    animation: arcadeLivePulse 2s ease-in-out infinite;
-}
-@keyframes arcadeLivePulse {
-    0%,100% { opacity: 0.7; } 50% { opacity: 1; box-shadow: 0 0 8px rgba(57,255,20,0.4); }
-}
-
-/* Game picker strip */
-.arcade-game-strip {
-    display: flex; gap: 0;
-    border-bottom: 1px solid rgba(0,80,180,0.18);
-}
-.arcade-game-chip {
-    flex: 1; display: flex; flex-direction: column; align-items: center;
-    padding: 8px 4px; gap: 3px; cursor: pointer;
-    border: none; background: transparent; border-right: 1px solid rgba(0,80,180,0.18);
-    transition: background 0.15s; font-family: inherit;
-}
-.arcade-game-chip:last-child { border-right: none; }
-.arcade-game-chip:hover { background: rgba(0,174,239,0.1); }
-.arcade-game-chip.selected { background: rgba(0,174,239,0.15); }
-.arcade-game-chip-icon { font-size: 20px; line-height: 1; }
-.arcade-game-chip-label { font-size: 9px; color: #6a90b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
-.arcade-game-chip.selected .arcade-game-chip-label { color: #00d4ff; }
-
-/* Scoreboard list */
-.arcade-scoreboard {
-    padding: 10px 14px;
-    max-height: 178px; overflow-y: auto;
-    scrollbar-width: thin; scrollbar-color: rgba(0,100,220,0.2) transparent;
-}
-.arcade-scoreboard::-webkit-scrollbar { width: 3px; }
-.arcade-scoreboard::-webkit-scrollbar-thumb { background: rgba(0,100,220,0.2); border-radius: 3px; }
-.arcade-score-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 5px 0; border-bottom: 1px solid rgba(0,50,100,0.22);
-    animation: scoreRowIn 0.18s ease-out both;
-}
-@keyframes scoreRowIn {
-    from { opacity:0; transform: translateX(-4px); }
-    to   { opacity:1; transform: translateX(0); }
-}
-.arcade-score-row:last-child { border-bottom: none; }
-.arcade-score-rank {
-    font-size: 11px; font-weight: 800; font-family: monospace;
-    width: 18px; text-align: center; flex-shrink: 0; color: #3a6a9a;
-}
-.arcade-score-rank.rank-1 { color: #ffd700; text-shadow: 0 0 8px rgba(255,215,0,0.6); }
-.arcade-score-rank.rank-2 { color: #c0c0c0; }
-.arcade-score-rank.rank-3 { color: #cd7f32; }
-.arcade-score-avatar {
-    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
-    background: #0B1F3A center/cover no-repeat;
-    border: 1px solid rgba(0,174,239,0.35);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 8px; font-weight: bold; color: #00AEEF; overflow: hidden;
-}
-.arcade-score-meta { flex: 1; min-width: 0; }
-.arcade-score-name { font-size: 11px; font-weight: 600; color: #c8e0f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.arcade-score-pts { font-size: 10px; color: #3a6a9a; margin-top: 1px; }
-.arcade-score-val {
-    font-size: 12px; font-weight: 800; font-family: monospace;
-    color: #39FF14; text-shadow: 0 0 8px rgba(57,255,20,0.45); flex-shrink: 0;
-}
-.arcade-score-empty { padding: 18px; text-align: center; font-size: 12px; color: #334; }
-
-/* Recent match results */
-.arcade-matches {
-    padding: 8px 14px 12px;
-    border-top: 1px solid rgba(0,50,100,0.22);
-}
-.arcade-matches-label {
-    font-size: 10px; color: #3a5a7a; text-transform: uppercase;
-    letter-spacing: 0.5px; font-weight: 700; margin-bottom: 6px;
-}
-.arcade-match-item {
-    display: flex; align-items: center; gap: 6px;
-    padding: 4px 0; font-size: 11px; border-bottom: 1px solid rgba(0,40,80,0.2);
-}
-.arcade-match-item:last-child { border-bottom: none; }
-.arcade-match-game { font-size: 12px; flex-shrink: 0; }
-.arcade-match-players { flex: 1; min-width: 0; color: #7aa0c0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.arcade-match-result { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; flex-shrink: 0; }
-.arcade-match-result.win  { color: #39FF14; background: rgba(57,255,20,0.12); border: 1px solid rgba(57,255,20,0.3); }
-.arcade-match-result.loss { color: #ff5566; background: rgba(255,51,102,0.1); border: 1px solid rgba(255,51,102,0.28); }
-.arcade-match-result.draw { color: #ffcc44; background: rgba(255,204,68,0.1); border: 1px solid rgba(255,204,68,0.28); }
-
-/* Play + challenge row */
-.arcade-action-row {
-    display: flex; gap: 8px; padding: 10px 14px 12px;
-    border-top: 1px solid rgba(0,50,100,0.2);
-}
-.arcade-play-btn {
-    flex: 1; padding: 8px 0; border-radius: 20px; font-size: 12px;
-    font-weight: 700; cursor: pointer; font-family: inherit;
-    background: linear-gradient(135deg, #002266, #0044bb);
-    border: 1px solid rgba(0,174,239,0.55); color: #00d4ff;
-    transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 5px;
-    letter-spacing: 0.3px;
-}
-.arcade-play-btn:hover {
-    background: linear-gradient(135deg, #003388, #0066ee);
-    box-shadow: 0 0 16px rgba(0,174,239,0.4);
-    border-color: rgba(0,200,255,0.75);
-}
-.arcade-challenge-btn {
-    flex: 1; padding: 8px 0; border-radius: 20px; font-size: 12px;
-    font-weight: 700; cursor: pointer; font-family: inherit;
-    background: linear-gradient(135deg, #1a0044, #4400aa);
-    border: 1px solid rgba(140,80,255,0.5); color: #cc88ff;
-    transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 5px;
-    letter-spacing: 0.3px;
-}
-.arcade-challenge-btn:hover {
-    background: linear-gradient(135deg, #220055, #5500cc);
-    box-shadow: 0 0 16px rgba(140,80,255,0.4);
-    border-color: rgba(180,100,255,0.7);
-}
-.arcade-challenge-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
-
-/* ═══════════ ARCADE GAME MODAL ═══════════ */
-#arcadeModal {
-    display: none; position: fixed; inset: 0; z-index: 8500;
-    background: rgba(0,3,18,0.92); backdrop-filter: blur(8px);
-    align-items: center; justify-content: center; padding: 10px;
-    box-sizing: border-box;
-}
-#arcadeModal.open { display: flex; }
-.arcade-modal-card {
-    background: linear-gradient(180deg, #060f1e 0%, #030810 100%);
-    border: 1px solid rgba(0,174,239,0.38);
-    border-radius: 18px; width: 100%; max-width: 560px;
-    max-height: calc(100vh - 20px);
-    display: flex; flex-direction: column; overflow: hidden;
-    box-shadow: 0 0 80px rgba(0,80,200,0.3), 0 0 0 1px rgba(0,200,255,0.06);
-    transform: translateY(20px) scale(0.97);
-    transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1);
-}
-#arcadeModal.open .arcade-modal-card { transform: translateY(0) scale(1); }
-
-.arcade-modal-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 18px;
-    background: rgba(4,10,22,0.98);
-    border-bottom: 1px solid rgba(0,174,239,0.22);
-    flex-shrink: 0;
-}
-.arcade-modal-title {
-    font-size: 15px; font-weight: 800; color: #00d4ff;
-    letter-spacing: 0.5px; text-shadow: 0 0 12px rgba(0,200,255,0.5);
-    display: flex; align-items: center; gap: 8px;
-}
-.arcade-modal-close {
-    background: none; border: none; color: #3a5a7a; font-size: 22px;
-    cursor: pointer; padding: 2px 8px; border-radius: 8px; transition: color 0.15s;
-    line-height: 1;
-}
-.arcade-modal-close:hover { color: #ff5566; }
-
-/* Game selector tabs inside modal */
-.arcade-modal-tabs {
-    display: flex; border-bottom: 1px solid rgba(0,80,180,0.2);
-    flex-shrink: 0;
-}
-.arcade-modal-tab {
-    flex: 1; padding: 10px 6px; background: none; border: none;
-    border-bottom: 2px solid transparent; color: #4a6a8a;
-    font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
-    transition: color 0.15s, border-color 0.15s;
-    display: flex; align-items: center; justify-content: center; gap: 4px;
-    text-transform: uppercase; letter-spacing: 0.3px;
-}
-.arcade-modal-tab:hover { color: #9bbdd8; }
-.arcade-modal-tab.active { color: #00d4ff; border-bottom-color: #00d4ff; }
-
-/* Canvas wrapper */
-.arcade-canvas-wrap {
-    position: relative; flex: 1; min-height: 0;
-    display: flex; align-items: center; justify-content: center;
-    background: #000010; overflow: hidden;
-}
-#arcadeCanvas {
-    display: block;
-    image-rendering: pixelated;
-    max-width: 100%; max-height: 100%;
-    touch-action: none; user-select: none;
-}
-
-/* Game overlay for start/pause/over screens */
-.arcade-overlay {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 10px; background: rgba(0,0,14,0.78); backdrop-filter: blur(4px);
-    pointer-events: auto;
-}
-.arcade-overlay.hidden { display: none; }
-.arcade-overlay-title { font-size: 22px; font-weight: 900; color: #00d4ff; font-family: monospace; text-shadow: 0 0 20px rgba(0,200,255,0.6); letter-spacing: 2px; }
-.arcade-overlay-sub { font-size: 13px; color: #6a90b8; font-family: monospace; }
-.arcade-overlay-score { font-size: 18px; font-weight: 800; color: #39FF14; font-family: monospace; text-shadow: 0 0 14px rgba(57,255,20,0.6); }
-.arcade-overlay-btn {
-    padding: 10px 28px; border-radius: 20px; font-size: 14px; font-weight: 800;
-    cursor: pointer; font-family: monospace; letter-spacing: 1px;
-    background: linear-gradient(135deg, #002266, #0055cc);
-    border: 2px solid rgba(0,174,239,0.7); color: #00d4ff;
-    transition: all 0.18s; margin-top: 4px;
-}
-.arcade-overlay-btn:hover { background: linear-gradient(135deg, #003388, #0077ff); box-shadow: 0 0 20px rgba(0,174,239,0.5); }
-
-/* Info bar below canvas */
-.arcade-modal-info {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 16px;
-    background: rgba(4,10,22,0.97);
-    border-top: 1px solid rgba(0,80,180,0.2);
-    flex-shrink: 0; gap: 12px;
-    flex-wrap: wrap;
-}
-.arcade-modal-score-display {
-    font-size: 13px; font-family: monospace; color: #00aaff;
-    display: flex; gap: 14px; align-items: center;
-}
-.arcade-modal-score-display strong { color: #39FF14; text-shadow: 0 0 8px rgba(57,255,20,0.5); }
-.arcade-modal-hint {
-    font-size: 10px; color: #2a4a6a; font-family: monospace; text-align: right;
-}
-
-/* Challenge notification badge on arcade widget */
-.arcade-challenge-notif {
-    width: 8px; height: 8px; border-radius: 50%; background: #ff3366;
-    box-shadow: 0 0 8px rgba(255,51,102,0.7); flex-shrink: 0;
-    animation: challengePingAnim 1.5s ease-in-out infinite; display: none;
-}
-@keyframes challengePingAnim {
-    0%,100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.5); opacity: 0.6; }
-}
-
-/* Mobile adjustments */
-@media (max-width: 599px) {
-    #arcadeModal { padding: 0; align-items: flex-end; }
-    .arcade-modal-card {
-        max-width: 100%; border-radius: 18px 18px 0 0; max-height: 94vh;
-        transform: translateY(100%);
-        transition: transform 0.3s cubic-bezier(0.34,1.2,0.64,1);
-    }
-    #arcadeModal.open .arcade-modal-card { transform: translateY(0); }
-    .arcade-dpad { display: flex; }
-    .arcade-btn-row { display: flex; }
-}
-@media (orientation: landscape) and (max-height: 500px) {
-    .arcade-modal-card { max-height: 100vh; border-radius: 0; }
-    #arcadeModal { padding: 0; align-items: stretch; justify-content: stretch; }
-    .arcade-dpad-wrap { padding: 4px 8px 6px; }
-}
-
-/* ── On-screen mobile control pad ── */
-.arcade-dpad-wrap {
-    display: none; /* shown on mobile via JS */
-    flex-shrink: 0;
-    background: rgba(4,10,22,0.97);
-    border-top: 1px solid rgba(0,80,180,0.2);
-    padding: 8px 14px 10px;
-    gap: 12px;
-    align-items: center;
-    justify-content: space-between;
-    user-select: none;
-}
-.arcade-dpad-wrap.visible { display: flex; }
-/* D-pad */
-.arcade-dpad {
-    display: none; /* enabled on mobile */
-    flex-direction: column; align-items: center; gap: 2px;
-}
-.arcade-dpad-row { display: flex; gap: 2px; }
-.arcade-dpad-btn {
-    width: 42px; height: 42px; border-radius: 8px;
-    background: rgba(0,60,140,0.55); border: 1px solid rgba(0,174,239,0.35);
-    color: #00d4ff; font-size: 16px; cursor: pointer; font-family: inherit;
-    display: flex; align-items: center; justify-content: center;
-    touch-action: manipulation; transition: background 0.1s, transform 0.08s;
-    -webkit-tap-highlight-color: transparent;
-}
-.arcade-dpad-btn:active { background: rgba(0,120,255,0.35); transform: scale(0.9); }
-.arcade-dpad-center { background: rgba(0,20,60,0.4); color: #2a4a7a; cursor: default; }
-/* Action buttons */
-.arcade-btn-row {
-    display: none; /* enabled on mobile */
-    flex-direction: column; gap: 6px; align-items: center;
-}
-.arcade-action-btn {
-    padding: 9px 18px; border-radius: 14px; font-size: 12px; font-weight: 700;
-    cursor: pointer; font-family: monospace; letter-spacing: 0.5px;
-    touch-action: manipulation; white-space: nowrap; border: 1px solid;
-    -webkit-tap-highlight-color: transparent;
-    transition: background 0.1s, transform 0.08s;
-    min-width: 72px; text-align: center;
-}
-.arcade-action-btn:active { transform: scale(0.92); }
-.arcade-action-btn-a {
-    background: rgba(0,60,140,0.6); border-color: rgba(0,174,239,0.55); color: #00d4ff;
-}
-.arcade-action-btn-b {
-    background: rgba(80,0,140,0.6); border-color: rgba(140,80,255,0.5); color: #cc88ff;
-}
-/* Profile game pin widget */
-.arcade-pin-section {
-    background: rgba(5,12,28,0.97);
-    border: 1px solid rgba(0,174,239,0.22);
-    border-radius: 12px; padding: 12px 14px;
-    margin-bottom: 14px;
-}
-.arcade-pin-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 10px;
-}
-.arcade-pin-title {
-    font-size: 12px; font-weight: 700; color: #00d4ff;
-    text-transform: uppercase; letter-spacing: 0.6px;
-}
-.arcade-pin-btn {
-    font-size: 10px; padding: 3px 10px; border-radius: 10px; cursor: pointer;
-    background: rgba(0,40,100,0.5); border: 1px solid rgba(0,174,239,0.35); color: #6a90b8;
-    font-family: inherit; transition: color 0.15s, border-color 0.15s;
-}
-.arcade-pin-btn:hover { color: #00d4ff; border-color: rgba(0,174,239,0.7); }
-.arcade-pinned-game {
-    display: flex; align-items: center; gap: 10px;
-}
-.arcade-pinned-icon { font-size: 28px; flex-shrink: 0; }
-.arcade-pinned-meta { flex: 1; min-width: 0; }
-.arcade-pinned-name { font-size: 13px; font-weight: 700; color: #c8e0f8; }
-.arcade-pinned-score { font-size: 11px; color: #39FF14; margin-top: 1px; }
-.arcade-pinned-rank { font-size: 10px; color: #3a6a9a; margin-top: 1px; }
-.arcade-play-pinned-btn {
-    padding: 5px 14px; border-radius: 12px; font-size: 11px; font-weight: 700;
-    background: rgba(0,40,100,0.6); border: 1px solid rgba(0,174,239,0.5); color: #00d4ff;
-    cursor: pointer; font-family: inherit; flex-shrink: 0; white-space: nowrap;
-    touch-action: manipulation;
-}
-/* Stats row on profile */
-.arcade-stats-mini {
-    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;
-}
-.arcade-stat-pill {
-    display: flex; flex-direction: column; align-items: center;
-    background: rgba(0,20,55,0.5); border: 1px solid rgba(0,80,180,0.25);
-    border-radius: 10px; padding: 6px 12px; min-width: 52px;
-}
-.arcade-stat-pill-num { font-size: 15px; font-weight: 800; color: #00d4ff; font-family: monospace; }
-.arcade-stat-pill-lbl { font-size: 9px; color: #3a5a7a; text-transform: uppercase; letter-spacing: 0.3px; margin-top: 1px; }
-.arcade-stat-pill.win  .arcade-stat-pill-num { color: #39FF14; }
-.arcade-stat-pill.loss .arcade-stat-pill-num { color: #ff5566; }
-.arcade-stat-pill.draw .arcade-stat-pill-num { color: #ffcc44; }
-/* Rank badge */
-.arcade-rank-badge {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 10px;
-    background: rgba(0,40,100,0.5); border: 1px solid rgba(0,174,239,0.35);
-    color: #00d4ff; margin-top: 6px;
-}
-/* Leaderboard filter tabs */
-.arcade-lb-tabs {
-    display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap;
-}
-.arcade-lb-tab {
-    padding: 5px 12px; border-radius: 10px; font-size: 11px; font-weight: 700;
-    cursor: pointer; border: 1px solid rgba(0,80,180,0.3); color: #4a6a8a;
-    background: transparent; font-family: inherit; transition: all 0.15s;
-}
-.arcade-lb-tab.active { background: rgba(0,80,180,0.2); border-color: rgba(0,174,239,0.6); color: #00d4ff; }
-/* Achievements list */
-.arcade-achievements {
-    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
-}
-.arcade-ach-item {
-    display: flex; align-items: center; gap: 6px;
-    background: rgba(0,20,55,0.6); border: 1px solid rgba(0,80,180,0.25);
-    border-radius: 10px; padding: 6px 10px;
-}
-.arcade-ach-icon { font-size: 18px; }
-.arcade-ach-meta { font-size: 10px; }
-.arcade-ach-name { font-weight: 700; color: #c8e0f8; }
-.arcade-ach-desc { color: #3a5a7a; margin-top: 1px; }
-
-/* ── Arcade Hub tile buttons ── */
-.arcade-hub-tile {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 4px; padding: 12px 6px; border-radius: 12px;
-    background: rgba(0,20,55,0.7); border: 1px solid rgba(0,174,239,0.3);
-    color: #c8e0f8; font-size: 24px; cursor: pointer;
-    transition: background 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s;
-    touch-action: manipulation; min-height: 72px;
-}
-.arcade-hub-tile span { font-size: 10px; color: #6a90b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
-.arcade-hub-tile:hover { background: rgba(0,80,180,0.2); border-color: rgba(0,174,239,0.7); box-shadow: 0 0 12px rgba(0,174,239,0.25); }
-.arcade-hub-tile:active { transform: scale(0.94); }
-
-/* Scrollable arcade modal tabs on small screens */
-.arcade-modal-tabs { overflow-x: auto; scrollbar-width: none; }
-.arcade-modal-tabs::-webkit-scrollbar { display: none; }
 
 /* ════════════════════════════════════════════
    STORM ROOMS — live multiplayer chat
@@ -4365,6 +3995,92 @@ body::after {
     background: rgba(0,174,239,0.72) !important;
     box-shadow: 0 0 6px rgba(0,174,239,0.60) !important;
 }
+
+/* ── @mention autocomplete dropdown ── */
+.mention-dropdown {
+    position: absolute;
+    z-index: 9100;
+    background: #071428;
+    border: 1px solid rgba(0,174,239,0.5);
+    border-radius: 10px;
+    min-width: 220px;
+    max-width: 320px;
+    max-height: 220px;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,60,180,0.4), 0 0 0 1px rgba(0,200,255,0.07);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,120,255,0.2) transparent;
+}
+.mention-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #d8eeff;
+    transition: background 0.12s;
+    border-bottom: 1px solid rgba(0,80,160,0.14);
+}
+.mention-dropdown-item:last-child { border-bottom: none; }
+.mention-dropdown-item:hover, .mention-dropdown-item.active {
+    background: rgba(0,174,239,0.13);
+}
+.mention-dropdown-avatar {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: #0B1F3A center/cover no-repeat;
+    border: 1px solid rgba(0,174,239,0.4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: bold; color: #00AEEF;
+}
+.mention-dropdown-name  { font-weight: 700; color: #e0f0ff; font-size: 13px; }
+.mention-dropdown-handle{ font-size: 11px; color: #6a90b8; }
+
+/* ── @mention link in post body ── */
+.post-mention {
+    color: #00AEEF;
+    font-weight: 700;
+    cursor: pointer;
+    text-shadow: 0 0 6px rgba(0,174,239,0.4);
+    text-decoration: none;
+    display: inline;
+}
+.post-mention:hover { text-decoration: underline; color: #33c8ff; }
+
+/* ── Tagged users footer strip on posts ── */
+.post-tagged-strip {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 6px;
+    padding: 6px 10px;
+    background: rgba(0,174,239,0.06);
+    border: 1px solid rgba(0,174,239,0.15);
+    border-radius: 8px;
+    font-size: 12px;
+}
+.post-tagged-label { color: #6a90b8; font-size: 11px; margin-right: 3px; }
+.post-tag-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(0,174,239,0.12);
+    border: 1px solid rgba(0,174,239,0.3);
+    border-radius: 14px;
+    padding: 2px 9px;
+    font-size: 12px; font-weight: 600; color: #00AEEF;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.post-tag-chip:hover { background: rgba(0,174,239,0.22); border-color: rgba(0,174,239,0.6); }
+.post-tag-chip-remove {
+    background: none; border: none; color: #ff5577; font-size: 12px;
+    cursor: pointer; padding: 0 0 0 3px; line-height: 1;
+    transition: color 0.15s;
+}
+.post-tag-chip-remove:hover { color: #ff2255; }
+
+/* ── composer @mention wrapper needs relative positioning ── */
+.post-composer-wrap { position: relative; }
 </style>
 
 <body>
@@ -4418,9 +4134,6 @@ body::after {
         </button>
         <button class="nav-item" id="navSettings" onclick="navTo('settingsPage')">
             <span class="nav-icon">⚙️</span> Settings
-        </button>
-        <button class="nav-item" id="navArcade" onclick="navTo('arcadePage')">
-            <span class="nav-icon">🕹</span> Retro Arcade
         </button>
         <button class="nav-item" id="navStorm" onclick="navTo('stormRoomsPage')">
             <span class="nav-icon">⚡</span> Storm Rooms
@@ -4501,7 +4214,10 @@ body::after {
     <!-- Post composer -->
     <div class="section-card">
         <h3 style="margin:0 0 12px; font-size:14px; color:#00AEEF; text-shadow:0 0 8px rgba(0,174,239,0.35);">What's on your mind?</h3>
+        <div class="post-composer-wrap">
         <textarea id="postText" placeholder="Share something with the Nexus… No judgment here 🌑" maxlength="500"></textarea>
+        <div class="mention-dropdown" id="mentionDropdown" style="display:none;"></div>
+        </div>
         <div class="post-char-counter" id="postCharCounter">500 characters left</div>
 
         <!-- Media upload row -->
@@ -4919,10 +4635,6 @@ body::after {
                     <span>📊 Stats (followers, posts…)</span>
                     <label class="notif-toggle-wrap"><input type="checkbox" id="secShowStats" class="notif-toggle-cb" checked><span class="notif-toggle-slider"></span></label>
                 </div>
-                <div class="epm-section-toggle-row">
-                    <span>🕹 Retro Arcade</span>
-                    <label class="notif-toggle-wrap"><input type="checkbox" id="secShowArcade" class="notif-toggle-cb" checked><span class="notif-toggle-slider"></span></label>
-                </div>
             </div>
 
             <button class="edit-modal-save" id="btnSaveProfile">💾 Save Changes</button>
@@ -4948,65 +4660,27 @@ body::after {
         </div>
     </div>
 
-    <!-- ── Retro Arcade Widget ── -->
-    <div class="arcade-widget" id="arcadeWidgetSection">
-        <div class="arcade-widget-header">
-            <div class="arcade-widget-title">
-                <span>🕹</span> Retro Arcade
-                <span class="arcade-badge-live">LIVE</span>
-                <span class="arcade-challenge-notif" id="arcadeChallengeNotif"></span>
+    <!-- ── Family Section ── -->
+    <div id="profileFamilySection" data-section-id="family" style="display:none;">
+        <div class="profile-family-section">
+            <div class="profile-family-header">
+                <span class="profile-family-title">❤️ Family</span>
+                <span class="profile-family-privacy-badge" id="familyPrivacyBadge" title="Click to change visibility (owner only)">🌐 Public</span>
             </div>
-        </div>
-
-        <!-- Game selector chips -->
-        <div class="arcade-game-strip">
-            <button class="arcade-game-chip selected" data-game="snake"     onclick="arcadeSelectGame('snake',this)"><span class="arcade-game-chip-icon">🐍</span><span class="arcade-game-chip-label">Snake</span></button>
-            <button class="arcade-game-chip" data-game="pool"      onclick="arcadeSelectGame('pool',this)"><span class="arcade-game-chip-icon">🎱</span><span class="arcade-game-chip-label">Pool</span></button>
-            <button class="arcade-game-chip" data-game="chess"     onclick="arcadeSelectGame('chess',this)"><span class="arcade-game-chip-icon">♟</span><span class="arcade-game-chip-label">Chess</span></button>
-            <button class="arcade-game-chip" data-game="breakout"  onclick="arcadeSelectGame('breakout',this)"><span class="arcade-game-chip-icon">🧱</span><span class="arcade-game-chip-label">Breakout</span></button>
-            <button class="arcade-game-chip" data-game="tetris"    onclick="arcadeSelectGame('tetris',this)"><span class="arcade-game-chip-icon">🟦</span><span class="arcade-game-chip-label">Tetris</span></button>
-            <button class="arcade-game-chip" data-game="checkers"  onclick="arcadeSelectGame('checkers',this)"><span class="arcade-game-chip-icon">⭕</span><span class="arcade-game-chip-label">Checkers</span></button>
-            <button class="arcade-game-chip" data-game="tictactoe" onclick="arcadeSelectGame('tictactoe',this)"><span class="arcade-game-chip-icon">❌</span><span class="arcade-game-chip-label">Tic-Tac-Toe</span></button>
-            <button class="arcade-game-chip" data-game="connect4"  onclick="arcadeSelectGame('connect4',this)"><span class="arcade-game-chip-icon">🔴</span><span class="arcade-game-chip-label">Connect 4</span></button>
-            <button class="arcade-game-chip" data-game="memory"    onclick="arcadeSelectGame('memory',this)"><span class="arcade-game-chip-icon">🃏</span><span class="arcade-game-chip-label">Memory</span></button>
-            <button class="arcade-game-chip" data-game="pong"      onclick="arcadeSelectGame('pong',this)"><span class="arcade-game-chip-icon">🏓</span><span class="arcade-game-chip-label">Pong</span></button>
-        </div>
-
-        <!-- Scoreboard -->
-        <div class="arcade-scoreboard" id="arcadeScoreboard">
-            <div class="arcade-score-empty">Loading scores…</div>
-        </div>
-
-        <!-- Recent matches -->
-        <div class="arcade-matches" id="arcadeMatchesSection" style="display:none;">
-            <div class="arcade-matches-label">Recent Matches</div>
-            <div id="arcadeMatchList"></div>
-        </div>
-
-        <!-- Actions -->
-        <div class="arcade-action-row">
-            <button class="arcade-play-btn" onclick="arcadeOpenModal()">▶ Play Solo</button>
-            <button class="arcade-challenge-btn" id="arcadeChallengeBtn" onclick="arcadeSendChallenge()" disabled>⚔ Challenge</button>
+            <div class="profile-family-list" id="profileFamilyList"></div>
+            <button class="profile-family-invite-btn" id="btnSendFamilyInvite" style="display:none;" onclick="openFamilyInviteModal()">+ Send Family Invitation</button>
         </div>
     </div>
 
-    <!-- ── Pinned Game + Arcade Stats (profile) ── -->
-    <div class="arcade-pin-section" id="arcadePinSection" style="display:none;">
-        <div class="arcade-pin-header">
-            <span class="arcade-pin-title">📌 Pinned Game</span>
-            <button class="arcade-pin-btn" id="arcadePinChangeBtn" onclick="arcadePinPickGame()" style="display:none;">Change</button>
+    <!-- ── Friends Section ── -->
+    <div id="profileFriendsSection" data-section-id="friends-list" style="display:none;">
+        <div class="profile-friends-section">
+            <div class="profile-friends-header">
+                <span class="profile-friends-title">👥 Friends</span>
+                <span class="profile-friends-privacy-badge" id="friendsListPrivacyBadge" title="Click to change visibility (owner only)">🌐 Public</span>
+            </div>
+            <div class="profile-friends-list" id="profileFriendsList"></div>
         </div>
-        <div id="arcadePinnedContent">
-            <span style="font-size:12px;color:#3a5a7a;">No pinned game yet.</span>
-        </div>
-        <div class="arcade-stats-mini" id="arcadeStatsMini" style="display:none;">
-            <div class="arcade-stat-pill win"><div class="arcade-stat-pill-num" id="arcadeStatWins">0</div><div class="arcade-stat-pill-lbl">Wins</div></div>
-            <div class="arcade-stat-pill loss"><div class="arcade-stat-pill-num" id="arcadeStatLosses">0</div><div class="arcade-stat-pill-lbl">Losses</div></div>
-            <div class="arcade-stat-pill draw"><div class="arcade-stat-pill-num" id="arcadeStatDraws">0</div><div class="arcade-stat-pill-lbl">Draws</div></div>
-            <div class="arcade-stat-pill"><div class="arcade-stat-pill-num" id="arcadeStatGames">0</div><div class="arcade-stat-pill-lbl">Games</div></div>
-        </div>
-        <div id="arcadeRankBadge"></div>
-        <div class="arcade-achievements" id="arcadeAchievements"></div>
     </div>
 
     <!-- ── Profile tabs ── -->
@@ -5029,94 +4703,6 @@ body::after {
     <!-- Messages tab placeholder (hidden by CSS — chat is now in the modal) -->
     <div id="tabContentMessages" style="display:none;"></div>
 
-</div>
-
-<!-- ═══════════════════════════════════════════
-     RETRO ARCADE GAME MODAL
-     Full-screen overlay with 4 canvas games.
-     Games are isolated, run only while modal is open.
-     ═══════════════════════════════════════════ -->
-<div id="arcadeModal" role="dialog" aria-modal="true" aria-label="Retro Arcade">
-
-    <!-- Backdrop click to close -->
-    <div style="position:absolute;inset:0;cursor:pointer;" onclick="arcadeCloseModal()"></div>
-
-    <div class="arcade-modal-card" role="document">
-
-        <!-- Header -->
-        <div class="arcade-modal-header">
-            <div class="arcade-modal-title">🕹 Retro Arcade</div>
-            <button class="arcade-modal-close" onclick="arcadeCloseModal()" aria-label="Close">✕</button>
-        </div>
-
-        <!-- Game selector tabs -->
-        <div class="arcade-modal-tabs">
-            <button class="arcade-modal-tab active" id="atab-snake"     onclick="arcadeModalSwitchTab('snake',this)">🐍 Snake</button>
-            <button class="arcade-modal-tab"        id="atab-pool"      onclick="arcadeModalSwitchTab('pool',this)">🎱 Pool</button>
-            <button class="arcade-modal-tab"        id="atab-chess"     onclick="arcadeModalSwitchTab('chess',this)">♟ Chess</button>
-            <button class="arcade-modal-tab"        id="atab-breakout"  onclick="arcadeModalSwitchTab('breakout',this)">🧱 Breakout</button>
-            <button class="arcade-modal-tab"        id="atab-tetris"    onclick="arcadeModalSwitchTab('tetris',this)">🟦 Tetris</button>
-            <button class="arcade-modal-tab"        id="atab-checkers"  onclick="arcadeModalSwitchTab('checkers',this)">⭕ Checkers</button>
-            <button class="arcade-modal-tab"        id="atab-tictactoe" onclick="arcadeModalSwitchTab('tictactoe',this)">❌ Tic-Tac-Toe</button>
-            <button class="arcade-modal-tab"        id="atab-connect4"  onclick="arcadeModalSwitchTab('connect4',this)">🔴 Connect 4</button>
-            <button class="arcade-modal-tab"        id="atab-memory"    onclick="arcadeModalSwitchTab('memory',this)">🃏 Memory</button>
-            <button class="arcade-modal-tab"        id="atab-pong"      onclick="arcadeModalSwitchTab('pong',this)">🏓 Pong</button>
-        </div>
-
-        <!-- Canvas -->
-        <div class="arcade-canvas-wrap" id="arcadeCanvasWrap">
-            <canvas id="arcadeCanvas" width="520" height="360"></canvas>
-
-            <!-- Start / Game Over overlay -->
-            <div class="arcade-overlay" id="arcadeOverlay">
-                <div class="arcade-overlay-title" id="arcadeOverlayTitle">SNAKE</div>
-                <div class="arcade-overlay-sub"   id="arcadeOverlaySub">Use arrow keys or swipe to move</div>
-                <div class="arcade-overlay-score" id="arcadeOverlayScore" style="display:none;"></div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
-                    <button class="arcade-overlay-btn" id="arcadeStartBtn" onclick="arcadeStartGame()">▶ Start</button>
-                    <button class="arcade-overlay-btn" id="arcadeRematchBtn" onclick="arcadeStartGame()" style="display:none;background:linear-gradient(135deg,#1a0044,#4400aa);border-color:rgba(140,80,255,0.7);color:#cc88ff;">↺ Rematch</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Score + hint bar -->
-        <div class="arcade-modal-info">
-            <div class="arcade-modal-score-display">
-                Score: <strong id="arcadeScoreCur">0</strong>
-                &nbsp;Best: <strong id="arcadeScoreBest">0</strong>
-                &nbsp;<span id="arcadeWinLoss" style="font-size:10px;color:#3a6a9a;"></span>
-            </div>
-            <div class="arcade-modal-hint" id="arcadeHintText">Arrow keys / WASD to play</div>
-        </div>
-
-        <!-- On-screen mobile controls (shown only on touch devices) -->
-        <div class="arcade-dpad-wrap" id="arcadeDpadWrap">
-            <!-- D-pad: arrow games (Snake, Tetris, Breakout, Pong) -->
-            <div class="arcade-dpad" id="arcadeDpad">
-                <div class="arcade-dpad-row">
-                    <div class="arcade-dpad-center arcade-dpad-btn"></div>
-                    <button class="arcade-dpad-btn" id="dpUp"    aria-label="Up">▲</button>
-                    <div class="arcade-dpad-center arcade-dpad-btn"></div>
-                </div>
-                <div class="arcade-dpad-row">
-                    <button class="arcade-dpad-btn" id="dpLeft"  aria-label="Left">◀</button>
-                    <div class="arcade-dpad-center arcade-dpad-btn">✛</div>
-                    <button class="arcade-dpad-btn" id="dpRight" aria-label="Right">▶</button>
-                </div>
-                <div class="arcade-dpad-row">
-                    <div class="arcade-dpad-center arcade-dpad-btn"></div>
-                    <button class="arcade-dpad-btn" id="dpDown"  aria-label="Down">▼</button>
-                    <div class="arcade-dpad-center arcade-dpad-btn"></div>
-                </div>
-            </div>
-            <!-- Action buttons: rotate/drop (Tetris), launch (Breakout), etc. -->
-            <div class="arcade-btn-row" id="arcadeActionBtns">
-                <button class="arcade-action-btn arcade-action-btn-a" id="dpBtnA" aria-label="Action A">A</button>
-                <button class="arcade-action-btn arcade-action-btn-b" id="dpBtnB" aria-label="Action B">B</button>
-            </div>
-        </div>
-
-    </div>
 </div>
 
 <!-- ═══════════════════════════════════════════
@@ -5164,6 +4750,19 @@ body::after {
         <div class="badge-tooltip-rarity" id="badgeTooltipRarity"></div>
         <div class="badge-tooltip-desc"   id="badgeTooltipDesc"></div>
         <button class="badge-tooltip-close" onclick="document.getElementById('badgeTooltipModal').classList.remove('open')">Close</button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     FAMILY INVITE MODAL — search friends to invite to family
+     ═══════════════════════════════════════════ -->
+<div id="familyInviteModal" class="edit-profile-modal" role="dialog" aria-modal="true" style="z-index:3100;">
+    <div class="edit-profile-inner" style="max-width:420px;">
+        <h3>❤️ Send Family Invitation</h3>
+        <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;line-height:1.5;">Search your friends and send a family invitation. They must approve it before appearing in your Family list.</p>
+        <input id="familyInviteSearch" placeholder="Search friends by name or @username…" style="margin-bottom:10px;" oninput="renderFamilyInviteSearch(this.value)">
+        <div id="familyInviteResults" style="max-height:260px;overflow-y:auto;"></div>
+        <button onclick="closeFamilyInviteModal()" style="margin-top:12px;width:100%;background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);color:#6a90b8;">✕ Close</button>
     </div>
 </div>
 
@@ -5372,7 +4971,10 @@ body::after {
             <button class="friends-tab-btn" id="ftabRequests" onclick="switchFriendsTab('requests')">
                 Requests <span id="reqCountBadge" style="display:none;background:#ff3366;color:#fff;font-size:10px;padding:1px 5px;border-radius:8px;margin-left:4px;"></span>
             </button>
-            <button class="friends-tab-btn" id="ftabFamily" onclick="switchFriendsTab('family')">❤️ Family</button>
+            <button class="friends-tab-btn" id="ftabFamily" onclick="switchFriendsTab('family')">
+                ❤️ Family
+                <span id="famReqCountBadge" style="display:none;background:#ff3366;color:#fff;font-size:10px;padding:1px 5px;border-radius:8px;margin-left:4px;"></span>
+            </button>
         </div>
         <div id="ftabContentFriends"></div>
         <div id="ftabContentRequests" style="display:none;"></div>
@@ -5467,6 +5069,47 @@ body::after {
         </div>
 
         <div class="settings-section">
+            <h4>❤️ Family &amp; Friends Privacy</h4>
+            <div class="settings-row">
+                <div class="settings-label">
+                    Who can see my Family list?
+                    <small>Controls ❤️ Family section visibility</small>
+                </div>
+                <select id="privFamilyList" onchange="savePrivacySetting('familyList', this.value)">
+                    <option value="public">Everyone</option>
+                    <option value="friends">Friends only</option>
+                    <option value="private">Only me</option>
+                </select>
+            </div>
+            <div class="settings-row">
+                <div class="settings-label">
+                    Who can see my Friends list?
+                    <small>Controls 👥 Friends section visibility</small>
+                </div>
+                <select id="privFriendsList" onchange="savePrivacySetting('friendsList', this.value)">
+                    <option value="public">Everyone</option>
+                    <option value="friends">Friends only</option>
+                    <option value="private">Only me</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h4>🏷️ Tagging Privacy</h4>
+            <div class="settings-row">
+                <div class="settings-label">
+                    Who can tag me in posts?
+                    <small>Controls who can @mention you and add you to their post</small>
+                </div>
+                <select id="privTagging" onchange="savePrivacySetting('tagging', this.value)">
+                    <option value="everyone">Everyone</option>
+                    <option value="friends">Friends only</option>
+                    <option value="nobody">Nobody (disable tags)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="settings-section">
             <h4>🔔 Notification Preferences</h4>
             <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;line-height:1.5;">Choose which push notifications you receive on your phone.</p>
 
@@ -5521,6 +5164,17 @@ body::after {
                 </div>
                 <label class="notif-toggle-wrap">
                     <input type="checkbox" id="notifPrefMentions" class="notif-toggle-cb" checked onchange="saveNotifPref('mentions', this.checked)">
+                    <span class="notif-toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="settings-row">
+                <div class="settings-label">
+                    🏷️ Tags
+                    <small>When someone tags you in a post</small>
+                </div>
+                <label class="notif-toggle-wrap">
+                    <input type="checkbox" id="notifPrefTags" class="notif-toggle-cb" checked onchange="saveNotifPref('tags', this.checked)">
                     <span class="notif-toggle-slider"></span>
                 </label>
             </div>
@@ -5964,88 +5618,6 @@ body::after {
 </div><!-- end communityPage -->
 
 <!-- ═══════════════════════════════════════════════════════════
-     RETRO ARCADE PAGE — Games hub, leaderboards, invite friends
-     ═══════════════════════════════════════════════════════════ -->
-<div class="page" id="arcadePage">
-<h2 class="eclipse-title">🕹 Retro Arcade</h2>
-
-<!-- Game selection grid -->
-<div class="section-card" style="margin-bottom:16px;">
-    <h3 style="margin:0 0 14px;font-size:15px;color:#00d4ff;">🎮 Choose a Game</h3>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;">
-        <button class="arcade-hub-tile" onclick="arcadeOpenModal('snake')">🐍<br><span>Snake</span></button>
-        <button class="arcade-hub-tile" onclick="arcadeOpenModal('pool')">🎱<br><span>Pool</span></button>
-        <button class="arcade-hub-tile" onclick="arcadeOpenModal('chess')">♟<br><span>Chess</span></button>
-        <button class="arcade-hub-tile" onclick="arcadeOpenModal('breakout')">🧱<br><span>Breakout</span></button>
-        <button class="arcade-hub-tile" onclick="arcadeOpenModal('tetris')">🟦<br><span>Tetris</span></button>
-        <button class="arcade-hub-tile" onclick="arcadeOpenModal('checkers')">⭕<br><span>Checkers</span></button>
-        <button class="arcade-hub-tile" onclick="arcadeOpenModal('tictactoe')">❌<br><span>Tic-Tac-Toe</span></button>
-        <button class="arcade-hub-tile" onclick="arcadeOpenModal('connect4')">🔴<br><span>Connect 4</span></button>
-        <button class="arcade-hub-tile" onclick="arcadeOpenModal('memory')">🃏<br><span>Memory</span></button>
-        <button class="arcade-hub-tile" onclick="arcadeOpenModal('pong')">🏓<br><span>Pong</span></button>
-    </div>
-</div>
-
-<!-- Global leaderboard -->
-<div class="section-card" style="margin-bottom:16px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
-        <h3 style="margin:0;font-size:15px;color:#00d4ff;">🏆 Leaderboard</h3>
-        <select id="arcadeHubGameSelect" onchange="arcadeHubLoadLeaderboard(this.value)" style="background:rgba(7,20,42,0.95);border:1px solid rgba(0,174,239,0.38);color:#fff;padding:6px 10px;border-radius:8px;font-size:12px;width:auto;">
-            <option value="snake">🐍 Snake</option>
-            <option value="pool">🎱 Pool</option>
-            <option value="chess">♟ Chess</option>
-            <option value="breakout">🧱 Breakout</option>
-            <option value="tetris">🟦 Tetris</option>
-            <option value="checkers">⭕ Checkers</option>
-            <option value="tictactoe">❌ Tic-Tac-Toe</option>
-            <option value="connect4">🔴 Connect 4</option>
-            <option value="memory">🃏 Memory</option>
-            <option value="pong">🏓 Pong</option>
-        </select>
-    </div>
-    <!-- Filter tabs: Global / Weekly / Monthly / All-time / Friends -->
-    <div class="arcade-lb-tabs" id="arcadeHubLbTabs">
-        <button class="arcade-lb-tab active" onclick="arcadeHubFilter('global',this)">🌐 Global</button>
-        <button class="arcade-lb-tab" onclick="arcadeHubFilter('weekly',this)">📅 Weekly</button>
-        <button class="arcade-lb-tab" onclick="arcadeHubFilter('monthly',this)">🗓 Monthly</button>
-        <button class="arcade-lb-tab" onclick="arcadeHubFilter('alltime',this)">👑 All-Time</button>
-        <button class="arcade-lb-tab" onclick="arcadeHubFilter('friends',this)">🦋 Friends</button>
-    </div>
-    <div id="arcadeHubScoreboard">
-        <div class="arcade-score-empty">Select a game to see rankings</div>
-    </div>
-</div>
-
-<!-- Recent matches -->
-<div class="section-card" id="arcadeHubMatchesSection" style="margin-bottom:16px;display:none;">
-    <h3 style="margin:0 0 12px;font-size:15px;color:#00d4ff;">⚔ Recent Matches</h3>
-    <div id="arcadeHubMatchList"></div>
-</div>
-
-<!-- My stats + achievements -->
-<div class="section-card" style="margin-bottom:16px;">
-    <h3 style="margin:0 0 12px;font-size:15px;color:#00d4ff;">📊 My Stats</h3>
-    <div id="arcadeHubMyStats" style="color:#6a90b8;font-size:13px;">Loading…</div>
-    <!-- Win/Loss/Draw totals -->
-    <div class="arcade-stats-mini" id="arcadeHubWLD" style="margin-top:14px;display:none;">
-        <div class="arcade-stat-pill win"><div class="arcade-stat-pill-num" id="hubStatWins">0</div><div class="arcade-stat-pill-lbl">Wins</div></div>
-        <div class="arcade-stat-pill loss"><div class="arcade-stat-pill-num" id="hubStatLosses">0</div><div class="arcade-stat-pill-lbl">Losses</div></div>
-        <div class="arcade-stat-pill draw"><div class="arcade-stat-pill-num" id="hubStatDraws">0</div><div class="arcade-stat-pill-lbl">Draws</div></div>
-        <div class="arcade-stat-pill"><div class="arcade-stat-pill-num" id="hubStatGames">0</div><div class="arcade-stat-pill-lbl">Games</div></div>
-    </div>
-</div>
-
-<!-- Achievements -->
-<div class="section-card">
-    <h3 style="margin:0 0 12px;font-size:15px;color:#00d4ff;">🏅 Achievements</h3>
-    <div class="arcade-achievements" id="arcadeHubAchievements">
-        <div class="arcade-score-empty">Play games to unlock achievements!</div>
-    </div>
-</div>
-
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════
      ADMIN PANEL PAGE — Founder only
      ═══════════════════════════════════════════════════════════ -->
 <div class="page" id="adminPage">
@@ -6276,7 +5848,7 @@ body::after {
   window._snxGetDoc     = getDoc;
   window._snxUpdateDoc  = updateDoc;
 
-  // ── Full Firestore namespace for Retro Arcade & other feature scripts ──
+  // ── Full Firestore namespace for feature scripts ──
   window._snxFirestore = {
       db, doc, getDoc, setDoc, updateDoc, deleteDoc,
       collection, addDoc, query, orderBy, limit,
@@ -6589,6 +6161,9 @@ body::after {
               sel('privMessage',      ps.message);
               sel('privFindMe',       ps.findMe);
               sel('privWall',         ps.wall || userData.privacy);
+              sel('privFamilyList',   ps.familyList  || 'public');
+              sel('privFriendsList',  ps.friendsList || 'public');
+              sel('privTagging',      ps.tagging      || 'everyone');
 
               // ── Notification bell badge ──
               const _notifs = userData.notifications || [];
@@ -7119,8 +6694,9 @@ body::after {
                             ${ageLabel}
                         </div>
                     </div>
-                    <p style="margin:8px 0;">${escFeed(post.text)}</p>
+                    <p style="margin:8px 0;">${renderPostText(post.text)}</p>
                     ${mediaHTML}
+                    ${buildTaggedStrip(post.taggedUsers || [], pDoc.id, post.uid)}
                     <div class="action-row">
                         <button class="react-btn ${isLiked ? 'liked' : ''}" id="like-btn-${pDoc.id}" onclick="processPostReaction('${pDoc.id}','like',this)">❤️ <span class="like-count">${post.likes || 0}</span></button>
                         ${!post.isRepost ? `<button class="react-btn" id="repost-btn-${pDoc.id}" onclick="processPostReaction('${pDoc.id}','repost',this)">🔄 <span class="repost-count">${post.repostCount || 0}</span></button>` : ''}
@@ -7252,20 +6828,114 @@ body::after {
       });
   }, { passive: true });
 
-  // ── Character counter for post composer ──
-  document.getElementById("postText").addEventListener("input", function() {
-      const remaining = 500 - this.value.length;
-      const counter = document.getElementById("postCharCounter");
-      if (counter) {
-          counter.textContent = remaining + " characters left";
-          counter.className = "post-char-counter" + (remaining < 50 ? ' limit' : remaining < 150 ? ' warn' : '');
-      }
-  });
+  // ── @mention autocomplete for post composer ──
+  (function() {
+      const postTA   = document.getElementById('postText');
+      const dropdown = document.getElementById('mentionDropdown');
+      let _allUsers  = [];        // cached users list
+      let _mentionStart = -1;     // position of @ in textarea
+      let _activeIdx = -1;        // keyboard-selected suggestion index
 
-  // ── Ctrl+Enter / Cmd+Enter to post ──
-  document.getElementById("postText").addEventListener("keydown", (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); document.getElementById("btnBroadcast").click(); }
-  });
+      // Lazy-load users once
+      async function _ensureUsers() {
+          if (_allUsers.length) return;
+          try {
+              const snap = await getDocs(collection(db, 'users'));
+              snap.forEach(d => { const u = d.data(); if (u.uid && u.username) _allUsers.push(u); });
+          } catch(_) {}
+      }
+
+      function _closeMentionDropdown() {
+          dropdown.style.display = 'none';
+          dropdown.innerHTML = '';
+          _mentionStart = -1;
+          _activeIdx = -1;
+      }
+
+      function _insertMention(username) {
+          const val   = postTA.value;
+          const before = val.slice(0, _mentionStart);
+          const after  = val.slice(postTA.selectionStart);
+          postTA.value = before + '@' + username + ' ' + after;
+          const cur = (before + '@' + username + ' ').length;
+          postTA.setSelectionRange(cur, cur);
+          _closeMentionDropdown();
+          postTA.focus();
+      }
+
+      function _renderDropdown(query) {
+          const q = query.toLowerCase();
+          const matches = _allUsers
+              .filter(u => u.uid !== currentUser.uid)
+              .filter(u => u.username.toLowerCase().startsWith(q) || (u.displayName || '').toLowerCase().startsWith(q))
+              .slice(0, 8);
+          if (!matches.length) { _closeMentionDropdown(); return; }
+          dropdown.innerHTML = '';
+          _activeIdx = -1;
+          matches.forEach((u, i) => {
+              const item = document.createElement('div');
+              item.className = 'mention-dropdown-item';
+              const avStyle = u.avatar
+                  ? `background-image:url('${u.avatar}');background-size:cover;background-position:center;`
+                  : '';
+              const avLetter = u.avatar ? '' : (u.displayName || u.username || '?')[0].toUpperCase();
+              item.innerHTML = `<div class="mention-dropdown-avatar" style="${avStyle}">${avLetter}</div>
+                  <div><div class="mention-dropdown-name">${escFeed(u.displayName || u.username)}</div><div class="mention-dropdown-handle">@${escFeed(u.username)}</div></div>`;
+              item.addEventListener('mousedown', (e) => { e.preventDefault(); _insertMention(u.username); });
+              dropdown.appendChild(item);
+          });
+          // Position below textarea
+          dropdown.style.display = 'block';
+          dropdown.style.top  = (postTA.offsetTop + postTA.offsetHeight + 2) + 'px';
+          dropdown.style.left = '0px';
+      }
+
+      postTA.addEventListener('input', async function() {
+          // Character counter
+          const remaining = 500 - this.value.length;
+          const counter = document.getElementById("postCharCounter");
+          if (counter) {
+              counter.textContent = remaining + " characters left";
+              counter.className = "post-char-counter" + (remaining < 50 ? ' limit' : remaining < 150 ? ' warn' : '');
+          }
+          // @mention detection
+          const pos = this.selectionStart;
+          const textBefore = this.value.slice(0, pos);
+          const match = textBefore.match(/@([a-zA-Z0-9_]*)$/);
+          if (match) {
+              _mentionStart = pos - match[0].length;
+              await _ensureUsers();
+              _renderDropdown(match[1]);
+          } else {
+              _closeMentionDropdown();
+          }
+      });
+
+      postTA.addEventListener('keydown', function(e) {
+          // Ctrl/Cmd+Enter to post
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); document.getElementById("btnBroadcast").click(); return; }
+          if (dropdown.style.display === 'none') return;
+          const items = dropdown.querySelectorAll('.mention-dropdown-item');
+          if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              _activeIdx = Math.min(_activeIdx + 1, items.length - 1);
+          } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              _activeIdx = Math.max(_activeIdx - 1, 0);
+          } else if ((e.key === 'Enter' || e.key === 'Tab') && _activeIdx >= 0) {
+              e.preventDefault();
+              items[_activeIdx]?.dispatchEvent(new MouseEvent('mousedown'));
+              return;
+          } else if (e.key === 'Escape') {
+              _closeMentionDropdown(); return;
+          }
+          items.forEach((el, i) => el.classList.toggle('active', i === _activeIdx));
+      });
+
+      postTA.addEventListener('blur', () => setTimeout(_closeMentionDropdown, 150));
+  })();
+
+  // ── Character counter for post composer is now inside autocomplete block above ──
 
   let _postBusy = false;
   document.getElementById("btnBroadcast").onclick = async () => {
@@ -7279,8 +6949,9 @@ body::after {
       btn.disabled = true; btn.textContent = "Posting…";
       try {
           const now = Date.now();
-          // Support multiple uploaded URLs (stored as comma-separated in postMediaUrl for multi-upload)
           const mediaUrlsRaw = mediaUrl.split(',').map(u => u.trim()).filter(Boolean);
+          // Extract tagged usernames from @mentions
+          const taggedHandles = [...new Set((text.match(/@([a-zA-Z0-9_]+)/g) || []).map(m => m.slice(1).toLowerCase()))];
           const postRef = await addDoc(collection(db, "posts"), {
               uid: currentUser.uid,
               authorName: userData.displayName,
@@ -7291,6 +6962,7 @@ body::after {
               authorMoodType:  (userData.profileCustom?.moodType  || userData.moodType  || ''),
               authorMoodValue: (userData.profileCustom?.moodValue || userData.moodValue || ''),
               text,
+              taggedUsers: [], // filled by detectAndNotifyMentions
               mediaUrl: mediaUrlsRaw[0] || '',
               mediaUrls: mediaUrlsRaw,
               timestamp: now,
@@ -7300,7 +6972,7 @@ body::after {
               comments: [],
               repostCount: 0
           });
-          // Detect @mentions in post text
+          // Detect @mentions / tags and notify
           detectAndNotifyMentions(text, postRef.id);
           document.getElementById("postText").value = "";
           document.getElementById("postMediaUrl").value = "";
@@ -7337,6 +7009,7 @@ body::after {
           follow: '👤 New Follower', friendRequest: '🦋 Friend Request',
           mention: '@ You were mentioned', repost: '🔄 Post Reposted',
           wallPost: '📝 New Wall Post', announcement: '📢 Announcement',
+          tag: '🏷️ You were tagged',
       };
       const pushBodies = {
           message:       `${notif.fromName || 'Someone'} sent you a message`,
@@ -7349,6 +7022,7 @@ body::after {
           repost:        `${notif.fromName || 'Someone'} reposted your post`,
           wallPost:      `${notif.fromName || 'Someone'} posted on your wall`,
           announcement:  notif.body || 'New announcement from admin',
+          tag:           `${notif.fromName || 'Someone'} tagged you in a post`,
       };
       sendPushToUser(targetUid, {
           title: pushTitles[notif.type] || '🔔 Shadow Nexus Social',
@@ -7490,28 +7164,112 @@ body::after {
           .catch(() => toastNotification("Share link: " + url));
   };
 
-  /* ── Mention detection helper ──
-     Scans post/comment text for @username patterns and sends mention notifications.
+  /* ── renderPostText ─────────────────────────────────────────────────────────
+     Converts @username patterns in post text into clickable blue mention links.
   ─────────────────────────────────────────────────────────────────────────────── */
-  async function detectAndNotifyMentions(text, postId) {
+  function renderPostText(text) {
+      if (!text) return '';
+      return escFeed(text).replace(/@([a-zA-Z0-9_]+)/g, (match, handle) => {
+          return `<span class="post-mention" onclick="snxOpenProfileByHandle('${handle.replace(/'/g,'')}')">@${handle}</span>`;
+      });
+  }
+
+  /* ── snxOpenProfileByHandle — look up user by @handle then open profile ── */
+  window.snxOpenProfileByHandle = async function(handle) {
+      try {
+          const q = query(collection(db, 'users'), where('username', '==', handle));
+          const snap = await getDocs(q);
+          if (!snap.empty) viewProfile(snap.docs[0].data().uid);
+      } catch(_) {}
+  };
+
+  /* ── buildTaggedStrip — renders the "Tagged:" footer on a post ── */
+  function buildTaggedStrip(taggedUsers, postId, postOwnerUid) {
+      if (!taggedUsers || !taggedUsers.length) return '';
+      const myUid = currentUser?.uid;
+      const chips = taggedUsers.map(tu => {
+          const removeBtn = (tu.uid === myUid)
+              ? `<button class="post-tag-chip-remove" title="Remove yourself from this tag" onclick="event.stopPropagation();window.snxRemoveTag('${postId}','${tu.uid}')">✕</button>`
+              : '';
+          return `<span class="post-tag-chip" onclick="viewProfile('${tu.uid}')">@${escFeed(tu.handle)}${removeBtn}</span>`;
+      }).join('');
+      return `<div class="post-tagged-strip"><span class="post-tagged-label">🏷️ Tagged:</span>${chips}</div>`;
+  }
+
+  /* ── snxRemoveTag — let a tagged user remove themselves from the post ── */
+  window.snxRemoveTag = async function(postId, uid) {
+      try {
+          const ref = doc(db, 'posts', postId);
+          const snap = await getDoc(ref);
+          if (!snap.exists()) return;
+          const post = snap.data();
+          const updated = (post.taggedUsers || []).filter(tu => tu.uid !== uid);
+          await updateDoc(ref, { taggedUsers: updated });
+          toastNotification('You have been removed from this post\'s tags.');
+      } catch(e) { toastNotification('Could not remove tag — please try again.'); }
+  };
+
+  /* ── Mention / tag detection helper ──
+     Scans post text for @username patterns. For each matched user:
+     • Checks their tagging privacy setting
+     • Skips deleted / suspended accounts
+     • Sends a 'tag' notification (or falls back to 'mention' for comments)
+     • Stores taggedUsers[] on the post document for display
+  ─────────────────────────────────────────────────────────────────────────────── */
+  async function detectAndNotifyMentions(text, postId, isComment) {
       if (!text) return;
-      const mentions = [...new Set(
+      const handles = [...new Set(
           (text.match(/@([a-zA-Z0-9_]+)/g) || []).map(m => m.slice(1).toLowerCase())
       )];
-      if (!mentions.length) return;
+      if (!handles.length) return;
+
       const snap = await getDocs(collection(db, 'users'));
+      const taggedUsers = [];
+
       snap.forEach(uDoc => {
           const u = uDoc.data();
           if (!u.uid || u.uid === currentUser.uid || !u.username) return;
-          if (!mentions.includes(u.username.toLowerCase())) return;
-          pushNotification(u.uid, {
-              type:       'mention',
-              fromUid:    currentUser.uid,
-              fromName:   userData.displayName,
-              fromAvatar: userData.avatar || '',
-              postId
-          });
+          if (!handles.includes(u.username.toLowerCase())) return;
+
+          // Check if the user is suspended/deleted
+          if (u.suspended || u.deleted) return;
+
+          // Check tagging privacy
+          const taggingPriv = u.privacySettings?.tagging || 'everyone';
+          if (taggingPriv === 'nobody') return;
+          if (taggingPriv === 'friends') {
+              const myFriends = userData?.friends || [];
+              if (!myFriends.includes(u.uid)) return;
+          }
+
+          if (!isComment) {
+              // Tag-type notification for posts
+              taggedUsers.push({ uid: u.uid, handle: u.username });
+              pushNotification(u.uid, {
+                  type:       'tag',
+                  fromUid:    currentUser.uid,
+                  fromName:   userData.displayName,
+                  fromAvatar: userData.avatar || '',
+                  postId
+              });
+          } else {
+              // Mention-type notification for comments
+              pushNotification(u.uid, {
+                  type:       'mention',
+                  fromUid:    currentUser.uid,
+                  fromName:   userData.displayName,
+                  fromAvatar: userData.avatar || '',
+                  postId
+              });
+          }
       });
+
+      // Persist taggedUsers on the post document (not on comments)
+      if (!isComment && taggedUsers.length && postId) {
+          try {
+              await updateDoc(doc(db, 'posts', postId), { taggedUsers });
+          } catch(_) {}
+      }
   }
 
   window.submitPostComment = async (id) => {
@@ -7547,8 +7305,8 @@ body::after {
                   });
               }
           }
-          // Detect @mentions in the comment text
-          detectAndNotifyMentions(txt, id);
+          // Detect @mentions in the comment text (isComment = true)
+          detectAndNotifyMentions(txt, id, true);
       } catch(e) { /* best-effort */ }
   };
 
@@ -7761,10 +7519,107 @@ body::after {
       renderFriendsPage();
   };
 
+  /* ═══════════════════════════════════════════════════════════
+     FAMILY INVITE SYSTEM — invite-based approval flow
+     ═══════════════════════════════════════════════════════════ */
+
+  window.sendFamilyInvite = async function(targetUid) {
+      if (!currentUser) return;
+      const mySnap = await getDoc(doc(db,"users",currentUser.uid));
+      const md = mySnap.data();
+      if ((md.family||[]).includes(targetUid)) { toastNotification("Already family members."); return; }
+      if ((md.familyInvitesSent||[]).includes(targetUid)) { toastNotification("Family invitation already sent."); return; }
+      await updateDoc(doc(db,"users",currentUser.uid), { familyInvitesSent: arrayUnion(targetUid) });
+      await updateDoc(doc(db,"users",targetUid), {
+          familyInvitesReceived: arrayUnion({
+              fromUid: currentUser.uid, fromName: md.displayName||md.username||'Someone',
+              fromAvatar: md.avatar||'', ts: Date.now()
+          }),
+          notifications: arrayUnion({
+              id: Date.now()+Math.random().toString(36), type:'familyInvite',
+              fromUid: currentUser.uid, fromName: md.displayName||md.username||'Someone',
+              fromAvatar: md.avatar||'', ts: Date.now(), read: false
+          })
+      });
+      sendPushToUser(targetUid, {
+          title: '❤️ Family Invitation',
+          body:  `${md.displayName||'Someone'} invited you to join their Family`,
+          type:  'familyInvite', url: '/'
+      }).catch(()=>{});
+      toastNotification("Family invitation sent! ❤️");
+      renderFriendsPage();
+  };
+
+  window.approveFamilyRequest = async function(fromUid) {
+      if (!currentUser) return;
+      const [myS, thS] = await Promise.all([getDoc(doc(db,"users",currentUser.uid)), getDoc(doc(db,"users",fromUid))]);
+      const md = myS.data(), td = thS.data();
+      await updateDoc(doc(db,"users",currentUser.uid), {
+          family: arrayUnion(fromUid),
+          familyInvitesReceived: (md.familyInvitesReceived||[]).filter(x=>x.fromUid!==fromUid),
+          notifications: arrayUnion({
+              id: Date.now()+Math.random().toString(36), type:'familyAccepted',
+              fromUid, fromName: td.displayName||td.username||'Someone', fromAvatar:td.avatar||'',
+              ts: Date.now(), read: false
+          })
+      });
+      await updateDoc(doc(db,"users",fromUid), {
+          family: arrayUnion(currentUser.uid),
+          familyInvitesSent: (td.familyInvitesSent||[]).filter(x=>x!==currentUser.uid),
+          notifications: arrayUnion({
+              id: Date.now()+Math.random().toString(36), type:'familyAccepted',
+              fromUid: currentUser.uid, fromName: md.displayName||md.username||'Someone',
+              fromAvatar: md.avatar||'', ts: Date.now(), read: false
+          })
+      });
+      sendPushToUser(fromUid, {
+          title: '✅ Family Request Accepted',
+          body:  `${md.displayName||'Someone'} accepted your family invitation`,
+          type:  'familyAccepted', url: '/'
+      }).catch(()=>{});
+      toastNotification(`Now family! ❤️`);
+      renderFriendsPage();
+  };
+
+  window.declineFamilyRequest = async function(fromUid) {
+      if (!currentUser) return;
+      const [myS, thS] = await Promise.all([getDoc(doc(db,"users",currentUser.uid)), getDoc(doc(db,"users",fromUid))]);
+      await updateDoc(doc(db,"users",currentUser.uid), {
+          familyInvitesReceived: (myS.data().familyInvitesReceived||[]).filter(x=>x.fromUid!==fromUid)
+      });
+      await updateDoc(doc(db,"users",fromUid), {
+          familyInvitesSent: (thS.data().familyInvitesSent||[]).filter(x=>x!==currentUser.uid)
+      });
+      toastNotification("Family invitation declined."); renderFriendsPage();
+  };
+
+  window.blockFamilyInviter = async function(fromUid) {
+      if (!currentUser || !confirm("Block this user? They won't be able to send you invitations.")) return;
+      const [myS, thS] = await Promise.all([getDoc(doc(db,"users",currentUser.uid)), getDoc(doc(db,"users",fromUid))]);
+      await updateDoc(doc(db,"users",currentUser.uid), {
+          familyInvitesReceived: (myS.data().familyInvitesReceived||[]).filter(x=>x.fromUid!==fromUid),
+          blockedUsers: arrayUnion(fromUid)
+      });
+      await updateDoc(doc(db,"users",fromUid), {
+          familyInvitesSent: (thS.data().familyInvitesSent||[]).filter(x=>x!==currentUser.uid)
+      });
+      toastNotification("User blocked."); renderFriendsPage();
+  };
+
+  window.removeFamilyMember = async function(fUid) {
+      if (!currentUser || !confirm("Remove this person from your Family list?")) return;
+      const snap = await getDoc(doc(db,"users",currentUser.uid));
+      await updateDoc(doc(db,"users",currentUser.uid), { family:(snap.data().family||[]).filter(x=>x!==fUid) });
+      toastNotification("Removed from Family list.");
+      if (typeof snxLoadFamilySection === 'function') snxLoadFamilySection(currentUser.uid, true);
+      renderFriendsPage();
+  };
+
   async function renderFriendsPage() {
       const myS = await getDoc(doc(db,"users",currentUser.uid));
       const md = myS.data();
       const friends = md.friends||[], family = md.family||[], received = md.friendRequestsReceived||[];
+      const famInvitesReceived = md.familyInvitesReceived||[];
       const [fDocs,rDocs] = await Promise.all([
           Promise.all(friends.map(u=>getDoc(doc(db,"users",u)))),
           Promise.all(received.map(u=>getDoc(doc(db,"users",u))))
@@ -7794,19 +7649,50 @@ body::after {
             <div class="req-actions"><button class="btn-accept" onclick="acceptFriendRequest('${u.uid}')">✓ Accept</button><button class="btn-decline" onclick="declineFriendRequest('${u.uid}')">✕ Decline</button></div>`;
           rbox.appendChild(row);
       });
-      // Family tab
+      // Family tab — approved members + pending invitations
       const fbox = document.getElementById("ftabContentFamily");
+      fbox.innerHTML = '';
+      const famBadge = document.getElementById("famReqCountBadge");
+      if (famBadge) { famBadge.textContent=famInvitesReceived.length; famBadge.style.display=famInvitesReceived.length?'inline':'none'; }
+      if (famInvitesReceived.length) {
+          const pendingHeader = document.createElement('div');
+          pendingHeader.style.cssText='font-size:11px;color:#ff88aa;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;padding:6px 0 4px;margin-bottom:4px;border-bottom:1px solid rgba(255,51,102,0.2);';
+          pendingHeader.textContent='⏳ Pending Invitations';
+          fbox.appendChild(pendingHeader);
+          famInvitesReceived.forEach(inv => {
+              const row = document.createElement('div'); row.className='fam-invite-card';
+              const avStyle = inv.fromAvatar ? `background-image:url('${inv.fromAvatar}');background-size:cover;background-position:center;` : 'display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#00AEEF;background:#0B1F3A;';
+              row.innerHTML=`<div class="friend-avatar" style="${avStyle}" onclick="viewProfile('${inv.fromUid}')">${!inv.fromAvatar?escFeed((inv.fromName||'?')[0].toUpperCase()):''}</div>
+                <div class="friend-meta"><div class="friend-name" onclick="viewProfile('${inv.fromUid}')">${escFeed(inv.fromName)}<span class="fam-invite-pending-label">❤️ Invited You</span></div></div>
+                <div class="fam-invite-actions">
+                  <button class="btn-accept" onclick="approveFamilyRequest('${inv.fromUid}')">✓ Approve</button>
+                  <button class="btn-decline" onclick="declineFamilyRequest('${inv.fromUid}')">✕ Decline</button>
+                  <button class="btn-decline" style="font-size:10px;" onclick="blockFamilyInviter('${inv.fromUid}')">🚫 Block</button>
+                </div>`;
+              fbox.appendChild(row);
+          });
+      }
       const famDocs = fDocs.filter((_,i)=>family.includes(friends[i]));
-      fbox.innerHTML = !famDocs.length ? '<div class="empty-state">No family members marked yet.<br><span style="font-size:12px;color:#3a5a7a;">Tap ❤️ on a friend to mark them as family.</span></div>' : '';
-      famDocs.forEach(d => {
-          if(!d.exists()) return;
-          const u=d.data();
-          const row=document.createElement('div'); row.className='friend-card';
-          row.innerHTML=`<div class="friend-avatar" style="background-image:url('${u.avatar||''}');${!u.avatar?'display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#00AEEF;background:#0B1F3A;':''}" onclick="viewProfile('${u.uid}')">${!u.avatar?escFeed((u.displayName||'?')[0].toUpperCase()):''}</div>
-            <div class="friend-meta"><div class="friend-name" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;" onclick="viewProfile('${u.uid}')">${escFeed(u.displayName)}${buildBadgeHtml(u.badges||[],u.role||'member')}<span class="friend-tag-family">❤️ Family</span></div><div class="friend-handle">@${escFeed(u.username||'')}</div></div>
-            <div class="friend-actions"><button class="btn-family-on" onclick="toggleFamily('${u.uid}')">❤️</button><button onclick="if(typeof window.ipcOpen==='function')window.ipcOpen('${u.uid}');else establishDirectMessageChannel('${u.uid}')">💬</button></div>`;
-          fbox.appendChild(row);
-      });
+      if (famDocs.length) {
+          if (famInvitesReceived.length) {
+              const approvedHeader = document.createElement('div');
+              approvedHeader.style.cssText='font-size:11px;color:#ff88aa;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;padding:10px 0 4px;margin-bottom:4px;border-bottom:1px solid rgba(255,51,102,0.2);';
+              approvedHeader.textContent='✅ Family Members';
+              fbox.appendChild(approvedHeader);
+          }
+          famDocs.forEach(d => {
+              if(!d.exists()) return;
+              const u=d.data();
+              const row=document.createElement('div'); row.className='friend-card';
+              row.innerHTML=`<div class="friend-avatar" style="background-image:url('${u.avatar||''}');${!u.avatar?'display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#00AEEF;background:#0B1F3A;':''}" onclick="viewProfile('${u.uid}')">${!u.avatar?escFeed((u.displayName||'?')[0].toUpperCase()):''}</div>
+                <div class="friend-meta"><div class="friend-name" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;" onclick="viewProfile('${u.uid}')">${escFeed(u.displayName)}${buildBadgeHtml(u.badges||[],u.role||'member')}<span class="friend-tag-family">❤️ Family</span></div><div class="friend-handle">@${escFeed(u.username||'')}</div></div>
+                <div class="friend-actions"><button class="btn-family-on" onclick="removeFamilyMember('${u.uid}')">❤️ Remove</button><button onclick="if(typeof window.ipcOpen==='function')window.ipcOpen('${u.uid}');else establishDirectMessageChannel('${u.uid}')">💬</button></div>`;
+              fbox.appendChild(row);
+          });
+      }
+      if (!famDocs.length && !famInvitesReceived.length) {
+          fbox.innerHTML='<div class="empty-state">No family members yet.<br><span style="font-size:12px;color:#3a5a7a;">Send a Family Invitation from a friend\'s profile.</span></div>';
+      }
       updateFriendBadges(received.length);
   }
 
@@ -7851,6 +7737,19 @@ body::after {
               icon = '✅';
               text = `<b>${escFeed(n.fromName)}</b> accepted your friend request.`;
               navFn = `viewProfile('${n.fromUid}')`;
+          } else if (n.type === 'familyInvite') {
+              icon = '❤️';
+              text = `<b>${escFeed(n.fromName)}</b> sent you a Family invitation.`;
+              actHtml = `<div class="notif-actions">
+                  <button class="btn-accept" onclick="event.stopPropagation();approveFamilyRequest('${n.fromUid}');markNotifRead(${origIdx})">✓ Approve</button>
+                  <button class="btn-decline" onclick="event.stopPropagation();declineFamilyRequest('${n.fromUid}');markNotifRead(${origIdx})">✕ Decline</button>
+                  <button class="btn-decline" style="font-size:10px;" onclick="event.stopPropagation();blockFamilyInviter('${n.fromUid}');markNotifRead(${origIdx})">🚫 Block</button>
+              </div>`;
+              navFn = `navTo('friends');switchFriendsTab('family')`;
+          } else if (n.type === 'familyAccepted') {
+              icon = '❤️';
+              text = `<b>${escFeed(n.fromName)}</b> accepted your Family invitation.`;
+              navFn = `viewProfile('${n.fromUid}')`;
           } else if (n.type === 'like') {
               icon = '❤️';
               text = `<b>${escFeed(n.fromName)}</b> liked your post.`;
@@ -7878,6 +7777,13 @@ body::after {
           } else if (n.type === 'mention') {
               icon = '@';
               text = `<b>${escFeed(n.fromName)}</b> mentioned you in a post.`;
+              navFn = `navTo('feed')`;
+          } else if (n.type === 'tag') {
+              icon = '🏷️';
+              text = `<b>${escFeed(n.fromName)}</b> tagged you in a post.`;
+              actHtml = `<div class="notif-actions">
+                  <button class="btn-decline" style="font-size:11px;" onclick="event.stopPropagation();if(confirm('Remove yourself from this tag?'))window.snxRemoveTag('${n.postId||''}','${n.fromUid||''}');markNotifRead(${origIdx})">✕ Remove Tag</button>
+              </div>`;
               navFn = `navTo('feed')`;
           } else if (n.type === 'announcement') {
               icon = '📢';
@@ -8096,8 +8002,6 @@ body::after {
           document.getElementById("secShowSpotlight").checked = sec.spotlight === true;
           document.getElementById("secShowLinks").checked     = sec.links     !== false;
           document.getElementById("secShowStats").checked     = sec.stats     !== false;
-          document.getElementById("secShowArcade").checked    = sec.arcade    !== false;
-
           // Repopulate link rows
           const linkContainer = document.getElementById("epmLinkRows");
           linkContainer.innerHTML = '';
@@ -8301,9 +8205,15 @@ body::after {
                   div.appendChild(row);
               }
               wallBox.appendChild(div);
-          });
-      });
-  };
+         });
+
+         // ── Family section ───────────────────────────────────────────
+         snxLoadFamilySection(uid, isSelf);
+
+         // ── Friends list section ─────────────────────────────────────
+         snxLoadFriendsSection(uid, isSelf);
+     });
+ };
 
   document.getElementById("btnSaveProfile").onclick = async () => {
       const btn = document.getElementById("btnSaveProfile");
@@ -8350,7 +8260,6 @@ body::after {
               spotlight: document.getElementById("secShowSpotlight").checked,
               links:     document.getElementById("secShowLinks").checked,
               stats:     document.getElementById("secShowStats").checked,
-              arcade:    document.getElementById("secShowArcade").checked,
           },
           moodType,
           moodValue,
@@ -9874,7 +9783,7 @@ function navTo(pageId) {
         searchPage:'navSearch', friendsPage:'navFriends',
         notificationsPage:'navNotifs', settingsPage:'navSettings',
         stormRoomsPage:'navStorm', adminPage:'navAdmin',
-        arcadePage:'navArcade', communityPage:'navCommunity', supportRoomsPage:'navSupport'
+        communityPage:'navCommunity', supportRoomsPage:'navSupport'
     };
     const navEl = document.getElementById(map[pageId]);
     if (navEl) navEl.classList.add('active-nav');
@@ -10051,12 +9960,10 @@ function applyProfileCustom(pc, profileUid) {
     const spotlightEl     = document.getElementById('profileSpotlight');
     const socialLinksEl   = document.getElementById('profileSocialLinks');
     const statsRow        = document.querySelector('#profile .profile-stats-row');
-    const arcadeWidget    = document.getElementById('arcadeWidgetSection');
 
     if (gameSection)   gameSection.style.display   = sec.game     !== false ? '' : 'none';
     if (wallSection)   wallSection.style.display    = sec.wall     !== false ? '' : 'none';
     if (statsRow)      statsRow.style.display       = sec.stats    !== false ? '' : 'none';
-    if (arcadeWidget)  arcadeWidget.style.display   = sec.arcade   !== false ? '' : 'none';
 
     // ── Spotlight ──
     const showSpotlight = sec.spotlight === true && (pc.spotlight || '').trim();
@@ -10410,6 +10317,171 @@ function switchFriendsTab(tab) {
         document.getElementById(`ftabContent${t.charAt(0).toUpperCase()+t.slice(1)}`).style.display = t===tab?'block':'none';
         document.getElementById(`ftab${t.charAt(0).toUpperCase()+t.slice(1)}`).classList.toggle('active', t===tab);
     });
+}
+
+/* ── Profile Family & Friends section loaders ── */
+async function snxLoadFamilySection(profileUid, isSelf) {
+    const section  = document.getElementById("profileFamilySection");
+    const listEl   = document.getElementById("profileFamilyList");
+    const inviteBtn = document.getElementById("btnSendFamilyInvite");
+    const badgeEl  = document.getElementById("familyPrivacyBadge");
+    if (!section || !listEl) return;
+    listEl.innerHTML = '';
+    try {
+        const snap = await getDoc(doc(db, 'users', profileUid));
+        if (!snap.exists()) { section.style.display = 'none'; return; }
+        const p = snap.data();
+        const familyUids = p.family || [];
+        const privacyMap = { public:'🌐 Public', friends:'🦋 Friends', private:'🔒 Private' };
+        const familyPrivacy = p.privacySettings?.familyList || 'public';
+        const isFriend = (userData?.friends||[]).includes(profileUid);
+        if (familyPrivacy === 'private' && !isSelf) { section.style.display = 'none'; return; }
+        if (familyPrivacy === 'friends' && !isSelf && !isFriend) { section.style.display = 'none'; return; }
+        if (badgeEl) {
+            badgeEl.textContent = privacyMap[familyPrivacy] || '🌐 Public';
+            if (isSelf) {
+                badgeEl.style.cursor = 'pointer';
+                badgeEl.onclick = async () => {
+                    const opts = ['public','friends','private'];
+                    const next = opts[(opts.indexOf(familyPrivacy)+1)%opts.length];
+                    await updateDoc(doc(db,'users',profileUid), {'privacySettings.familyList': next});
+                    const privSel = document.getElementById('privFamilyList');
+                    if (privSel) privSel.value = next;
+                    snxLoadFamilySection(profileUid, true);
+                };
+            } else { badgeEl.style.cursor = 'default'; badgeEl.onclick = null; }
+        }
+        if (inviteBtn) inviteBtn.style.display = isSelf ? '' : 'none';
+        if (!familyUids.length) {
+            listEl.innerHTML = `<div class="empty-state" style="padding:10px 0 4px;font-size:12px;color:#3a5a7a;">${isSelf ? 'No family members yet. Send a Family Invitation.' : 'No family members.'}</div>`;
+            section.style.display = ''; return;
+        }
+        const chunks = [];
+        for (let i=0; i<familyUids.length; i+=10) chunks.push(familyUids.slice(i,i+10));
+        const users = [];
+        for (const chunk of chunks) {
+            const q = query(collection(db,'users'), where('uid','in',chunk));
+            const qs = await getDocs(q);
+            qs.forEach(d => users.push(d.data()));
+        }
+        section.style.display = '';
+        users.forEach(u => {
+            const card = document.createElement('div'); card.className = 'profile-fl-card';
+            const avStyle = u.avatar ? `background-image:url('${u.avatar}');background-size:cover;background-position:center;` : '';
+            const avLetter = u.avatar ? '' : (u.displayName||u.username||'?')[0].toUpperCase();
+            const onlineIndicator = u.status === 'online' ? '<div style="position:absolute;bottom:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#39FF14;border:2px solid #0d2444;"></div>' : '';
+            card.innerHTML=`<div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')">${avLetter}${onlineIndicator}</div>
+              <div class="profile-fl-meta" onclick="viewProfile('${u.uid}')"><div class="profile-fl-name">${escFeed(u.displayName||u.username||'?')}${buildBadgeHtml(u.badges||[],u.role||'member')}</div><div class="profile-fl-handle">@${escFeed(u.username||'')}</div></div>
+              ${isSelf?`<div class="profile-fl-actions"><button style="background:rgba(255,51,102,0.07);border-color:rgba(255,51,102,0.3);color:#ff88aa;font-size:11px;" onclick="removeFamilyMember('${u.uid}')">✕ Remove</button></div>`:''}`;
+            listEl.appendChild(card);
+        });
+    } catch(_) { section.style.display = 'none'; }
+}
+
+async function snxLoadFriendsSection(profileUid, isSelf) {
+    const section = document.getElementById("profileFriendsSection");
+    const listEl  = document.getElementById("profileFriendsList");
+    const badgeEl = document.getElementById("friendsListPrivacyBadge");
+    if (!section || !listEl) return;
+    listEl.innerHTML = '';
+    try {
+        const snap = await getDoc(doc(db,'users',profileUid));
+        if (!snap.exists()) { section.style.display = 'none'; return; }
+        const p = snap.data();
+        const friendUids = p.friends || [];
+        const privacyMap = { public:'🌐 Public', friends:'🦋 Friends', private:'🔒 Private' };
+        const friendsPrivacy = p.privacySettings?.friendsList || 'public';
+        const isFriend = (userData?.friends||[]).includes(profileUid);
+        if (friendsPrivacy === 'private' && !isSelf) { section.style.display = 'none'; return; }
+        if (friendsPrivacy === 'friends' && !isSelf && !isFriend) { section.style.display = 'none'; return; }
+        if (badgeEl) {
+            badgeEl.textContent = privacyMap[friendsPrivacy] || '🌐 Public';
+            if (isSelf) {
+                badgeEl.style.cursor = 'pointer';
+                badgeEl.onclick = async () => {
+                    const opts = ['public','friends','private'];
+                    const next = opts[(opts.indexOf(friendsPrivacy)+1)%opts.length];
+                    await updateDoc(doc(db,'users',profileUid), {'privacySettings.friendsList': next});
+                    const privSel = document.getElementById('privFriendsList');
+                    if (privSel) privSel.value = next;
+                    snxLoadFriendsSection(profileUid, isSelf);
+                };
+            } else { badgeEl.style.cursor = 'default'; badgeEl.onclick = null; }
+        }
+        if (!friendUids.length) {
+            listEl.innerHTML = `<div class="empty-state" style="padding:10px 0 4px;font-size:12px;color:#3a5a7a;">No friends yet.</div>`;
+            section.style.display = ''; return;
+        }
+        const show = friendUids.slice(0, 20);
+        const chunks = [];
+        for (let i=0; i<show.length; i+=10) chunks.push(show.slice(i,i+10));
+        const users = [];
+        for (const chunk of chunks) {
+            const q = query(collection(db,'users'), where('uid','in',chunk));
+            const qs = await getDocs(q);
+            qs.forEach(d => users.push(d.data()));
+        }
+        section.style.display = '';
+        users.forEach(u => {
+            const card = document.createElement('div'); card.className = 'profile-fl-card';
+            const avStyle = u.avatar ? `background-image:url('${u.avatar}');background-size:cover;background-position:center;` : '';
+            const avLetter = u.avatar ? '' : (u.displayName||u.username||'?')[0].toUpperCase();
+            const onlineIndicator = u.status === 'online' ? '<div style="position:absolute;bottom:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#39FF14;border:2px solid #0d2444;"></div>' : '';
+            card.innerHTML=`<div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')">${avLetter}${onlineIndicator}</div>
+              <div class="profile-fl-meta" onclick="viewProfile('${u.uid}')"><div class="profile-fl-name">${escFeed(u.displayName||u.username||'?')}${buildBadgeHtml(u.badges||[],u.role||'member')}</div><div class="profile-fl-handle">@${escFeed(u.username||'')} ${u.status==='online'?'<span style="color:#39FF14;font-size:10px;">● Online</span>':''}</div></div>`;
+            listEl.appendChild(card);
+        });
+        if (friendUids.length > 20) {
+            const more = document.createElement('div');
+            more.style.cssText='font-size:11px;color:#3a5a7a;padding:6px 0 2px;text-align:center;';
+            more.textContent=`+ ${friendUids.length - 20} more`;
+            listEl.appendChild(more);
+        }
+    } catch(_) { section.style.display = 'none'; }
+}
+
+/* ── Family Invite Modal helpers ── */
+function openFamilyInviteModal() {
+    const modal = document.getElementById('familyInviteModal');
+    if (!modal) return;
+    modal.classList.add('open');
+    const inp = document.getElementById('familyInviteSearch');
+    if (inp) { inp.value = ''; renderFamilyInviteSearch(''); }
+}
+function closeFamilyInviteModal() {
+    const modal = document.getElementById('familyInviteModal');
+    if (modal) modal.classList.remove('open');
+}
+async function renderFamilyInviteSearch(q) {
+    const box = document.getElementById('familyInviteResults');
+    if (!box || !currentUser) return;
+    box.innerHTML = '<div style="font-size:12px;color:#3a5a7a;padding:8px 0;">Loading friends…</div>';
+    try {
+        const snap = await getDoc(doc(db,'users',currentUser.uid));
+        const md = snap.data();
+        const friends = md.friends || [];
+        const family  = md.family  || [];
+        const sentInv = md.familyInvitesSent || [];
+        if (!friends.length) { box.innerHTML='<div style="font-size:12px;color:#3a5a7a;padding:8px 0;">Add friends first before sending a family invitation.</div>'; return; }
+        const fDocs = await Promise.all(friends.map(u=>getDoc(doc(db,'users',u))));
+        const filtered = fDocs.filter(d=>{
+            if(!d.exists()) return false;
+            const u=d.data(); const lq=q.toLowerCase();
+            return !lq || (u.displayName||'').toLowerCase().includes(lq) || (u.username||'').toLowerCase().includes(lq);
+        });
+        if(!filtered.length){ box.innerHTML='<div style="font-size:12px;color:#3a5a7a;padding:8px 0;">No matching friends found.</div>'; return; }
+        box.innerHTML='';
+        filtered.forEach(d=>{
+            const u=d.data();
+            const inFam=family.includes(u.uid), invited=sentInv.includes(u.uid);
+            const avStyle=u.avatar?`background-image:url('${u.avatar}');background-size:cover;background-position:center;`:'';
+            const avLetter=u.avatar?'':(u.displayName||'?')[0].toUpperCase();
+            let btn=inFam?`<button disabled style="font-size:11px;border-color:rgba(255,51,102,0.3);color:#ff88aa;">❤️ Family</button>`:invited?`<button disabled style="font-size:11px;color:#6a90b8;">Invited</button>`:`<button onclick="sendFamilyInvite('${u.uid}');this.textContent='Invited';this.disabled=true;" style="font-size:11px;background:rgba(255,51,102,0.1);border-color:rgba(255,51,102,0.4);color:#ff88aa;">+ Invite</button>`;
+            const row=document.createElement('div'); row.className='fam-invite-card';
+            row.innerHTML=`<div class="friend-avatar" style="${avStyle}" onclick="viewProfile('${u.uid}')">${avLetter}</div><div class="friend-meta"><div class="friend-name">${escFeed(u.displayName)}${buildBadgeHtml(u.badges||[],u.role||'member')}</div><div class="friend-handle">@${escFeed(u.username||'')}</div></div><div class="fam-invite-actions">${btn}</div>`;
+            box.appendChild(row);
+        });
+    } catch(_) { box.innerHTML='<div style="font-size:12px;color:#ff4466;padding:8px 0;">Error loading friends.</div>'; }
 }
 
 /* ── Messaging UI helpers (non-module, called from HTML) ── */
@@ -11048,7 +11120,7 @@ window._loadNotifPrefs = async function() {
         const snap = await window._snxGetDoc(window._snxDoc(window._snxDb, 'users', window._snxCurrentUser.uid));
         if (!snap.exists()) return;
         const prefs = snap.data().notifPrefs || {};
-        const keys = ['messages','likes','comments','followers','mentions','announcements'];
+        const keys = ['messages','likes','comments','followers','mentions','announcements','tags'];
         keys.forEach(k => {
             const cb = document.getElementById('notifPref' + k.charAt(0).toUpperCase() + k.slice(1));
             if (cb) cb.checked = prefs[k] !== false; // default ON
@@ -12575,2198 +12647,6 @@ function _supportStopCanvas() {
   <button class="update-btn" aria-label="Update app now">Update</button>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     RETRO ARCADE — game engine + Firestore scoreboard logic
-     ═══════════════════════════════════════════════════════════ -->
-<script>
-/* ═══════════════════════════════════════════════════════════════
-   SNX RETRO ARCADE
-   - 10 self-contained canvas games: Snake, Pool, Chess, Breakout,
-     Tetris, Checkers, Tic-Tac-Toe, Connect Four, Memory Match, Pong
-   - Firestore-backed global leaderboard per game
-   - Challenge-a-friend flow (notification → accept → score compare)
-   - Profile sidebar widget: scoreboard + recent matches
-   ═══════════════════════════════════════════════════════════════ */
-
-/* ─── State ─── */
-let _arcadeGame      = 'snake';   // currently selected game id
-let _arcadeRunning   = false;     // game loop active flag
-let _arcadeScore     = 0;         // current score this session
-let _arcadeBest      = 0;         // personal best (local)
-let _arcadeRAF       = null;      // requestAnimationFrame handle
-let _arcadeCtx       = null;      // canvas 2d context
-let _arcadeCanvas    = null;      // canvas element
-let _arcadeProfileUid = null;     // whose profile we are viewing
-let _arcadeUnsubLeaderboard = null;
-let _arcadeGameState = {};        // per-game mutable state
-
-const ARCADE_GAMES = {
-    snake:      { label: 'Snake',       icon: '🐍', hint: '← → ↑ ↓ / Swipe' },
-    pool:       { label: 'Pool',        icon: '🎱', hint: 'Aim → drag & release' },
-    chess:      { label: 'Chess',       icon: '♟',  hint: 'Tap piece → tap square' },
-    breakout:   { label: 'Breakout',    icon: '🧱', hint: '← → Arrow keys / mouse' },
-    tetris:     { label: 'Tetris',      icon: '🟦', hint: '← → ↓ / Z=rotate / Swipe' },
-    checkers:   { label: 'Checkers',    icon: '⭕', hint: 'Tap piece → tap square' },
-    tictactoe:  { label: 'Tic-Tac-Toe',icon: '❌', hint: 'Tap a square to place' },
-    connect4:   { label: 'Connect 4',   icon: '🔴', hint: 'Tap column to drop disc' },
-    memory:     { label: 'Memory',      icon: '🃏', hint: 'Tap cards to match pairs' },
-    pong:       { label: 'Pong',        icon: '🏓', hint: '↑ ↓ keys / drag paddle' },
-};
-
-/* ─── Widget API ─── */
-
-function arcadeSelectGame(gameId, chipEl) {
-    _arcadeGame = gameId;
-    document.querySelectorAll('.arcade-game-chip').forEach(c => c.classList.remove('selected'));
-    if (chipEl) chipEl.classList.add('selected');
-    arcadeLoadLeaderboard(gameId);
-}
-
-function arcadeOpenModal(gameIdOverride) {
-    if (gameIdOverride) _arcadeGame = gameIdOverride;
-    const modal = document.getElementById('arcadeModal');
-    if (!modal) return;
-
-    // Sync active tab
-    document.querySelectorAll('.arcade-modal-tab').forEach(t => t.classList.remove('active'));
-    const atab = document.getElementById('atab-' + _arcadeGame);
-    if (atab) atab.classList.add('active');
-
-    // Set overlay
-    _arcadeShowOverlay('start', _arcadeGame);
-    modal.classList.add('open');
-
-    // Bind keyboard + touch once
-    _arcadeBindInput();
-}
-
-function arcadeCloseModal() {
-    document.getElementById('arcadeModal')?.classList.remove('open');
-    _arcadeStopLoop();
-}
-
-function arcadeModalSwitchTab(gameId, btn) {
-    _arcadeGame = gameId;
-    document.querySelectorAll('.arcade-modal-tab').forEach(t => t.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    _arcadeStopLoop();
-    _arcadeScore = 0;
-    _arcadeUpdateScoreDisplay();
-    _arcadeShowOverlay('start', gameId);
-
-    // Sync widget chip
-    document.querySelectorAll('.arcade-game-chip').forEach(c => {
-        c.classList.toggle('selected', c.dataset.game === gameId);
-    });
-}
-
-function arcadeStartGame() {
-    _arcadeScore = 0;
-    _arcadeUpdateScoreDisplay();
-    _arcadeHideOverlay();
-    _arcadeCanvas  = document.getElementById('arcadeCanvas');
-    _arcadeCtx     = _arcadeCanvas?.getContext('2d');
-    if (!_arcadeCanvas || !_arcadeCtx) return;
-    _arcadeStopLoop();
-    _arcadeRunning = true;
-
-    // Wait for the browser to paint the modal so the canvas wrap has real
-    // dimensions before we size the canvas and start the game loop.
-    requestAnimationFrame(() => {
-        _arcadeResizeCanvas();
-        switch (_arcadeGame) {
-            case 'snake':     _snakeInit();     break;
-            case 'pool':      _poolInit();      break;
-            case 'chess':     _chessInit();     break;
-            case 'breakout':  _breakoutInit();  break;
-            case 'tetris':    _tetrisInit();    break;
-            case 'checkers':  _checkersInit();  break;
-            case 'tictactoe': _tictactoeInit(); break;
-            case 'connect4':  _connect4Init();  break;
-            case 'memory':    _memoryInit();    break;
-            case 'pong':      _pongInit();      break;
-        }
-    });
-}
-
-function _arcadeResizeCanvas() {
-    if (!_arcadeCanvas) return;
-    const wrap = document.getElementById('arcadeCanvasWrap');
-    if (!wrap) return;
-    // Use offsetWidth as fallback — clientWidth can be 0 before first paint
-    const W = wrap.clientWidth  || wrap.offsetWidth  || 520;
-    const H = wrap.clientHeight || wrap.offsetHeight || 360;
-    if (W > 0) _arcadeCanvas.width  = W;
-    if (H > 0) _arcadeCanvas.height = H;
-}
-
-function _arcadeStopLoop() {
-    _arcadeRunning = false;
-    if (_arcadeRAF) { cancelAnimationFrame(_arcadeRAF); _arcadeRAF = null; }
-}
-
-function _arcadeShowOverlay(type, gameId) {
-    const overlay   = document.getElementById('arcadeOverlay');
-    const title     = document.getElementById('arcadeOverlayTitle');
-    const sub       = document.getElementById('arcadeOverlaySub');
-    const scoreEl   = document.getElementById('arcadeOverlayScore');
-    const startBtn  = document.getElementById('arcadeStartBtn');
-    const rematchBtn= document.getElementById('arcadeRematchBtn');
-    const info      = ARCADE_GAMES[gameId] || ARCADE_GAMES.snake;
-    const hintEl    = document.getElementById('arcadeHintText');
-
-    if (!overlay) return;
-    overlay.classList.remove('hidden');
-    if (hintEl) hintEl.textContent = info.hint;
-
-    if (type === 'start') {
-        title.textContent = info.icon + ' ' + info.label.toUpperCase();
-        sub.textContent   = info.hint;
-        scoreEl.style.display = 'none';
-        if (startBtn)   { startBtn.textContent = '▶ Start'; startBtn.style.display = ''; }
-        if (rematchBtn) rematchBtn.style.display = 'none';
-    } else if (type === 'over') {
-        title.textContent = 'GAME OVER';
-        sub.textContent   = info.label;
-        scoreEl.style.display = '';
-        scoreEl.textContent = 'Score: ' + _arcadeScore;
-        if (startBtn)   startBtn.style.display = 'none';
-        if (rematchBtn) rematchBtn.style.display = '';
-        _arcadeSubmitScore(_arcadeGame, _arcadeScore);
-    }
-}
-
-function _arcadeHideOverlay() {
-    document.getElementById('arcadeOverlay')?.classList.add('hidden');
-}
-
-function _arcadeUpdateScoreDisplay(score, best) {
-    if (score !== undefined) _arcadeScore = score;
-    const curEl  = document.getElementById('arcadeScoreCur');
-    const bestEl = document.getElementById('arcadeScoreBest');
-    if (curEl)  curEl.textContent  = _arcadeScore;
-    if (bestEl) bestEl.textContent = Math.max(_arcadeBest, _arcadeScore);
-}
-
-function _arcadeGameOver() {
-    _arcadeRunning = false;
-    if (_arcadeRAF) { cancelAnimationFrame(_arcadeRAF); _arcadeRAF = null; }
-    if (_arcadeScore > _arcadeBest) _arcadeBest = _arcadeScore;
-    _arcadeUpdateScoreDisplay();
-    _arcadeShowOverlay('over', _arcadeGame);
-}
-
-/* ─── Input binding (keyboard + touch swipe) ─── */
-let _arcadeInputBound = false;
-let _arcadeTouchX = 0, _arcadeTouchY = 0;
-
-function _arcadeBindInput() {
-    if (_arcadeInputBound) return;
-    _arcadeInputBound = true;
-
-    document.addEventListener('keydown', _arcadeKeyHandler);
-
-    const cv = document.getElementById('arcadeCanvas');
-    if (cv) {
-        cv.addEventListener('touchstart', e => {
-            _arcadeTouchX = e.touches[0].clientX;
-            _arcadeTouchY = e.touches[0].clientY;
-            e.preventDefault();
-        }, { passive: false });
-        cv.addEventListener('touchend', e => {
-            const dx = e.changedTouches[0].clientX - _arcadeTouchX;
-            const dy = e.changedTouches[0].clientY - _arcadeTouchY;
-            if (Math.abs(dx) > Math.abs(dy)) {
-                _arcadeGameState.dir = dx > 0 ? 'R' : 'L';
-            } else {
-                _arcadeGameState.dir = dy > 0 ? 'D' : 'U';
-            }
-            // Pool: also trigger shot
-            if (_arcadeGame === 'pool') _arcadeGameState.touchEnd = { dx, dy };
-            e.preventDefault();
-        }, { passive: false });
-        // Pool aiming
-        cv.addEventListener('mousedown', e => {
-            if (_arcadeGame === 'pool')      { _arcadeGameState.aimStart = { x: e.offsetX, y: e.offsetY }; }
-            if (_arcadeGame === 'chess')     { _chessClick(e.offsetX, e.offsetY); }
-            if (_arcadeGame === 'checkers')  { _checkersClick(e.offsetX, e.offsetY); }
-            if (_arcadeGame === 'tictactoe') { _tictactoeClick(e.offsetX, e.offsetY); }
-            if (_arcadeGame === 'connect4')  { _connect4Click(e.offsetX); }
-            if (_arcadeGame === 'memory')    { _memoryClick(e.offsetX, e.offsetY); }
-            if (_arcadeGame === 'breakout')  { _arcadeGameState.mouseX = e.offsetX; }
-            if (_arcadeGame === 'pong')      { _arcadeGameState.touchY = e.offsetY; }
-        });
-        cv.addEventListener('mousemove', e => {
-            if (_arcadeGame === 'pool')     { _arcadeGameState.aimCur = { x: e.offsetX, y: e.offsetY }; }
-            if (_arcadeGame === 'breakout') { _arcadeGameState.mouseX = e.offsetX; }
-            if (_arcadeGame === 'connect4') { _connect4Hover(e.offsetX); }
-            if (_arcadeGame === 'pong')     { _arcadeGameState.touchY = e.offsetY; }
-        });
-        cv.addEventListener('mouseup', e => {
-            if (_arcadeGame === 'pool') {
-                _arcadeGameState.aimEnd = { x: e.offsetX, y: e.offsetY };
-                _poolShoot();
-            }
-            if (_arcadeGame === 'pong') { _arcadeGameState.touchY = null; }
-        });
-        // Touch controls for new games
-        cv.addEventListener('touchmove', e => {
-            if (_arcadeGame === 'pong') {
-                const rect = cv.getBoundingClientRect();
-                _arcadeGameState.touchY = e.touches[0].clientY - rect.top;
-                e.preventDefault();
-            }
-        }, { passive: false });
-    }
-
-    // Remove on modal close
-    document.getElementById('arcadeModal')?.addEventListener('transitionend', () => {
-        if (!document.getElementById('arcadeModal')?.classList.contains('open')) {
-            document.removeEventListener('keydown', _arcadeKeyHandler);
-            _arcadeInputBound = false;
-        }
-    }, { once: false });
-}
-
-function _arcadeKeyHandler(e) {
-    const modal = document.getElementById('arcadeModal');
-    if (!modal?.classList.contains('open')) return;
-    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
-
-    switch (e.key) {
-        case 'ArrowLeft':  case 'a': case 'A': _arcadeGameState.dir = 'L'; break;
-        case 'ArrowRight': case 'd': case 'D': _arcadeGameState.dir = 'R'; break;
-        case 'ArrowUp':    case 'w': case 'W':
-            _arcadeGameState.dir = 'U';
-            if (_arcadeGame === 'pong') _arcadeGameState.paddleDir = -1;
-            break;
-        case 'ArrowDown':  case 's': case 'S':
-            _arcadeGameState.dir = 'D';
-            if (_arcadeGame === 'pong') _arcadeGameState.paddleDir = 1;
-            break;
-        case 'z': case 'Z':
-            if (_arcadeGame === 'tetris') _arcadeGameState.rotatePending = true;
-            break;
-        case ' ': e.preventDefault();
-            if (_arcadeGame === 'breakout') _arcadeGameState.dir = 'launch';
-            if (_arcadeGame === 'tetris')   _arcadeGameState.dropPending = true;
-            break;
-    }
-}
-
-document.addEventListener('keyup', e => {
-    if (_arcadeGame === 'pong' && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S')) {
-        _arcadeGameState.paddleDir = 0;
-    }
-});
-
-/* ═══════════════════════════════════════════════════════
-   GAME 1 — SNAKE
-   ═══════════════════════════════════════════════════════ */
-function _snakeInit() {
-    const W = _arcadeCanvas.width, H = _arcadeCanvas.height;
-    const CELL = 20;
-    const cols = Math.floor(W / CELL), rows = Math.floor(H / CELL);
-    let snake = [{ x: Math.floor(cols/2), y: Math.floor(rows/2) }];
-    let dir = { x: 1, y: 0 };
-    let nextDir = { x: 1, y: 0 };
-    let food  = _snakeRandomFood(snake, cols, rows);
-    let last  = 0;
-    const SPEED = 110;
-
-    _arcadeGameState = { dir: 'R' };
-    _arcadeScore = 0;
-
-    function step(ts) {
-        if (!_arcadeRunning) return;
-        _arcadeRAF = requestAnimationFrame(step);
-
-        // Direction from input state
-        const d = _arcadeGameState.dir;
-        if (d === 'L' && dir.x !== 1)  nextDir = {x:-1,y:0};
-        if (d === 'R' && dir.x !== -1) nextDir = {x:1,y:0};
-        if (d === 'U' && dir.y !== 1)  nextDir = {x:0,y:-1};
-        if (d === 'D' && dir.y !== -1) nextDir = {x:0,y:1};
-
-        if (ts - last < SPEED) {
-            _snakeDraw(W, H, CELL, snake, food); return;
-        }
-        last = ts;
-        dir = nextDir;
-
-        const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
-        // Wall collision
-        if (head.x < 0 || head.x >= cols || head.y < 0 || head.y >= rows) {
-            _arcadeGameOver(); return;
-        }
-        // Self collision
-        if (snake.some(s => s.x === head.x && s.y === head.y)) {
-            _arcadeGameOver(); return;
-        }
-        snake.unshift(head);
-        if (head.x === food.x && head.y === food.y) {
-            _arcadeScore += 10;
-            _arcadeUpdateScoreDisplay();
-            food = _snakeRandomFood(snake, cols, rows);
-        } else {
-            snake.pop();
-        }
-        _snakeDraw(W, H, CELL, snake, food);
-    }
-    _arcadeRAF = requestAnimationFrame(step);
-}
-
-function _snakeRandomFood(snake, cols, rows) {
-    let f;
-    do { f = { x: Math.floor(Math.random()*cols), y: Math.floor(Math.random()*rows) }; }
-    while (snake.some(s => s.x === f.x && s.y === f.y));
-    return f;
-}
-
-function _snakeDraw(W, H, CELL, snake, food) {
-    const ctx = _arcadeCtx;
-    ctx.fillStyle = '#000010'; ctx.fillRect(0,0,W,H);
-    // Grid lines (subtle)
-    ctx.strokeStyle = 'rgba(0,80,160,0.12)'; ctx.lineWidth = 0.5;
-    for (let x = 0; x <= W; x += CELL) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-    for (let y = 0; y <= H; y += CELL) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-    // Food
-    ctx.fillStyle = '#39FF14';
-    ctx.shadowBlur = 12; ctx.shadowColor = '#39FF14';
-    ctx.fillRect(food.x*CELL+2, food.y*CELL+2, CELL-4, CELL-4);
-    ctx.shadowBlur = 0;
-    // Snake
-    snake.forEach((seg, i) => {
-        const ratio = 1 - i / snake.length;
-        ctx.fillStyle = `rgba(0,${Math.floor(140+80*ratio)},${Math.floor(200+55*ratio)},${0.7+0.3*ratio})`;
-        ctx.shadowBlur = i===0 ? 10 : 0; ctx.shadowColor = '#00AEEF';
-        ctx.fillRect(seg.x*CELL+1, seg.y*CELL+1, CELL-2, CELL-2);
-        ctx.shadowBlur = 0;
-    });
-}
-
-/* ═══════════════════════════════════════════════════════
-   GAME 2 — POOL (8-Ball Billiards)
-   ═══════════════════════════════════════════════════════ */
-function _poolInit() {
-    const W = _arcadeCanvas.width, H = _arcadeCanvas.height;
-    const ballR = Math.max(10, Math.min(14, W / 38));
-    const balls = _poolMakeBalls(W, H, ballR);
-    const cue   = balls[0]; // white cue ball
-    _arcadeGameState = { aimStart: null, aimCur: null, aimEnd: null, shooting: false };
-    _arcadeScore = 0;
-
-    function loop() {
-        if (!_arcadeRunning) return;
-        _arcadeRAF = requestAnimationFrame(loop);
-        _poolPhysics(balls, W, H, ballR);
-        _poolDraw(W, H, balls, ballR, cue);
-        // Score: count pocketed balls
-        const pocketed = balls.filter(b => b.pocketed && !b.isCue).length;
-        if (pocketed !== _arcadeScore) {
-            _arcadeScore = pocketed * 10;
-            _arcadeUpdateScoreDisplay();
-            if (pocketed === balls.length - 1) { // all non-cue pocketed
-                _arcadeGameOver();
-            }
-        }
-    }
-    _arcadeRAF = requestAnimationFrame(loop);
-}
-
-function _poolMakeBalls(W, H, r) {
-    const colors = ['#fff','#ffdd00','#003acc','#ff2222','#660033','#ff6600','#006600','#800000','#111'];
-    const balls = [{ x: W*0.25, y: H*0.5, vx:0, vy:0, color:'#eee', isCue:true, pocketed:false }];
-    // Triangle rack
-    const sx = W*0.65, sy = H*0.5, sp = r*2.2;
-    const rows = [1,2,3,2,1]; let idx = 0;
-    rows.forEach((count, row) => {
-        for (let i = 0; i < count; i++) {
-            balls.push({ x: sx + row*sp, y: sy + (i - (count-1)/2)*sp, vx:0, vy:0, color: colors[(idx%8)+1], pocketed:false });
-            idx++;
-        }
-    });
-    return balls;
-}
-
-function _poolShoot() {
-    const s = _arcadeGameState;
-    if (!s.aimStart || !s.aimEnd) return;
-    const cue = _poolCueBall();
-    if (!cue || cue.pocketed) return;
-    const dx = s.aimStart.x - s.aimEnd.x;
-    const dy = s.aimStart.y - s.aimEnd.y;
-    const power = Math.min(Math.sqrt(dx*dx+dy*dy)*0.06, 14);
-    const angle = Math.atan2(dy, dx);
-    cue.vx = Math.cos(angle) * power;
-    cue.vy = Math.sin(angle) * power;
-    s.aimStart = null; s.aimEnd = null;
-}
-
-function _poolCueBall() {
-    const W = _arcadeCanvas?.width||520, H = _arcadeCanvas?.height||360;
-    const ballR = Math.max(10, Math.min(14, W/38));
-    return _arcadeGameState._balls?.find(b => b.isCue) || null;
-}
-
-function _poolPhysics(balls, W, H, r) {
-    const FRICTION = 0.982;
-    const POCKETS = [
-        {x:r*1.2, y:r*1.2},{x:W/2,y:r*0.7},{x:W-r*1.2,y:r*1.2},
-        {x:r*1.2, y:H-r*1.2},{x:W/2,y:H-r*0.7},{x:W-r*1.2,y:H-r*1.2}
-    ];
-    const POCKET_R = r*1.6;
-    balls.forEach(b => {
-        if (b.pocketed) return;
-        b.x += b.vx; b.y += b.vy;
-        b.vx *= FRICTION; b.vy *= FRICTION;
-        if (Math.abs(b.vx) < 0.04) b.vx = 0;
-        if (Math.abs(b.vy) < 0.04) b.vy = 0;
-        // Walls
-        const MARGIN = r*2;
-        if (b.x < MARGIN) { b.x = MARGIN; b.vx = Math.abs(b.vx)*0.82; }
-        if (b.x > W-MARGIN) { b.x = W-MARGIN; b.vx = -Math.abs(b.vx)*0.82; }
-        if (b.y < MARGIN) { b.y = MARGIN; b.vy = Math.abs(b.vy)*0.82; }
-        if (b.y > H-MARGIN) { b.y = H-MARGIN; b.vy = -Math.abs(b.vy)*0.82; }
-        // Pocket check
-        for (const p of POCKETS) {
-            const d = Math.hypot(b.x-p.x, b.y-p.y);
-            if (d < POCKET_R) { b.pocketed = true; b.vx=0; b.vy=0; break; }
-        }
-    });
-    // Ball–ball collisions
-    for (let i = 0; i < balls.length; i++) {
-        for (let j = i+1; j < balls.length; j++) {
-            const a = balls[i], b = balls[j];
-            if (a.pocketed || b.pocketed) continue;
-            const dx = b.x-a.x, dy = b.y-a.y;
-            const dist = Math.hypot(dx, dy);
-            if (dist < r*2 && dist > 0) {
-                const nx = dx/dist, ny = dy/dist;
-                const overlap = r*2 - dist;
-                a.x -= nx*overlap*0.5; a.y -= ny*overlap*0.5;
-                b.x += nx*overlap*0.5; b.y += ny*overlap*0.5;
-                const dvx = b.vx-a.vx, dvy = b.vy-a.vy;
-                const dot = dvx*nx + dvy*ny;
-                if (dot < 0) {
-                    a.vx += dot*nx; a.vy += dot*ny;
-                    b.vx -= dot*nx; b.vy -= dot*ny;
-                }
-            }
-        }
-    }
-}
-
-function _poolDraw(W, H, balls, r, cue) {
-    const ctx = _arcadeCtx;
-    const s = _arcadeGameState;
-    // Table
-    ctx.fillStyle = '#0d4a1a'; ctx.fillRect(0,0,W,H);
-    ctx.strokeStyle = '#4a2a00'; ctx.lineWidth = r*2; ctx.strokeRect(r, r, W-r*2, H-r*2);
-    // Felt pattern
-    ctx.fillStyle = 'rgba(255,255,255,0.03)';
-    for (let x=0; x<W; x+=18) for (let y=0; y<H; y+=18) ctx.fillRect(x,y,9,9);
-    // Pockets
-    const POCKETS = [
-        {x:r*1.2,y:r*1.2},{x:W/2,y:r*0.7},{x:W-r*1.2,y:r*1.2},
-        {x:r*1.2,y:H-r*1.2},{x:W/2,y:H-r*0.7},{x:W-r*1.2,y:H-r*1.2}
-    ];
-    ctx.fillStyle='#000'; POCKETS.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,r*1.5,0,Math.PI*2);ctx.fill();});
-    // Aim line
-    if (s.aimStart && s.aimCur && !cue.pocketed) {
-        const dx=s.aimStart.x-s.aimCur.x, dy=s.aimStart.y-s.aimCur.y;
-        ctx.save();
-        ctx.strokeStyle='rgba(255,255,180,0.5)'; ctx.lineWidth=1.5; ctx.setLineDash([6,4]);
-        ctx.beginPath(); ctx.moveTo(cue.x,cue.y);
-        ctx.lineTo(cue.x+dx*3, cue.y+dy*3);
-        ctx.stroke(); ctx.setLineDash([]); ctx.restore();
-    }
-    // Balls
-    balls.forEach(b => {
-        if (b.pocketed) return;
-        ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI*2);
-        const g = ctx.createRadialGradient(b.x-r*0.3,b.y-r*0.3,r*0.1,b.x,b.y,r);
-        g.addColorStop(0,'rgba(255,255,255,0.6)'); g.addColorStop(1,b.color);
-        ctx.fillStyle = g; ctx.fill();
-        ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=1; ctx.stroke();
-    });
-    // Hint
-    ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.font=`11px monospace`;
-    ctx.fillText('Drag to aim, release to shoot', 12, H-10);
-}
-
-/* ═══════════════════════════════════════════════════════
-   GAME 3 — CHESS (vs simple AI)
-   ═══════════════════════════════════════════════════════ */
-const CHESS_PIECES = {
-    P:'♟', R:'♜', N:'♞', B:'♝', Q:'♛', K:'♚',
-    p:'♙', r:'♖', n:'♘', b:'♗', q:'♕', k:'♔'
-};
-function _chessInit() {
-    _arcadeGameState = {
-        board: _chessMakeBoard(),
-        selected: null,
-        validMoves: [],
-        turn: 'w',     // 'w' = human, 'b' = AI
-        status: '',
-        thinking: false,
-    };
-    _arcadeScore = 0;
-    _chessDrawLoop();
-}
-
-function _chessMakeBoard() {
-    const empty = () => Array(8).fill(null).map(() => Array(8).fill(null));
-    const b = empty();
-    // Black pieces (row 0)
-    const back = ['R','N','B','Q','K','B','N','R'];
-    for (let c = 0; c < 8; c++) { b[0][c] = back[c]; b[1][c] = 'P'; }
-    // White pieces (row 7)
-    for (let c = 0; c < 8; c++) { b[7][c] = back[c].toLowerCase(); b[6][c] = 'p'; }
-    return b;
-}
-
-function _chessDrawLoop() {
-    if (!_arcadeRunning) return;
-    _chessRender();
-    _arcadeRAF = requestAnimationFrame(_chessDrawLoop);
-}
-
-function _chessRender() {
-    const W = _arcadeCanvas.width, H = _arcadeCanvas.height;
-    const ctx = _arcadeCtx;
-    const gs = _arcadeGameState;
-    const CELL = Math.min(Math.floor(W/8), Math.floor(H/8));
-    const OX = Math.floor((W - CELL*8)/2), OY = Math.floor((H - CELL*8)/2);
-
-    ctx.fillStyle='#000518'; ctx.fillRect(0,0,W,H);
-
-    for (let r=0;r<8;r++) for (let c=0;c<8;c++) {
-        const light = (r+c)%2===0;
-        ctx.fillStyle = light ? '#d8c8a0' : '#6a4a28';
-        ctx.fillRect(OX+c*CELL, OY+r*CELL, CELL, CELL);
-    }
-    // Highlight selected
-    if (gs.selected) {
-        const {r,c} = gs.selected;
-        ctx.fillStyle='rgba(57,255,20,0.35)';
-        ctx.fillRect(OX+c*CELL, OY+r*CELL, CELL, CELL);
-    }
-    // Highlight valid moves
-    gs.validMoves.forEach(m => {
-        ctx.fillStyle='rgba(0,174,239,0.32)';
-        ctx.fillRect(OX+m.c*CELL+CELL*0.15, OY+m.r*CELL+CELL*0.15, CELL*0.7, CELL*0.7);
-    });
-    // Pieces
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    for (let r=0;r<8;r++) for (let c=0;c<8;c++) {
-        const p = gs.board[r][c]; if(!p) continue;
-        const isWhite = p===p.toLowerCase();
-        ctx.font = `${CELL*0.7}px serif`;
-        ctx.fillStyle = isWhite ? '#ffffff' : '#1a0a00';
-        ctx.shadowBlur = 3; ctx.shadowColor = isWhite ? 'rgba(0,140,255,0.5)' : 'rgba(0,0,0,0.8)';
-        ctx.fillText(CHESS_PIECES[p]||p, OX+c*CELL+CELL*0.5, OY+r*CELL+CELL*0.55);
-        ctx.shadowBlur = 0;
-    }
-    // Status
-    ctx.font='11px monospace'; ctx.fillStyle='rgba(200,220,255,0.6)';
-    ctx.textAlign='left';
-    const statusMsg = gs.status || (gs.turn==='w' ? 'Your turn (White)' : 'AI thinking…');
-    ctx.fillText(statusMsg, 8, H-8);
-}
-
-function _chessClick(px, py) {
-    const gs = _arcadeGameState;
-    if (!gs || gs.turn !== 'w' || gs.thinking) return;
-    const W = _arcadeCanvas.width, H = _arcadeCanvas.height;
-    const CELL = Math.min(Math.floor(W/8), Math.floor(H/8));
-    const OX = Math.floor((W-CELL*8)/2), OY = Math.floor((H-CELL*8)/2);
-    const c = Math.floor((px-OX)/CELL), r = Math.floor((py-OY)/CELL);
-    if (r<0||r>7||c<0||c>7) return;
-
-    if (gs.selected) {
-        const move = gs.validMoves.find(m=>m.r===r&&m.c===c);
-        if (move) {
-            _chessApplyMove(gs.board, gs.selected, move);
-            gs.selected=null; gs.validMoves=[];
-            gs.turn='b';
-            _arcadeScore += 5;
-            _arcadeUpdateScoreDisplay();
-            // AI move after short delay
-            gs.thinking = true;
-            setTimeout(()=>{ _chessAiMove(); gs.thinking=false; gs.turn='w'; }, 600);
-        } else {
-            // Re-select
-            const p = gs.board[r][c];
-            if (p && p===p.toLowerCase()) {
-                gs.selected={r,c};
-                gs.validMoves = _chessGetMoves(gs.board,r,c,true);
-            } else { gs.selected=null; gs.validMoves=[]; }
-        }
-    } else {
-        const p = gs.board[r][c];
-        if (p && p===p.toLowerCase()) {
-            gs.selected={r,c};
-            gs.validMoves = _chessGetMoves(gs.board,r,c,true);
-        }
-    }
-}
-
-function _chessApplyMove(board, from, to) {
-    const p = board[from.r][from.c];
-    // Capture detection
-    const cap = board[to.r][to.c];
-    if (cap && cap.toUpperCase()==='K') { // king captured
-        _arcadeScore += 100;
-        setTimeout(() => {
-            _arcadeGameState.status = '👑 You Win!';
-            _arcadeGameOver();
-        }, 300);
-    }
-    board[to.r][to.c] = p;
-    board[from.r][from.c] = null;
-    // Pawn promotion
-    if (p==='p' && to.r===0) board[to.r][to.c]='q';
-    if (p==='P' && to.r===7) board[to.r][to.c]='Q';
-}
-
-function _chessGetMoves(board, r, c, isWhite) {
-    const p = board[r][c]; if (!p) return [];
-    const moves = [];
-    const friend = s => s && (isWhite ? s===s.toLowerCase() : s===s.toUpperCase());
-    const enemy  = s => s && !friend(s);
-    const add    = (nr, nc) => { if(nr>=0&&nr<8&&nc>=0&&nc<8&&!friend(board[nr][nc])) moves.push({r:nr,c:nc}); };
-
-    const pt = p.toUpperCase();
-    if (pt==='P') {
-        const dir = isWhite ? -1 : 1;
-        if (!board[r+dir]?.[c])       { moves.push({r:r+dir,c}); if((isWhite?r===6:r===1)&&!board[r+dir*2]?.[c]) moves.push({r:r+dir*2,c}); }
-        [c-1,c+1].forEach(nc=>{ if(nc>=0&&nc<8&&enemy(board[r+dir]?.[nc])) moves.push({r:r+dir,c:nc}); });
-    } else if (pt==='R') {
-        [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr,dc])=>{for(let i=1;i<8;i++){const nr=r+dr*i,nc=c+dc*i;if(nr<0||nr>=8||nc<0||nc>=8)break;if(friend(board[nr][nc]))break;moves.push({r:nr,c:nc});if(board[nr][nc])break;}});
-    } else if (pt==='N') {
-        [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr,dc])=>add(r+dr,c+dc));
-    } else if (pt==='B') {
-        [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([dr,dc])=>{for(let i=1;i<8;i++){const nr=r+dr*i,nc=c+dc*i;if(nr<0||nr>=8||nc<0||nc>=8)break;if(friend(board[nr][nc]))break;moves.push({r:nr,c:nc});if(board[nr][nc])break;}});
-    } else if (pt==='Q') {
-        [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([dr,dc])=>{for(let i=1;i<8;i++){const nr=r+dr*i,nc=c+dc*i;if(nr<0||nr>=8||nc<0||nc>=8)break;if(friend(board[nr][nc]))break;moves.push({r:nr,c:nc});if(board[nr][nc])break;}});
-    } else if (pt==='K') {
-        [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dr,dc])=>add(r+dr,c+dc));
-    }
-    return moves;
-}
-
-function _chessAiMove() {
-    const board = _arcadeGameState.board;
-    let best = null, bestScore = -Infinity;
-    for (let r=0;r<8;r++) for (let c=0;c<8;c++) {
-        const p=board[r][c]; if(!p||p===p.toLowerCase()) continue;
-        const moves = _chessGetMoves(board,r,c,false);
-        moves.forEach(m => {
-            const cap = board[m.r][m.c];
-            const score = cap ? _chessValue(cap) : 0;
-            if (score > bestScore) { bestScore=score; best={from:{r,c},to:m}; }
-        });
-    }
-    if (!best) { // random fallback
-        const apts=[];
-        for(let r=0;r<8;r++) for(let c=0;c<8;c++){const p=board[r][c];if(p&&p===p.toUpperCase()){const moves=_chessGetMoves(board,r,c,false);moves.forEach(m=>apts.push({from:{r,c},to:m}));}}
-        if(apts.length) best=apts[Math.floor(Math.random()*apts.length)];
-    }
-    if (best) _chessApplyMove(board, best.from, best.to);
-}
-
-function _chessValue(p) {
-    const vals = {p:1,n:3,b:3,r:5,q:9,k:100,P:1,N:3,B:3,R:5,Q:9,K:100};
-    return vals[p]||0;
-}
-
-/* ═══════════════════════════════════════════════════════
-   GAME 4 — BREAKOUT
-   ═══════════════════════════════════════════════════════ */
-function _breakoutInit() {
-    const W = _arcadeCanvas.width, H = _arcadeCanvas.height;
-    const ROWS = 5, COLS = Math.floor(W/60);
-    const bw = Math.floor(W/COLS)-4, bh = 18;
-
-    const bricks = [];
-    const colors = ['#ff3366','#ff6600','#ffdd00','#00cc66','#00AEEF'];
-    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
-        bricks.push({ x: 4+c*(bw+4), y: 40+r*(bh+4), w:bw, h:bh, alive:true, color: colors[r%5] });
-    }
-
-    const pad = { x:W/2-40, y:H-24, w:80, h:12, speed:6 };
-    const ball = { x:W/2, y:H-60, vx:3, vy:-3.5, r:8 };
-
-    _arcadeGameState = { bricks, pad, ball, mouseX: W/2, lives:3, launched:false, dir:'' };
-    _arcadeScore = 0;
-
-    function loop() {
-        if (!_arcadeRunning) return;
-        _arcadeRAF = requestAnimationFrame(loop);
-        const gs = _arcadeGameState;
-
-        // Paddle movement
-        const target = gs.mouseX - pad.w/2;
-        pad.x += (target - pad.x) * 0.15;
-        pad.x = Math.max(0, Math.min(W-pad.w, pad.x));
-        if (gs.dir==='L') pad.x = Math.max(0, pad.x-pad.speed);
-        if (gs.dir==='R') pad.x = Math.min(W-pad.w, pad.x+pad.speed);
-
-        // Ball
-        if (!gs.launched) {
-            ball.x = pad.x + pad.w/2;
-            if (gs.dir==='launch') { gs.launched=true; gs.dir=''; }
-        } else {
-            ball.x += ball.vx; ball.y += ball.vy;
-            // Walls
-            if (ball.x-ball.r < 0) { ball.x=ball.r; ball.vx=Math.abs(ball.vx); }
-            if (ball.x+ball.r > W) { ball.x=W-ball.r; ball.vx=-Math.abs(ball.vx); }
-            if (ball.y-ball.r < 0) { ball.y=ball.r; ball.vy=Math.abs(ball.vy); }
-            // Bottom
-            if (ball.y+ball.r > H) {
-                gs.lives--;
-                if (gs.lives <= 0) { _arcadeGameOver(); return; }
-                ball.x=pad.x+pad.w/2; ball.y=H-60; ball.vx=3; ball.vy=-3.5; gs.launched=false;
-            }
-            // Paddle
-            if (ball.y+ball.r >= pad.y && ball.y+ball.r <= pad.y+pad.h && ball.x >= pad.x && ball.x <= pad.x+pad.w) {
-                ball.vy = -Math.abs(ball.vy);
-                const hit = (ball.x-(pad.x+pad.w/2))/(pad.w/2);
-                ball.vx = hit * 5;
-            }
-            // Bricks
-            for (const br of gs.bricks) {
-                if (!br.alive) continue;
-                if (ball.x+ball.r > br.x && ball.x-ball.r < br.x+br.w && ball.y+ball.r > br.y && ball.y-ball.r < br.y+br.h) {
-                    br.alive=false;
-                    ball.vy *= -1;
-                    _arcadeScore += 10;
-                    _arcadeUpdateScoreDisplay();
-                    break;
-                }
-            }
-            if (gs.bricks.every(b=>!b.alive)) { _arcadeScore+=200; _arcadeGameOver(); }
-        }
-        _breakoutDraw(W, H, gs, pad, ball);
-    }
-    _arcadeRAF = requestAnimationFrame(loop);
-}
-
-function _breakoutDraw(W, H, gs, pad, ball) {
-    const ctx = _arcadeCtx;
-    ctx.fillStyle='#000010'; ctx.fillRect(0,0,W,H);
-    // Bricks
-    gs.bricks.forEach(b => {
-        if (!b.alive) return;
-        ctx.fillStyle=b.color;
-        ctx.shadowBlur=6; ctx.shadowColor=b.color;
-        ctx.fillRect(b.x, b.y, b.w, b.h);
-        ctx.shadowBlur=0;
-        ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=1; ctx.strokeRect(b.x,b.y,b.w,b.h);
-    });
-    // Paddle
-    const pg = ctx.createLinearGradient(pad.x,pad.y,pad.x,pad.y+pad.h);
-    pg.addColorStop(0,'#0088ff'); pg.addColorStop(1,'#0044aa');
-    ctx.fillStyle=pg; ctx.shadowBlur=10; ctx.shadowColor='#00AEEF';
-    ctx.beginPath(); ctx.roundRect(pad.x,pad.y,pad.w,pad.h,pad.h/2); ctx.fill();
-    ctx.shadowBlur=0;
-    // Ball
-    ctx.beginPath(); ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);
-    ctx.fillStyle='#39FF14'; ctx.shadowBlur=14; ctx.shadowColor='#39FF14';
-    ctx.fill(); ctx.shadowBlur=0;
-    // Lives
-    ctx.font='11px monospace'; ctx.fillStyle='rgba(200,220,255,0.55)'; ctx.textAlign='right';
-    ctx.fillText('Lives: '+'♥'.repeat(gs.lives), W-8, H-8);
-    if (!gs.launched) {
-        ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.textAlign='center';
-        ctx.fillText('Space / tap to launch', W/2, H/2+20);
-    }
-}
-
-/* ═══════════════════════════════════════════════════════
-   GAME 5 — TETRIS
-   ═══════════════════════════════════════════════════════ */
-const TETRIS_PIECES = [
-    { shape: [[1,1,1,1]], color: '#00d4ff' },          // I
-    { shape: [[1,1],[1,1]], color: '#ffdd00' },         // O
-    { shape: [[0,1,0],[1,1,1]], color: '#cc44ff' },     // T
-    { shape: [[1,0],[1,0],[1,1]], color: '#ff6600' },   // L
-    { shape: [[0,1],[0,1],[1,1]], color: '#0066ff' },   // J
-    { shape: [[0,1,1],[1,1,0]], color: '#39FF14' },     // S
-    { shape: [[1,1,0],[0,1,1]], color: '#ff3366' },     // Z
-];
-
-function _tetrisInit() {
-    const CELL = 28;
-    const W = _arcadeCanvas.width, H = _arcadeCanvas.height;
-    const COLS = Math.floor(W / CELL), ROWS = Math.floor(H / CELL);
-    const board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
-    let piece = _tetrisNewPiece(COLS);
-    let dropInterval = 500, last = 0;
-    _arcadeScore = 0;
-    _arcadeGameState = { dir: null, rotatePending: false, dropPending: false };
-
-    function step(ts) {
-        if (!_arcadeRunning) return;
-        _arcadeRAF = requestAnimationFrame(step);
-        const gs = _arcadeGameState;
-
-        // Horizontal move
-        if (gs.dir === 'L') { if (_tetrisFits(board, piece, piece.x-1, piece.y)) piece.x--; gs.dir = null; }
-        if (gs.dir === 'R') { if (_tetrisFits(board, piece, piece.x+1, piece.y)) piece.y; piece.x = _tetrisFits(board, piece, piece.x+1, piece.y) ? piece.x+1 : piece.x; gs.dir = null; }
-        if (gs.dir === 'D') { if (!_tetrisFits(board, piece, piece.x, piece.y+1)) { _tetrisLock(board, piece); piece = _tetrisNewPiece(COLS); if (!_tetrisFits(board, piece, piece.x, piece.y)) { _arcadeGameOver(); return; } } else piece.y++; gs.dir = null; }
-        if (gs.rotatePending) { const r = _tetrisRotate(piece.shape); if (_tetrisFits(board, {...piece, shape:r}, piece.x, piece.y)) piece.shape=r; gs.rotatePending=false; }
-        if (gs.dropPending) { while (_tetrisFits(board, piece, piece.x, piece.y+1)) piece.y++; _tetrisLock(board, piece); piece = _tetrisNewPiece(COLS); if (!_tetrisFits(board, piece, piece.x, piece.y)) { _arcadeGameOver(); return; } gs.dropPending=false; }
-
-        // Auto drop
-        if (ts - last > dropInterval) {
-            last = ts;
-            if (_tetrisFits(board, piece, piece.x, piece.y+1)) {
-                piece.y++;
-            } else {
-                _tetrisLock(board, piece);
-                const cleared = _tetrisClear(board, COLS);
-                _arcadeScore += [0,100,300,500,800][cleared] || 0;
-                if (cleared) { dropInterval = Math.max(120, dropInterval - cleared * 8); _arcadeUpdateScoreDisplay(); }
-                piece = _tetrisNewPiece(COLS);
-                if (!_tetrisFits(board, piece, piece.x, piece.y)) { _arcadeGameOver(); return; }
-            }
-        }
-        _tetrisDraw(W, H, CELL, COLS, ROWS, board, piece);
-    }
-    _arcadeRAF = requestAnimationFrame(step);
-}
-
-function _tetrisNewPiece(COLS) {
-    const tmpl = TETRIS_PIECES[Math.floor(Math.random() * TETRIS_PIECES.length)];
-    return { shape: tmpl.shape.map(r=>[...r]), color: tmpl.color, x: Math.floor(COLS/2)-1, y: 0 };
-}
-function _tetrisRotate(shape) {
-    const rows=shape.length, cols=shape[0].length;
-    return Array.from({length:cols},(_,c)=>Array.from({length:rows},(_,r)=>shape[rows-1-r][c]));
-}
-function _tetrisFits(board, piece, nx, ny) {
-    for (let r=0;r<piece.shape.length;r++) for (let c=0;c<piece.shape[r].length;c++) {
-        if (!piece.shape[r][c]) continue;
-        const br=ny+r, bc=nx+c;
-        if (br>=board.length||bc<0||bc>=board[0].length||br<0) return false;
-        if (board[br][bc]) return false;
-    }
-    return true;
-}
-function _tetrisLock(board, piece) {
-    piece.shape.forEach((row,r)=>row.forEach((v,c)=>{ if(v) board[piece.y+r][piece.x+c]=piece.color; }));
-}
-function _tetrisClear(board, COLS) {
-    let cleared=0;
-    for (let r=board.length-1;r>=0;r--) {
-        if (board[r].every(c=>c)) { board.splice(r,1); board.unshift(Array(COLS).fill(null)); cleared++; r++; }
-    }
-    return cleared;
-}
-function _tetrisDraw(W, H, CELL, COLS, ROWS, board, piece) {
-    const ctx=_arcadeCtx;
-    ctx.fillStyle='#000010'; ctx.fillRect(0,0,W,H);
-    const OX=Math.floor((W-COLS*CELL)/2), OY=0;
-    // Border
-    ctx.strokeStyle='rgba(0,174,239,0.3)'; ctx.lineWidth=1;
-    ctx.strokeRect(OX,OY,COLS*CELL,ROWS*CELL);
-    // Board
-    board.forEach((row,r)=>row.forEach((c,col)=>{
-        if(c){ctx.fillStyle=c;ctx.shadowBlur=4;ctx.shadowColor=c;ctx.fillRect(OX+col*CELL+1,OY+r*CELL+1,CELL-2,CELL-2);ctx.shadowBlur=0;}
-    }));
-    // Grid lines
-    ctx.strokeStyle='rgba(0,80,160,0.08)'; ctx.lineWidth=0.5;
-    for(let c=0;c<=COLS;c++){ctx.beginPath();ctx.moveTo(OX+c*CELL,OY);ctx.lineTo(OX+c*CELL,OY+ROWS*CELL);ctx.stroke();}
-    for(let r=0;r<=ROWS;r++){ctx.beginPath();ctx.moveTo(OX,OY+r*CELL);ctx.lineTo(OX+COLS*CELL,OY+r*CELL);ctx.stroke();}
-    // Active piece
-    piece.shape.forEach((row,r)=>row.forEach((v,c)=>{
-        if(v){ctx.fillStyle=piece.color;ctx.shadowBlur=8;ctx.shadowColor=piece.color;ctx.fillRect(OX+(piece.x+c)*CELL+1,OY+(piece.y+r)*CELL+1,CELL-2,CELL-2);ctx.shadowBlur=0;}
-    }));
-    ctx.font='11px monospace';ctx.fillStyle='rgba(200,220,255,0.5)';ctx.textAlign='left';
-    ctx.fillText('Z=Rotate  Space=Drop  ← →=Move  ↓=Faster',OX+2,H-6);
-}
-
-/* ═══════════════════════════════════════════════════════
-   GAME 6 — CHECKERS (vs AI)
-   ═══════════════════════════════════════════════════════ */
-function _checkersInit() {
-    const board = [];
-    for (let r=0;r<8;r++) {
-        board.push([]);
-        for (let c=0;c<8;c++) {
-            if ((r+c)%2===1 && r<3) board[r].push('b');        // black
-            else if ((r+c)%2===1 && r>4) board[r].push('w');   // white
-            else board[r].push(null);
-        }
-    }
-    _arcadeGameState = { board, selected: null, validMoves: [], turn: 'w', thinking: false, status: '' };
-    _arcadeScore = 0;
-    function loop() { if (!_arcadeRunning) return; _checkersDraw(); _arcadeRAF = requestAnimationFrame(loop); }
-    _arcadeRAF = requestAnimationFrame(loop);
-}
-function _checkersDraw() {
-    const W=_arcadeCanvas.width, H=_arcadeCanvas.height, ctx=_arcadeCtx;
-    const gs=_arcadeGameState;
-    const CELL=Math.min(Math.floor(W/8),Math.floor(H/8));
-    const OX=Math.floor((W-CELL*8)/2), OY=Math.floor((H-CELL*8)/2);
-    ctx.fillStyle='#000518'; ctx.fillRect(0,0,W,H);
-    for(let r=0;r<8;r++) for(let c=0;c<8;c++) {
-        ctx.fillStyle=(r+c)%2===0?'#c8a96e':'#5a3510'; ctx.fillRect(OX+c*CELL,OY+r*CELL,CELL,CELL);
-    }
-    if (gs.selected) { const {r,c}=gs.selected; ctx.fillStyle='rgba(57,255,20,0.35)'; ctx.fillRect(OX+c*CELL,OY+r*CELL,CELL,CELL); }
-    gs.validMoves.forEach(m=>{ ctx.fillStyle='rgba(0,174,239,0.3)'; ctx.fillRect(OX+m.c*CELL+CELL*0.2,OY+m.r*CELL+CELL*0.2,CELL*0.6,CELL*0.6); });
-    for(let r=0;r<8;r++) for(let c=0;c<8;c++) {
-        const p=gs.board[r][c]; if(!p) continue;
-        const cx2=OX+c*CELL+CELL/2, cy2=OY+r*CELL+CELL/2, rad=CELL*0.38;
-        ctx.beginPath(); ctx.arc(cx2,cy2,rad,0,Math.PI*2);
-        ctx.fillStyle=p==='w'||p==='W'?'#eee':'#222'; ctx.shadowBlur=6; ctx.shadowColor=p==='w'||p==='W'?'#aaa':'#555'; ctx.fill(); ctx.shadowBlur=0;
-        ctx.strokeStyle=p==='w'||p==='W'?'rgba(255,255,255,0.4)':'rgba(0,0,0,0.5)'; ctx.lineWidth=1.5; ctx.stroke();
-        if(p==='W'||p==='B'){ctx.font=`bold ${CELL*0.4}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=p==='W'?'#ff9900':'#ffdd00';ctx.fillText('♛',cx2,cy2+1);}
-    }
-    ctx.font='11px monospace';ctx.fillStyle='rgba(200,220,255,0.5)';ctx.textAlign='left';ctx.textBaseline='alphabetic';
-    ctx.fillText(gs.status||(gs.turn==='w'?'Your turn (White)':'AI thinking…'),8,H-8);
-}
-function _checkersClick(px,py) {
-    const gs=_arcadeGameState; if(!gs||gs.turn!=='w'||gs.thinking) return;
-    const W=_arcadeCanvas.width,H=_arcadeCanvas.height;
-    const CELL=Math.min(Math.floor(W/8),Math.floor(H/8));
-    const OX=Math.floor((W-CELL*8)/2),OY=Math.floor((H-CELL*8)/2);
-    const c=Math.floor((px-OX)/CELL),r=Math.floor((py-OY)/CELL);
-    if(r<0||r>7||c<0||c>7) return;
-    if(gs.selected) {
-        const m=gs.validMoves.find(mv=>mv.r===r&&mv.c===c);
-        if(m) { _checkersApplyMove(gs.board,gs.selected,m); _arcadeScore+=5; _arcadeUpdateScoreDisplay(); gs.selected=null;gs.validMoves=[];
-            if(_checkersWin(gs.board,'b')){gs.status='🏆 You Win!';_arcadeGameOver();return;} gs.turn='b'; gs.thinking=true;
-            setTimeout(()=>{_checkersAiMove(gs);gs.thinking=false;gs.turn='w';if(_checkersWin(gs.board,'w')){gs.status='💀 AI Wins';_arcadeGameOver();}},500);
-        } else { const p=gs.board[r][c]; gs.selected=null;gs.validMoves=[];
-            if(p==='w'||p==='W'){gs.selected={r,c};gs.validMoves=_checkersGetMoves(gs.board,r,c,'w');}
-        }
-    } else { const p=gs.board[r][c]; if(p==='w'||p==='W'){gs.selected={r,c};gs.validMoves=_checkersGetMoves(gs.board,r,c,'w');} }
-}
-function _checkersGetMoves(board,r,c,side) {
-    const p=board[r][c]; if(!p) return []; const dirs=side==='w'?[[-1,-1],[-1,1]]:[[1,-1],[1,1]];
-    if(p==='W'||p==='B') { dirs.push(...(side==='w'?[[1,-1],[1,1]]:[[−1,-1],[-1,1]])); }
-    const moves=[];
-    dirs.forEach(([dr,dc])=>{
-        const nr=r+dr,nc=c+dc; if(nr<0||nr>7||nc<0||nc>7) return;
-        if(!board[nr][nc]) moves.push({r:nr,c:nc,captured:null});
-        else { const enem=side==='w'?(board[nr][nc]==='b'||board[nr][nc]==='B'):(board[nr][nc]==='w'||board[nr][nc]==='W');
-            if(enem){const jr=nr+dr,jc=nc+dc;if(jr>=0&&jr<=7&&jc>=0&&jc<=7&&!board[jr][jc])moves.push({r:jr,c:jc,captured:{r:nr,c:nc}});}
-        }
-    });
-    return moves;
-}
-function _checkersApplyMove(board,from,to) {
-    board[to.r][to.c]=board[from.r][from.c]; board[from.r][from.c]=null;
-    if(to.captured) board[to.captured.r][to.captured.c]=null;
-    if(board[to.r][to.c]==='w'&&to.r===0) board[to.r][to.c]='W';
-    if(board[to.r][to.c]==='b'&&to.r===7) board[to.r][to.c]='B';
-}
-function _checkersAiMove(gs) {
-    const moves=[];
-    for(let r=0;r<8;r++) for(let c=0;c<8;c++) { const p=gs.board[r][c]; if(p==='b'||p==='B'){ const ms=_checkersGetMoves(gs.board,r,c,'b'); ms.forEach(m=>moves.push({from:{r,c},to:m})); } }
-    if(!moves.length) return;
-    const caps=moves.filter(m=>m.to.captured); const best=caps.length?caps:moves;
-    const mv=best[Math.floor(Math.random()*best.length)]; _checkersApplyMove(gs.board,mv.from,mv.to);
-}
-function _checkersWin(board,side) {
-    const opp=side==='w'?['b','B']:['w','W'];
-    return !board.flat().some(p=>opp.includes(p));
-}
-
-/* ═══════════════════════════════════════════════════════
-   GAME 7 — TIC-TAC-TOE (vs AI)
-   ═══════════════════════════════════════════════════════ */
-function _tictactoeInit() {
-    _arcadeGameState = { board: Array(9).fill(null), turn: 'X', winner: null, status: '' };
-    _arcadeScore = 0;
-    function loop() { if (!_arcadeRunning) return; _tictactoeDraw(); _arcadeRAF = requestAnimationFrame(loop); }
-    _arcadeRAF = requestAnimationFrame(loop);
-}
-function _tictactoeDraw() {
-    const W=_arcadeCanvas.width,H=_arcadeCanvas.height,ctx=_arcadeCtx,gs=_arcadeGameState;
-    ctx.fillStyle='#000518'; ctx.fillRect(0,0,W,H);
-    const S=Math.min(W,H)*0.72, OX=(W-S)/2, OY=(H-S)/2, C=S/3;
-    // Grid
-    ctx.strokeStyle='rgba(0,174,239,0.55)'; ctx.lineWidth=3;
-    [1,2].forEach(i=>{
-        ctx.beginPath();ctx.moveTo(OX+i*C,OY);ctx.lineTo(OX+i*C,OY+S);ctx.stroke();
-        ctx.beginPath();ctx.moveTo(OX,OY+i*C);ctx.lineTo(OX+S,OY+i*C);ctx.stroke();
-    });
-    // Pieces
-    gs.board.forEach((v,i)=>{
-        if(!v) return;
-        const r=Math.floor(i/3),c=i%3,cx2=OX+c*C+C/2,cy2=OY+r*C+C/2;
-        ctx.font=`bold ${C*0.55}px monospace`; ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.shadowBlur=10; ctx.fillStyle=v==='X'?'#ff3366':'#00d4ff';
-        ctx.shadowColor=v==='X'?'#ff3366':'#00d4ff';
-        ctx.fillText(v,cx2,cy2+2); ctx.shadowBlur=0;
-    });
-    // Status
-    ctx.font='14px monospace'; ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle='rgba(200,220,255,0.7)'; ctx.shadowBlur=0;
-    ctx.fillText(gs.status||(gs.turn==='X'?'Your turn (X)':'AI thinking…'),W/2,OY-10);
-}
-function _tictactoeClick(px,py) {
-    const gs=_arcadeGameState; if(!gs||gs.turn!=='X'||gs.winner) return;
-    const W=_arcadeCanvas.width,H=_arcadeCanvas.height;
-    const S=Math.min(W,H)*0.72,OX=(W-S)/2,OY=(H-S)/2,C=S/3;
-    const c=Math.floor((px-OX)/C),r=Math.floor((py-OY)/C);
-    if(r<0||r>2||c<0||c>2) return;
-    const idx=r*3+c; if(gs.board[idx]) return;
-    gs.board[idx]='X';
-    const w=_tttCheck(gs.board);
-    if(w){gs.status=w==='draw'?'🤝 Draw!':'🏆 You Win!';gs.winner=w;_arcadeScore+=w==='X'?50:10;_arcadeUpdateScoreDisplay();_arcadeGameOver();return;}
-    gs.turn='O';
-    setTimeout(()=>{
-        const best=_tttAi(gs.board);
-        if(best!==-1){gs.board[best]='O';const w2=_tttCheck(gs.board);if(w2){gs.status=w2==='draw'?'🤝 Draw!':'💀 AI Wins';gs.winner=w2;_arcadeGameOver();return;}}
-        gs.turn='X';
-    },400);
-}
-function _tttCheck(b) {
-    const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    for(const [a,bi,c] of lines){if(b[a]&&b[a]===b[bi]&&b[a]===b[c])return b[a];}
-    if(b.every(v=>v)) return 'draw'; return null;
-}
-function _tttAi(b) {
-    // Try to win, then block, then center, then random
-    const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    for(const player of ['O','X']) {
-        for(const [a,bi,c] of lines) {
-            const cells=[a,bi,c]; const mine=cells.filter(i=>b[i]===player); const empty=cells.filter(i=>!b[i]);
-            if(mine.length===2&&empty.length===1) return empty[0];
-        }
-    }
-    if(!b[4]) return 4;
-    const corners=[0,2,6,8].filter(i=>!b[i]); if(corners.length) return corners[Math.floor(Math.random()*corners.length)];
-    const avail=b.map((v,i)=>v?null:i).filter(i=>i!==null); return avail.length?avail[Math.floor(Math.random()*avail.length)]:-1;
-}
-
-/* ═══════════════════════════════════════════════════════
-   GAME 8 — CONNECT FOUR (vs AI)
-   ═══════════════════════════════════════════════════════ */
-function _connect4Init() {
-    _arcadeGameState = { board: Array.from({length:6},()=>Array(7).fill(null)), turn: 'R', winner: null, hoverCol: -1, status: '' };
-    _arcadeScore = 0;
-    function loop() { if (!_arcadeRunning) return; _connect4Draw(); _arcadeRAF = requestAnimationFrame(loop); }
-    _arcadeRAF = requestAnimationFrame(loop);
-}
-function _connect4Draw() {
-    const W=_arcadeCanvas.width,H=_arcadeCanvas.height,ctx=_arcadeCtx,gs=_arcadeGameState;
-    ctx.fillStyle='#000518'; ctx.fillRect(0,0,W,H);
-    const COLS=7,ROWS=6,CW=Math.floor(Math.min(W/COLS,H/(ROWS+1))),OX=Math.floor((W-COLS*CW)/2),OY=Math.floor((H-(ROWS+1)*CW)/2)+CW;
-    // Drop preview
-    if(gs.hoverCol>=0&&!gs.winner&&gs.turn==='R') {
-        ctx.fillStyle='rgba(255,51,102,0.25)'; ctx.fillRect(OX+gs.hoverCol*CW,OY-CW,CW,CW);
-        ctx.beginPath();ctx.arc(OX+gs.hoverCol*CW+CW/2,OY-CW/2,CW*0.38,0,Math.PI*2);
-        ctx.fillStyle='rgba(255,51,102,0.6)';ctx.fill();
-    }
-    // Board background
-    ctx.fillStyle='#003288'; ctx.fillRect(OX,OY,COLS*CW,ROWS*CW);
-    // Cells
-    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) {
-        const p=gs.board[r][c];
-        ctx.beginPath();ctx.arc(OX+c*CW+CW/2,OY+r*CW+CW/2,CW*0.38,0,Math.PI*2);
-        if(!p){ctx.fillStyle='#000a1a';ctx.fill();}
-        else{ctx.fillStyle=p==='R'?'#ff3366':'#ffdd00';ctx.shadowBlur=8;ctx.shadowColor=ctx.fillStyle;ctx.fill();ctx.shadowBlur=0;}
-        ctx.strokeStyle='rgba(0,80,200,0.4)';ctx.lineWidth=1;ctx.stroke();
-    }
-    // Column lines
-    ctx.strokeStyle='rgba(0,80,200,0.3)';ctx.lineWidth=1;
-    for(let c=1;c<COLS;c++){ctx.beginPath();ctx.moveTo(OX+c*CW,OY);ctx.lineTo(OX+c*CW,OY+ROWS*CW);ctx.stroke();}
-    ctx.font='12px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillStyle='rgba(200,220,255,0.6)';
-    ctx.fillText(gs.status||(gs.turn==='R'?'Your turn (Red) — tap column':'AI thinking…'),W/2,OY-CW-8);
-}
-function _connect4Click(px) {
-    const gs=_arcadeGameState; if(!gs||gs.turn!=='R'||gs.winner) return;
-    const W=_arcadeCanvas.width,H=_arcadeCanvas.height;
-    const CW=Math.floor(Math.min(W/7,H/7)),OX=Math.floor((W-7*CW)/2);
-    const col=Math.floor((px-OX)/CW); if(col<0||col>6) return;
-    if(!_c4Drop(gs.board,col,'R')) return;
-    _arcadeScore+=5;_arcadeUpdateScoreDisplay();
-    const w=_c4Check(gs.board);
-    if(w){gs.winner=w;gs.status=w==='R'?'🏆 You Win!':'💀 AI Wins';_arcadeScore+=w==='R'?95:0;_arcadeUpdateScoreDisplay();_arcadeGameOver();return;}
-    if(gs.board.every(r=>r.every(c=>c))){gs.status='🤝 Draw!';_arcadeGameOver();return;}
-    gs.turn='Y';
-    setTimeout(()=>{
-        let best=-1,bestScore=-Infinity;
-        for(let c=0;c<7;c++){const t=gs.board.map(r=>[...r]);if(_c4Drop(t,c,'Y')){const s=_c4Score(t,'Y')-_c4Score(t,'R');if(s>bestScore){bestScore=s;best=c;}}}
-        if(best!==-1){_c4Drop(gs.board,best,'Y');const w2=_c4Check(gs.board);if(w2){gs.winner=w2;gs.status=w2==='Y'?'💀 AI Wins':'🤝';_arcadeGameOver();return;}}
-        gs.turn='R';
-    },400);
-}
-function _connect4Hover(px) {
-    const gs=_arcadeGameState; if(!gs||gs.winner) return;
-    const W=_arcadeCanvas.width,CW=Math.floor(Math.min(W/7,_arcadeCanvas.height/7)),OX=Math.floor((W-7*CW)/2);
-    gs.hoverCol=Math.floor((px-OX)/CW);
-}
-function _c4Drop(board,col,player) {
-    for(let r=5;r>=0;r--){if(!board[r][col]){board[r][col]=player;return true;}} return false;
-}
-function _c4Check(board) {
-    for(let r=0;r<6;r++) for(let c=0;c<7;c++) {
-        const p=board[r][c]; if(!p) continue;
-        const dirs=[[0,1],[1,0],[1,1],[1,-1]];
-        for(const [dr,dc] of dirs){let cnt=1;for(let i=1;i<4;i++){const nr=r+dr*i,nc=c+dc*i;if(nr>=0&&nr<6&&nc>=0&&nc<7&&board[nr][nc]===p)cnt++;else break;}if(cnt>=4)return p;}
-    }
-    return null;
-}
-function _c4Score(board,p) {
-    let score=0;
-    const opp=p==='R'?'Y':'R';
-    for(let r=0;r<6;r++) for(let c=0;c<7;c++) {
-        const dirs=[[0,1],[1,0],[1,1],[1,-1]];
-        dirs.forEach(([dr,dc])=>{ let mine=0,empty=0;
-            for(let i=0;i<4;i++){const nr=r+dr*i,nc=c+dc*i;if(nr>=0&&nr<6&&nc>=0&&nc<7){if(board[nr][nc]===p)mine++;else if(!board[nr][nc])empty++;else mine=-99;}else mine=-99;}
-            if(mine>0)score+=mine*mine;
-        });
-    }
-    return score;
-}
-
-/* ═══════════════════════════════════════════════════════
-   GAME 9 — MEMORY MATCH
-   ═══════════════════════════════════════════════════════ */
-const MEMORY_SYMBOLS = ['🦋','🌙','⚡','🔥','💀','👾','🎮','🎵','🌊','💫','🚀','🌈','🐱','🐸','🦊','🐼'];
-
-function _memoryInit() {
-    const count = 16; // 8 pairs
-    const syms = MEMORY_SYMBOLS.slice(0, count/2);
-    const cards = [...syms,...syms].sort(()=>Math.random()-0.5).map((s,i)=>({id:i,sym:s,flipped:false,matched:false}));
-    _arcadeGameState = { cards, flipped:[], moves:0, matches:0, locked:false };
-    _arcadeScore = 0;
-    function loop() { if (!_arcadeRunning) return; _memoryDraw(); _arcadeRAF = requestAnimationFrame(loop); }
-    _arcadeRAF = requestAnimationFrame(loop);
-}
-function _memoryDraw() {
-    const W=_arcadeCanvas.width,H=_arcadeCanvas.height,ctx=_arcadeCtx,gs=_arcadeGameState;
-    ctx.fillStyle='#000518'; ctx.fillRect(0,0,W,H);
-    const COLS=4,ROWS=4,CW=Math.floor(Math.min(W/COLS,H/ROWS)*0.9);
-    const OX=Math.floor((W-COLS*CW)/2)+4,OY=Math.floor((H-ROWS*CW)/2)+4;
-    gs.cards.forEach((card,i)=>{
-        const r=Math.floor(i/COLS),c=i%COLS;
-        const x=OX+c*CW,y=OY+r*CW,w=CW-6,h=CW-6;
-        ctx.beginPath();ctx.roundRect(x+3,y+3,w,h,8);
-        if(card.matched){ctx.fillStyle='rgba(57,255,20,0.2)';ctx.strokeStyle='rgba(57,255,20,0.6)';}
-        else if(card.flipped){ctx.fillStyle='rgba(0,80,160,0.7)';ctx.strokeStyle='rgba(0,174,239,0.8)';}
-        else{ctx.fillStyle='rgba(10,30,70,0.85)';ctx.strokeStyle='rgba(0,100,220,0.4)';}
-        ctx.lineWidth=1.5;ctx.fill();ctx.stroke();
-        if(card.flipped||card.matched){
-            ctx.font=`${CW*0.4}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
-            ctx.fillText(card.sym,x+3+w/2,y+3+h/2);
-        } else {
-            ctx.fillStyle='rgba(0,174,239,0.3)';ctx.font=`${CW*0.35}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
-            ctx.fillText('?',x+3+w/2,y+3+h/2);
-        }
-    });
-    ctx.font='12px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillStyle='rgba(200,220,255,0.6)';
-    ctx.fillText(`Moves: ${gs.moves}  Matches: ${gs.matches}/8`,W/2,OY-8);
-}
-function _memoryClick(px,py) {
-    const gs=_arcadeGameState; if(!gs||gs.locked) return;
-    const W=_arcadeCanvas.width,H=_arcadeCanvas.height;
-    const COLS=4,ROWS=4,CW=Math.floor(Math.min(W/COLS,H/ROWS)*0.9);
-    const OX=Math.floor((W-COLS*CW)/2)+4,OY=Math.floor((H-ROWS*CW)/2)+4;
-    const c=Math.floor((px-OX)/CW),r=Math.floor((py-OY)/CW);
-    if(r<0||r>=ROWS||c<0||c>=COLS) return;
-    const idx=r*COLS+c; const card=gs.cards[idx];
-    if(card.flipped||card.matched||gs.flipped.length>=2) return;
-    card.flipped=true; gs.flipped.push(idx); gs.moves++;
-    if(gs.flipped.length===2) {
-        gs.locked=true;
-        const [a,b]=gs.flipped;
-        if(gs.cards[a].sym===gs.cards[b].sym) {
-            gs.cards[a].matched=gs.cards[b].matched=true; gs.matches++; gs.flipped=[];
-            _arcadeScore+=20;_arcadeUpdateScoreDisplay();gs.locked=false;
-            if(gs.matches===8){_arcadeScore+=100-gs.moves;_arcadeUpdateScoreDisplay();_arcadeGameOver();}
-        } else {
-            setTimeout(()=>{gs.cards[a].flipped=gs.cards[b].flipped=false;gs.flipped=[];gs.locked=false;},900);
-        }
-    }
-}
-
-/* ═══════════════════════════════════════════════════════
-   GAME 10 — PONG (vs AI)
-   ═══════════════════════════════════════════════════════ */
-function _pongInit() {
-    const W=_arcadeCanvas.width,H=_arcadeCanvas.height;
-    const PH=Math.floor(H*0.18),PW=12,BL=8;
-    _arcadeGameState = {
-        paddleY:H/2-PH/2, aiY:H/2-PH/2, paddleDir:0,
-        bx:W/2, by:H/2, bvx:-3.5, bvy:2.5,
-        score:0, aiScore:0, PH, PW, BL, touchY:null
-    };
-    _arcadeScore = 0;
-    function loop() {
-        if(!_arcadeRunning) return;
-        _arcadeRAF=requestAnimationFrame(loop);
-        const gs=_arcadeGameState;
-        const SPD=5;
-        // Player paddle movement via keyboard or touch
-        if(gs.paddleDir!==0) gs.paddleY=Math.max(0,Math.min(H-gs.PH,gs.paddleY+gs.paddleDir*SPD));
-        if(gs.touchY!==null) gs.paddleY=Math.max(0,Math.min(H-gs.PH,gs.touchY-gs.PH/2));
-        // AI tracking
-        const aiMid=gs.aiY+gs.PH/2;
-        if(aiMid<gs.by-4) gs.aiY=Math.min(H-gs.PH,gs.aiY+3.5);
-        if(aiMid>gs.by+4) gs.aiY=Math.max(0,gs.aiY-3.5);
-        // Ball movement
-        gs.bx+=gs.bvx; gs.by+=gs.bvy;
-        if(gs.by-gs.BL<0){gs.by=gs.BL;gs.bvy=Math.abs(gs.bvy);}
-        if(gs.by+gs.BL>H){gs.by=H-gs.BL;gs.bvy=-Math.abs(gs.bvy);}
-        // Player paddle (left)
-        if(gs.bx-gs.BL<=gs.PW+10&&gs.by>=gs.paddleY&&gs.by<=gs.paddleY+gs.PH){
-            gs.bvx=Math.abs(gs.bvx)*1.03; const hit=(gs.by-(gs.paddleY+gs.PH/2))/(gs.PH/2); gs.bvy=hit*5;
-            gs.bx=gs.PW+10+gs.BL;
-        }
-        // AI paddle (right)
-        if(gs.bx+gs.BL>=W-gs.PW-10&&gs.by>=gs.aiY&&gs.by<=gs.aiY+gs.PH){
-            gs.bvx=-Math.abs(gs.bvx)*1.01; const hit=(gs.by-(gs.aiY+gs.PH/2))/(gs.PH/2); gs.bvy=hit*4;
-            gs.bx=W-gs.PW-10-gs.BL;
-        }
-        // Score
-        if(gs.bx<0){gs.aiScore++;_pongReset(gs,W,H);if(gs.aiScore>=7){_arcadeGameOver();return;}}
-        if(gs.bx>W){gs.score++;_arcadeScore+=10;_arcadeUpdateScoreDisplay();_pongReset(gs,W,H);if(gs.score>=7){_arcadeGameOver();return;}}
-        _pongDraw(W,H,gs);
-    }
-    _arcadeRAF=requestAnimationFrame(loop);
-}
-function _pongReset(gs,W,H) {
-    gs.bx=W/2;gs.by=H/2;gs.bvx=(Math.random()>0.5?1:-1)*3.5;gs.bvy=(Math.random()-0.5)*5;
-}
-function _pongDraw(W,H,gs) {
-    const ctx=_arcadeCtx;
-    ctx.fillStyle='#000010';ctx.fillRect(0,0,W,H);
-    // Center line
-    ctx.strokeStyle='rgba(0,174,239,0.2)';ctx.lineWidth=2;ctx.setLineDash([8,8]);
-    ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,H);ctx.stroke();ctx.setLineDash([]);
-    // Paddles
-    ctx.fillStyle='#00AEEF';ctx.shadowBlur=10;ctx.shadowColor='#00AEEF';
-    ctx.fillRect(10,gs.paddleY,gs.PW,gs.PH);
-    ctx.fillStyle='#ff5566';ctx.shadowColor='#ff5566';
-    ctx.fillRect(W-10-gs.PW,gs.aiY,gs.PW,gs.PH);
-    ctx.shadowBlur=0;
-    // Ball
-    ctx.beginPath();ctx.arc(gs.bx,gs.by,gs.BL,0,Math.PI*2);
-    ctx.fillStyle='#39FF14';ctx.shadowBlur=14;ctx.shadowColor='#39FF14';ctx.fill();ctx.shadowBlur=0;
-    // Score
-    ctx.font='bold 28px monospace';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillStyle='rgba(200,220,255,0.5)';
-    ctx.fillText(gs.score,W/2-36,10);ctx.fillText(gs.aiScore,W/2+36,10);
-    ctx.font='11px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillStyle='rgba(200,220,255,0.3)';
-    ctx.fillText('↑↓ keys / drag paddle  First to 7',W/2,H-6);
-}
-
-/* ═══════════════════════════════════════════════════════
-   FIRESTORE LEADERBOARD
-   ═══════════════════════════════════════════════════════ */
-
-async function _arcadeSubmitScore(gameId, score) {
-    if (!score || score <= 0) return;
-    try {
-        const u = window.currentUser || window._snxCurrentUser;
-        if (!u) return;
-        const { db, doc, getDoc, setDoc, updateDoc, serverTimestamp } = window._snxFirestore || {};
-        if (!db) return;
-        const ref = doc(db, 'arcadeScores', `${u.uid}_${gameId}`);
-        const snap = await getDoc(ref);
-        const prev = snap.exists() ? (snap.data().score || 0) : 0;
-        if (score > prev) {
-            const uSnap = await getDoc(doc(db, 'users', u.uid));
-            const uData = uSnap.exists() ? uSnap.data() : {};
-            await setDoc(ref, {
-                uid: u.uid,
-                gameId,
-                score,
-                displayName: uData.displayName || 'Player',
-                avatar: uData.avatar || '',
-                updatedAt: serverTimestamp ? serverTimestamp() : Date.now(),
-            }, { merge: true });
-            toastNotification && toastNotification('🏆 New high score: ' + score + '!');
-        }
-    } catch(_) { /* silently fail — non-critical */ }
-}
-
-function arcadeLoadLeaderboard(gameId) {
-    const box = document.getElementById('arcadeScoreboard');
-    if (!box) return;
-    box.innerHTML = '<div class="arcade-score-empty">Loading…</div>';
-
-    if (_arcadeUnsubLeaderboard) { _arcadeUnsubLeaderboard(); _arcadeUnsubLeaderboard = null; }
-
-    try {
-        const fb = window._snxFirestore;
-        if (!fb?.db) { box.innerHTML = '<div class="arcade-score-empty">Sign in to see scores</div>'; return; }
-        const { db, collection, query, where, orderBy, limit, onSnapshot } = fb;
-        const q = query(
-            collection(db, 'arcadeScores'),
-            where('gameId','==',gameId),
-            orderBy('score','desc'),
-            limit(8)
-        );
-        _arcadeUnsubLeaderboard = onSnapshot(q, snap => {
-            if (snap.empty) { box.innerHTML = '<div class="arcade-score-empty">No scores yet — be first!</div>'; return; }
-            box.innerHTML = '';
-            snap.docs.forEach((d, i) => {
-                const data = d.data();
-                const row = document.createElement('div');
-                row.className = 'arcade-score-row';
-                const initials = (data.displayName||'?').charAt(0).toUpperCase();
-                const avatarStyle = data.avatar ? `background-image:url(${data.avatar});background-size:cover;` : '';
-                row.innerHTML = `
-                    <div class="arcade-score-rank rank-${i+1}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
-                    <div class="arcade-score-avatar" style="${avatarStyle}">${data.avatar?'':initials}</div>
-                    <div class="arcade-score-meta">
-                        <div class="arcade-score-name">${_arcadeEsc(data.displayName||'Player')}</div>
-                    </div>
-                    <div class="arcade-score-val">${data.score}</div>
-                `;
-                row.style.animationDelay = (i * 40) + 'ms';
-                box.appendChild(row);
-            });
-        }, () => { box.innerHTML = '<div class="arcade-score-empty">Scores unavailable</div>'; });
-    } catch(_) { box.innerHTML = '<div class="arcade-score-empty">Scores unavailable</div>'; }
-}
-
-function arcadeLoadMatches(profileUid) {
-    const section = document.getElementById('arcadeMatchesSection');
-    const list    = document.getElementById('arcadeMatchList');
-    if (!section || !list) return;
-
-    try {
-        const fb = window._snxFirestore;
-        if (!fb?.db) return;
-        const { db, collection, query, where, orderBy, limit, onSnapshot } = fb;
-        const q = query(
-            collection(db, 'arcadeMatches'),
-            where('uids','array-contains', profileUid),
-            orderBy('ts','desc'),
-            limit(5)
-        );
-        onSnapshot(q, snap => {
-            if (snap.empty) { section.style.display='none'; return; }
-            section.style.display='';
-            list.innerHTML='';
-            snap.docs.forEach(d => {
-                const m = d.data();
-                const myResult = m.winner===profileUid?'win': m.winner===null?'draw':'loss';
-                const icon = ARCADE_GAMES[m.gameId]?.icon || '🎮';
-                const item = document.createElement('div');
-                item.className='arcade-match-item';
-                item.innerHTML=`
-                    <span class="arcade-match-game">${icon}</span>
-                    <span class="arcade-match-players">${_arcadeEsc(m.p1name||'?')} vs ${_arcadeEsc(m.p2name||'?')}</span>
-                    <span class="arcade-match-result ${myResult}">${myResult.toUpperCase()}</span>
-                `;
-                list.appendChild(item);
-            });
-        });
-    } catch(_) {}
-}
-
-/* ─── Challenge flow ─── */
-
-function arcadeSendChallenge() {
-    const uid = window._arcadeProfileUid || _arcadeProfileUid;
-    if (!uid) return;
-    const me = window.currentUser || window._snxCurrentUser;
-    if (!me || me.uid === uid) return;
-
-    try {
-        const fb = window._snxFirestore;
-        if (!fb?.db) { toastNotification && toastNotification('Not signed in'); return; }
-        const { db, collection, addDoc, serverTimestamp } = fb;
-        const myData = window._snxUserData || {};
-        addDoc(collection(db, 'notifications'), {
-            to:     uid,
-            from:   me.uid,
-            type:   'arcade_challenge',
-            gameId: _arcadeGame,
-            fromName: myData.displayName || 'Someone',
-            text:   `🕹 ${myData.displayName||'Someone'} challenged you to ${ARCADE_GAMES[_arcadeGame]?.label||'a game'}!`,
-            read:   false,
-            ts:     serverTimestamp()
-        });
-        toastNotification && toastNotification('⚔ Challenge sent!');
-    } catch(_) { toastNotification && toastNotification('Could not send challenge'); }
-}
-
-function _arcadeSetupForProfile(profileUid, isOwnProfile) {
-    _arcadeProfileUid = profileUid;
-    window._arcadeProfileUid = profileUid;
-    const btn = document.getElementById('arcadeChallengeBtn');
-    if (btn) btn.disabled = isOwnProfile;
-
-    arcadeLoadLeaderboard(_arcadeGame);
-    arcadeLoadMatches(profileUid);
-
-    // Watch for incoming challenges (own profile only)
-    if (isOwnProfile) {
-        try {
-            const fb = window._snxFirestore;
-            if (!fb?.db) return;
-            const { db, collection, query, where, onSnapshot } = fb;
-            const me = window.currentUser || window._snxCurrentUser;
-            if (!me) return;
-            const q = query(collection(db,'notifications'), where('to','==',me.uid), where('type','==','arcade_challenge'), where('read','==',false));
-            onSnapshot(q, snap => {
-                const notif = document.getElementById('arcadeChallengeNotif');
-                if (notif) notif.style.display = snap.empty ? 'none' : 'inline-block';
-            });
-        } catch(_) {}
-    }
-}
-
-/* ─── Hook into viewProfile ─── */
-(function() {
-    const _origViewProfile = window.viewProfile;
-    window.viewProfile = async function(uid, ...rest) {
-        const result = _origViewProfile ? await _origViewProfile(uid, ...rest) : undefined;
-        // After profile renders, set up arcade for that profile
-        setTimeout(() => {
-            const me = window.currentUser || window._snxCurrentUser;
-            _arcadeSetupForProfile(uid, me && me.uid === uid);
-        }, 200);
-        return result;
-    };
-})();
-
-/* ─── Utils ─── */
-function _arcadeEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-/* ─── Init leaderboard once Firebase module has populated _snxFirestore ─── */
-(function waitForFirebase() {
-    if (window._snxFirestore) { arcadeLoadLeaderboard(_arcadeGame); return; }
-    const check = setInterval(() => {
-        if (window._snxFirestore) { clearInterval(check); arcadeLoadLeaderboard(_arcadeGame); }
-    }, 300);
-    setTimeout(() => clearInterval(check), 12000);
-})();
-
-/* ─── Arcade Hub Page functions ─── */
-let _arcadeHubGameId = 'snake';
-let _arcadeHubUnsub  = null;
-
-function arcadeHubLoadLeaderboard(gameId) {
-    _arcadeHubGameId = gameId || _arcadeHubGameId;
-    const box = document.getElementById('arcadeHubScoreboard');
-    if (!box) return;
-    box.innerHTML = '<div class="arcade-score-empty">Loading…</div>';
-    if (_arcadeHubUnsub) { _arcadeHubUnsub(); _arcadeHubUnsub = null; }
-    try {
-        const fb = window._snxFirestore;
-        if (!fb?.db) { box.innerHTML = '<div class="arcade-score-empty">Sign in to see scores</div>'; return; }
-        const { db, collection, query, where, orderBy, limit, onSnapshot } = fb;
-        const q = query(collection(db,'arcadeScores'), where('gameId','==',_arcadeHubGameId), orderBy('score','desc'), limit(20));
-        _arcadeHubUnsub = onSnapshot(q, snap => {
-            if (snap.empty) { box.innerHTML = '<div class="arcade-score-empty">No scores yet — be first!</div>'; return; }
-            box.innerHTML = '';
-            snap.docs.forEach((d,i) => {
-                const data = d.data();
-                const row = document.createElement('div');
-                row.className = 'arcade-score-row';
-                const initials = (data.displayName||'?').charAt(0).toUpperCase();
-                const avatarStyle = data.avatar ? `background-image:url(${data.avatar});background-size:cover;` : '';
-                row.innerHTML = `
-                    <div class="arcade-score-rank rank-${i+1}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
-                    <div class="arcade-score-avatar" style="${avatarStyle}">${data.avatar?'':initials}</div>
-                    <div class="arcade-score-meta">
-                        <div class="arcade-score-name">${_arcadeEsc(data.displayName||'Player')}</div>
-                        <div class="arcade-score-pts">${ARCADE_GAMES[data.gameId]?.icon||'🎮'} ${data.gameId}</div>
-                    </div>
-                    <div class="arcade-score-val">${data.score}</div>
-                `;
-                box.appendChild(row);
-            });
-        }, () => { box.innerHTML = '<div class="arcade-score-empty">Scores unavailable</div>'; });
-    } catch(_) { box.innerHTML = '<div class="arcade-score-empty">Scores unavailable</div>'; }
-}
-
-function arcadeHubFilter(filter) {
-    arcadeHubLoadLeaderboard(_arcadeHubGameId);
-    toastNotification && toastNotification('📊 Showing ' + filter + ' rankings');
-}
-
-function arcadeHubLoadMyStats() {
-    const el = document.getElementById('arcadeHubMyStats');
-    if (!el) return;
-    try {
-        const me = window.currentUser || window._snxCurrentUser;
-        if (!me) { el.innerHTML = '<span style="color:#6a90b8;">Sign in to see your stats.</span>'; return; }
-        const fb = window._snxFirestore;
-        if (!fb?.db) return;
-        const { db, collection, query, where, getDocs } = fb;
-        const q = query(collection(db,'arcadeScores'), where('uid','==',me.uid));
-        getDocs(q).then(snap => {
-            if (snap.empty) { el.innerHTML = '<span style="color:#6a90b8;">No scores yet. Play a game!</span>'; return; }
-            let html = '<div style="display:flex;flex-wrap:wrap;gap:10px;">';
-            snap.docs.forEach(d => {
-                const data = d.data();
-                const info = ARCADE_GAMES[data.gameId] || { icon:'🎮', label: data.gameId };
-                html += `<div style="background:rgba(0,30,70,0.5);border:1px solid rgba(0,174,239,0.22);border-radius:10px;padding:10px 14px;min-width:100px;text-align:center;">
-                    <div style="font-size:22px;">${info.icon}</div>
-                    <div style="font-size:11px;font-weight:700;color:#c8e0f8;margin:3px 0;">${info.label}</div>
-                    <div style="font-size:16px;font-weight:800;color:#39FF14;">${data.score}</div>
-                    <div style="font-size:10px;color:#4a7a9a;">Best Score</div>
-                </div>`;
-            });
-            html += '</div>';
-            el.innerHTML = html;
-        });
-    } catch(_) {}
-}
-
-function arcadeLoadMatchesHub(uid) {
-    const section = document.getElementById('arcadeHubMatchesSection');
-    const list    = document.getElementById('arcadeHubMatchList');
-    if (!section || !list) return;
-    try {
-        const fb = window._snxFirestore;
-        if (!fb?.db) return;
-        const { db, collection, query, where, orderBy, limit, onSnapshot } = fb;
-        const q = query(collection(db,'arcadeMatches'), where('uids','array-contains',uid), orderBy('ts','desc'), limit(10));
-        onSnapshot(q, snap => {
-            if (snap.empty) { section.style.display='none'; return; }
-            section.style.display='';
-            list.innerHTML='';
-            snap.docs.forEach(d => {
-                const m = d.data();
-                const myResult = m.winner===uid?'win': m.winner===null?'draw':'loss';
-                const icon = ARCADE_GAMES[m.gameId]?.icon || '🎮';
-                const item = document.createElement('div');
-                item.className='arcade-match-item';
-                item.innerHTML=`<span class="arcade-match-game">${icon}</span><span class="arcade-match-players">${_arcadeEsc(m.p1name||'?')} vs ${_arcadeEsc(m.p2name||'?')}</span><span class="arcade-match-result ${myResult}">${myResult.toUpperCase()}</span>`;
-                list.appendChild(item);
-            });
-        });
-    } catch(_) {}
-}
-
-// Hook into navTo to load hub data when arcade page opens
-(function() {
-    const _origNavTo = window.navTo;
-    window.navTo = function(pageId, ...rest) {
-        if (typeof _origNavTo === 'function') _origNavTo(pageId, ...rest);
-        if (pageId === 'arcadePage') {
-            setTimeout(() => {
-                arcadeHubLoadLeaderboard(_arcadeHubGameId);
-                arcadeHubLoadMyStats();
-                arcadeHubLoadWLD();
-                const me = window.currentUser || window._snxCurrentUser;
-                if (me) { arcadeLoadMatchesHub(me.uid); arcadeHubLoadAchievements(me.uid); }
-            }, 100);
-        }
-    };
-})();
-
-/* ═══════════════════════════════════════════════════════════════
-   ARCADE UPGRADES — Mobile controls, orientation, stats, pin, leaderboard filters
-   ═══════════════════════════════════════════════════════════════ */
-
-/* ─── Mobile on-screen controls ─── */
-let _arcadeIsTouchDevice = false;
-
-function _arcadeDetectTouch() {
-    _arcadeIsTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-}
-_arcadeDetectTouch();
-
-function _arcadeUpdateDpad() {
-    const wrap = document.getElementById('arcadeDpadWrap');
-    const dpad = document.getElementById('arcadeDpad');
-    const btns = document.getElementById('arcadeActionBtns');
-    if (!wrap) return;
-
-    // Games that use the D-pad
-    const dpadGames = ['snake','tetris','breakout','pong'];
-    // Games with action buttons
-    const actionGames = {
-        tetris:   { a: '↻ Rotate', b: '⬇ Drop' },
-        breakout: { a: '⎵ Launch', b: null },
-        pong:     { a: null, b: null },
-        snake:    { a: null, b: null },
-    };
-
-    const showControls = _arcadeIsTouchDevice;
-    wrap.classList.toggle('visible', showControls);
-
-    if (dpad) dpad.style.display = (showControls && dpadGames.includes(_arcadeGame)) ? 'flex' : 'none';
-
-    const btnA = document.getElementById('dpBtnA');
-    const btnB = document.getElementById('dpBtnB');
-    if (btns && showControls) {
-        const actions = actionGames[_arcadeGame] || {};
-        if (actions.a || actions.b) {
-            btns.style.display = 'flex';
-            if (btnA) { btnA.textContent = actions.a || 'A'; btnA.style.display = actions.a ? '' : 'none'; }
-            if (btnB) { btnB.textContent = actions.b || 'B'; btnB.style.display = actions.b ? '' : 'none'; }
-        } else {
-            btns.style.display = 'none';
-        }
-    } else if (btns) {
-        btns.style.display = 'none';
-    }
-}
-
-function _arcadeBindDpad() {
-    const map = { dpUp:'U', dpDown:'D', dpLeft:'L', dpRight:'R' };
-    Object.entries(map).forEach(([id, dir]) => {
-        const btn = document.getElementById(id);
-        if (!btn) return;
-        // Use touchstart for immediate response
-        btn.addEventListener('touchstart', e => {
-            _arcadeGameState.dir = dir;
-            if (_arcadeGame === 'pong') {
-                if (dir === 'U') _arcadeGameState.paddleDir = -1;
-                if (dir === 'D') _arcadeGameState.paddleDir = 1;
-            }
-            e.preventDefault();
-        }, { passive: false });
-        btn.addEventListener('touchend', e => {
-            if (_arcadeGame === 'pong') _arcadeGameState.paddleDir = 0;
-            e.preventDefault();
-        }, { passive: false });
-        // Mouse fallback for desktop testing
-        btn.addEventListener('mousedown', () => {
-            _arcadeGameState.dir = dir;
-            if (_arcadeGame === 'pong') {
-                if (dir === 'U') _arcadeGameState.paddleDir = -1;
-                if (dir === 'D') _arcadeGameState.paddleDir = 1;
-            }
-        });
-        btn.addEventListener('mouseup', () => {
-            if (_arcadeGame === 'pong') _arcadeGameState.paddleDir = 0;
-        });
-    });
-
-    // Action button A
-    const btnA = document.getElementById('dpBtnA');
-    if (btnA) {
-        const fireA = () => {
-            if (_arcadeGame === 'tetris')   _arcadeGameState.rotatePending = true;
-            if (_arcadeGame === 'breakout') _arcadeGameState.dir = 'launch';
-        };
-        btnA.addEventListener('touchstart', e => { fireA(); e.preventDefault(); }, { passive: false });
-        btnA.addEventListener('mousedown', fireA);
-    }
-
-    // Action button B
-    const btnB = document.getElementById('dpBtnB');
-    if (btnB) {
-        const fireB = () => {
-            if (_arcadeGame === 'tetris') _arcadeGameState.dropPending = true;
-        };
-        btnB.addEventListener('touchstart', e => { fireB(); e.preventDefault(); }, { passive: false });
-        btnB.addEventListener('mousedown', fireB);
-    }
-}
-
-// Touch tap-to-click on canvas for board games (Chess, Checkers, Tic-Tac-Toe, Connect 4, Memory)
-function _arcadeBindCanvasTap() {
-    const cv = document.getElementById('arcadeCanvas');
-    if (!cv || !_arcadeIsTouchDevice) return;
-    cv.addEventListener('touchend', e => {
-        const touch = e.changedTouches[0];
-        const rect  = cv.getBoundingClientRect();
-        const scaleX = cv.width  / rect.width;
-        const scaleY = cv.height / rect.height;
-        const px = (touch.clientX - rect.left) * scaleX;
-        const py = (touch.clientY - rect.top)  * scaleY;
-        const dx = touch.clientX - _arcadeTouchX;
-        const dy = touch.clientY - _arcadeTouchY;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        // Only fire click if it was a short tap (not a swipe)
-        if (dist < 12) {
-            if (_arcadeGame === 'chess')     _chessClick(px, py);
-            if (_arcadeGame === 'checkers')  _checkersClick(px, py);
-            if (_arcadeGame === 'tictactoe') _tictactoeClick(px, py);
-            if (_arcadeGame === 'connect4')  _connect4Click(px);
-            if (_arcadeGame === 'memory')    _memoryClick(px, py);
-            if (_arcadeGame === 'pool')      { _arcadeGameState.aimEnd = { x: px, y: py }; _poolShoot(); }
-        }
-        e.preventDefault();
-    }, { passive: false });
-    cv.addEventListener('touchstart', e => {
-        const touch = e.touches[0];
-        const rect  = cv.getBoundingClientRect();
-        const scaleX = cv.width  / rect.width;
-        const scaleY = cv.height / rect.height;
-        const px = (touch.clientX - rect.left) * scaleX;
-        const py = (touch.clientY - rect.top)  * scaleY;
-        if (_arcadeGame === 'pool') { _arcadeGameState.aimStart = { x: px, y: py }; }
-        if (_arcadeGame === 'connect4') _connect4Hover(px);
-    }, { passive: true });
-}
-
-// Hook into arcadeOpenModal to wire up touch controls
-const _origArcadeOpenModal = arcadeOpenModal;
-arcadeOpenModal = function(gameIdOverride) {
-    _origArcadeOpenModal(gameIdOverride);
-    setTimeout(() => {
-        _arcadeDetectTouch();
-        _arcadeUpdateDpad();
-        _arcadeBindDpad();
-        _arcadeBindCanvasTap();
-    }, 50);
-};
-
-const _origArcadeModalSwitchTab = arcadeModalSwitchTab;
-arcadeModalSwitchTab = function(gameId, btn) {
-    _origArcadeModalSwitchTab(gameId, btn);
-    _arcadeUpdateDpad();
-};
-
-/* ─── Orientation change — preserve game state ─── */
-let _arcadeOrientPauseState = null;
-
-window.addEventListener('orientationchange', () => {
-    if (!document.getElementById('arcadeModal')?.classList.contains('open')) return;
-    // Pause game loop
-    _arcadeOrientPauseState = { running: _arcadeRunning, game: _arcadeGame, score: _arcadeScore };
-    _arcadeStopLoop();
-    // After reflow, resize canvas and resume
-    setTimeout(() => {
-        _arcadeResizeCanvas();
-        _arcadeUpdateDpad();
-        if (_arcadeOrientPauseState?.running) {
-            // Re-initialise game at current score (graceful resume)
-            _arcadeRunning = true;
-            const saved = _arcadeOrientPauseState;
-            _arcadeScore = saved.score;
-            _arcadeUpdateScoreDisplay();
-            switch (saved.game) {
-                case 'snake':     _snakeInit();     break;
-                case 'pool':      _poolInit();      break;
-                case 'chess':     _chessDrawLoop(); break;
-                case 'breakout':  _breakoutInit();  break;
-                case 'tetris':    _tetrisInit();    break;
-                case 'checkers':  _checkersInit();  break;
-                case 'tictactoe': _tictactoeInit(); break;
-                case 'connect4':  _connect4Init();  break;
-                case 'memory':    _memoryInit();    break;
-                case 'pong':      _pongInit();      break;
-            }
-        }
-        _arcadeOrientPauseState = null;
-    }, 250);
-});
-
-// Also handle window resize (desktop viewport changes, landscape toggle)
-window.addEventListener('resize', () => {
-    if (!document.getElementById('arcadeModal')?.classList.contains('open')) return;
-    _arcadeResizeCanvas();
-});
-
-/* ─── Win/Loss/Draw stats tracking ─── */
-async function _arcadeRecordResult(gameId, result) {
-    // result: 'win' | 'loss' | 'draw'
-    try {
-        const u = window.currentUser || window._snxCurrentUser;
-        if (!u) return;
-        const fb = window._snxFirestore;
-        if (!fb?.db) return;
-        const { db, doc, getDoc, setDoc, serverTimestamp, increment } = fb;
-        if (!increment) return; // needs Firestore increment support
-        const ref = doc(db, 'arcadeStats', `${u.uid}_${gameId}`);
-        const snap = await getDoc(ref);
-        const existing = snap.exists() ? snap.data() : { wins:0, losses:0, draws:0, games:0 };
-        const update = {
-            uid: u.uid, gameId,
-            wins:   (existing.wins   || 0) + (result === 'win'  ? 1 : 0),
-            losses: (existing.losses || 0) + (result === 'loss' ? 1 : 0),
-            draws:  (existing.draws  || 0) + (result === 'draw' ? 1 : 0),
-            games:  (existing.games  || 0) + 1,
-            updatedAt: serverTimestamp ? serverTimestamp() : Date.now(),
-        };
-        await setDoc(ref, update, { merge: true });
-        _arcadeCheckAchievements(u.uid, gameId, update);
-    } catch(_) {}
-}
-
-/* ─── Achievements engine ─── */
-const ARCADE_ACHIEVEMENTS = [
-    { id:'first_win',   icon:'🏆', name:'First Victory',     desc:'Win your first game',          check: s => s.wins >= 1 },
-    { id:'win5',        icon:'🔥', name:'On Fire',           desc:'Win 5 games total',             check: s => s.wins >= 5 },
-    { id:'win25',       icon:'⭐', name:'Rising Star',       desc:'Win 25 games',                  check: s => s.wins >= 25 },
-    { id:'win100',      icon:'👑', name:'Arcade King',       desc:'Win 100 games',                 check: s => s.wins >= 100 },
-    { id:'play10',      icon:'🎮', name:'Game Enthusiast',   desc:'Play 10 games',                 check: s => s.games >= 10 },
-    { id:'play50',      icon:'🕹',  name:'Dedicated Player',  desc:'Play 50 games',                 check: s => s.games >= 50 },
-    { id:'snake_pro',   icon:'🐍', name:'Snake Charmer',     desc:'Score 200+ in Snake',           check: (s,g,sc) => g==='snake' && sc >= 200 },
-    { id:'tetris_pro',  icon:'🟦', name:'Tetris Master',     desc:'Score 1000+ in Tetris',         check: (s,g,sc) => g==='tetris' && sc >= 1000 },
-    { id:'chess_win',   icon:'♟',  name:'Chess Grandmaster', desc:'Win a chess game',              check: (s,g)    => g==='chess' && s.wins >= 1 },
-    { id:'memory_ace',  icon:'🃏', name:'Perfect Memory',    desc:'Complete Memory Match',         check: (s,g)    => g==='memory' && s.wins >= 1 },
-];
-
-async function _arcadeCheckAchievements(uid, gameId, stats) {
-    try {
-        const fb = window._snxFirestore;
-        if (!fb?.db) return;
-        const { db, doc, getDoc, setDoc } = fb;
-        const achRef = doc(db, 'arcadeAchievements', uid);
-        const snap   = await getDoc(achRef);
-        const earned = snap.exists() ? (snap.data().earned || []) : [];
-        const newEarned = [];
-        ARCADE_ACHIEVEMENTS.forEach(ach => {
-            if (earned.includes(ach.id)) return;
-            if (ach.check(stats, gameId, _arcadeScore)) {
-                newEarned.push(ach.id);
-                toastNotification && toastNotification(`🏅 Achievement unlocked: ${ach.name}!`);
-            }
-        });
-        if (newEarned.length) {
-            await setDoc(achRef, { earned: [...earned, ...newEarned] }, { merge: true });
-        }
-    } catch(_) {}
-}
-
-/* ─── Load achievements for display ─── */
-async function arcadeHubLoadAchievements(uid) {
-    const el = document.getElementById('arcadeHubAchievements');
-    if (!el) return;
-    try {
-        const fb = window._snxFirestore;
-        if (!fb?.db) return;
-        const { db, doc, getDoc, collection, query, where, getDocs } = fb;
-        // Load stats to compute progress
-        const statsQ = query(collection(db, 'arcadeStats'), where('uid', '==', uid));
-        const [achSnap, statsSnap] = await Promise.all([getDoc(doc(db, 'arcadeAchievements', uid)), getDocs(statsQ)]);
-        const earned = achSnap.exists() ? (achSnap.data().earned || []) : [];
-        // Aggregate stats
-        const agg = { wins: 0, losses: 0, draws: 0, games: 0 };
-        statsSnap.docs.forEach(d => {
-            const s = d.data();
-            agg.wins   += s.wins   || 0;
-            agg.losses += s.losses || 0;
-            agg.draws  += s.draws  || 0;
-            agg.games  += s.games  || 0;
-        });
-        if (!ARCADE_ACHIEVEMENTS.length) return;
-        el.innerHTML = '';
-        ARCADE_ACHIEVEMENTS.forEach(ach => {
-            const unlocked = earned.includes(ach.id);
-            const item = document.createElement('div');
-            item.className = 'arcade-ach-item';
-            item.style.opacity = unlocked ? '1' : '0.38';
-            item.innerHTML = `
-                <span class="arcade-ach-icon">${ach.icon}</span>
-                <div class="arcade-ach-meta">
-                    <div class="arcade-ach-name">${_arcadeEsc(ach.name)}</div>
-                    <div class="arcade-ach-desc">${_arcadeEsc(ach.desc)}${unlocked ? ' ✓' : ''}</div>
-                </div>`;
-            el.appendChild(item);
-        });
-    } catch(_) { if (el) el.innerHTML = '<div class="arcade-score-empty">Sign in to see achievements</div>'; }
-}
-
-/* ─── Load WLD totals for hub ─── */
-async function arcadeHubLoadWLD() {
-    try {
-        const me = window.currentUser || window._snxCurrentUser;
-        if (!me) return;
-        const fb = window._snxFirestore;
-        if (!fb?.db) return;
-        const { db, collection, query, where, getDocs } = fb;
-        const q = query(collection(db, 'arcadeStats'), where('uid', '==', me.uid));
-        const snap = await getDocs(q);
-        if (snap.empty) return;
-        let wins=0, losses=0, draws=0, games=0;
-        snap.docs.forEach(d => {
-            const s = d.data();
-            wins   += s.wins   || 0;
-            losses += s.losses || 0;
-            draws  += s.draws  || 0;
-            games  += s.games  || 0;
-        });
-        const wldEl = document.getElementById('arcadeHubWLD');
-        if (wldEl) {
-            wldEl.style.display = 'flex';
-            document.getElementById('hubStatWins')  ?.replaceChildren(wins);
-            document.getElementById('hubStatLosses')?.replaceChildren(losses);
-            document.getElementById('hubStatDraws') ?.replaceChildren(draws);
-            document.getElementById('hubStatGames') ?.replaceChildren(games);
-        }
-    } catch(_) {}
-}
-
-/* ─── Hook _arcadeGameOver to record result when applicable ─── */
-const _origArcadeGameOver = _arcadeGameOver;
-window._arcadeGameOver = _arcadeGameOver = function() {
-    _origArcadeGameOver();
-    const gs = _arcadeGameState;
-    const gameId = _arcadeGame;
-    // Determine result for AI games
-    let result = null;
-    if (gameId === 'chess' || gameId === 'checkers') {
-        const status = gs.status || '';
-        if (status.includes('You Win'))  result = 'win';
-        else if (status.includes('AI Wins')) result = 'loss';
-        else result = 'loss'; // default
-    } else if (gameId === 'tictactoe') {
-        const status = gs.status || '';
-        if (status.includes('You Win')) result = 'win';
-        else if (status.includes('AI Wins')) result = 'loss';
-        else if (status.includes('Draw')) result = 'draw';
-    } else if (gameId === 'connect4') {
-        const status = gs.status || '';
-        if (status.includes('You Win')) result = 'win';
-        else if (status.includes('AI Wins')) result = 'loss';
-        else if (status.includes('Draw')) result = 'draw';
-    } else if (gameId === 'pong') {
-        // Score is tracked as pong score; if score > aiScore it's a win
-        if (gs.score !== undefined && gs.aiScore !== undefined) {
-            if (gs.score > gs.aiScore) result = 'win';
-            else result = 'loss';
-        }
-    } else if (gameId === 'snake' || gameId === 'tetris' || gameId === 'breakout') {
-        // Solo games — score > 0 counts as win
-        result = _arcadeScore > 0 ? 'win' : 'loss';
-    } else if (gameId === 'memory') {
-        result = gs.matches === 8 ? 'win' : 'loss';
-    } else if (gameId === 'pool') {
-        const pocketed = _arcadeScore > 0;
-        result = pocketed ? 'win' : 'loss';
-    }
-    if (result) _arcadeRecordResult(gameId, result);
-};
-
-/* ─── Leaderboard filter with real time-based queries ─── */
-let _arcadeHubFilter = 'global';
-
-function arcadeHubFilter(filter, btn) {
-    _arcadeHubFilter = filter;
-    // Update active tab
-    document.querySelectorAll('.arcade-lb-tab').forEach(t => t.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    arcadeHubLoadLeaderboard(_arcadeHubGameId);
-}
-
-// Override arcadeHubLoadLeaderboard to support filters
-const _origArcadeHubLoadLeaderboard = arcadeHubLoadLeaderboard;
-arcadeHubLoadLeaderboard = function(gameId) {
-    _arcadeHubGameId = gameId || _arcadeHubGameId;
-    // Sync select
-    const sel = document.getElementById('arcadeHubGameSelect');
-    if (sel && gameId) sel.value = gameId;
-
-    const box = document.getElementById('arcadeHubScoreboard');
-    if (!box) return;
-    box.innerHTML = '<div class="arcade-score-empty">Loading…</div>';
-    if (_arcadeHubUnsub) { _arcadeHubUnsub(); _arcadeHubUnsub = null; }
-
-    try {
-        const fb = window._snxFirestore;
-        if (!fb?.db) { box.innerHTML = '<div class="arcade-score-empty">Sign in to see scores</div>'; return; }
-        const { db, collection, query, where, orderBy, limit, onSnapshot, getDocs } = fb;
-        const filter = _arcadeHubFilter || 'global';
-
-        if (filter === 'friends') {
-            // Friends leaderboard: load friend UIDs, then filter
-            const me = window.currentUser || window._snxCurrentUser;
-            if (!me) { box.innerHTML = '<div class="arcade-score-empty">Sign in to see friends scores</div>'; return; }
-            const { getDoc, doc } = fb;
-            getDoc(doc(db, 'users', me.uid)).then(uSnap => {
-                const friends = uSnap.exists() ? (uSnap.data().friends || []) : [];
-                const uids = [me.uid, ...friends].slice(0, 10);
-                const q = query(collection(db,'arcadeScores'), where('gameId','==',_arcadeHubGameId), where('uid','in',uids), orderBy('score','desc'), limit(20));
-                _arcadeHubUnsub = onSnapshot(q, snap => _arcadeHubRenderScores(snap, box), () => { box.innerHTML = '<div class="arcade-score-empty">Scores unavailable</div>'; });
-            }).catch(() => { box.innerHTML = '<div class="arcade-score-empty">Could not load friends</div>'; });
-            return;
-        }
-
-        // Time-based filters
-        let q;
-        if (filter === 'weekly' || filter === 'monthly') {
-            const now = Date.now();
-            const cutoff = filter === 'weekly' ? now - 7*24*60*60*1000 : now - 30*24*60*60*1000;
-            q = query(collection(db,'arcadeScores'), where('gameId','==',_arcadeHubGameId), where('updatedAt','>=',new Date(cutoff)), orderBy('updatedAt','desc'), orderBy('score','desc'), limit(20));
-        } else {
-            // global / alltime
-            q = query(collection(db,'arcadeScores'), where('gameId','==',_arcadeHubGameId), orderBy('score','desc'), limit(20));
-        }
-        _arcadeHubUnsub = onSnapshot(q, snap => _arcadeHubRenderScores(snap, box), () => { box.innerHTML = '<div class="arcade-score-empty">Scores unavailable</div>'; });
-    } catch(_) { box.innerHTML = '<div class="arcade-score-empty">Scores unavailable</div>'; }
-};
-
-function _arcadeHubRenderScores(snap, box) {
-    if (snap.empty) { box.innerHTML = '<div class="arcade-score-empty">No scores yet — be first!</div>'; return; }
-    box.innerHTML = '';
-    snap.docs.forEach((d, i) => {
-        const data = d.data();
-        const row = document.createElement('div');
-        row.className = 'arcade-score-row';
-        const initials = (data.displayName||'?').charAt(0).toUpperCase();
-        const avatarStyle = data.avatar ? `background-image:url(${data.avatar});background-size:cover;` : '';
-        row.innerHTML = `
-            <div class="arcade-score-rank rank-${i+1}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
-            <div class="arcade-score-avatar" style="${avatarStyle}">${data.avatar?'':initials}</div>
-            <div class="arcade-score-meta">
-                <div class="arcade-score-name">${_arcadeEsc(data.displayName||'Player')}</div>
-                <div class="arcade-score-pts">${ARCADE_GAMES[data.gameId]?.icon||'🎮'} ${data.gameId}</div>
-            </div>
-            <div class="arcade-score-val">${data.score}</div>
-        `;
-        row.style.animationDelay = (i * 40) + 'ms';
-        box.appendChild(row);
-    });
-}
-
-/* ─── Pin favorite game ─── */
-async function arcadePinGame(gameId) {
-    try {
-        const u = window.currentUser || window._snxCurrentUser;
-        if (!u) return;
-        const fb = window._snxFirestore;
-        if (!fb?.db) return;
-        const { db, doc, setDoc } = fb;
-        await setDoc(doc(db, 'users', u.uid), { pinnedGame: gameId }, { merge: true });
-        toastNotification && toastNotification('📌 Pinned ' + (ARCADE_GAMES[gameId]?.label || gameId) + ' to your profile!');
-        _arcadeRenderPinnedGame(gameId, true);
-    } catch(_) {}
-}
-
-function arcadePinPickGame() {
-    // Show a simple inline picker
-    const content = document.getElementById('arcadePinnedContent');
-    if (!content) return;
-    let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">';
-    Object.entries(ARCADE_GAMES).forEach(([id, g]) => {
-        html += `<button onclick="arcadePinGame('${id}')" style="padding:5px 10px;border-radius:10px;font-size:11px;background:rgba(0,30,70,0.6);border:1px solid rgba(0,174,239,0.3);color:#c8e0f8;cursor:pointer;font-family:inherit;">${g.icon} ${g.label}</button>`;
-    });
-    html += '</div>';
-    content.innerHTML = html;
-}
-
-async function _arcadeRenderPinnedGame(gameId, isOwn) {
-    const section  = document.getElementById('arcadePinSection');
-    const content  = document.getElementById('arcadePinnedContent');
-    const changeBtn= document.getElementById('arcadePinChangeBtn');
-    if (!section) return;
-    section.style.display = '';
-    if (changeBtn) changeBtn.style.display = isOwn ? '' : 'none';
-
-    const info = ARCADE_GAMES[gameId];
-    if (!info) return;
-
-    // Try to load best score
-    let score = 0, rank = '–';
-    try {
-        const u  = window._arcadeProfileUid;
-        const fb = window._snxFirestore;
-        if (fb?.db && u) {
-            const { db, doc, getDoc, collection, query, where, orderBy, getDocs } = fb;
-            const scoreSnap = await getDoc(doc(db, 'arcadeScores', `${u}_${gameId}`));
-            if (scoreSnap.exists()) score = scoreSnap.data().score || 0;
-            // Approximate rank
-            const q = query(collection(db,'arcadeScores'), where('gameId','==',gameId), orderBy('score','desc'));
-            const all = await getDocs(q);
-            let pos = 1;
-            all.docs.forEach((d, i) => { if (d.data().uid === u) pos = i + 1; });
-            rank = '#' + pos;
-        }
-    } catch(_) {}
-
-    content.innerHTML = `
-        <div class="arcade-pinned-game">
-            <div class="arcade-pinned-icon">${info.icon}</div>
-            <div class="arcade-pinned-meta">
-                <div class="arcade-pinned-name">${_arcadeEsc(info.label)}</div>
-                <div class="arcade-pinned-score">Best: ${score}</div>
-                <div class="arcade-pinned-rank">Rank: ${rank}</div>
-            </div>
-            <button class="arcade-play-pinned-btn" onclick="arcadeOpenModal('${gameId}')">▶ Play</button>
-        </div>`;
-}
-
-async function _arcadeLoadProfileStats(profileUid) {
-    const statsMini = document.getElementById('arcadeStatsMini');
-    const rankBadge = document.getElementById('arcadeRankBadge');
-    const achList   = document.getElementById('arcadeAchievements');
-    try {
-        const fb = window._snxFirestore;
-        if (!fb?.db) return;
-        const { db, collection, query, where, getDocs, doc, getDoc } = fb;
-        // WLD stats
-        const statsQ = query(collection(db,'arcadeStats'), where('uid','==',profileUid));
-        const [statsSnap, achSnap] = await Promise.all([getDocs(statsQ), getDoc(doc(db,'arcadeAchievements',profileUid))]);
-        let wins=0, losses=0, draws=0, games=0;
-        statsSnap.docs.forEach(d => {
-            const s = d.data();
-            wins   += s.wins   || 0;
-            losses += s.losses || 0;
-            draws  += s.draws  || 0;
-            games  += s.games  || 0;
-        });
-        if (games > 0 && statsMini) {
-            statsMini.style.display = 'flex';
-            document.getElementById('arcadeStatWins')  ?.replaceChildren(wins);
-            document.getElementById('arcadeStatLosses')?.replaceChildren(losses);
-            document.getElementById('arcadeStatDraws') ?.replaceChildren(draws);
-            document.getElementById('arcadeStatGames') ?.replaceChildren(games);
-        }
-        // Rank badge
-        if (rankBadge) {
-            let rankLabel = '🕹 Newcomer';
-            if (wins >= 100) rankLabel = '👑 Arcade King';
-            else if (wins >= 25) rankLabel = '⭐ Rising Star';
-            else if (wins >= 5)  rankLabel = '🔥 Veteran';
-            else if (wins >= 1)  rankLabel = '🏆 Contender';
-            rankBadge.innerHTML = `<span class="arcade-rank-badge">${rankLabel}</span>`;
-        }
-        // Achievements
-        if (achList) {
-            const earned = achSnap.exists() ? (achSnap.data().earned || []) : [];
-            if (earned.length) {
-                achList.innerHTML = '';
-                earned.slice(0, 6).forEach(id => {
-                    const ach = ARCADE_ACHIEVEMENTS.find(a => a.id === id);
-                    if (!ach) return;
-                    const item = document.createElement('div');
-                    item.className = 'arcade-ach-item';
-                    item.innerHTML = `<span class="arcade-ach-icon">${ach.icon}</span><div class="arcade-ach-meta"><div class="arcade-ach-name">${_arcadeEsc(ach.name)}</div></div>`;
-                    achList.appendChild(item);
-                });
-            }
-        }
-    } catch(_) {}
-}
-
-// Override _arcadeSetupForProfile to also load stats + pin
-const _origSetupForProfile = _arcadeSetupForProfile;
-window._arcadeSetupForProfile = _arcadeSetupForProfile = function(profileUid, isOwn) {
-    _origSetupForProfile(profileUid, isOwn);
-    // Load pinned game
-    setTimeout(async () => {
-        try {
-            const fb = window._snxFirestore;
-            if (!fb?.db) return;
-            const { db, doc, getDoc } = fb;
-            const uSnap = await getDoc(doc(db, 'users', profileUid));
-            const pinned = uSnap.exists() ? uSnap.data().pinnedGame : null;
-            if (pinned) _arcadeRenderPinnedGame(pinned, isOwn);
-            else if (isOwn) {
-                const section = document.getElementById('arcadePinSection');
-                if (section) {
-                    section.style.display = '';
-                    const content = document.getElementById('arcadePinnedContent');
-                    const changeBtn = document.getElementById('arcadePinChangeBtn');
-                    if (changeBtn) changeBtn.style.display = '';
-                    if (content) content.innerHTML = `<span style="font-size:12px;color:#3a5a7a;">No pinned game yet.</span> <button onclick="arcadePinPickGame()" style="font-size:11px;padding:3px 10px;border-radius:10px;background:rgba(0,40,100,0.5);border:1px solid rgba(0,174,239,0.35);color:#6a90b8;cursor:pointer;font-family:inherit;margin-left:6px;">Pin one</button>`;
-                }
-            }
-        } catch(_) {}
-        _arcadeLoadProfileStats(profileUid);
-    }, 300);
-};
-
-/* ─── arcadeHubLoadMyStats override to include WLD ─── */
-const _origArcadeHubLoadMyStats = arcadeHubLoadMyStats;
-arcadeHubLoadMyStats = function() {
-    _origArcadeHubLoadMyStats();
-    arcadeHubLoadWLD();
-    const me = window.currentUser || window._snxCurrentUser;
-    if (me) arcadeHubLoadAchievements(me.uid);
-};
-</script>
 
 <!-- ═══════════════════════════════════════════════════════════
      Shared JavaScript utilities (SW registration, PWA install,
