@@ -3018,6 +3018,133 @@ input:focus, textarea:focus, select:focus {
 .nav-item-admin:hover { background: rgba(255,200,50,0.10) !important; color: #ffe566 !important; box-shadow: inset 2px 0 0 rgba(255,200,50,0.62) !important; }
 .nav-item-admin.active-nav { color: #ffe566 !important; box-shadow: inset 3px 0 0 #ffcc44, inset 0 0 14px rgba(255,200,50,0.08) !important; }
 
+/* ── Moderator / Administrator nav colours ── */
+.nav-item-mod  { color: #cc88ff !important; }
+.nav-item-mod:hover  { background: rgba(170,80,255,0.10) !important; color: #e0aaff !important; box-shadow: inset 2px 0 0 rgba(170,80,255,0.62) !important; }
+.nav-item-mod.active-nav { color: #cc88ff !important; box-shadow: inset 3px 0 0 #aa55ff, inset 0 0 14px rgba(170,80,255,0.08) !important; }
+.nav-item-adm  { color: #66ccff !important; }
+.nav-item-adm:hover  { background: rgba(0,160,255,0.10) !important; color: #99ddff !important; box-shadow: inset 2px 0 0 rgba(0,160,255,0.62) !important; }
+.nav-item-adm.active-nav { color: #66ccff !important; box-shadow: inset 3px 0 0 #00AEEF, inset 0 0 14px rgba(0,174,239,0.08) !important; }
+
+/* ── Moderator panel cards ── */
+.mod-panel-card {
+    background: rgba(11,31,58,0.92); border: 1px solid rgba(170,80,255,0.28);
+    border-radius: 14px; padding: 18px; margin-bottom: 16px;
+    transition: border-color 0.25s;
+}
+.mod-panel-card:hover { border-color: rgba(170,80,255,0.55); }
+.adm-panel-card {
+    background: rgba(11,31,58,0.92); border: 1px solid rgba(0,174,239,0.28);
+    border-radius: 14px; padding: 18px; margin-bottom: 16px;
+    transition: border-color 0.25s;
+}
+.adm-panel-card:hover { border-color: rgba(0,174,239,0.55); }
+.mod-section-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.8px; color: #cc88ff; margin: 0 0 12px;
+    border-bottom: 1px solid rgba(170,80,255,0.22); padding-bottom: 6px;
+    text-shadow: 0 0 8px rgba(170,80,255,0.4);
+}
+.adm-section-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.8px; color: #00AEEF; margin: 0 0 12px;
+    border-bottom: 1px solid rgba(0,174,239,0.22); padding-bottom: 6px;
+    text-shadow: 0 0 8px rgba(0,174,239,0.4);
+}
+.mod-report-card {
+    padding: 12px; border: 1px solid rgba(255,80,120,0.25);
+    border-radius: 10px; margin-bottom: 8px; background: rgba(80,0,20,0.12);
+}
+.mod-report-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    font-size: 12px; color: #ff9999; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;
+}
+.mod-report-reason {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    background: rgba(255,51,102,0.15); border: 1px solid rgba(255,51,102,0.3);
+    color: #ff88aa; padding: 2px 7px; border-radius: 8px;
+}
+.mod-report-body { font-size: 13px; color: #d8eeff; margin-bottom: 8px; line-height: 1.5; }
+.mod-report-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.mod-report-actions button { font-size: 11px; padding: 4px 11px; border-radius: 8px; }
+.btn-mod-dismiss  { border-color: rgba(0,174,239,0.45) !important; color: #00AEEF !important; }
+.btn-mod-hide     { border-color: rgba(255,170,0,0.45) !important; color: #ffcc44 !important; }
+.btn-mod-remove   { border-color: rgba(255,51,102,0.45) !important; color: #ff5577 !important; }
+.btn-mod-mute     { border-color: rgba(170,80,255,0.45) !important; color: #cc88ff !important; }
+.mod-muted-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid rgba(0,51,102,0.25);
+}
+.mod-muted-row:last-child { border-bottom: none; }
+.mod-muted-avatar {
+    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+    background: #0B1F3A; border: 2px solid rgba(170,80,255,0.38);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: bold; color: #cc88ff;
+}
+.mod-muted-name   { font-size: 13px; color: #d8eeff; flex: 1; min-width: 0; }
+.mod-muted-until  { font-size: 11px; color: #cc88ff; margin-right: 8px; white-space: nowrap; }
+.btn-mod-unmute   { border-color: rgba(57,255,20,0.45) !important; color: #39FF14 !important; font-size: 11px !important; padding: 3px 9px !important; border-radius: 8px !important; }
+/* Administrator panel user rows */
+.adm-stats-row { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.adm-stat-card  {
+    flex: 1; min-width: 90px; background: rgba(0,10,30,0.7);
+    border: 1px solid rgba(0,174,239,0.25); border-radius: 12px;
+    padding: 12px 14px; text-align: center;
+}
+.adm-stat-num   { font-size: 22px; font-weight: 800; color: #00AEEF; text-shadow: 0 0 10px rgba(0,174,239,0.42); }
+.adm-stat-label { font-size: 10px; color: #3a6a9a; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.4px; }
+.adm-tab-bar { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 16px; padding-bottom: 4px; scrollbar-width: none; }
+.adm-tab-bar::-webkit-scrollbar { display: none; }
+.adm-tab {
+    background: rgba(0,10,30,0.7); border: 1px solid rgba(0,174,239,0.25);
+    color: #6a90b8; padding: 8px 14px; border-radius: 10px; cursor: pointer;
+    font-size: 12px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+    transition: all 0.18s ease;
+}
+.adm-tab:hover { border-color: rgba(0,174,239,0.55); color: #00AEEF; }
+.adm-tab.active {
+    background: linear-gradient(135deg, rgba(0,174,239,0.18), rgba(0,174,239,0.08));
+    border-color: rgba(0,174,239,0.65); color: #00AEEF;
+    box-shadow: 0 0 10px rgba(0,174,239,0.25);
+}
+.adm-tab-content { display: none; }
+.adm-tab-content.active { display: block; animation: pageFadeIn 0.2s ease both; }
+.adm-user-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid rgba(0,51,102,0.28); flex-wrap: wrap;
+}
+.adm-user-row:last-child { border-bottom: none; }
+.adm-user-row.adm-suspended { opacity: 0.55; border-left: 3px solid #ff4466 !important; padding-left: 8px; }
+.adm-user-avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: #0B1F3A; background-size: cover; background-position: center;
+    border: 2px solid rgba(0,174,239,0.38); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: bold; color: #00AEEF;
+}
+.adm-user-info { flex: 1; min-width: 160px; }
+.adm-user-name   { font-size: 13px; font-weight: bold; color: #eee; }
+.adm-user-handle { font-size: 11px; color: #6a90b8; margin-top: 1px; }
+.adm-action-btns { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+.adm-action-btns button { font-size: 10px; padding: 3px 9px; border-radius: 8px; cursor: pointer; }
+.btn-adm-suspend { border-color: rgba(255,51,102,0.5) !important; color: #ff6680 !important; }
+.btn-adm-restore { border-color: rgba(57,255,20,0.5) !important; color: #39FF14 !important; }
+.btn-adm-msg     { border-color: rgba(0,174,239,0.5) !important; color: #00AEEF !important; }
+.adm-announce-row { display:flex; flex-direction:column; gap:3px; padding:8px 0; border-bottom:1px solid rgba(0,51,102,0.2); }
+.adm-announce-row:last-child { border-bottom: none; }
+.adm-announce-ts  { font-size:11px; color:#3a6a9a; }
+.adm-announce-msg { font-size:13px; color:#d8eeff; line-height:1.5; }
+.adm-audit-entry  { display:flex; flex-direction:column; gap:2px; padding:7px 0; border-bottom:1px solid rgba(0,51,102,0.18); }
+.adm-audit-entry:last-child { border-bottom: none; }
+.adm-audit-ts     { font-size:11px; color:#3a6a9a; }
+.adm-audit-action { font-size:12px; color:#9bbdd8; }
+.report-card { padding:12px; border:1px solid rgba(255,80,120,0.2); border-radius:10px; margin-bottom:8px; background:rgba(60,0,15,0.1); }
+.report-card-header { display:flex; justify-content:space-between; align-items:flex-start; font-size:12px; color:#ff9999; margin-bottom:6px; flex-wrap:wrap; gap:4px; }
+.report-card-body   { font-size:13px; color:#d8eeff; margin-bottom:8px; line-height:1.5; }
+.report-card-actions{ display:flex; gap:6px; flex-wrap:wrap; }
+.report-card-actions button { font-size:11px; padding:4px 10px; border-radius:8px; }
+
 /* ── Storm Rooms ── */
 .storm-lobby h2    { color: #00AEEF; text-shadow: 0 0 18px rgba(0,174,239,0.82), 0 0 42px rgba(0,119,255,0.52); }
 .storm-lobby p.storm-sub { color: #6a90b8; }
@@ -3744,9 +3871,17 @@ body::after {
         <button class="nav-item" id="navStorm" onclick="navTo('stormRoomsPage')">
             <span class="nav-icon">⚡</span> Storm Rooms
         </button>
-        <!-- Admin Panel — only visible to the Founder; toggled in JS after auth -->
+        <!-- Moderator Panel — only visible to Moderators; toggled in JS after auth -->
+        <button class="nav-item nav-item-mod" id="navMod" onclick="navTo('moderatorPage')" style="display:none;">
+            <span class="nav-icon">🛡️</span> Moderator Panel
+        </button>
+        <!-- Administrator Panel — only visible to Administrators; toggled in JS after auth -->
+        <button class="nav-item nav-item-adm" id="navAdminOfficer" onclick="navTo('administratorPage')" style="display:none;">
+            <span class="nav-icon">🔰</span> Admin Panel
+        </button>
+        <!-- Founder Panel — only visible to the Founder; toggled in JS after auth -->
         <button class="nav-item nav-item-admin" id="navAdmin" onclick="navTo('adminPage')" style="display:none;">
-            <span class="nav-icon">🛡️</span> Admin Panel
+            <span class="nav-icon">👑</span> Founder Panel
         </button>
     </div>
 
@@ -4799,14 +4934,26 @@ body::after {
             </div>
         </div>
 
-        <div class="settings-section" id="adminPanelSettingsSection">
-            <h4>🛡️ Founder Controls</h4>
+        <!-- Role panel shortcuts — shown dynamically by _showRolePanels() -->
+        <div class="settings-section" id="adminPanelSettingsSection" style="display:none;">
+            <h4>👑 Founder Controls</h4>
             <div class="settings-row" style="border-bottom:none;">
-                <div class="settings-label">
-                    Admin Panel
-                    <small>Manage users, content, reports & announcements</small>
-                </div>
-                <button onclick="if(window._snxRole==='founder'){navTo('adminPage')}else{toastNotification('⛔ Founder access only.')}" style="padding:7px 16px;font-size:12px;border-radius:10px;background:linear-gradient(135deg,#1a0a00,#664400);border-color:rgba(255,200,50,0.6);color:#ffe566;box-shadow:0 0 12px rgba(255,185,0,0.3);">🛡️ Open Panel</button>
+                <div class="settings-label">Founder Panel<small>Full platform management</small></div>
+                <button onclick="navTo('adminPage')" style="padding:7px 16px;font-size:12px;border-radius:10px;background:linear-gradient(135deg,#1a0a00,#664400);border-color:rgba(255,200,50,0.6);color:#ffe566;box-shadow:0 0 12px rgba(255,185,0,0.3);">👑 Open Panel</button>
+            </div>
+        </div>
+        <div class="settings-section" id="adminOfficerSettingsSection" style="display:none;">
+            <h4>🔰 Administrator Controls</h4>
+            <div class="settings-row" style="border-bottom:none;">
+                <div class="settings-label">Administrator Panel<small>Manage reports, users &amp; announcements</small></div>
+                <button onclick="navTo('administratorPage')" style="padding:7px 16px;font-size:12px;border-radius:10px;background:linear-gradient(135deg,#001a33,#003366);border-color:rgba(0,180,255,0.6);color:#66ccff;">🔰 Open Panel</button>
+            </div>
+        </div>
+        <div class="settings-section" id="modSettingsSection" style="display:none;">
+            <h4>🛡️ Moderator Controls</h4>
+            <div class="settings-row" style="border-bottom:none;">
+                <div class="settings-label">Moderator Panel<small>Review reports &amp; moderate content</small></div>
+                <button onclick="navTo('moderatorPage')" style="padding:7px 16px;font-size:12px;border-radius:10px;background:linear-gradient(135deg,#1a0033,#550099);border-color:rgba(170,80,255,0.6);color:#cc88ff;">🛡️ Open Panel</button>
             </div>
         </div>
 
@@ -5135,6 +5282,143 @@ body::after {
 
 </div><!-- end adminPage -->
 
+<!-- ═══════════════════════════════════════════════════════════
+     MODERATOR PANEL PAGE
+     Visible only when role === 'moderator'.
+     All actions are server-validated by Firestore Security Rules.
+     ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="moderatorPage">
+<h2 class="eclipse-title" style="color:#cc88ff;text-shadow:0 0 18px rgba(170,80,255,0.7);">🛡️ Moderator Panel</h2>
+
+<div class="section-card" style="border-color:rgba(170,80,255,0.3);margin-bottom:12px;">
+    <p style="font-size:13px;color:#9bbdd8;margin:0;line-height:1.6;">You have <strong style="color:#cc88ff;">Moderator</strong> access. You can review reports, hide inappropriate posts, remove comments, and temporarily mute users. You cannot access Founder or Administrator settings.</p>
+</div>
+
+<!-- ── Reported Content ── -->
+<div class="mod-panel-card">
+    <h3 class="mod-section-title">🚨 Reported Content</h3>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <button class="adm-tab active" id="modRepTabPost" onclick="modSwitchReportTab('post',this)" style="font-size:11px;padding:5px 12px;">Posts</button>
+        <button class="adm-tab" id="modRepTabComment" onclick="modSwitchReportTab('comment',this)" style="font-size:11px;padding:5px 12px;">Comments</button>
+        <button class="adm-tab" id="modRepTabUser" onclick="modSwitchReportTab('user',this)" style="font-size:11px;padding:5px 12px;">Users</button>
+    </div>
+    <div id="modReportList"><div class="empty-state">Loading reports…</div></div>
+</div>
+
+<!-- ── Muted Users ── -->
+<div class="mod-panel-card">
+    <h3 class="mod-section-title">🔇 Currently Muted</h3>
+    <div id="modMutedList"><div class="empty-state">No muted users.</div></div>
+</div>
+
+<!-- ── Recent Posts (quick hide) ── -->
+<div class="mod-panel-card">
+    <h3 class="mod-section-title">📝 Recent Posts</h3>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input id="modPostSearch" placeholder="Search posts…" style="flex:1;margin:0;font-size:12px;padding:7px 10px;" oninput="modSearchPosts()">
+    </div>
+    <div id="modPostList"><div class="empty-state">Loading…</div></div>
+</div>
+
+<!-- ── Mod Log ── -->
+<div class="mod-panel-card">
+    <h3 class="mod-section-title">📋 My Moderation Log</h3>
+    <div id="modActionLog"><div class="empty-state">No actions recorded yet.</div></div>
+</div>
+
+</div><!-- end moderatorPage -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     ADMINISTRATOR PANEL PAGE
+     Visible only when role === 'administrator'.
+     All actions are server-validated by Firestore Security Rules.
+     ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="administratorPage">
+<h2 class="eclipse-title" style="color:#66ccff;text-shadow:0 0 18px rgba(0,174,239,0.7);">🔰 Administrator Panel</h2>
+
+<div class="section-card" style="border-color:rgba(0,174,239,0.3);margin-bottom:12px;">
+    <p style="font-size:13px;color:#9bbdd8;margin:0;line-height:1.6;">You have <strong style="color:#66ccff;">Administrator</strong> access. You can manage reports, suspend accounts, send announcements, review audit logs, and manage badges. You do not have access to Founder-only settings.</p>
+</div>
+
+<!-- ── Tabs ── -->
+<div class="adm-tab-bar">
+    <button class="adm-tab active" onclick="admSwitchTab('dashboard',this)">📊 Dashboard</button>
+    <button class="adm-tab" onclick="admSwitchTab('users',this)">👥 Users</button>
+    <button class="adm-tab" onclick="admSwitchTab('reports',this)">🚨 Reports</button>
+    <button class="adm-tab" onclick="admSwitchTab('announce',this)">📢 Announce</button>
+    <button class="adm-tab" onclick="admSwitchTab('audit',this)">📋 Audit Log</button>
+</div>
+
+<!-- ── Dashboard ── -->
+<div class="adm-tab-content active" id="admTab-dashboard">
+    <div class="adm-stats-row" id="admStatsRow">
+        <div class="adm-stat-card"><div class="adm-stat-num" id="admStatTotal">—</div><div class="adm-stat-label">Total Users</div></div>
+        <div class="adm-stat-card"><div class="adm-stat-num" id="admStatOnline">—</div><div class="adm-stat-label">Online Now</div></div>
+        <div class="adm-stat-card"><div class="adm-stat-num" id="admStatReports">—</div><div class="adm-stat-label">Open Reports</div></div>
+        <div class="adm-stat-card"><div class="adm-stat-num" id="admStatSuspended">—</div><div class="adm-stat-label">Suspended</div></div>
+    </div>
+    <div class="adm-panel-card">
+        <h3 class="adm-section-title">ℹ️ Your Capabilities</h3>
+        <ul style="margin:0;padding-left:18px;font-size:12px;color:#9bbdd8;line-height:2.2;">
+            <li>✅ Suspend and restore user accounts.</li>
+            <li>✅ Manage and resolve reports.</li>
+            <li>✅ Manage user badges (excluding Founder badge).</li>
+            <li>✅ Review moderation audit logs.</li>
+            <li>✅ Send official announcements.</li>
+            <li>⛔ No access to site-wide settings.</li>
+            <li>⛔ No access to Founder-only controls.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- ── Users ── -->
+<div class="adm-tab-content" id="admTab-users">
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <input id="admUserSearch" placeholder="Search users…" style="flex:1;margin:0;font-size:12px;padding:7px 10px;" oninput="admSearchUsers()">
+        <select id="admUserFilter" style="width:auto;margin:0;font-size:12px;padding:7px 10px;" onchange="admSearchUsers()">
+            <option value="all">All</option>
+            <option value="online">Online</option>
+            <option value="suspended">Suspended</option>
+        </select>
+    </div>
+    <div id="admUserList"><div class="empty-state">Loading…</div></div>
+</div>
+
+<!-- ── Reports ── -->
+<div class="adm-tab-content" id="admTab-reports">
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="adm-tab active" id="admRepTabUser" onclick="admLoadReports('user',this)" style="font-size:11px;padding:5px 12px;">Users</button>
+        <button class="adm-tab" id="admRepTabPost" onclick="admLoadReports('post',this)" style="font-size:11px;padding:5px 12px;">Posts</button>
+        <button class="adm-tab" id="admRepTabComment" onclick="admLoadReports('comment',this)" style="font-size:11px;padding:5px 12px;">Comments</button>
+    </div>
+    <div id="admReportList"><div class="empty-state">Loading reports…</div></div>
+</div>
+
+<!-- ── Announcements ── -->
+<div class="adm-tab-content" id="admTab-announce">
+    <div class="adm-panel-card">
+        <h3 class="adm-section-title">📢 Send Announcement</h3>
+        <textarea id="admAnnounceText" rows="3" placeholder="Write an official announcement…" style="resize:vertical;width:100%;box-sizing:border-box;font-family:inherit;font-size:13px;margin-bottom:10px;"></textarea>
+        <button onclick="admSendAnnouncement()" style="width:100%;border-radius:10px;padding:10px;background:linear-gradient(135deg,#003d99,#0077dd);border-color:rgba(0,174,239,0.65);color:#fff;font-size:13px;">📢 Send to All Users</button>
+    </div>
+    <div class="adm-panel-card">
+        <h3 class="adm-section-title">📜 Announcement History</h3>
+        <div id="admAnnounceHistory"><div class="empty-state">Loading…</div></div>
+    </div>
+</div>
+
+<!-- ── Audit Log ── -->
+<div class="adm-tab-content" id="admTab-audit">
+    <div class="adm-panel-card">
+        <h3 class="adm-section-title">📋 Moderation Audit Log</h3>
+        <div id="admAuditLog"><div class="empty-state">Loading…</div></div>
+    </div>
+</div>
+
+</div><!-- end administratorPage -->
+
+
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -5176,7 +5460,7 @@ body::after {
   window._snxFirestore = {
       db, doc, getDoc, setDoc, updateDoc, deleteDoc,
       collection, addDoc, query, orderBy, limit,
-      onSnapshot, where, getDocs, writeBatch, increment,
+      onSnapshot, arrayUnion, where, getDocs, writeBatch, increment,
       serverTimestamp,
   };
 
@@ -5484,9 +5768,8 @@ body::after {
                   window._snxRole = userData.role || 'member';
               }
               applyAestheticMatrix(userData.aesthetic || 'cyber');
-              // Sync nav admin button visibility
-              const _ab = document.getElementById("navAdmin");
-              if (_ab) _ab.style.display = window._snxRole === 'founder' ? 'flex' : 'none';
+              // Sync all role-gated nav buttons
+              if (typeof window._showRolePanels === 'function') window._showRolePanels();
               const ps  = userData.privacySettings || {};
               const sel = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
               sel('privSeeProfile',   ps.seeProfile);
@@ -5501,14 +5784,13 @@ body::after {
           });
 
           document.getElementById("menuButton").style.display = "flex";
-          // Sync nav admin button after login
+          // Sync all role-gated nav buttons after login
           try {
               if (!_isFounder) {
                   const snap2 = await getDoc(doc(db, 'users', user.uid));
-                  window._snxRole = (snap2.exists() && snap2.data().role === 'founder') ? 'founder' : 'member';
+                  if (snap2.exists()) window._snxRole = snap2.data().role || 'member';
               }
-              const adminNavBtn = document.getElementById("navAdmin");
-              if (adminNavBtn) adminNavBtn.style.display = window._snxRole === 'founder' ? 'flex' : 'none';
+              if (typeof window._showRolePanels === 'function') window._showRolePanels();
           } catch(_) {}
           // Only navigate to feed and start listeners on the FIRST auth
           // resolution (initial load or sign-in). Subsequent calls are token
@@ -5540,8 +5822,12 @@ body::after {
           if (typeof window._teardownActiveChat === 'function') window._teardownActiveChat();
           if (typeof window.closeProfileChat    === 'function') window.closeProfileChat();
           document.getElementById("menuButton").style.display = "none";
-          const _adminBtn = document.getElementById("navAdmin");
-          if (_adminBtn) _adminBtn.style.display = "none";
+          // Hide all role-gated nav buttons on logout
+          ['navMod','navAdminOfficer','navAdmin'].forEach(id => {
+              const el = document.getElementById(id);
+              if (el) el.style.display = 'none';
+          });
+          window._snxRole = 'member';
           // Only show login if we're not already on it (prevents redirect loop)
           if (document.getElementById('login') &&
               !document.getElementById('login').classList.contains('active')) {
@@ -9617,6 +9903,7 @@ function navTo(pageId) {
         searchPage:'navSearch', friendsPage:'navFriends',
         notificationsPage:'navNotifs', settingsPage:'navSettings',
         stormRoomsPage:'navStorm', adminPage:'navAdmin',
+        moderatorPage:'navMod', administratorPage:'navAdminOfficer',
         communityPage:'navCommunity'
     };
     const navEl = document.getElementById(map[pageId]);
@@ -9628,10 +9915,14 @@ function navTo(pageId) {
         renderAdminPanel();
         if (typeof window.adminLoadSettings === 'function') window.adminLoadSettings();
     }
+    // Render role panel on navigation
+    if (pageId === 'moderatorPage' && typeof window.renderModeratorPanel === 'function') window.renderModeratorPanel();
+    if (pageId === 'administratorPage' && typeof window.renderAdministratorPanel === 'function') window.renderAdministratorPanel();
     // Load notification prefs when settings page opens
     if (pageId === 'settingsPage') {
         if (typeof window._loadNotifPrefs === 'function') window._loadNotifPrefs();
-        if (typeof window._showFounderUI === 'function') window._showFounderUI();
+        if (typeof window._showRolePanels === 'function') window._showRolePanels();
+        else if (typeof window._showFounderUI === 'function') window._showFounderUI();
     }
     // Auto-mark all notifications read when the notifications page is opened
     if (pageId === 'notificationsPage' && typeof window.markAllNotifsRead === 'function') {
@@ -10928,13 +11219,31 @@ window._loadNotifPrefs = async function() {
     } catch(e) {}
 };
 
-/* ── Founder UI visibility — called from module script after login ── */
-window._showFounderUI = function() {
-    const isFounder = window._snxRole === 'founder';
-    const adminNav = document.getElementById('navAdmin');
-    if (adminNav) adminNav.style.display = isFounder ? 'flex' : 'none';
-    // adminPanelSettingsSection has no display:none — always visible, button is gated
+/* ── Role panel visibility — called after every login and role change ── */
+window._showRolePanels = function() {
+    const role   = window._snxRole || 'member';
+    const isMod  = role === 'moderator';
+    const isAdm  = role === 'administrator';
+    const isFndr = role === 'founder';
+
+    // Sidebar nav buttons
+    const navMod  = document.getElementById('navMod');
+    const navAdm  = document.getElementById('navAdminOfficer');
+    const navFndr = document.getElementById('navAdmin');
+    if (navMod)  navMod.style.display  = isMod  ? 'flex' : 'none';
+    if (navAdm)  navAdm.style.display  = isAdm  ? 'flex' : 'none';
+    if (navFndr) navFndr.style.display = isFndr ? 'flex' : 'none';
+
+    // Settings page shortcuts
+    const secFndr = document.getElementById('adminPanelSettingsSection');
+    const secAdm  = document.getElementById('adminOfficerSettingsSection');
+    const secMod  = document.getElementById('modSettingsSection');
+    if (secFndr) secFndr.style.display = isFndr ? 'block' : 'none';
+    if (secAdm)  secAdm.style.display  = isAdm  ? 'block' : 'none';
+    if (secMod)  secMod.style.display  = isMod  ? 'block' : 'none';
 };
+/* Backward-compat alias */
+window._showFounderUI = window._showRolePanels;
 
 /* ══════════════════════════════════════════════════════════════
    R2 UPLOAD SYSTEM
@@ -11728,6 +12037,532 @@ if (_origNavTo) {
      Shared JavaScript utilities (SW registration, PWA install,
      online/offline detection, helper functions)
      ═══════════════════════════════════════════════════════════ -->
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   MODERATOR PANEL — JavaScript
+   All writes go through Firestore; Security Rules enforce role on server.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+(function() {
+  'use strict';
+
+  function modOnly() {
+      const r = window._snxRole || 'member';
+      return r === 'moderator' || r === 'administrator' || r === 'founder';
+  }
+  function fmtDate(ts) {
+      if (!ts) return '';
+      return new Date(typeof ts === 'number' ? ts : ts.toMillis?.() || Date.now()).toLocaleString();
+  }
+  function esc(s) {
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  let _modReportType = 'post';
+
+  window.modSwitchReportTab = function(type, btn) {
+      _modReportType = type;
+      document.querySelectorAll('#moderatorPage .adm-tab').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      modLoadReports(type);
+  };
+
+  async function modLoadReports(type) {
+      if (!modOnly()) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, collection, getDocs, query, where, orderBy, limit } = fs;
+      const listEl = document.getElementById('modReportList');
+      if (!listEl) return;
+      listEl.innerHTML = '<div class="empty-state">Loading…</div>';
+      try {
+          const q = query(collection(db,'reports'), where('type','==',type), where('status','==','open'), orderBy('createdAt','desc'), limit(30));
+          const snap = await getDocs(q);
+          if (snap.empty) { listEl.innerHTML = '<div class="empty-state">No open reports.</div>'; return; }
+          listEl.innerHTML = '';
+          snap.forEach(d => {
+              const r = d.data(); const rid = d.id;
+              listEl.insertAdjacentHTML('beforeend', `
+              <div class="mod-report-card">
+                  <div class="mod-report-header">
+                      <span>Reported by: <strong>${esc(r.reporterName||'Unknown')}</strong> · ${fmtDate(r.createdAt)}</span>
+                      <span class="mod-report-reason">${esc(r.reason||'No reason')}</span>
+                  </div>
+                  <div class="mod-report-body">${esc(r.content||r.targetId||'')}</div>
+                  <div class="mod-report-actions">
+                      <button class="btn-mod-dismiss" onclick="modResolveReport('${rid}','dismiss')">✓ Dismiss</button>
+                      <button class="btn-mod-hide"    onclick="modResolveReport('${rid}','hide')">🙈 Hide Content</button>
+                      <button class="btn-mod-remove"  onclick="modResolveReport('${rid}','remove')">🗑 Remove Content</button>
+                      ${type !== 'user' ? '' : `<button class="btn-mod-mute" onclick="modMuteUser('${esc(r.targetId||'')}','${esc(r.targetName||'')}')">🔇 Mute 24h</button>`}
+                  </div>
+              </div>`);
+          });
+      } catch(e) { listEl.innerHTML = '<div class="empty-state">Error loading reports.</div>'; }
+  }
+
+  window.modResolveReport = async function(reportId, action) {
+      if (!modOnly()) { toastNotification('⛔ Moderator access required.'); return; }
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, doc, updateDoc, getDoc } = fs;
+      try {
+          const rSnap = await getDoc(doc(db,'reports',reportId));
+          if (!rSnap.exists()) { toastNotification('Report not found.'); return; }
+          const r = rSnap.data();
+          if (action === 'hide' || action === 'remove') {
+              if (r.type === 'post' && r.targetId) {
+                  try { await updateDoc(doc(db,'posts',r.targetId), { hidden: true }); } catch(_) {}
+              }
+          }
+          await updateDoc(doc(db,'reports',reportId), {
+              status: 'resolved', resolvedBy: window._snxCurrentUser?.uid || '',
+              resolvedAt: Date.now(), resolution: action
+          });
+          await modAuditLog(`Report resolved (${action})`, `Report ID: ${reportId}`);
+          toastNotification(`✅ Report ${action === 'dismiss' ? 'dismissed' : 'resolved'}.`);
+          modLoadReports(_modReportType);
+      } catch(e) { toastNotification('Action failed: ' + e.message); }
+  };
+
+  window.modMuteUser = async function(targetUid, targetName) {
+      if (!modOnly()) { toastNotification('⛔ Moderator access required.'); return; }
+      if (!targetUid) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, doc, updateDoc } = fs;
+      const muteUntil = Date.now() + 24 * 60 * 60 * 1000;
+      try {
+          await updateDoc(doc(db,'users',targetUid), { mutedUntil: muteUntil });
+          await modAuditLog('User muted 24h', `Target: ${targetName||targetUid}`);
+          toastNotification(`🔇 ${targetName||targetUid} muted for 24 hours.`);
+          modLoadMuted();
+      } catch(e) { toastNotification('Mute failed: ' + e.message); }
+  };
+
+  window.modUnmuteUser = async function(targetUid, targetName) {
+      if (!modOnly()) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, doc, updateDoc } = fs;
+      try {
+          await updateDoc(doc(db,'users',targetUid), { mutedUntil: null });
+          await modAuditLog('User unmuted', `Target: ${targetName||targetUid}`);
+          toastNotification(`✅ ${targetName||targetUid} unmuted.`);
+          modLoadMuted();
+      } catch(e) { toastNotification('Unmute failed: ' + e.message); }
+  };
+
+  async function modLoadMuted() {
+      if (!modOnly()) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, collection, getDocs, query, where } = fs;
+      const listEl = document.getElementById('modMutedList');
+      if (!listEl) return;
+      const now = Date.now();
+      try {
+          const q = query(collection(db,'users'), where('mutedUntil','>',now));
+          const snap = await getDocs(q);
+          if (snap.empty) { listEl.innerHTML = '<div class="empty-state">No muted users.</div>'; return; }
+          listEl.innerHTML = '';
+          snap.forEach(d => {
+              const u = d.data();
+              const until = new Date(u.mutedUntil).toLocaleString();
+              listEl.insertAdjacentHTML('beforeend', `
+              <div class="mod-muted-row">
+                  <div class="mod-muted-avatar">${esc((u.displayName||'?')[0])}</div>
+                  <div class="mod-muted-name">${esc(u.displayName||u.username||u.uid)}</div>
+                  <span class="mod-muted-until">Until ${until}</span>
+                  <button class="btn-mod-unmute" onclick="modUnmuteUser('${esc(u.uid||d.id)}','${esc(u.displayName||'')}')">Unmute</button>
+              </div>`);
+          });
+      } catch(e) { listEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
+  }
+
+  let _modPostTimer = null;
+  window.modSearchPosts = function() {
+      clearTimeout(_modPostTimer);
+      _modPostTimer = setTimeout(modLoadPosts, 300);
+  };
+
+  async function modLoadPosts() {
+      if (!modOnly()) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, collection, getDocs, query, orderBy, limit } = fs;
+      const listEl = document.getElementById('modPostList');
+      const q_str = (document.getElementById('modPostSearch')?.value||'').trim().toLowerCase();
+      if (!listEl) return;
+      listEl.innerHTML = '<div class="empty-state">Loading…</div>';
+      try {
+          const snap = await getDocs(query(collection(db,'posts'), orderBy('createdAt','desc'), limit(40)));
+          let posts = snap.docs.map(d=>({id:d.id,...d.data()}));
+          if (q_str) posts = posts.filter(p=>(p.text||'').toLowerCase().includes(q_str)||(p.authorName||'').toLowerCase().includes(q_str));
+          if (!posts.length) { listEl.innerHTML = '<div class="empty-state">No posts found.</div>'; return; }
+          listEl.innerHTML = '';
+          posts.forEach(p => {
+              const hidden = p.hidden ? '🙈 Hidden' : '';
+              listEl.insertAdjacentHTML('beforeend', `
+              <div class="admin-post-card">
+                  <div style="font-size:12px;color:#6a90b8;margin-bottom:4px;">${esc(p.authorName||'Unknown')} · ${fmtDate(p.createdAt)} ${hidden ? `<span style="color:#ffcc44;font-size:10px;">${hidden}</span>` : ''}</div>
+                  <div style="font-size:13px;color:#d8eeff;">${esc((p.text||'').slice(0,120))}</div>
+                  <div class="admin-post-actions">
+                      ${p.hidden
+                          ? `<button class="btn-mod-dismiss" onclick="modTogglePostHide('${p.id}',false)">👁 Unhide</button>`
+                          : `<button class="btn-mod-hide" onclick="modTogglePostHide('${p.id}',true)">🙈 Hide</button>`
+                      }
+                  </div>
+              </div>`);
+          });
+      } catch(e) { listEl.innerHTML = '<div class="empty-state">Error.</div>'; }
+  }
+
+  window.modTogglePostHide = async function(postId, hide) {
+      if (!modOnly()) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, doc, updateDoc } = fs;
+      try {
+          await updateDoc(doc(db,'posts',postId), { hidden: hide });
+          await modAuditLog(hide ? 'Post hidden' : 'Post unhidden', `Post ID: ${postId}`);
+          toastNotification(hide ? '🙈 Post hidden.' : '👁 Post visible again.');
+          modLoadPosts();
+      } catch(e) { toastNotification('Failed: ' + e.message); }
+  };
+
+  async function modAuditLog(action, details) {
+      const fs = window._snxFirestore;
+      if (!fs || !window._snxCurrentUser) return;
+      try {
+          const { db, collection, addDoc } = fs;
+          await addDoc(collection(db,'auditLog'), {
+              action, details,
+              adminUid:  window._snxCurrentUser.uid,
+              adminName: window._snxUserData?.displayName || '',
+              role: window._snxRole || 'moderator',
+              ts: Date.now()
+          });
+      } catch(_) {}
+  }
+
+  async function modLoadActionLog() {
+      const fs = window._snxFirestore;
+      if (!fs || !window._snxCurrentUser) return;
+      const { db, collection, getDocs, query, where, orderBy, limit } = fs;
+      const listEl = document.getElementById('modActionLog');
+      if (!listEl) return;
+      try {
+          const snap = await getDocs(query(collection(db,'auditLog'),
+              where('adminUid','==',window._snxCurrentUser.uid),
+              orderBy('ts','desc'), limit(30)));
+          if (snap.empty) { listEl.innerHTML = '<div class="empty-state">No actions yet.</div>'; return; }
+          listEl.innerHTML = '';
+          snap.forEach(d => {
+              const e = d.data();
+              listEl.insertAdjacentHTML('beforeend', `
+              <div class="adm-audit-entry">
+                  <span class="adm-audit-ts">${fmtDate(e.ts)}</span>
+                  <span class="adm-audit-action">${esc(e.action)} — ${esc(e.details||'')}</span>
+              </div>`);
+          });
+      } catch(_) {}
+  }
+
+  window.renderModeratorPanel = function() {
+      if (!modOnly()) { toastNotification('⛔ Moderator access required.'); navTo('feed'); return; }
+      modLoadReports('post');
+      modLoadMuted();
+      modLoadPosts();
+      modLoadActionLog();
+  };
+
+})();
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ADMINISTRATOR PANEL — JavaScript
+   Role: 'administrator' — cannot access Founder-only settings.
+   All writes go through Firestore; Security Rules enforce role on server.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+(function() {
+  'use strict';
+
+  function admOnly() {
+      const r = window._snxRole || 'member';
+      return r === 'administrator' || r === 'founder';
+  }
+  function fmtDate(ts) {
+      if (!ts) return '';
+      return new Date(typeof ts === 'number' ? ts : ts.toMillis?.() || Date.now()).toLocaleString();
+  }
+  function esc(s) {
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  window.admSwitchTab = function(tab, btn) {
+      document.querySelectorAll('#administratorPage .adm-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#administratorPage .adm-tab-content').forEach(c => c.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      const c = document.getElementById('admTab-' + tab);
+      if (c) c.classList.add('active');
+      if (tab === 'dashboard') admLoadStats();
+      if (tab === 'users')    admSearchUsers();
+      if (tab === 'reports')  admLoadReports('user');
+      if (tab === 'announce') admLoadAnnounceHistory();
+      if (tab === 'audit')    admLoadAuditLog();
+  };
+
+  async function admLoadStats() {
+      if (!admOnly()) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, collection, getDocs, query, where } = fs;
+      try {
+          const usersSnap = await getDocs(collection(db,'users'));
+          const users = usersSnap.docs.map(d=>d.data()).filter(u=>u.uid&&u.displayName);
+          const _s = (id,v) => { const el=document.getElementById(id); if(el)el.textContent=v; };
+          _s('admStatTotal',    users.length);
+          _s('admStatOnline',   users.filter(u=>u.status==='online').length);
+          _s('admStatSuspended',users.filter(u=>u.suspended).length);
+          try {
+              const rSnap = await getDocs(query(collection(db,'reports'),where('status','==','open')));
+              _s('admStatReports', rSnap.size);
+          } catch(_) {}
+      } catch(_) {}
+  }
+
+  let _admUserTimer = null;
+  window.admSearchUsers = function() {
+      clearTimeout(_admUserTimer);
+      _admUserTimer = setTimeout(_admRenderUsers, 300);
+  };
+
+  async function _admRenderUsers() {
+      if (!admOnly()) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, collection, getDocs } = fs;
+      const listEl = document.getElementById('admUserList');
+      const q_str  = (document.getElementById('admUserSearch')?.value||'').trim().toLowerCase();
+      const filt   = document.getElementById('admUserFilter')?.value || 'all';
+      if (!listEl) return;
+      listEl.innerHTML = '<div class="empty-state">Loading…</div>';
+      try {
+          const snap = await getDocs(collection(db,'users'));
+          let users = snap.docs.map(d=>d.data()).filter(u=>u.uid&&u.displayName&&u.uid!==window._snxCurrentUser?.uid);
+          users = users.filter(u=>u.role !== 'founder');
+          if (filt === 'online')    users = users.filter(u=>u.status==='online');
+          if (filt === 'suspended') users = users.filter(u=>u.suspended);
+          if (q_str) users = users.filter(u=>(u.displayName||'').toLowerCase().includes(q_str)||(u.username||'').toLowerCase().includes(q_str));
+          users.sort((a,b)=>(a.displayName||'').localeCompare(b.displayName||''));
+          if (!users.length) { listEl.innerHTML = '<div class="empty-state">No users found.</div>'; return; }
+          listEl.innerHTML = '';
+          users.forEach(u => {
+              const susp = u.suspended;
+              listEl.insertAdjacentHTML('beforeend', `
+              <div class="adm-user-row ${susp?'adm-suspended':''}">
+                  <div class="adm-user-avatar">${esc((u.displayName||'?')[0])}</div>
+                  <div class="adm-user-info">
+                      <div class="adm-user-name">${esc(u.displayName||u.username||u.uid)}</div>
+                      <div class="adm-user-handle">@${esc(u.username||u.uid)} · ${u.role||'member'}${susp?' · 🔴 Suspended':''}</div>
+                      <div class="adm-action-btns">
+                          ${susp
+                            ? `<button class="btn-adm-restore" onclick="admRestoreUser('${esc(u.uid)}','${esc(u.displayName||'')}')">✅ Restore</button>`
+                            : `<button class="btn-adm-suspend" onclick="admSuspendUser('${esc(u.uid)}','${esc(u.displayName||'')}')">🚫 Suspend</button>`
+                          }
+                          <button class="btn-adm-msg" onclick="viewProfile('${esc(u.uid)}')">👤 Profile</button>
+                      </div>
+                  </div>
+              </div>`);
+          });
+      } catch(e) { listEl.innerHTML = '<div class="empty-state">Error loading users.</div>'; }
+  }
+
+  window.admSuspendUser = async function(uid, name) {
+      if (!admOnly()) { toastNotification('⛔ Administrator access required.'); return; }
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, doc, updateDoc } = fs;
+      try {
+          await updateDoc(doc(db,'users',uid), { suspended: true, status: 'offline' });
+          await admAuditLog('User suspended', `${name||uid}`);
+          toastNotification(`🚫 ${name||uid} suspended.`);
+          admSearchUsers();
+      } catch(e) { toastNotification('Failed: ' + e.message); }
+  };
+
+  window.admRestoreUser = async function(uid, name) {
+      if (!admOnly()) { toastNotification('⛔ Administrator access required.'); return; }
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, doc, updateDoc } = fs;
+      try {
+          await updateDoc(doc(db,'users',uid), { suspended: false });
+          await admAuditLog('User restored', `${name||uid}`);
+          toastNotification(`✅ ${name||uid} restored.`);
+          admSearchUsers();
+      } catch(e) { toastNotification('Failed: ' + e.message); }
+  };
+
+  window.admLoadReports = async function(type, btn) {
+      if (!admOnly()) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      document.querySelectorAll('#admTab-reports .adm-tab').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      const { db, collection, getDocs, query, where, orderBy, limit } = fs;
+      const listEl = document.getElementById('admReportList');
+      if (!listEl) return;
+      listEl.innerHTML = '<div class="empty-state">Loading…</div>';
+      try {
+          const q = query(collection(db,'reports'), where('type','==',type), where('status','==','open'), orderBy('createdAt','desc'), limit(40));
+          const snap = await getDocs(q);
+          if (snap.empty) { listEl.innerHTML = '<div class="empty-state">No open reports.</div>'; return; }
+          listEl.innerHTML = '';
+          snap.forEach(d => {
+              const r = d.data(); const rid = d.id;
+              listEl.insertAdjacentHTML('beforeend', `
+              <div class="report-card">
+                  <div class="report-card-header">
+                      <span>Reporter: ${esc(r.reporterName||'?')} · ${fmtDate(r.createdAt)}</span>
+                      <span style="font-size:10px;background:rgba(255,51,102,0.15);border:1px solid rgba(255,51,102,0.3);color:#ff88aa;padding:2px 7px;border-radius:8px;">${esc(r.reason||'')}</span>
+                  </div>
+                  <div class="report-card-body">${esc(r.content||r.targetId||'')}</div>
+                  <div class="report-card-actions">
+                      <button class="btn-mod-dismiss" onclick="admResolveReport('${rid}','dismiss')">✓ Dismiss</button>
+                      <button class="btn-mod-remove"  onclick="admResolveReport('${rid}','remove')">🗑 Remove</button>
+                      ${type === 'user' ? `<button class="btn-adm-suspend" onclick="admSuspendUser('${esc(r.targetId||'')}','${esc(r.targetName||'')}')">🚫 Suspend</button>` : ''}
+                  </div>
+              </div>`);
+          });
+      } catch(e) { listEl.innerHTML = '<div class="empty-state">Error.</div>'; }
+  };
+
+  window.admResolveReport = async function(reportId, action) {
+      if (!admOnly()) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, doc, updateDoc, getDoc } = fs;
+      try {
+          const rSnap = await getDoc(doc(db,'reports',reportId));
+          if (!rSnap.exists()) return;
+          const r = rSnap.data();
+          if (action === 'remove' && r.type === 'post' && r.targetId) {
+              try { await updateDoc(doc(db,'posts',r.targetId), { hidden: true }); } catch(_) {}
+          }
+          await updateDoc(doc(db,'reports',reportId), {
+              status:'resolved', resolvedBy:window._snxCurrentUser?.uid||'',
+              resolvedAt:Date.now(), resolution:action
+          });
+          await admAuditLog(`Report resolved (${action})`, `ID: ${reportId}`);
+          toastNotification('✅ Report resolved.');
+          admLoadReports(r.type || 'user');
+      } catch(e) { toastNotification('Failed: ' + e.message); }
+  };
+
+  window.admSendAnnouncement = async function() {
+      if (!admOnly()) { toastNotification('⛔ Administrator access required.'); return; }
+      const text = (document.getElementById('admAnnounceText')?.value||'').trim();
+      if (!text) { toastNotification('Please write an announcement.'); return; }
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, collection, getDocs, addDoc, updateDoc, doc, arrayUnion } = fs;
+      try {
+          await addDoc(collection(db,'announcements'), {
+              text, sentBy: window._snxCurrentUser?.uid||'',
+              sentByName: window._snxUserData?.displayName||'Admin',
+              ts: Date.now()
+          });
+          const snap = await getDocs(collection(db,'users'));
+          const batch_promises = [];
+          snap.forEach(d => {
+              if (d.id === window._snxCurrentUser?.uid) return;
+              batch_promises.push(updateDoc(doc(db,'users',d.id), {
+                  notifications: arrayUnion({
+                      id: 'ann-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),
+                      type:'announcement', text: '📢 ' + text.slice(0,100),
+                      read: false, ts: Date.now()
+                  })
+              }).catch(()=>{}));
+          });
+          await Promise.all(batch_promises);
+          await admAuditLog('Announcement sent', text.slice(0,80));
+          toastNotification('📢 Announcement sent!');
+          if (document.getElementById('admAnnounceText')) document.getElementById('admAnnounceText').value = '';
+          admLoadAnnounceHistory();
+      } catch(e) { toastNotification('Failed: ' + e.message); }
+  };
+
+  async function admLoadAnnounceHistory() {
+      if (!admOnly()) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, collection, getDocs, query, orderBy, limit } = fs;
+      const listEl = document.getElementById('admAnnounceHistory');
+      if (!listEl) return;
+      try {
+          const snap = await getDocs(query(collection(db,'announcements'), orderBy('ts','desc'), limit(20)));
+          if (snap.empty) { listEl.innerHTML = '<div class="empty-state">No announcements yet.</div>'; return; }
+          listEl.innerHTML = '';
+          snap.forEach(d => {
+              const a = d.data();
+              listEl.insertAdjacentHTML('beforeend', `
+              <div class="adm-announce-row">
+                  <span class="adm-announce-ts">${fmtDate(a.ts)}</span>
+                  <span class="adm-announce-msg">${esc(a.text)}</span>
+              </div>`);
+          });
+      } catch(_) { listEl.innerHTML = '<div class="empty-state">Error.</div>'; }
+  }
+  window.admLoadAnnounceHistory = admLoadAnnounceHistory;
+
+  async function admLoadAuditLog() {
+      if (!admOnly()) return;
+      const fs = window._snxFirestore;
+      if (!fs) return;
+      const { db, collection, getDocs, query, orderBy, limit } = fs;
+      const listEl = document.getElementById('admAuditLog');
+      if (!listEl) return;
+      try {
+          const snap = await getDocs(query(collection(db,'auditLog'), orderBy('ts','desc'), limit(50)));
+          if (snap.empty) { listEl.innerHTML = '<div class="empty-state">No audit entries.</div>'; return; }
+          listEl.innerHTML = '';
+          snap.forEach(d => {
+              const e = d.data();
+              listEl.insertAdjacentHTML('beforeend', `
+              <div class="adm-audit-entry">
+                  <span class="adm-audit-ts">${fmtDate(e.ts)}</span>
+                  <span class="adm-audit-action"><strong>${esc(e.adminName||'?')}</strong> (${esc(e.role||'admin')}) — ${esc(e.action)} · ${esc(e.details||'')}</span>
+              </div>`);
+          });
+      } catch(_) { listEl.innerHTML = '<div class="empty-state">Error.</div>'; }
+  }
+
+  async function admAuditLog(action, details) {
+      const fs = window._snxFirestore;
+      if (!fs || !window._snxCurrentUser) return;
+      try {
+          const { db, collection, addDoc } = fs;
+          await addDoc(collection(db,'auditLog'), {
+              action, details,
+              adminUid:  window._snxCurrentUser.uid,
+              adminName: window._snxUserData?.displayName || '',
+              role: window._snxRole || 'administrator',
+              ts: Date.now()
+          });
+      } catch(_) {}
+  }
+
+  window.renderAdministratorPanel = function() {
+      if (!admOnly()) { toastNotification('⛔ Administrator access required.'); navTo('feed'); return; }
+      admLoadStats();
+  };
+
+})();
+</script>
+
+
 <script src="script.js"></script>
 
 </body>
