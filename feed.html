@@ -3394,6 +3394,110 @@ body::after {
 }
 .pc-reset-btn:hover { background: rgba(255,60,60,0.1); }
 
+/* ── Customize Modal Tabs ── */
+.pc-tab-row {
+    display: flex; gap: 4px; margin-bottom: 18px; flex-wrap: wrap;
+    border-bottom: 1px solid rgba(0,174,239,0.18); padding-bottom: 8px;
+}
+.pc-tab-btn {
+    padding: 6px 14px; border-radius: 20px 20px 0 0; font-size: 12px; cursor: pointer;
+    border: 1.5px solid rgba(0,174,239,0.22); background: rgba(0,20,60,0.45);
+    color: #aac; transition: border-color .15s, background .15s, color .15s;
+    user-select: none; font-weight: 600;
+}
+.pc-tab-btn:hover  { border-color: #00AEEF; background: rgba(0,174,239,0.1); color: #fff; }
+.pc-tab-btn.active { border-color: #39FF14; background: rgba(57,255,20,0.12); color: #fff; }
+.pc-tab-panel { display: none; }
+.pc-tab-panel.active { display: block; }
+
+/* ── Section Visibility Toggles ── */
+.pc-section-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 12px; background: rgba(0,20,60,0.4); border-radius: 10px;
+    margin-bottom: 6px; border: 1px solid rgba(0,174,239,0.12);
+    cursor: grab; user-select: none; gap: 10px;
+}
+.pc-section-row:active { cursor: grabbing; }
+.pc-section-drag { font-size: 16px; color: #556; flex-shrink: 0; cursor: grab; }
+.pc-section-label-text { flex: 1; font-size: 13px; color: #c8e8ff; font-weight: 600; }
+.pc-section-privacy {
+    font-size: 11px; padding: 3px 8px; border-radius: 10px;
+    border: 1px solid rgba(0,174,239,0.3); background: rgba(0,10,40,0.6);
+    color: #8ab; cursor: pointer; margin-right: 6px; transition: border-color .15s;
+}
+.pc-section-privacy:hover { border-color: rgba(0,174,239,0.65); }
+/* Toggle switch */
+.pc-toggle {
+    position: relative; width: 38px; height: 21px; flex-shrink: 0;
+}
+.pc-toggle input { opacity: 0; width: 0; height: 0; }
+.pc-toggle-slider {
+    position: absolute; inset: 0; background: rgba(0,30,70,0.7);
+    border: 1.5px solid rgba(0,100,200,0.4); border-radius: 21px;
+    cursor: pointer; transition: background .2s, border-color .2s;
+}
+.pc-toggle-slider::before {
+    content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%;
+    background: #556; bottom: 2px; left: 2px; transition: transform .2s, background .2s;
+}
+.pc-toggle input:checked + .pc-toggle-slider { background: rgba(57,255,20,0.2); border-color: #39FF14; }
+.pc-toggle input:checked + .pc-toggle-slider::before { transform: translateX(17px); background: #39FF14; }
+
+/* Section drag-over highlight */
+.pc-section-row.drag-over-top    { border-top:    2px solid #39FF14; }
+.pc-section-row.drag-over-bottom { border-bottom: 2px solid #39FF14; }
+
+/* ── Theme Panel ── */
+.pc-color-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.pc-color-row label { font-size: 12px; color: #8ab; min-width: 110px; }
+.pc-color-input { width: 38px; height: 30px; border-radius: 6px; border: 1.5px solid rgba(0,174,239,0.3); cursor: pointer; padding: 1px; background: none; flex-shrink: 0; }
+
+/* ── Custom Links Widget ── */
+.pc-link-row {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+}
+.pc-link-row input { flex: 1; margin: 0; font-size: 12px; padding: 7px 10px; }
+.pc-link-del { background: none; border: none; color: #ff5577; cursor: pointer; font-size: 16px; padding: 2px 5px; border-radius: 4px; flex-shrink: 0; line-height: 1; }
+.pc-link-del:hover { background: rgba(255,51,102,0.1); }
+.pc-add-link-btn { font-size: 12px; padding: 6px 14px; border-radius: 10px; }
+
+/* ── Profile Page Custom Links Section ── */
+.profile-links-section {
+    background: rgba(0,20,55,0.75); border: 1px solid rgba(0,174,239,0.2);
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
+}
+.profile-links-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #4a7a9a; font-weight: 700; margin-bottom: 10px; }
+.profile-link-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 0;
+    border-bottom: 1px solid rgba(0,80,160,0.15);
+}
+.profile-link-item:last-child { border-bottom: none; }
+.profile-link-icon { font-size: 14px; flex-shrink: 0; }
+.profile-link-anchor {
+    color: #00AEEF; text-decoration: none; font-size: 13px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: color .15s;
+}
+.profile-link-anchor:hover { color: #39FF14; text-decoration: underline; }
+.profile-link-label { font-size: 12px; color: #6a90b8; margin-left: auto; flex-shrink: 0; }
+
+/* ── Featured Text Section ── */
+.profile-featured-section {
+    background: rgba(0,30,70,0.65); border: 1px solid rgba(57,255,20,0.18);
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
+}
+.profile-featured-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #39FF14; font-weight: 700; margin-bottom: 8px; opacity: 0.8; }
+.profile-featured-text { font-size: 13px; color: #a8c8e8; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+
+/* ── Profile section visibility ── */
+.profile-section-hidden { display: none !important; }
+
+/* ── Profile theme card overrides (scoped via CSS vars set on #profile) ── */
+#profile { --pc-card-border: rgba(0,174,239,0.22); --pc-bio-color: #8ab0cc; }
+#profile .section-card  { border-color: var(--pc-card-border); }
+#profile .postBox       { border-color: var(--pc-card-border); }
+#profile .profile-bio-text { color: var(--pc-bio-color); }
+
 /* ══════════════════════════════════════════════════════════════
    RETRO ARCADE SYSTEM
    ══════════════════════════════════════════════════════════════ */
@@ -3570,6 +3674,127 @@ body::after {
     display: inline-block; background: #ff4444; color: #fff;
     border-radius: 8px; font-size: 10px; padding: 0 5px;
     margin-left: 4px; font-weight: 700; vertical-align: middle;
+}
+
+/* ── Mobile arcade controls bar ── */
+.arcade-mobile-bar {
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: rgba(0,5,15,0.75);
+    border-top: 1px solid rgba(0,174,239,0.15);
+}
+@media (pointer: coarse), (max-width: 680px) {
+    .arcade-mobile-bar { display: flex; }
+}
+/* Fullscreen button */
+.arcade-fs-btn {
+    background: none;
+    border: 1.5px solid rgba(0,174,239,0.35);
+    border-radius: 8px;
+    color: #8ac;
+    font-size: 14px;
+    padding: 5px 10px;
+    cursor: pointer;
+    line-height: 1;
+    transition: border-color .15s, color .15s;
+}
+.arcade-fs-btn:hover, .arcade-fs-btn:active { border-color: #00AEEF; color: #fff; }
+
+/* Rotate hint */
+.arcade-rotate-hint {
+    font-size: 11px;
+    color: #556;
+    text-align: center;
+    flex: 1;
+    padding: 0 6px;
+}
+@media (orientation: landscape) {
+    .arcade-rotate-hint { display: none; }
+}
+
+/* ── On-screen D-Pad ── */
+.arcade-dpad {
+    display: grid;
+    grid-template-areas:
+        ". up ."
+        "left . right"
+        ". down .";
+    grid-template-columns: 40px 40px 40px;
+    grid-template-rows: 40px 40px 40px;
+    gap: 3px;
+}
+/* Only show the D-pad for Snake (toggled via JS class) */
+.arcade-dpad.hidden { display: none; }
+
+.arcade-dpad-btn {
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,30,70,0.75);
+    border: 1.5px solid rgba(0,174,239,0.3);
+    border-radius: 8px;
+    color: #8ac;
+    font-size: 16px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    transition: background .1s, border-color .1s;
+}
+.arcade-dpad-btn:active, .arcade-dpad-btn.pressed {
+    background: rgba(0,174,239,0.25);
+    border-color: #00AEEF;
+    color: #fff;
+}
+.arcade-dpad-up    { grid-area: up; }
+.arcade-dpad-left  { grid-area: left; }
+.arcade-dpad-right { grid-area: right; }
+.arcade-dpad-down  { grid-area: down; }
+
+/* ── Fullscreen game mode ── */
+.arcade-canvas-wrap.snx-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: #020a14 !important;
+}
+.arcade-canvas-wrap.snx-fullscreen canvas {
+    flex: 1;
+    width: 100% !important;
+    height: 0; /* flex handles height */
+    min-height: 0;
+}
+.arcade-canvas-wrap.snx-fullscreen .arcade-mobile-bar {
+    display: flex;
+    flex-shrink: 0;
+}
+/* Landscape: put D-pad on right side of screen */
+@media (orientation: landscape) {
+    .arcade-canvas-wrap.snx-fullscreen {
+        flex-direction: row;
+    }
+    .arcade-canvas-wrap.snx-fullscreen canvas {
+        flex: 1;
+        height: 100% !important;
+        width: 0 !important;
+        min-width: 0;
+    }
+    .arcade-canvas-wrap.snx-fullscreen .arcade-mobile-bar {
+        flex-direction: column;
+        width: 130px;
+        border-top: none;
+        border-left: 1px solid rgba(0,174,239,0.15);
+        padding: 10px 8px;
+        justify-content: center;
+        gap: 10px;
+    }
+    .arcade-canvas-wrap.snx-fullscreen .arcade-rotate-hint { display: none; }
 }
 </style>
 
@@ -3859,106 +4084,166 @@ body::after {
             <button class="pc-close-btn" onclick="closeCustomizeModal()">✕</button>
             <h3>🎨 Customize Profile</h3>
 
-            <!-- Live preview -->
-            <div class="pc-preview-wrap">
-                <div class="pc-preview-banner" id="pcPreviewBanner">
-                    <div id="pcPreviewAnimLayer" style="position:absolute;inset:0;pointer-events:none;"></div>
-                    <div id="pcPreviewDeco" style="position:absolute;inset:0;pointer-events:none;overflow:hidden;"></div>
-                    <div class="pc-preview-avatar" id="pcPreviewAvatar">S</div>
+            <!-- ── Modal Tabs ── -->
+            <div class="pc-tab-row">
+                <button class="pc-tab-btn active" onclick="pcSwitchTab('appearance')">🎨 Appearance</button>
+                <button class="pc-tab-btn" onclick="pcSwitchTab('sections')">📋 Sections</button>
+                <button class="pc-tab-btn" onclick="pcSwitchTab('theme')">🖌 Theme</button>
+                <button class="pc-tab-btn" onclick="pcSwitchTab('links')">🔗 Links</button>
+            </div>
+
+            <!-- ══ TAB: APPEARANCE ══ -->
+            <div class="pc-tab-panel active" id="pcTabAppearance">
+
+                <!-- Live preview -->
+                <div class="pc-preview-wrap">
+                    <div class="pc-preview-banner" id="pcPreviewBanner">
+                        <div id="pcPreviewAnimLayer" style="position:absolute;inset:0;pointer-events:none;"></div>
+                        <div id="pcPreviewDeco" style="position:absolute;inset:0;pointer-events:none;overflow:hidden;"></div>
+                        <div class="pc-preview-avatar" id="pcPreviewAvatar">S</div>
+                    </div>
+                    <div class="pc-preview-name" id="pcPreviewName">Display Name</div>
                 </div>
-                <div class="pc-preview-name" id="pcPreviewName">Display Name</div>
-            </div>
 
-            <!-- ── Banner Background ── -->
-            <div class="pc-section-title">Banner Background</div>
-            <div class="pc-option-row" id="pcBgTypeRow">
-                <span class="pc-opt active" data-group="bgType" data-val="default">Default</span>
-                <span class="pc-opt" data-group="bgType" data-val="solid">Solid Color</span>
-                <span class="pc-opt" data-group="bgType" data-val="gradient">Gradient</span>
-                <span class="pc-opt" data-group="bgType" data-val="pattern">Pattern</span>
-                <span class="pc-opt" data-group="bgType" data-val="animated">Animated</span>
-            </div>
-
-            <!-- Solid colors (shown when bgType=solid) -->
-            <div id="pcSolidColors" style="display:none;">
-                <div class="pc-swatch-row">
-                    <div class="pc-swatch active" data-group="solidColor" data-val="#071428" style="background:#071428;border-color:rgba(255,255,255,.15);" title="Midnight"></div>
-                    <div class="pc-swatch" data-group="solidColor" data-val="#0B1F3A" style="background:#0B1F3A;" title="Navy"></div>
-                    <div class="pc-swatch" data-group="solidColor" data-val="#001a00" style="background:#001a00;" title="Deep Green"></div>
-                    <div class="pc-swatch" data-group="solidColor" data-val="#1a0030" style="background:#1a0030;" title="Deep Purple"></div>
-                    <div class="pc-swatch" data-group="solidColor" data-val="#1a0010" style="background:#1a0010;" title="Deep Red"></div>
-                    <div class="pc-swatch" data-group="solidColor" data-val="#00101a" style="background:#00101a;" title="Teal Black"></div>
-                    <div class="pc-swatch" data-group="solidColor" data-val="#111111" style="background:#111111;" title="Charcoal"></div>
-                    <div class="pc-swatch" data-group="solidColor" data-val="#0d0d22" style="background:#0d0d22;" title="Indigo Dark"></div>
+                <!-- ── Banner Background ── -->
+                <div class="pc-section-title">Banner Background</div>
+                <div class="pc-option-row" id="pcBgTypeRow">
+                    <span class="pc-opt active" data-group="bgType" data-val="default">Default</span>
+                    <span class="pc-opt" data-group="bgType" data-val="solid">Solid Color</span>
+                    <span class="pc-opt" data-group="bgType" data-val="gradient">Gradient</span>
+                    <span class="pc-opt" data-group="bgType" data-val="pattern">Pattern</span>
+                    <span class="pc-opt" data-group="bgType" data-val="animated">Animated</span>
                 </div>
-            </div>
 
-            <!-- Gradients (shown when bgType=gradient) -->
-            <div id="pcGradients" style="display:none;">
-                <div class="pc-swatch-row">
-                    <div class="pc-swatch active" data-group="gradient" data-val="linear-gradient(135deg,#071428,#0B1F3A)" style="background:linear-gradient(135deg,#071428,#0B1F3A);" title="Deep Ocean"></div>
-                    <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#001a00,#003300)" style="background:linear-gradient(135deg,#001a00,#003300);" title="Matrix Green"></div>
-                    <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#1a0030,#3a0060)" style="background:linear-gradient(135deg,#1a0030,#3a0060);" title="Void Purple"></div>
-                    <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#1a0010,#3a0020)" style="background:linear-gradient(135deg,#1a0010,#3a0020);" title="Crimson Dark"></div>
-                    <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#0B1F3A,#00375c)" style="background:linear-gradient(135deg,#0B1F3A,#00375c);" title="Cyber Blue"></div>
-                    <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#071428,#39FF1422,#071428)" style="background:linear-gradient(135deg,#071428,#1a3a10,#071428);" title="Neon Fade"></div>
+                <!-- Solid colors -->
+                <div id="pcSolidColors" style="display:none;">
+                    <div class="pc-swatch-row">
+                        <div class="pc-swatch active" data-group="solidColor" data-val="#071428" style="background:#071428;border-color:rgba(255,255,255,.15);" title="Midnight"></div>
+                        <div class="pc-swatch" data-group="solidColor" data-val="#0B1F3A" style="background:#0B1F3A;" title="Navy"></div>
+                        <div class="pc-swatch" data-group="solidColor" data-val="#001a00" style="background:#001a00;" title="Deep Green"></div>
+                        <div class="pc-swatch" data-group="solidColor" data-val="#1a0030" style="background:#1a0030;" title="Deep Purple"></div>
+                        <div class="pc-swatch" data-group="solidColor" data-val="#1a0010" style="background:#1a0010;" title="Deep Red"></div>
+                        <div class="pc-swatch" data-group="solidColor" data-val="#00101a" style="background:#00101a;" title="Teal Black"></div>
+                        <div class="pc-swatch" data-group="solidColor" data-val="#111111" style="background:#111111;" title="Charcoal"></div>
+                        <div class="pc-swatch" data-group="solidColor" data-val="#0d0d22" style="background:#0d0d22;" title="Indigo Dark"></div>
+                    </div>
+                    <div class="pc-color-row" style="margin-top:8px;">
+                        <label style="font-size:12px;color:#8ab;min-width:80px;">Custom Color</label>
+                        <input type="color" class="pc-color-input" id="pcBannerCustomColor" value="#071428" title="Pick any color">
+                        <span style="font-size:11px;color:#6a90b8;">Pick any banner color</span>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Patterns (shown when bgType=pattern) -->
-            <div id="pcPatterns" style="display:none;">
+                <!-- Gradients -->
+                <div id="pcGradients" style="display:none;">
+                    <div class="pc-swatch-row">
+                        <div class="pc-swatch active" data-group="gradient" data-val="linear-gradient(135deg,#071428,#0B1F3A)" style="background:linear-gradient(135deg,#071428,#0B1F3A);" title="Deep Ocean"></div>
+                        <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#001a00,#003300)" style="background:linear-gradient(135deg,#001a00,#003300);" title="Matrix Green"></div>
+                        <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#1a0030,#3a0060)" style="background:linear-gradient(135deg,#1a0030,#3a0060);" title="Void Purple"></div>
+                        <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#1a0010,#3a0020)" style="background:linear-gradient(135deg,#1a0010,#3a0020);" title="Crimson Dark"></div>
+                        <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#0B1F3A,#00375c)" style="background:linear-gradient(135deg,#0B1F3A,#00375c);" title="Cyber Blue"></div>
+                        <div class="pc-swatch" data-group="gradient" data-val="linear-gradient(135deg,#071428,#39FF1422,#071428)" style="background:linear-gradient(135deg,#071428,#1a3a10,#071428);" title="Neon Fade"></div>
+                    </div>
+                </div>
+
+                <!-- Patterns -->
+                <div id="pcPatterns" style="display:none;">
+                    <div class="pc-option-row">
+                        <span class="pc-opt active" data-group="pattern" data-val="grid">◻ Grid</span>
+                        <span class="pc-opt" data-group="pattern" data-val="dots">• Dots</span>
+                        <span class="pc-opt" data-group="pattern" data-val="hex">⬡ Hex</span>
+                        <span class="pc-opt" data-group="pattern" data-val="diagonal">╱ Diagonal</span>
+                    </div>
+                </div>
+
+                <!-- Animated -->
+                <div id="pcAnimated" style="display:none;">
+                    <div class="pc-option-row">
+                        <span class="pc-opt active" data-group="animated" data-val="pulse">🌊 Pulse</span>
+                        <span class="pc-opt" data-group="animated" data-val="scan">📡 Scan Lines</span>
+                        <span class="pc-opt" data-group="animated" data-val="float">🌟 Float</span>
+                        <span class="pc-opt" data-group="animated" data-val="wave">〜 Wave</span>
+                    </div>
+                </div>
+
+                <!-- ── Avatar Frame ── -->
+                <div class="pc-section-title">Avatar Frame</div>
                 <div class="pc-option-row">
-                    <span class="pc-opt active" data-group="pattern" data-val="grid">◻ Grid</span>
-                    <span class="pc-opt" data-group="pattern" data-val="dots">• Dots</span>
-                    <span class="pc-opt" data-group="pattern" data-val="hex">⬡ Hex</span>
-                    <span class="pc-opt" data-group="pattern" data-val="diagonal">╱ Diagonal</span>
+                    <span class="pc-opt active" data-group="frame" data-val="none">None</span>
+                    <span class="pc-opt" data-group="frame" data-val="glow-blue">💙 Blue Glow</span>
+                    <span class="pc-opt" data-group="frame" data-val="glow-green">💚 Green Glow</span>
+                    <span class="pc-opt" data-group="frame" data-val="glow-pink">💗 Pink Glow</span>
+                    <span class="pc-opt" data-group="frame" data-val="glow-gold">✨ Gold Glow</span>
+                    <span class="pc-opt" data-group="frame" data-val="ring-double">◎ Double Ring</span>
+                    <span class="pc-opt" data-group="frame" data-val="hex">⬡ Hex Shape</span>
                 </div>
-            </div>
 
-            <!-- Animated (shown when bgType=animated) -->
-            <div id="pcAnimated" style="display:none;">
+                <!-- ── Name Accent ── -->
+                <div class="pc-section-title">Name Glow</div>
                 <div class="pc-option-row">
-                    <span class="pc-opt active" data-group="animated" data-val="pulse">🌊 Pulse</span>
-                    <span class="pc-opt" data-group="animated" data-val="scan">📡 Scan Lines</span>
-                    <span class="pc-opt" data-group="animated" data-val="float">🌟 Float</span>
-                    <span class="pc-opt" data-group="animated" data-val="wave">〜 Wave</span>
+                    <span class="pc-opt active" data-group="nameAccent" data-val="none">None</span>
+                    <span class="pc-opt" data-group="nameAccent" data-val="blue">💙 Blue</span>
+                    <span class="pc-opt" data-group="nameAccent" data-val="green">💚 Green</span>
+                    <span class="pc-opt" data-group="nameAccent" data-val="pink">💗 Pink</span>
+                    <span class="pc-opt" data-group="nameAccent" data-val="gold">✨ Gold</span>
+                    <span class="pc-opt" data-group="nameAccent" data-val="white">⬜ White</span>
                 </div>
+
+                <!-- ── Banner Decoration ── -->
+                <div class="pc-section-title">Banner Decoration</div>
+                <div class="pc-option-row">
+                    <span class="pc-opt active" data-group="bannerDeco" data-val="none">None</span>
+                    <span class="pc-opt" data-group="bannerDeco" data-val="sparkle">✦ Sparkle</span>
+                    <span class="pc-opt" data-group="bannerDeco" data-val="stars">★ Stars</span>
+                    <span class="pc-opt" data-group="bannerDeco" data-val="cyber">◈ Cyber</span>
+                    <span class="pc-opt" data-group="bannerDeco" data-val="flowers">🌸 Flowers</span>
+                    <span class="pc-opt" data-group="bannerDeco" data-val="hearts">♥ Hearts</span>
+                    <span class="pc-opt" data-group="bannerDeco" data-val="fire">🔥 Fire</span>
+                    <span class="pc-opt" data-group="bannerDeco" data-val="snow">❄ Snow</span>
+                </div>
+
+            </div><!-- /pcTabAppearance -->
+
+            <!-- ══ TAB: SECTIONS ══ -->
+            <div class="pc-tab-panel" id="pcTabSections">
+                <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;">Drag rows to reorder. Toggle visibility. Set privacy per section.</p>
+                <div id="pcSectionsList"><!-- built by JS --></div>
+                <p style="font-size:11px;color:#4a6a8a;margin:10px 0 0;">Privacy: <strong style="color:#c8e8ff">Public</strong> = all visitors · <strong style="color:#c8e8ff">Friends</strong> = friends only · <strong style="color:#c8e8ff">Private</strong> = only you</p>
             </div>
 
-            <!-- ── Avatar Frame ── -->
-            <div class="pc-section-title">Avatar Frame</div>
-            <div class="pc-option-row">
-                <span class="pc-opt active" data-group="frame" data-val="none">None</span>
-                <span class="pc-opt" data-group="frame" data-val="glow-blue">💙 Blue Glow</span>
-                <span class="pc-opt" data-group="frame" data-val="glow-green">💚 Green Glow</span>
-                <span class="pc-opt" data-group="frame" data-val="glow-pink">💗 Pink Glow</span>
-                <span class="pc-opt" data-group="frame" data-val="glow-gold">✨ Gold Glow</span>
-                <span class="pc-opt" data-group="frame" data-val="ring-double">◎ Double Ring</span>
-                <span class="pc-opt" data-group="frame" data-val="hex">⬡ Hex Shape</span>
+            <!-- ══ TAB: THEME ══ -->
+            <div class="pc-tab-panel" id="pcTabTheme">
+                <div class="pc-section-title">Card Border Color</div>
+                <div class="pc-color-row">
+                    <label>Section Cards</label>
+                    <input type="color" class="pc-color-input" id="pcCardBorderColor" value="#00AEEF">
+                    <span style="font-size:11px;color:#6a90b8;">Applied to all section cards on your profile</span>
+                </div>
+
+                <div class="pc-section-title">Bio Text Color</div>
+                <div class="pc-color-row">
+                    <label>Bio / About Text</label>
+                    <input type="color" class="pc-color-input" id="pcBioTextColor" value="#8ab0cc">
+                </div>
+
+                <div class="pc-section-title">Profile Page Font</div>
+                <div class="pc-option-row">
+                    <span class="pc-opt active" data-group="profileFont" data-val="default">Default</span>
+                    <span class="pc-opt" data-group="profileFont" data-val="mono">⌨ Monospace</span>
+                    <span class="pc-opt" data-group="profileFont" data-val="serif">📖 Serif</span>
+                    <span class="pc-opt" data-group="profileFont" data-val="rounded">🔵 Rounded</span>
+                </div>
+
+                <div class="pc-section-title">Featured Spotlight Text</div>
+                <p style="font-size:11px;color:#6a90b8;margin:0 0 6px;">A pinned message or quote shown at the top of your profile.</p>
+                <textarea id="pcFeaturedText" rows="3" placeholder="Add a featured message, quote, or shoutout…" style="width:100%;box-sizing:border-box;resize:vertical;font-size:13px;margin:0;"></textarea>
             </div>
 
-            <!-- ── Name Accent ── -->
-            <div class="pc-section-title">Name Glow</div>
-            <div class="pc-option-row">
-                <span class="pc-opt active" data-group="nameAccent" data-val="none">None</span>
-                <span class="pc-opt" data-group="nameAccent" data-val="blue">💙 Blue</span>
-                <span class="pc-opt" data-group="nameAccent" data-val="green">💚 Green</span>
-                <span class="pc-opt" data-group="nameAccent" data-val="pink">💗 Pink</span>
-                <span class="pc-opt" data-group="nameAccent" data-val="gold">✨ Gold</span>
-                <span class="pc-opt" data-group="nameAccent" data-val="white">⬜ White</span>
-            </div>
-
-            <!-- ── Banner Decoration ── -->
-            <div class="pc-section-title">Banner Decoration</div>
-            <div class="pc-option-row">
-                <span class="pc-opt active" data-group="bannerDeco" data-val="none">None</span>
-                <span class="pc-opt" data-group="bannerDeco" data-val="sparkle">✦ Sparkle</span>
-                <span class="pc-opt" data-group="bannerDeco" data-val="stars">★ Stars</span>
-                <span class="pc-opt" data-group="bannerDeco" data-val="cyber">◈ Cyber</span>
-                <span class="pc-opt" data-group="bannerDeco" data-val="flowers">🌸 Flowers</span>
-                <span class="pc-opt" data-group="bannerDeco" data-val="hearts">♥ Hearts</span>
-                <span class="pc-opt" data-group="bannerDeco" data-val="fire">🔥 Fire</span>
-                <span class="pc-opt" data-group="bannerDeco" data-val="snow">❄ Snow</span>
+            <!-- ══ TAB: LINKS ══ -->
+            <div class="pc-tab-panel" id="pcTabLinks">
+                <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;">Add up to 6 custom links displayed on your profile (social media, portfolio, etc.).</p>
+                <div id="pcLinksList"><!-- built by JS --></div>
+                <button class="pc-add-link-btn" onclick="pcAddLink()" type="button" style="margin-top:4px;">+ Add Link</button>
             </div>
 
             <button class="pc-save-btn" onclick="saveProfileCustomization()">💾 Save Customization</button>
@@ -3966,8 +4251,24 @@ body::after {
         </div>
     </div>
 
+    <!-- ── Featured Spotlight Section (shown if user set one) ── -->
+    <div id="profileFeaturedSection" data-section-id="featured" style="display:none;">
+        <div class="profile-featured-section">
+            <div class="profile-featured-title">⭐ Featured</div>
+            <div class="profile-featured-text" id="profileFeaturedText"></div>
+        </div>
+    </div>
+
+    <!-- ── Custom Links Section ── -->
+    <div id="profileLinksSection" data-section-id="links" style="display:none;">
+        <div class="profile-links-section">
+            <div class="profile-links-title">🔗 Links</div>
+            <div id="profileLinksList"></div>
+        </div>
+    </div>
+
     <!-- ── Mini-Game ── -->
-    <div class="section-card">
+    <div data-section-id="arcade-game" class="section-card">
         <h3 style="margin:0 0 6px;">🎮 Mini-Game</h3>
         <p style="font-size:12px; color:#888; margin:0 0 10px;">Tap the game area, click, or press <kbd style="background:#111;border:1px solid #444;padding:1px 5px;border-radius:3px;">Space</kbd> to jump.</p>
         <button onclick="triggerGameEngine()">▶ Play</button>
@@ -3993,7 +4294,7 @@ body::after {
     </div>
 
     <!-- Wall tab -->
-    <div id="tabContentWall">
+    <div id="tabContentWall" data-section-id="wall">
         <div class="section-card">
             <div id="wallPosts"></div>
             <div id="wallInputRow" style="display:flex;gap:8px;margin-top:10px;align-items:center;">
@@ -4007,7 +4308,7 @@ body::after {
     <div id="tabContentMessages" style="display:none;"></div>
 
     <!-- ── Arcade tab ── -->
-    <div id="tabContentArcade" style="display:none;">
+    <div id="tabContentArcade" data-section-id="arcade" style="display:none;">
         <div class="section-card">
 
             <!-- Game selector tabs -->
@@ -4034,6 +4335,17 @@ body::after {
                             <div class="arcade-overlay-sub"   id="arcadeOverlaySub">Choose a game above</div>
                             <div class="arcade-overlay-score" id="arcadeOverlayScore" style="display:none;"></div>
                             <button class="arcade-play-btn"   id="arcadePlayBtn" onclick="arcadeStartGame()" style="display:none;">▶ Play</button>
+                        </div>
+                        <!-- Mobile controls bar (D-pad + fullscreen) -->
+                        <div class="arcade-mobile-bar" id="arcadeMobileBar">
+                            <div class="arcade-dpad hidden" id="arcadeDpad">
+                                <button class="arcade-dpad-btn arcade-dpad-up"    id="dpadUp"    aria-label="Up"    ontouchstart="arcadeDpadPress('up')"    ontouchend="arcadeDpadRelease('up')"    onmousedown="arcadeDpadPress('up')"    onmouseup="arcadeDpadRelease('up')">▲</button>
+                                <button class="arcade-dpad-btn arcade-dpad-left"  id="dpadLeft"  aria-label="Left"  ontouchstart="arcadeDpadPress('left')"  ontouchend="arcadeDpadRelease('left')"  onmousedown="arcadeDpadPress('left')"  onmouseup="arcadeDpadRelease('left')">◀</button>
+                                <button class="arcade-dpad-btn arcade-dpad-right" id="dpadRight" aria-label="Right" ontouchstart="arcadeDpadPress('right')" ontouchend="arcadeDpadRelease('right')" onmousedown="arcadeDpadPress('right')" onmouseup="arcadeDpadRelease('right')">▶</button>
+                                <button class="arcade-dpad-btn arcade-dpad-down"  id="dpadDown"  aria-label="Down"  ontouchstart="arcadeDpadPress('down')"  ontouchend="arcadeDpadRelease('down')"  onmousedown="arcadeDpadPress('down')"  onmouseup="arcadeDpadRelease('down')">▼</button>
+                            </div>
+                            <span class="arcade-rotate-hint" id="arcadeRotateHint">↺ Rotate for best experience</span>
+                            <button class="arcade-fs-btn" id="arcadeFsBtn" onclick="arcadeToggleFullscreen()" aria-label="Fullscreen">⛶</button>
                         </div>
                     </div>
                 </div>
@@ -4858,6 +5170,10 @@ body::after {
   const auth = getAuth(app);
   const db = getFirestore(app);
 
+  // Guard: ensures navTo('feed') / initTimelineStream / show('login') each
+  // run only ONCE on first auth resolution, not on every token refresh.
+  let _appBooted = false;
+
   // ── Firebase Cloud Messaging ──
   let messaging = null;
   let fcmToken   = null;
@@ -5123,6 +5439,8 @@ body::after {
   onAuthStateChanged(auth, async (user) => {
       if (user) {
           currentUser = user;
+          const _firstBoot = !_appBooted;
+          _appBooted = true;
 
           // ── Enforce Founder role — runs on every sign-in ──
           // If this is the founder email, make sure the Firestore doc always has
@@ -5186,17 +5504,24 @@ body::after {
               const adminNavBtn = document.getElementById("navAdmin");
               if (adminNavBtn) adminNavBtn.style.display = window._snxRole === 'founder' ? 'flex' : 'none';
           } catch(_) {}
-          navTo('feed');          initTimelineStream();
-          presenceUnsubscribe = initPresenceStrip();
-          inboxUnsubscribe    = initInboxMonitor();
-          notifUnsubscribe    = initNotificationsMonitor();
-          scheduleExpiredPostCleanup();
-          // Check if user has earned the OG badge (first 100 users, 50+ days old account)
-          checkOGBadgeEligibility(user.uid);
-          // Start push notifications (requests permission if not yet granted)
-          window._snxInitPush = initPushNotifications;
-          setTimeout(initPushNotifications, 2500);
+          // Only navigate to feed and start listeners on the FIRST auth
+          // resolution (initial load or sign-in). Subsequent calls are token
+          // refreshes — skip to avoid re-navigating away from whatever page
+          // the user is currently on.
+          if (_firstBoot) {
+              navTo('feed');      initTimelineStream();
+              presenceUnsubscribe = initPresenceStrip();
+              inboxUnsubscribe    = initInboxMonitor();
+              notifUnsubscribe    = initNotificationsMonitor();
+              scheduleExpiredPostCleanup();
+              // Check if user has earned the OG badge (first 100 users, 50+ days old account)
+              checkOGBadgeEligibility(user.uid);
+              // Start push notifications (requests permission if not yet granted)
+              window._snxInitPush = initPushNotifications;
+              setTimeout(initPushNotifications, 2500);
+          }
       } else {
+          _appBooted = false;
           currentUser = null; userData = null;
           // ── Tear down EVERY real-time listener so nothing fires against a null user ──
           if (feedUnsubscribe)     { feedUnsubscribe();     feedUnsubscribe     = null; }
@@ -5211,7 +5536,11 @@ body::after {
           document.getElementById("menuButton").style.display = "none";
           const _adminBtn = document.getElementById("navAdmin");
           if (_adminBtn) _adminBtn.style.display = "none";
-          show('login');
+          // Only show login if we're not already on it (prevents redirect loop)
+          if (document.getElementById('login') &&
+              !document.getElementById('login').classList.contains('active')) {
+              show('login');
+          }
       }
   });
 
@@ -6890,9 +7219,9 @@ body::after {
               wallBox.appendChild(div);
           });
 
-          // Apply profile customization
+          // Apply profile customization (pass viewer + profile uid for privacy checks)
           if (typeof window.applyProfileCustomization === 'function') {
-              window.applyProfileCustomization(p.profileCustomization || null);
+              window.applyProfileCustomization(p.profileCustomization || null, currentUser.uid, uid);
           }
       });
   };
@@ -8522,7 +8851,24 @@ function applyAestheticMatrix(type) {
    Profile Customization System
    ══════════════════════════════════════════════════════════════ */
 
-// Current working state inside the modal (mutated by picker clicks)
+// ── Default sections definition ──
+const _PC_SECTIONS = [
+    { id: 'featured',    label: '⭐ Featured Spotlight', defaultOn: false },
+    { id: 'links',       label: '🔗 Custom Links',       defaultOn: true  },
+    { id: 'wall',        label: '📝 Wall',               defaultOn: true  },
+    { id: 'arcade',      label: '🕹 Arcade Tab',         defaultOn: true  },
+    { id: 'arcade-game', label: '🎮 Mini-Game Widget',   defaultOn: true  },
+];
+
+// ── Font map ──
+const _PC_FONTS = {
+    default: "'Segoe UI', Arial, sans-serif",
+    mono:    "'Courier New', Courier, monospace",
+    serif:   "Georgia, 'Times New Roman', serif",
+    rounded: "'Trebuchet MS', Verdana, sans-serif",
+};
+
+// ── Current working state (mutated by picker clicks) ──
 const _pcState = {
     bgType:    'default',
     solidColor: '#071428',
@@ -8531,7 +8877,14 @@ const _pcState = {
     animated:  'pulse',
     frame:     'none',
     nameAccent:'none',
-    bannerDeco:'none'
+    bannerDeco:'none',
+    // Extended fields
+    cardBorderColor: '#00AEEF',
+    bioTextColor:    '#8ab0cc',
+    profileFont:     'default',
+    featuredText:    '',
+    links:           [],   // [{label, url}]
+    sections:        [],   // [{id, visible, privacy:'public'|'friends'|'private'}]
 };
 
 // CSS map for pattern type → inline background style
@@ -8548,43 +8901,71 @@ function _pcBannerCss(state) {
     if (state.bgType === 'gradient') return { background: state.gradient,   backgroundImage: 'none', animClass: '' };
     if (state.bgType === 'pattern')  return { background: _pcPatterns[state.pattern] || _pcPatterns.grid, backgroundImage: 'none', animClass: '' };
     if (state.bgType === 'animated') return { background: '', backgroundImage: '', animClass: 'anim-' + state.animated };
-    // default
     return { background: 'linear-gradient(135deg,#071428,#0B1F3A)', backgroundImage: 'none', animClass: '' };
 }
 
-// ── Apply to real profile header ──
-window.applyProfileCustomization = function(data) {
+// ── Normalise saved sections array (fill missing entries, merge with defaults) ──
+function _pcNormaliseSections(saved) {
+    const out = [];
+    const savedMap = {};
+    (saved || []).forEach(s => { savedMap[s.id] = s; });
+    // First: saved order
+    (saved || []).forEach(s => {
+        const def = _PC_SECTIONS.find(d => d.id === s.id);
+        if (!def) return;
+        out.push({ id: s.id, visible: s.visible !== false, privacy: s.privacy || 'public' });
+    });
+    // Then: any sections missing from saved (appended at end)
+    _PC_SECTIONS.forEach(def => {
+        if (!savedMap[def.id]) {
+            out.push({ id: def.id, visible: def.defaultOn, privacy: 'public' });
+        }
+    });
+    return out;
+}
+
+// ── Apply to real profile (called on every profile load) ──
+window.applyProfileCustomization = function(data, viewerUid, profileUid) {
     const s = data || {};
     const state = {
-        bgType:    s.bgType    || 'default',
-        solidColor:s.solidColor|| '#071428',
-        gradient:  s.gradient  || 'linear-gradient(135deg,#071428,#0B1F3A)',
-        pattern:   s.pattern   || 'grid',
-        animated:  s.animated  || 'pulse',
-        frame:     s.frame     || 'none',
-        nameAccent:s.nameAccent|| 'none',
-        bannerDeco:s.bannerDeco|| 'none'
+        bgType:         s.bgType         || 'default',
+        solidColor:     s.solidColor     || '#071428',
+        gradient:       s.gradient       || 'linear-gradient(135deg,#071428,#0B1F3A)',
+        pattern:        s.pattern        || 'grid',
+        animated:       s.animated       || 'pulse',
+        frame:          s.frame          || 'none',
+        nameAccent:     s.nameAccent     || 'none',
+        bannerDeco:     s.bannerDeco     || 'none',
+        cardBorderColor:s.cardBorderColor|| '#00AEEF',
+        bioTextColor:   s.bioTextColor   || '#8ab0cc',
+        profileFont:    s.profileFont    || 'default',
+        featuredText:   s.featuredText   || '',
+        links:          Array.isArray(s.links)    ? s.links    : [],
+        sections:       _pcNormaliseSections(s.sections),
     };
 
-    // Banner background (only if no custom image set)
+    // ── Banner background ──
+    // Apply custom background whenever bgType is not 'default'.
+    // 'default' preserves the user's uploaded cover photo (url(...)).
+    // Any other bgType (solid, gradient, pattern, animated) overrides it.
     const bannerEl = document.getElementById('profileBanner');
-    if (bannerEl && !bannerEl.style.backgroundImage.startsWith('url(')) {
-        const { background, animClass } = _pcBannerCss(state);
-        if (background) bannerEl.style.background = background;
+    if (bannerEl) {
+        if (state.bgType !== 'default') {
+            const { background } = _pcBannerCss(state);
+            bannerEl.style.backgroundImage = '';
+            if (background) bannerEl.style.background = background;
+        }
+        // for 'default', leave the existing backgroundImage (cover photo) untouched
     }
     // Animated layer
     const animEl = document.getElementById('profileBgAnimated');
     if (animEl) {
         animEl.className = 'profile-bg-animated';
-        if (state.bgType === 'animated') {
-            animEl.classList.add('anim-' + state.animated);
-        }
+        if (state.bgType === 'animated') animEl.classList.add('anim-' + state.animated);
     }
     // Banner decoration
     const decoEl = document.getElementById('profileBannerDeco');
-    if (decoEl) {
-        decoEl.className = state.bannerDeco !== 'none' ? 'bdeco-' + state.bannerDeco : '';
-    }
+    if (decoEl) decoEl.className = state.bannerDeco !== 'none' ? 'bdeco-' + state.bannerDeco : '';
     // Avatar frame
     const avatarEl = document.getElementById('profileAvatar');
     if (avatarEl) {
@@ -8597,44 +8978,264 @@ window.applyProfileCustomization = function(data) {
         ['accent-blue','accent-green','accent-pink','accent-gold','accent-white','accent-none'].forEach(c => nameEl.classList.remove(c));
         nameEl.classList.add('accent-' + state.nameAccent);
     }
+
+    // ── Theme: CSS vars on #profile ──
+    const profilePage = document.getElementById('profile');
+    if (profilePage) {
+        profilePage.style.setProperty('--pc-card-border', state.cardBorderColor);
+        profilePage.style.setProperty('--pc-bio-color', state.bioTextColor);
+        profilePage.style.fontFamily = _PC_FONTS[state.profileFont] || _PC_FONTS.default;
+    }
+
+    // ── Featured Text ──
+    const featSection = document.getElementById('profileFeaturedSection');
+    const featText    = document.getElementById('profileFeaturedText');
+    if (featSection && featText) {
+        if (state.featuredText && state.featuredText.trim()) {
+            featText.textContent = state.featuredText.trim();
+            featSection.style.display = '';
+        } else {
+            featSection.style.display = 'none';
+        }
+    }
+
+    // ── Custom Links ──
+    const linksSection = document.getElementById('profileLinksSection');
+    const linksList    = document.getElementById('profileLinksList');
+    if (linksSection && linksList) {
+        const validLinks = state.links.filter(l => l.url && l.url.trim());
+        if (validLinks.length > 0) {
+            linksList.innerHTML = validLinks.map(l => {
+                const safe = l.url.trim().replace(/"/g,'&quot;');
+                const lbl  = (l.label || l.url).trim().replace(/</g,'&lt;');
+                let icon = '🔗';
+                if (/twitter|x\.com/.test(safe))  icon = '𝕏';
+                else if (/instagram/.test(safe))   icon = '📸';
+                else if (/youtube/.test(safe))     icon = '▶';
+                else if (/github/.test(safe))      icon = '';
+                else if (/tiktok/.test(safe))      icon = '♪';
+                else if (/twitch/.test(safe))      icon = '🎮';
+                else if (/discord/.test(safe))     icon = '💬';
+                return `<div class="profile-link-item"><span class="profile-link-icon">${icon}</span><a class="profile-link-anchor" href="${safe}" target="_blank" rel="noopener noreferrer">${lbl}</a></div>`;
+            }).join('');
+            linksSection.style.display = '';
+        } else {
+            linksSection.style.display = 'none';
+        }
+    }
+
+    // ── Section Visibility & Order ──
+    // Determine if viewer is a friend (for friends-only privacy)
+    const isSelf = viewerUid && profileUid && viewerUid === profileUid;
+    const friendsList = (window.userData && window.userData.friends) || [];
+    const isFriend = profileUid && friendsList.includes(profileUid);
+
+    const sectionIds   = state.sections.map(s => s.id);
+    const profileEl    = document.getElementById('profile');
+    if (profileEl) {
+        const sectionEls = profileEl.querySelectorAll('[data-section-id]');
+        // Apply order by re-appending in saved order
+        sectionIds.forEach(sid => {
+            const el = profileEl.querySelector(`[data-section-id="${sid}"]`);
+            if (el && el.parentElement === profileEl) profileEl.appendChild(el);
+        });
+        // Apply visibility & privacy
+        sectionEls.forEach(el => {
+            const sid  = el.dataset.sectionId;
+            const sec  = state.sections.find(s => s.id === sid);
+            if (!sec) return;
+            let show = sec.visible;
+            if (show && sec.privacy === 'private' && !isSelf) show = false;
+            if (show && sec.privacy === 'friends' && !isSelf && !isFriend) show = false;
+            el.classList.toggle('profile-section-hidden', !show);
+        });
+        // ── Sync profile-tabs tab buttons to match section visibility ──
+        // Hide the tab button for wall/arcade if their section is hidden
+        const wallSec    = state.sections.find(s => s.id === 'wall');
+        const arcadeSec  = state.sections.find(s => s.id === 'arcade');
+        const wallBtn    = document.getElementById('tabWallLink');
+        const arcadeBtn  = document.getElementById('tabArcadeLink');
+        if (wallSec && wallBtn) {
+            let showWall = wallSec.visible;
+            if (showWall && wallSec.privacy === 'private' && !isSelf) showWall = false;
+            if (showWall && wallSec.privacy === 'friends' && !isSelf && !isFriend) showWall = false;
+            wallBtn.style.display = showWall ? '' : 'none';
+        }
+        if (arcadeSec && arcadeBtn) {
+            let showArcade = arcadeSec.visible;
+            if (showArcade && arcadeSec.privacy === 'private' && !isSelf) showArcade = false;
+            if (showArcade && arcadeSec.privacy === 'friends' && !isSelf && !isFriend) showArcade = false;
+            arcadeBtn.style.display = showArcade ? '' : 'none';
+        }
+    }
 };
+
+// ── Modal tab switcher ──
+function pcSwitchTab(tab) {
+    document.querySelectorAll('.pc-tab-btn').forEach(b =>
+        b.classList.toggle('active', b.textContent.toLowerCase().includes(tab.slice(0,4)))
+    );
+    document.querySelectorAll('.pc-tab-panel').forEach(p => p.classList.remove('active'));
+    const map = { appearance:'pcTabAppearance', sections:'pcTabSections', theme:'pcTabTheme', links:'pcTabLinks' };
+    const panel = document.getElementById(map[tab]);
+    if (panel) panel.classList.add('active');
+}
+
+// ── Build the sections list UI ──
+function _pcBuildSectionsUI() {
+    const container = document.getElementById('pcSectionsList');
+    if (!container) return;
+    container.innerHTML = '';
+    _pcState.sections.forEach((sec, idx) => {
+        const def = _PC_SECTIONS.find(d => d.id === sec.id);
+        if (!def) return;
+        const row = document.createElement('div');
+        row.className = 'pc-section-row';
+        row.draggable = true;
+        row.dataset.secIdx = idx;
+        const privOpts = ['public','friends','private'];
+        const privNext = (p) => privOpts[(privOpts.indexOf(p) + 1) % privOpts.length];
+        const privIcon = { public:'🌐', friends:'🦋', private:'🔒' };
+        row.innerHTML = `
+            <span class="pc-section-drag">⠿</span>
+            <span class="pc-section-label-text">${def.label}</span>
+            <button class="pc-section-privacy" title="Click to cycle privacy" data-sec-priv="${sec.privacy}">${privIcon[sec.privacy] || '🌐'} ${(sec.privacy||'public').charAt(0).toUpperCase()+sec.privacy.slice(1)}</button>
+            <label class="pc-toggle" title="${sec.visible ? 'Visible' : 'Hidden'}">
+                <input type="checkbox" ${sec.visible ? 'checked' : ''}>
+                <span class="pc-toggle-slider"></span>
+            </label>`;
+        // Toggle visibility
+        row.querySelector('input[type=checkbox]').addEventListener('change', e => {
+            _pcState.sections[idx].visible = e.target.checked;
+        });
+        // Cycle privacy
+        row.querySelector('.pc-section-privacy').addEventListener('click', function() {
+            const cur = _pcState.sections[idx].privacy || 'public';
+            const next = privNext(cur);
+            _pcState.sections[idx].privacy = next;
+            this.dataset.secPriv = next;
+            this.textContent = `${privIcon[next]} ${next.charAt(0).toUpperCase()+next.slice(1)}`;
+        });
+        // Drag-and-drop reorder
+        row.addEventListener('dragstart', e => {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', idx);
+            row.style.opacity = '0.5';
+        });
+        row.addEventListener('dragend', () => { row.style.opacity = ''; container.querySelectorAll('.pc-section-row').forEach(r => { r.classList.remove('drag-over-top','drag-over-bottom'); }); });
+        row.addEventListener('dragover', e => {
+            e.preventDefault();
+            const rect = row.getBoundingClientRect();
+            const isTop = (e.clientY - rect.top) < rect.height / 2;
+            container.querySelectorAll('.pc-section-row').forEach(r => r.classList.remove('drag-over-top','drag-over-bottom'));
+            row.classList.add(isTop ? 'drag-over-top' : 'drag-over-bottom');
+        });
+        row.addEventListener('drop', e => {
+            e.preventDefault();
+            const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+            if (fromIdx === idx) return;
+            const rect    = row.getBoundingClientRect();
+            const isTop   = (e.clientY - rect.top) < rect.height / 2;
+            const toIdx   = isTop ? idx : idx + 1;
+            const moved   = _pcState.sections.splice(fromIdx, 1)[0];
+            const insertAt = toIdx > fromIdx ? toIdx - 1 : toIdx;
+            _pcState.sections.splice(insertAt, 0, moved);
+            _pcBuildSectionsUI();
+        });
+        container.appendChild(row);
+    });
+}
+
+// ── Build the links list UI ──
+function _pcBuildLinksUI() {
+    const container = document.getElementById('pcLinksList');
+    if (!container) return;
+    container.innerHTML = '';
+    _pcState.links.forEach((lnk, idx) => {
+        const row = document.createElement('div');
+        row.className = 'pc-link-row';
+        row.innerHTML = `
+            <input placeholder="Label (e.g. My Twitter)" value="${(lnk.label||'').replace(/"/g,'&quot;')}" data-field="label" data-idx="${idx}">
+            <input placeholder="https://…" value="${(lnk.url||'').replace(/"/g,'&quot;')}" data-field="url" data-idx="${idx}">
+            <button class="pc-link-del" title="Remove" data-del-idx="${idx}">✕</button>`;
+        row.querySelectorAll('input').forEach(inp => {
+            inp.addEventListener('input', () => {
+                _pcState.links[inp.dataset.idx][inp.dataset.field] = inp.value;
+            });
+        });
+        row.querySelector('.pc-link-del').addEventListener('click', function() {
+            _pcState.links.splice(parseInt(this.dataset.delIdx), 1);
+            _pcBuildLinksUI();
+        });
+        container.appendChild(row);
+    });
+}
+
+function pcAddLink() {
+    if (_pcState.links.length >= 6) { if (typeof toastNotification === 'function') toastNotification('Max 6 links allowed.'); return; }
+    _pcState.links.push({ label: '', url: '' });
+    _pcBuildLinksUI();
+}
 
 // ── Open modal, seed state from current saved data ──
 function openCustomizeModal() {
     const saved = (window.userData && window.userData.profileCustomization) || {};
-    _pcState.bgType     = saved.bgType     || 'default';
-    _pcState.solidColor = saved.solidColor || '#071428';
-    _pcState.gradient   = saved.gradient   || 'linear-gradient(135deg,#071428,#0B1F3A)';
-    _pcState.pattern    = saved.pattern    || 'grid';
-    _pcState.animated   = saved.animated   || 'pulse';
-    _pcState.frame      = saved.frame      || 'none';
-    _pcState.nameAccent = saved.nameAccent || 'none';
-    _pcState.bannerDeco = saved.bannerDeco || 'none';
+    _pcState.bgType          = saved.bgType          || 'default';
+    _pcState.solidColor      = saved.solidColor      || '#071428';
+    _pcState.gradient        = saved.gradient        || 'linear-gradient(135deg,#071428,#0B1F3A)';
+    _pcState.pattern         = saved.pattern         || 'grid';
+    _pcState.animated        = saved.animated        || 'pulse';
+    _pcState.frame           = saved.frame           || 'none';
+    _pcState.nameAccent      = saved.nameAccent      || 'none';
+    _pcState.bannerDeco      = saved.bannerDeco      || 'none';
+    _pcState.cardBorderColor = saved.cardBorderColor || '#00AEEF';
+    _pcState.bioTextColor    = saved.bioTextColor    || '#8ab0cc';
+    _pcState.profileFont     = saved.profileFont     || 'default';
+    _pcState.featuredText    = saved.featuredText    || '';
+    _pcState.links           = Array.isArray(saved.links)    ? JSON.parse(JSON.stringify(saved.links))    : [];
+    _pcState.sections        = _pcNormaliseSections(saved.sections);
 
     // Seed preview user info
     const dn = (window.userData && window.userData.displayName) || 'You';
     const av = (window.userData && window.userData.avatar) || '';
     const prevAvEl = document.getElementById('pcPreviewAvatar');
     if (prevAvEl) {
-        if (av) {
-            prevAvEl.style.backgroundImage = `url('${av}')`;
-            prevAvEl.style.backgroundSize = 'cover';
-            prevAvEl.style.backgroundPosition = 'center';
-            prevAvEl.textContent = '';
-        } else {
-            prevAvEl.style.backgroundImage = 'none';
-            prevAvEl.textContent = dn[0].toUpperCase();
-        }
+        if (av) { prevAvEl.style.backgroundImage = `url('${av}')`; prevAvEl.style.backgroundSize = 'cover'; prevAvEl.style.backgroundPosition = 'center'; prevAvEl.textContent = ''; }
+        else    { prevAvEl.style.backgroundImage = 'none'; prevAvEl.textContent = dn[0].toUpperCase(); }
     }
     const prevNameEl = document.getElementById('pcPreviewName');
     if (prevNameEl) prevNameEl.textContent = dn;
 
-    // Sync option pills/swatches to state
+    // Sync pills/swatches and sub-panels
     _pcSyncAllPills();
-    // Show/hide sub-panels
     _pcShowSubpanel(_pcState.bgType);
-    // Render preview
     _pcUpdatePreview();
+
+    // Seed theme color inputs
+    const cbEl = document.getElementById('pcCardBorderColor');
+    const btEl = document.getElementById('pcBioTextColor');
+    const ftEl = document.getElementById('pcFeaturedText');
+    const bcEl = document.getElementById('pcBannerCustomColor');
+    if (cbEl) cbEl.value = _pcState.cardBorderColor;
+    if (btEl) btEl.value = _pcState.bioTextColor;
+    if (ftEl) ftEl.value = _pcState.featuredText;
+    if (bcEl) bcEl.value = _pcState.solidColor;
+    // Real-time preview on color picker change
+    if (cbEl && !cbEl._snxBound) { cbEl._snxBound = true; cbEl.addEventListener('input', () => { _pcState.cardBorderColor = cbEl.value; }); }
+    if (btEl && !btEl._snxBound) { btEl._snxBound = true; btEl.addEventListener('input', () => { _pcState.bioTextColor = btEl.value; }); }
+    if (bcEl && !bcEl._snxBound) { bcEl._snxBound = true; bcEl.addEventListener('input', () => {
+        _pcState.solidColor = bcEl.value;
+        // Deactivate preset swatches, no preset matches a custom color
+        document.querySelectorAll('[data-group="solidColor"]').forEach(s => s.classList.remove('active'));
+        _pcUpdatePreview();
+    }); }
+
+    // Build dynamic UIs
+    _pcBuildSectionsUI();
+    _pcBuildLinksUI();
+
+    // Start on Appearance tab
+    pcSwitchTab('appearance');
 
     document.getElementById('profileCustomizeModal').classList.add('open');
 }
@@ -8653,7 +9254,6 @@ document.getElementById('profileCustomizeModal').addEventListener('click', funct
     const group = el.dataset.group;
     const val   = el.dataset.val;
 
-    // Deactivate siblings in same group
     document.querySelectorAll(`[data-group="${group}"]`).forEach(s => s.classList.remove('active'));
     el.classList.add('active');
 
@@ -8674,6 +9274,8 @@ document.getElementById('profileCustomizeModal').addEventListener('click', funct
         _pcState.nameAccent = val;
     } else if (group === 'bannerDeco') {
         _pcState.bannerDeco = val;
+    } else if (group === 'profileFont') {
+        _pcState.profileFont = val;
     }
     _pcUpdatePreview();
 });
@@ -8684,10 +9286,7 @@ function _pcShowSubpanel(type) {
         if (el) el.style.display = 'none';
     });
     const map = { solid:'pcSolidColors', gradient:'pcGradients', pattern:'pcPatterns', animated:'pcAnimated' };
-    if (map[type]) {
-        const el = document.getElementById(map[type]);
-        if (el) el.style.display = '';
-    }
+    if (map[type]) { const el = document.getElementById(map[type]); if (el) el.style.display = ''; }
 }
 
 function _pcSyncAllPills() {
@@ -8696,14 +9295,15 @@ function _pcSyncAllPills() {
             el.classList.toggle('active', el.dataset.val === val);
         });
     };
-    sync('bgType',     _pcState.bgType);
-    sync('solidColor', _pcState.solidColor);
-    sync('gradient',   _pcState.gradient);
-    sync('pattern',    _pcState.pattern);
-    sync('animated',   _pcState.animated);
-    sync('frame',      _pcState.frame);
-    sync('nameAccent', _pcState.nameAccent);
-    sync('bannerDeco', _pcState.bannerDeco);
+    sync('bgType',      _pcState.bgType);
+    sync('solidColor',  _pcState.solidColor);
+    sync('gradient',    _pcState.gradient);
+    sync('pattern',     _pcState.pattern);
+    sync('animated',    _pcState.animated);
+    sync('frame',       _pcState.frame);
+    sync('nameAccent',  _pcState.nameAccent);
+    sync('bannerDeco',  _pcState.bannerDeco);
+    sync('profileFont', _pcState.profileFont);
 }
 
 // ── Live preview updater ──
@@ -8715,19 +9315,13 @@ function _pcUpdatePreview() {
     const nameEl   = document.getElementById('pcPreviewName');
 
     if (bannerEl) {
-        const { background, animClass } = _pcBannerCss(_pcState);
-        if (background) {
-            bannerEl.style.background = background;
-        } else {
-            bannerEl.style.background = 'linear-gradient(135deg,#071428,#0B1F3A)';
-        }
+        const { background } = _pcBannerCss(_pcState);
+        bannerEl.style.background = background || 'linear-gradient(135deg,#071428,#0B1F3A)';
     }
     if (animEl) {
         animEl.className = '';
         animEl.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
-        if (_pcState.bgType === 'animated') {
-            animEl.classList.add('profile-bg-animated', 'anim-' + _pcState.animated);
-        }
+        if (_pcState.bgType === 'animated') animEl.classList.add('profile-bg-animated', 'anim-' + _pcState.animated);
     }
     if (decoEl) {
         decoEl.className = _pcState.bannerDeco !== 'none' ? 'bdeco-' + _pcState.bannerDeco : '';
@@ -8753,17 +9347,36 @@ async function saveProfileCustomization() {
         if (typeof toastNotification === 'function') toastNotification('Not ready yet — try again in a moment.');
         return;
     }
+    // Read live values from theme tab inputs before saving
+    const cbEl = document.getElementById('pcCardBorderColor');
+    const btEl = document.getElementById('pcBioTextColor');
+    const ftEl = document.getElementById('pcFeaturedText');
+    if (cbEl) _pcState.cardBorderColor = cbEl.value;
+    if (btEl) _pcState.bioTextColor    = btEl.value;
+    if (ftEl) _pcState.featuredText    = ftEl.value;
+
     const data = {
-        bgType:    _pcState.bgType,
-        solidColor:_pcState.solidColor,
-        gradient:  _pcState.gradient,
-        pattern:   _pcState.pattern,
-        animated:  _pcState.animated,
-        frame:     _pcState.frame,
-        nameAccent:_pcState.nameAccent,
-        bannerDeco:_pcState.bannerDeco
+        bgType:          _pcState.bgType,
+        solidColor:      _pcState.solidColor,
+        gradient:        _pcState.gradient,
+        pattern:         _pcState.pattern,
+        animated:        _pcState.animated,
+        frame:           _pcState.frame,
+        nameAccent:      _pcState.nameAccent,
+        bannerDeco:      _pcState.bannerDeco,
+        cardBorderColor: _pcState.cardBorderColor,
+        bioTextColor:    _pcState.bioTextColor,
+        profileFont:     _pcState.profileFont,
+        featuredText:    _pcState.featuredText,
+        links:           _pcState.links.filter(l => l.url && l.url.trim()),
+        sections:        _pcState.sections,
     };
     await updateDoc(docFn(db, 'users', user.uid), { profileCustomization: data });
+    // Apply immediately to own profile if visible
+    if (window.userData) window.userData.profileCustomization = data;
+    if (document.getElementById('profile').classList.contains('active')) {
+        window.applyProfileCustomization(data, user.uid, user.uid);
+    }
     closeCustomizeModal();
     if (typeof toastNotification === 'function') toastNotification('Profile customization saved! 🎨');
 }
@@ -8776,6 +9389,10 @@ async function resetProfileCustomization() {
     const user      = window._getCurrentUser && window._getCurrentUser();
     if (!updateDoc || !docFn || !db || !user) return;
     await updateDoc(docFn(db, 'users', user.uid), { profileCustomization: null });
+    if (window.userData) window.userData.profileCustomization = null;
+    if (document.getElementById('profile').classList.contains('active')) {
+        window.applyProfileCustomization(null, user.uid, user.uid);
+    }
     closeCustomizeModal();
     if (typeof toastNotification === 'function') toastNotification('Profile customization reset.');
 }
@@ -8865,6 +9482,10 @@ function arcadeSwitchGame(game, silent) {
     // Show start overlay
     _arcadeShowOverlay(ARCADE_NAMES[game], 'Press ▶ Play to start', null, true);
 
+    // Show D-pad only for Snake
+    const dpad = document.getElementById('arcadeDpad');
+    if (dpad) dpad.classList.toggle('hidden', game !== 'snake');
+
     if (!silent) {
         arcadeLoadScoreboard(game);
     }
@@ -8881,12 +9502,17 @@ function arcadeStartGame() {
     if (ARCADE.currentGame === 'snake')    _snakeInit();
     else if (ARCADE.currentGame === 'breakout') _breakoutInit();
     else if (ARCADE.currentGame === 'pong')     _pongInit();
+
+    // Show portrait hint immediately if needed
+    if (typeof _arcadeUpdateOrientationHint === 'function') _arcadeUpdateOrientationHint();
 }
 
 // ── Stop / game over ──
 function arcadeStopGame(isFinal) {
     ARCADE.running = false;
     if (ARCADE.rafId) { cancelAnimationFrame(ARCADE.rafId); ARCADE.rafId = null; }
+    // Hide the portrait hint when game is no longer running
+    if (typeof _arcadeUpdateOrientationHint === 'function') _arcadeUpdateOrientationHint();
 
     if (isFinal) {
         const best = ARCADE.bestScores[ARCADE.currentGame];
@@ -8940,12 +9566,105 @@ document.addEventListener('keyup',   e => { _arcadeKeys[e.key] = false; });
 document.addEventListener('DOMContentLoaded', () => {
     const c = document.getElementById('arcadeCanvas');
     if (!c) return;
+
+    // Swipe detection for Snake
+    let _touchStartX = 0, _touchStartY = 0;
     c.addEventListener('touchstart', e => {
         e.preventDefault();
+        _touchStartX = e.touches[0].clientX;
+        _touchStartY = e.touches[0].clientY;
         if (!ARCADE.running) return;
         if (ARCADE.currentGame === 'pong') _pongTouchHandler(e);
     }, { passive: false });
+
+    c.addEventListener('touchend', e => {
+        if (!ARCADE.running || ARCADE.currentGame !== 'snake') return;
+        const dx = e.changedTouches[0].clientX - _touchStartX;
+        const dy = e.changedTouches[0].clientY - _touchStartY;
+        const adx = Math.abs(dx), ady = Math.abs(dy);
+        if (adx < 10 && ady < 10) return; // tap, ignore
+        _arcadeSnakeSwipe(adx > ady ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+    }, { passive: true });
 });
+
+// ── Snake swipe/D-pad shared direction handler ──
+function _arcadeSnakeSwipe(dir) {
+    if (!ARCADE.running || ARCADE.currentGame !== 'snake') return;
+    if (!ARCADE._snakeSetDir) return;
+    ARCADE._snakeSetDir(dir);
+}
+
+// ── D-pad button handlers ──
+function arcadeDpadPress(dir) {
+    const btn = document.getElementById('dpad' + dir.charAt(0).toUpperCase() + dir.slice(1));
+    if (btn) btn.classList.add('pressed');
+    _arcadeSnakeSwipe(dir);
+}
+function arcadeDpadRelease(dir) {
+    const btn = document.getElementById('dpad' + dir.charAt(0).toUpperCase() + dir.slice(1));
+    if (btn) btn.classList.remove('pressed');
+}
+
+// ── Fullscreen toggle ──
+function arcadeToggleFullscreen() {
+    const wrap = document.getElementById('arcadeCanvasWrap');
+    const btn  = document.getElementById('arcadeFsBtn');
+    if (!wrap) return;
+    const isFs = wrap.classList.toggle('snx-fullscreen');
+    if (btn) btn.textContent = isFs ? '✕' : '⛶';
+    // Attempt native fullscreen API
+    if (isFs) {
+        const el = wrap;
+        if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        // Lock orientation to landscape when going fullscreen
+        if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape').catch(() => {});
+        }
+    } else {
+        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        if (screen.orientation && screen.orientation.unlock) {
+            screen.orientation.unlock();
+        }
+    }
+    // Resize canvas after layout settles
+    setTimeout(_arcadeResizeCanvas, 80);
+}
+
+// Handle native fullscreen exit (e.g. user presses Escape)
+document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+        const wrap = document.getElementById('arcadeCanvasWrap');
+        const btn  = document.getElementById('arcadeFsBtn');
+        if (wrap) wrap.classList.remove('snx-fullscreen');
+        if (btn) btn.textContent = '⛶';
+        setTimeout(_arcadeResizeCanvas, 80);
+    }
+});
+document.addEventListener('webkitfullscreenchange', () => {
+    if (!document.webkitFullscreenElement) {
+        const wrap = document.getElementById('arcadeCanvasWrap');
+        const btn  = document.getElementById('arcadeFsBtn');
+        if (wrap) wrap.classList.remove('snx-fullscreen');
+        if (btn) btn.textContent = '⛶';
+        setTimeout(_arcadeResizeCanvas, 80);
+    }
+});
+
+// ── Orientation change: resize canvas ──
+window.addEventListener('orientationchange', () => { setTimeout(_arcadeResizeCanvas, 150); });
+window.addEventListener('resize', () => { _arcadeResizeCanvas(); });
+
+// Resize the logical canvas to match its CSS display size (keeps pixel-perfect scaling)
+function _arcadeResizeCanvas() {
+    const canvas = ARCADE.canvas || document.getElementById('arcadeCanvas');
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 10 || rect.height < 10) return;
+    // Keep 400×280 logical resolution — CSS width:100% already scales it via image-rendering
+    // For fullscreen we just let CSS handle scaling; no logical resize needed.
+}
 
 /* ════════════════════
    SNAKE
@@ -8966,6 +9685,15 @@ function _snakeInit() {
         return f;
     }
 
+    // Expose direction setter for swipe/D-pad
+    ARCADE._snakeSetDir = function(swipeDir) {
+        const map = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
+        const nd = map[swipeDir];
+        if (nd && !(nd[0] === -dir.x && nd[1] === -dir.y)) {
+            nextDir = { x: nd[0], y: nd[1] };
+        }
+    };
+
     // Key handling
     const _snakeKey = e => {
         if (!ARCADE.running || ARCADE.currentGame !== 'snake') return;
@@ -8980,7 +9708,7 @@ function _snakeInit() {
     document.addEventListener('keydown', _snakeKey);
 
     function loop(ts) {
-        if (!ARCADE.running) { document.removeEventListener('keydown', _snakeKey); return; }
+        if (!ARCADE.running) { document.removeEventListener('keydown', _snakeKey); ARCADE._snakeSetDir = null; return; }
         ARCADE.rafId = requestAnimationFrame(loop);
         if (ts - lastTime < interval) return;
         lastTime = ts;
@@ -8990,6 +9718,7 @@ function _snakeInit() {
         const head = { x: (snake[0].x + dir.x + cols) % cols, y: (snake[0].y + dir.y + rows) % rows };
         if (snake.some(p => p.x === head.x && p.y === head.y)) {
             document.removeEventListener('keydown', _snakeKey);
+            ARCADE._snakeSetDir = null;
             arcadeStopGame(true);
             return;
         }
@@ -10420,9 +11149,10 @@ const _STORM_CFG = {
     messagingSenderId: "933810617818",
     appId: "1:933810617818:web:efb24f123337dd987c14e3"
 };
-// Reuse existing app if already initialized (avoids duplicate-app error)
-const _stormApp = getApps().find(a => a.name === '[DEFAULT]') ||
-    initializeApp(_STORM_CFG, 'storm');
+// Always reuse the default Firebase app — never create a second instance.
+// initializeApp was already called by the main module above; getApps()[0]
+// will always be the DEFAULT app on this single-page application.
+const _stormApp = getApps().find(a => a.name === '[DEFAULT]') || initializeApp(_STORM_CFG);
 const _rtdb = getDatabase(_stormApp);
 
 /* ────────────────────────────────

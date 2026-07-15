@@ -5170,6 +5170,10 @@ body::after {
   const auth = getAuth(app);
   const db = getFirestore(app);
 
+  // Guard: ensures navTo('feed') / initTimelineStream / show('login') each
+  // run only ONCE on first auth resolution, not on every token refresh.
+  let _appBooted = false;
+
   // ── Firebase Cloud Messaging ──
   let messaging = null;
   let fcmToken   = null;
@@ -5435,6 +5439,8 @@ body::after {
   onAuthStateChanged(auth, async (user) => {
       if (user) {
           currentUser = user;
+          const _firstBoot = !_appBooted;
+          _appBooted = true;
 
           // ── Enforce Founder role — runs on every sign-in ──
           // If this is the founder email, make sure the Firestore doc always has
@@ -5498,17 +5504,24 @@ body::after {
               const adminNavBtn = document.getElementById("navAdmin");
               if (adminNavBtn) adminNavBtn.style.display = window._snxRole === 'founder' ? 'flex' : 'none';
           } catch(_) {}
-          navTo('feed');          initTimelineStream();
-          presenceUnsubscribe = initPresenceStrip();
-          inboxUnsubscribe    = initInboxMonitor();
-          notifUnsubscribe    = initNotificationsMonitor();
-          scheduleExpiredPostCleanup();
-          // Check if user has earned the OG badge (first 100 users, 50+ days old account)
-          checkOGBadgeEligibility(user.uid);
-          // Start push notifications (requests permission if not yet granted)
-          window._snxInitPush = initPushNotifications;
-          setTimeout(initPushNotifications, 2500);
+          // Only navigate to feed and start listeners on the FIRST auth
+          // resolution (initial load or sign-in). Subsequent calls are token
+          // refreshes — skip to avoid re-navigating away from whatever page
+          // the user is currently on.
+          if (_firstBoot) {
+              navTo('feed');      initTimelineStream();
+              presenceUnsubscribe = initPresenceStrip();
+              inboxUnsubscribe    = initInboxMonitor();
+              notifUnsubscribe    = initNotificationsMonitor();
+              scheduleExpiredPostCleanup();
+              // Check if user has earned the OG badge (first 100 users, 50+ days old account)
+              checkOGBadgeEligibility(user.uid);
+              // Start push notifications (requests permission if not yet granted)
+              window._snxInitPush = initPushNotifications;
+              setTimeout(initPushNotifications, 2500);
+          }
       } else {
+          _appBooted = false;
           currentUser = null; userData = null;
           // ── Tear down EVERY real-time listener so nothing fires against a null user ──
           if (feedUnsubscribe)     { feedUnsubscribe();     feedUnsubscribe     = null; }
@@ -5523,7 +5536,11 @@ body::after {
           document.getElementById("menuButton").style.display = "none";
           const _adminBtn = document.getElementById("navAdmin");
           if (_adminBtn) _adminBtn.style.display = "none";
-          show('login');
+          // Only show login if we're not already on it (prevents redirect loop)
+          if (document.getElementById('login') &&
+              !document.getElementById('login').classList.contains('active')) {
+              show('login');
+          }
       }
   });
 
@@ -11132,9 +11149,10 @@ const _STORM_CFG = {
     messagingSenderId: "933810617818",
     appId: "1:933810617818:web:efb24f123337dd987c14e3"
 };
-// Reuse existing app if already initialized (avoids duplicate-app error)
-const _stormApp = getApps().find(a => a.name === '[DEFAULT]') ||
-    initializeApp(_STORM_CFG, 'storm');
+// Always reuse the default Firebase app — never create a second instance.
+// initializeApp was already called by the main module above; getApps()[0]
+// will always be the DEFAULT app on this single-page application.
+const _stormApp = getApps().find(a => a.name === '[DEFAULT]') || initializeApp(_STORM_CFG);
 const _rtdb = getDatabase(_stormApp);
 
 /* ────────────────────────────────

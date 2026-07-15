@@ -33,14 +33,14 @@
       const reg = await navigator.serviceWorker.register(swPath, { scope: base });
       console.log('[SW] Registered, scope:', reg.scope);
 
-      // When a NEW service worker activates (cache version bumped), reload
-      // the page exactly once so users immediately get the latest files.
-      // sessionStorage flag prevents a reload loop: if we just reloaded we
-      // skip the next controllerchange event that fires on the fresh page.
+      // When a NEW service worker activates the controllerchange event fires.
+      // We intentionally do NOT auto-reload here — automatic reloads cause
+      // redirect loops on mobile. Users will get updated files on their next
+      // natural page load (navigation requests are network-first in sw.js).
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (sessionStorage.getItem('snx-sw-reloading')) return;
-        sessionStorage.setItem('snx-sw-reloading', '1');
-        window.location.reload();
+        // Reload suppressed to prevent mobile reload/redirect loops.
+        // Remove sessionStorage flag so it doesn't linger across sessions.
+        sessionStorage.removeItem('snx-sw-reloading');
       });
     } catch (err) {
       console.warn('[SW] Registration failed:', err);
@@ -56,9 +56,6 @@
 
   });
 
-  // Clear the reload-guard flag on every fresh page load so the next update
-  // can trigger a reload again.
-  sessionStorage.removeItem('snx-sw-reloading');
 })();
 
 /* ═══════════════════════════════════════════════
