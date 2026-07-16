@@ -50,10 +50,12 @@
         });
       });
 
-      // When the new SW takes control, reload so the fresh files are used
+      // When the new SW takes control, reload only if the user explicitly
+      // approved the update (clicked the toast "Update now" button).
+      // Never reload automatically — it would kick users out mid-session.
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!sessionStorage.getItem('snx-sw-reloading')) {
-          sessionStorage.setItem('snx-sw-reloading', '1');
+        if (sessionStorage.getItem('snx-sw-update-approved')) {
+          sessionStorage.removeItem('snx-sw-update-approved');
           window.location.reload();
         }
       });
@@ -86,6 +88,8 @@ function showUpdateToast(worker) {
   if (btn) {
     btn.addEventListener('click', () => {
       toast.classList.remove('visible');
+      // Flag that a user-approved reload is pending before telling SW to skip waiting
+      sessionStorage.setItem('snx-sw-update-approved', '1');
       worker.postMessage({ type: 'SKIP_WAITING' });
     }, { once: true });
   }

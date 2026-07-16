@@ -460,12 +460,11 @@ body::after {
     border: 1px solid rgba(0,174,239,0.22);
     border-radius: 14px;
     transition: border-color 0.25s ease, box-shadow 0.25s ease;
-    animation: shadowBreath 8s ease-in-out infinite;
+    /* shadowBreath removed — running on many elements simultaneously was expensive */
 }
 .section-card:hover {
     border-color: rgba(0,140,255,0.28);
     box-shadow: 0 0 20px rgba(0,100,255,0.08);
-    animation-play-state: paused;
 }
 
 button {
@@ -530,7 +529,7 @@ input:focus, textarea:focus, select:focus {
     border-radius: 14px;
     background: rgba(11, 31, 58, 0.92);
     position: relative;
-    animation: postSlideIn 0.22s ease-out both, shadowBreath 10s ease-in-out 2s infinite;
+    animation: postSlideIn 0.22s ease-out both;
     transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 .postBox:hover {
@@ -3975,19 +3974,17 @@ input:focus, textarea:focus, select:focus {
 
 .postBox {
     border: 1px solid rgba(0,174,239,0.30) !important;
-    animation: borderPulse 5s ease-in-out infinite !important;
+    /* borderPulse removed — running on many elements was CPU-expensive */
     transition: border-color 0.25s, box-shadow 0.25s;
 }
 .postBox:hover {
     border-color: rgba(0,174,239,0.75) !important;
     box-shadow: 0 0 0 1px rgba(0,174,239,0.18), 0 0 32px rgba(0,174,239,0.40), inset 0 0 20px rgba(0,174,239,0.05) !important;
-    animation-play-state: paused !important;
 }
 
 .profile-header {
     border: 1px solid rgba(0,174,239,0.32) !important;
     box-shadow: 0 0 24px rgba(0,174,239,0.22), inset 0 0 40px rgba(0,174,239,0.04) !important;
-    animation: borderPulse 6s ease-in-out infinite !important;
 }
 
 .section-card {
@@ -3998,7 +3995,6 @@ input:focus, textarea:focus, select:focus {
 .section-card:hover {
     border-color: rgba(0,174,239,0.60) !important;
     box-shadow: 0 0 30px rgba(0,174,239,0.32), inset 0 0 20px rgba(0,174,239,0.04) !important;
-    animation-play-state: paused !important;
 }
 
 .user-card {
@@ -4521,7 +4517,13 @@ body::after {
 }
 #arcadeGameModal.open { display:flex; }
 /* Lock body scroll while game is open */
-body.arcade-open { overflow:hidden; touch-action:none; }
+body.arcade-open {
+    overflow:hidden;
+    touch-action:none;
+    overscroll-behavior:none;
+    /* Prevent iOS Safari rubber-band scroll from scrolling the page behind the game */
+    position:fixed; width:100%;
+}
 
 .arcade-game-modal-header {
     width:100%; display:flex; align-items:center; justify-content:space-between;
@@ -4992,19 +4994,28 @@ body.arcade-fs-ios body::after { display:none !important; }
         <h2 class="eclipse-title" style="font-size:24px; margin-bottom:6px; letter-spacing:2px;">SHADOW NEXUS SOCIAL</h2>
         <p style="color:#7aaac8; font-size:12px; margin:0 0 22px; line-height:1.5;">Where we can come and connect in the safe space,<br>no judgment. Stay legendary. 🌑🔥</p>
 
-        <input id="userEmail" placeholder="✉ Your email address" style="margin-bottom:10px;" autocomplete="username">
-        <input id="userPass" type="password" placeholder="🔒 Password" autocomplete="current-password">
-
-        <div style="margin-top:18px; display:flex; gap:10px; justify-content:center;">
-            <button id="btnRegister" style="flex:1; border-radius:10px; padding:10px;">Join the Nexus</button>
-            <button id="btnLogin" style="flex:1; border-radius:10px; padding:10px;">Enter</button>
+        <!-- Auth loading overlay — shown while Firebase resolves sign-in -->
+        <div id="loginLoadingOverlay" style="display:none; flex-direction:column; align-items:center; gap:14px; padding:24px 0;">
+            <div style="width:48px;height:48px;border-radius:50%;border:3px solid rgba(0,174,239,0.25);border-top-color:#00AEEF;animation:spin360 0.7s linear infinite;"></div>
+            <span style="color:#6a90b8;font-size:13px;" id="loginLoadingMsg">Signing you in…</span>
         </div>
+        <style>@keyframes spin360{to{transform:rotate(360deg)}}</style>
 
-        <div style="margin-top:12px; text-align:center;">
-            <button id="btnForgotPassword" style="background:none; border:none; color:#3a6a9a; font-size:12px; font-weight:600; cursor:pointer; padding:4px 8px; border-radius:4px; transition:color 0.15s;">🔑 Forgot Password?</button>
+        <div id="loginForm">
+            <input id="userEmail" placeholder="✉ Your email address" style="margin-bottom:10px;" autocomplete="username">
+            <input id="userPass" type="password" placeholder="🔒 Password" autocomplete="current-password">
+
+            <div style="margin-top:18px; display:flex; gap:10px; justify-content:center;">
+                <button id="btnRegister" style="flex:1; border-radius:10px; padding:10px;">Join the Nexus</button>
+                <button id="btnLogin" style="flex:1; border-radius:10px; padding:10px;">Enter</button>
+            </div>
+
+            <div style="margin-top:12px; text-align:center;">
+                <button id="btnForgotPassword" style="background:none; border:none; color:#3a6a9a; font-size:12px; font-weight:600; cursor:pointer; padding:4px 8px; border-radius:4px; transition:color 0.15s;">🔑 Forgot Password?</button>
+            </div>
+
+            <p style="color:#3a2a5a; font-size:11px; margin-top:14px;">By joining you agree to be legendary and judgment-free 🌑🔥</p>
         </div>
-
-        <p style="color:#3a2a5a; font-size:11px; margin-top:14px;">By joining you agree to be legendary and judgment-free 🌑🔥</p>
     </div>
 </div>
 
@@ -7144,6 +7155,14 @@ body.arcade-fs-ios body::after { display:none !important; }
       serverTimestamp,
   };
 
+  // ── Auth-ready queue — lets non-module scripts register callbacks that
+  //    run as soon as Firebase auth resolves (avoids the re-login requirement) ──
+  window._snxAuthReadyQueue = window._snxAuthReadyQueue || [];
+  window._snxOnAuthReady = function(fn) {
+    if (window._snxAuthResolved) { try { fn(); } catch(e){} }
+    else { window._snxAuthReadyQueue.push(fn); }
+  };
+
   // ── VAPID public key for FCM web push ──
   // Generate your own at: Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
   const FCM_VAPID_KEY = 'BMXbxFVBGH9IOYfoi9UYjrD4_pR1ed0giN6OCKwK1BG-3EbVp8EvNj1DLt4XuHjVpdH5KM-1glFMURHQa2-TR14';
@@ -7270,6 +7289,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       const pass  = document.getElementById("userPass").value;
       if (!email || !pass) { toastNotification("Please enter your email and a password."); return; }
       if (pass.length < 6) { toastNotification("Password must be at least 6 characters."); return; }
+      _showLoginLoading('Creating your account…');
       try {
           const credential = await createUserWithEmailAndPassword(auth, email, pass);
           const handle = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
@@ -7309,16 +7329,35 @@ body.arcade-fs-ios body::after { display:none !important; }
               ? "👑 Welcome back, Founder! Shadow Nexus Social is yours. 🌑🔥"
               : "🌑 Welcome to Shadow Nexus Social! Stay legendary. 🔥"
           );
-      } catch(e) { toastNotification(e.message); }
+      } catch(e) { _hideLoginLoading(); toastNotification(e.message); }
   };
+
+  // ── Login loading overlay helpers ──
+  function _showLoginLoading(msg) {
+      const overlay = document.getElementById('loginLoadingOverlay');
+      const form    = document.getElementById('loginForm');
+      if (overlay) { overlay.style.display = 'flex'; document.getElementById('loginLoadingMsg').textContent = msg || 'Signing you in…'; }
+      if (form)    form.style.display = 'none';
+  }
+  function _hideLoginLoading() {
+      const overlay = document.getElementById('loginLoadingOverlay');
+      const form    = document.getElementById('loginForm');
+      if (overlay) overlay.style.display = 'none';
+      if (form)    form.style.display = '';
+  }
 
   document.getElementById("btnLogin").onclick = async () => {
       const email = document.getElementById("userEmail").value.trim();
       const pass  = document.getElementById("userPass").value;
       if (!email || !pass) { toastNotification("Please enter your email and password."); return; }
+      _showLoginLoading('Signing you in…');
       try {
           await signInWithEmailAndPassword(auth, email, pass);
-      } catch(e) { toastNotification("Incorrect email or password. Please try again."); }
+          // onAuthStateChanged will navigate to feed — no manual navTo needed here
+      } catch(e) {
+          _hideLoginLoading();
+          toastNotification("Incorrect email or password. Please try again.");
+      }
   };
 
   window.handleLogout = async () => {
@@ -7414,11 +7453,17 @@ body.arcade-fs-ios body::after { display:none !important; }
 
           // Expose current user for non-module scripts (notification settings)
           window._snxCurrentUser = user;
+          window._snxUserData    = userData;
+          // Flush any auth-ready callbacks registered before auth resolved
+          if (Array.isArray(window._snxAuthReadyQueue)) {
+            window._snxAuthReadyQueue.forEach(fn => { try { fn(); } catch(e){} });
+            window._snxAuthReadyQueue = [];
+          }
+          window._snxAuthResolved = true;
           // Start passive invite listener for sidebar badge (deferred so arcade IIFE has loaded)
           setTimeout(() => {
             if (typeof window._snxArcadeSubscribeInvites === 'function') window._snxArcadeSubscribeInvites();
-          }, 1500);
-          window._snxUserData    = userData;
+          }, 800);
 
           // ── Single unified live listener for own user doc ──
           // Handles: settings sync, notification bell + badge, friend badges,
@@ -7532,7 +7577,10 @@ body.arcade-fs-ios body::after { display:none !important; }
               }
               if (typeof window._showRolePanels === 'function') window._showRolePanels();
           } catch(_) {}
-          navTo('feed');          initTimelineStream();
+          // Hide login loading overlay and navigate to feed
+          _hideLoginLoading();
+          navTo('feed');
+          initTimelineStream();
           presenceUnsubscribe = initPresenceStrip();
           inboxUnsubscribe    = initInboxMonitor();
           scheduleExpiredPostCleanup();
@@ -7542,6 +7590,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           window._snxInitPush = initPushNotifications;
           setTimeout(initPushNotifications, 2500);
       } else {
+          // Ensure login form is visible if user signs out
+          _hideLoginLoading();
           currentUser = null; userData = null;
           // ── Tear down EVERY real-time listener so nothing fires against a null user ──
           if (feedUnsubscribe)     { feedUnsubscribe();     feedUnsubscribe     = null; }
@@ -7552,6 +7602,10 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (activeChatUnsubscribe) { activeChatUnsubscribe(); activeChatUnsubscribe = null; }
           if (activeChatStatusUnsub) { activeChatStatusUnsub(); activeChatStatusUnsub = null; }
           if (activeChatTypingUnsub) { activeChatTypingUnsub(); activeChatTypingUnsub = null; }
+          // Tear down profile snapshot so it doesn't fire against null currentUser
+          if (typeof activeProfileUnsubscribe !== 'undefined' && activeProfileUnsubscribe) {
+              activeProfileUnsubscribe(); activeProfileUnsubscribe = null;
+          }
           if (typeof window._teardownActiveChat === 'function') window._teardownActiveChat();
           if (typeof window.closeProfileChat    === 'function') window.closeProfileChat();
           document.getElementById("menuButton").style.display = "none";
@@ -7716,9 +7770,12 @@ body.arcade-fs-ios body::after { display:none !important; }
       } catch(_) { /* best-effort */ }
   }
 
-  /* ACTIVE DIRECTORY COMPONENT PRESENCE STRIP */
+  /* ACTIVE DIRECTORY COMPONENT PRESENCE STRIP
+     Queries only online users (where status == 'online') to avoid downloading
+     the entire users collection on every presence change. */
   function initPresenceStrip() {
-      const unsub = onSnapshot(collection(db, "users"), (snap) => {
+      const q = query(collection(db, "users"), where("status", "==", "online"));
+      const unsub = onSnapshot(q, (snap) => {
           // ── Feed page "Active Now" strip ──
           const strip     = document.getElementById("activeUsersStrip");
           const stripWrap = document.getElementById("activeUsersStripWrap");
@@ -7729,42 +7786,35 @@ body.arcade-fs-ios body::after { display:none !important; }
           const onlineCountEl = document.getElementById("msgHeaderOnlineCount");
           if (onlineAvatars) onlineAvatars.innerHTML = "";
 
-          let onlineCount  = 0;
-          let otherCount   = 0;   // any user that isn't me
+          let onlineCount = 0;
 
           snap.forEach(uDoc => {
               const u = uDoc.data();
               if (!u.uid || u.uid === currentUser.uid) return;
-              // Skip users without a display name (incomplete registrations)
-              if (!u.displayName) return;
-              otherCount++;
+              if (!u.displayName) return; // skip incomplete registrations
 
-              const isOnline = u.status === 'online';
+              onlineCount++;
 
-              // Feed strip chip — only show online users; clicking goes to their profile
-              if (isOnline) {
-                  const chip = document.createElement("div");
-                  chip.className = "user-chip";
-                  const initial = (u.displayName || '?')[0].toUpperCase();
-                  const chipBadges = buildBadgeHtml(u.badges||[], u.role||'member');
-                  chip.innerHTML = `
-                    <div style="width:28px;height:28px;border-radius:50%;background:${u.avatar ? `url('${u.avatar}') center/cover no-repeat` : '#0B1F3A'};border:1.5px solid rgba(0,174,239,0.55);display:flex;align-items:center;justify-content:center;font-size:11px;color:#00AEEF;flex-shrink:0;">${u.avatar ? '' : initial}</div>
-                    <div class="indicator-dot online"></div>
-                    <span>${escFeed(u.displayName)}</span>${chipBadges}`;
-                  chip.onclick = () => viewProfile(u.uid);
-                  strip.appendChild(chip);
-              }
+              // Feed strip chip
+              const chip = document.createElement("div");
+              chip.className = "user-chip";
+              const initial = (u.displayName || '?')[0].toUpperCase();
+              const chipBadges = buildBadgeHtml(u.badges||[], u.role||'member');
+              chip.innerHTML = `
+                <div style="width:28px;height:28px;border-radius:50%;background:${u.avatar ? `url('${u.avatar}') center/cover no-repeat` : '#0B1F3A'};border:1.5px solid rgba(0,174,239,0.55);display:flex;align-items:center;justify-content:center;font-size:11px;color:#00AEEF;flex-shrink:0;">${u.avatar ? '' : initial}</div>
+                <div class="indicator-dot online"></div>
+                <span>${escFeed(u.displayName)}</span>${chipBadges}`;
+              chip.onclick = () => viewProfile(u.uid);
+              strip.appendChild(chip);
 
-              // Messages online strip — only online users
-              if (isOnline && onlineAvatars) {
-                  onlineCount++;
+              // Messages online strip
+              if (onlineAvatars) {
                   const item = document.createElement("div");
                   item.className = "msg-online-item";
                   const av = document.createElement("div");
                   av.className = "msg-online-avatar";
                   if (u.avatar) av.style.backgroundImage = `url('${u.avatar}')`;
                   else { av.textContent = (u.displayName || '?')[0].toUpperCase(); av.style.cssText += ';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;color:#00AEEF;'; }
-                  // Build a descriptive title including badge names
                   const badgeNames = (u.badges||[]).filter(b => b !== 'Founder' || u.role === 'founder').join(', ');
                   av.title = u.displayName + (badgeNames ? ' · ' + badgeNames : '');
                   av.onclick = () => establishDirectMessageChannel(u.uid);
@@ -7777,16 +7827,11 @@ body.arcade-fs-ios body::after { display:none !important; }
               }
           });
 
-          // Feed strip: show professional empty state when no one else is online
+          // Feed strip empty state
           if (strip.children.length === 0) {
-              if (otherCount === 0) {
-                  strip.innerHTML = '<span style="font-size:12px;color:#334;font-style:italic;padding:6px 0;">No other members yet — invite people to join!</span>';
-              } else {
-                  strip.innerHTML = '<span style="font-size:12px;color:#334;font-style:italic;padding:6px 0;">No one else is online right now.</span>';
-              }
+              strip.innerHTML = '<span style="font-size:12px;color:#334;font-style:italic;padding:6px 0;">No one else is online right now.</span>';
           }
 
-          // Show / hide the strip section header based on whether there are other users
           if (stripWrap) stripWrap.style.display = '';
 
           // Messages online strip empty state
@@ -7801,7 +7846,8 @@ body.arcade-fs-ios body::after { display:none !important; }
   }
 
   /* TIMELINE DYNAMIC TIMELINE STREAM ENGINE WITH MEDIA INTERPRETATION */
-  const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+  // TTL_MS kept for cleanup-only purposes — posts no longer expire from the feed display.
+  const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (used only for scheduled cleanup, not for display)
 
   function initTimelineStream() {
       // Tear down any existing listener before (re)subscribing with a new limit
@@ -7810,17 +7856,15 @@ body.arcade-fs-ios body::after { display:none !important; }
       const qElements = query(collection(db, "posts"), orderBy("timestamp", "desc"), limit(scrollLimit));
       feedUnsubscribe = onSnapshot(qElements, (snapshot) => {
           const container = document.getElementById("feedPosts");
-          const now = Date.now();
 
-          // Collect the set of post IDs in this snapshot (after TTL filter)
+          // All posts in the snapshot are shown — no TTL expiry in the feed display.
+          // Posts are only removed when the owner deletes them or a moderator removes them.
           const incomingIds = new Set();
           snapshot.forEach(pDoc => {
-              const post = pDoc.data();
-              if (post.timestamp && (now - post.timestamp) > TTL_MS) return;
               incomingIds.add(pDoc.id);
           });
 
-          // Remove DOM nodes for posts no longer in the snapshot (deleted / expired)
+          // Remove DOM nodes for posts no longer in the snapshot (deleted by owner/mod)
           container.querySelectorAll('.postBox[id^="post-"]').forEach(el => {
               const id = el.id.replace('post-', '');
               if (!incomingIds.has(id)) el.remove();
@@ -7850,13 +7894,8 @@ body.arcade-fs-ios body::after { display:none !important; }
 
               const isLiked = post.likedBy?.includes(currentUser.uid);
               const isOwner = post.uid === currentUser.uid;
-              const ageMs   = now - (post.timestamp || now);
-              const hoursLeft = Math.max(0, Math.floor((TTL_MS - ageMs) / 3600000));
-              const ageLabel = hoursLeft === 0
-                  ? '<span class="post-expiry expiry-soon">⏳ &lt;1h left</span>'
-                  : hoursLeft <= 6
-                  ? `<span class="post-expiry expiry-soon">⏳ ${hoursLeft}h left</span>`
-                  : `<span class="post-expiry">⏳ ${hoursLeft}h left</span>`;
+              // Posts are permanent — no expiry label shown
+              const ageLabel = '';
 
               let mediaHTML = '';
               if (post.mediaUrl) {
@@ -8275,7 +8314,9 @@ body.arcade-fs-ios body::after { display:none !important; }
           document.getElementById("postMediaUrl").value = "";
           const counter = document.getElementById("postCharCounter");
           if (counter) { counter.textContent = "500 characters left"; counter.className = "post-char-counter"; }
-          toastNotification("⚡ Post published! Auto-deletes in 24 hours.");
+          // Clear media upload UI
+          clearPostMedia();
+          toastNotification("⚡ Post published to the Eclipse!");
       } catch(e) {
           toastNotification("Failed to post — please try again.");
       } finally {
@@ -8520,46 +8561,55 @@ body.arcade-fs-ios body::after { display:none !important; }
       )];
       if (!handles.length) return;
 
-      const snap = await getDocs(collection(db, 'users'));
+      // Query only the specifically mentioned usernames instead of all users.
+      // Firestore 'in' limit is 30 — batch if needed (max 30 handles per post is ample).
       const taggedUsers = [];
+      const batches = [];
+      for (let i = 0; i < handles.length; i += 30) batches.push(handles.slice(i, i + 30));
 
-      snap.forEach(uDoc => {
-          const u = uDoc.data();
-          if (!u.uid || u.uid === currentUser.uid || !u.username) return;
-          if (!handles.includes(u.username.toLowerCase())) return;
+      for (const batch of batches) {
+          let snap;
+          try {
+              snap = await getDocs(query(collection(db, 'users'), where('username', 'in', batch)));
+          } catch(_) { continue; }
 
-          // Check if the user is suspended/deleted
-          if (u.suspended || u.deleted) return;
+          snap.forEach(uDoc => {
+              const u = uDoc.data();
+              if (!u.uid || u.uid === currentUser.uid || !u.username) return;
 
-          // Check tagging privacy
-          const taggingPriv = u.privacySettings?.tagging || 'everyone';
-          if (taggingPriv === 'nobody') return;
-          if (taggingPriv === 'friends') {
-              const myFriends = userData?.friends || [];
-              if (!myFriends.includes(u.uid)) return;
-          }
+              // Check if the user is suspended/deleted
+              if (u.suspended || u.deleted) return;
 
-          if (!isComment) {
-              // Tag-type notification for posts
-              taggedUsers.push({ uid: u.uid, handle: u.username });
-              pushNotification(u.uid, {
-                  type:       'tag',
-                  fromUid:    currentUser.uid,
-                  fromName:   userData.displayName,
-                  fromAvatar: userData.avatar || '',
-                  postId
-              });
-          } else {
-              // Mention-type notification for comments
-              pushNotification(u.uid, {
-                  type:       'mention',
-                  fromUid:    currentUser.uid,
-                  fromName:   userData.displayName,
-                  fromAvatar: userData.avatar || '',
-                  postId
-              });
-          }
-      });
+              // Check tagging privacy
+              const taggingPriv = u.privacySettings?.tagging || 'everyone';
+              if (taggingPriv === 'nobody') return;
+              if (taggingPriv === 'friends') {
+                  const myFriends = userData?.friends || [];
+                  if (!myFriends.includes(u.uid)) return;
+              }
+
+              if (!isComment) {
+                  // Tag-type notification for posts
+                  taggedUsers.push({ uid: u.uid, handle: u.username });
+                  pushNotification(u.uid, {
+                      type:       'tag',
+                      fromUid:    currentUser.uid,
+                      fromName:   userData.displayName,
+                      fromAvatar: userData.avatar || '',
+                      postId
+                  });
+              } else {
+                  // Mention-type notification for comments
+                  pushNotification(u.uid, {
+                      type:       'mention',
+                      fromUid:    currentUser.uid,
+                      fromName:   userData.displayName,
+                      fromAvatar: userData.avatar || '',
+                      postId
+                  });
+              }
+          });
+      }
 
       // Persist taggedUsers on the post document (not on comments)
       if (!isComment && taggedUsers.length && postId) {
@@ -8668,24 +8718,14 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
   });
 
-  /* ── Scheduled 24h expired-post cleanup ──
-     Runs once on login. Queries all posts with createdAt older than 24h
-     and batch-deletes them. Falls back to `timestamp` for legacy posts. */
+  /* ── Post cleanup (TTL disabled) ──
+     Posts are now permanent — they stay until manually deleted by the owner
+     or removed by a moderator. This function is kept as a no-op so existing
+     call-sites at login continue to work without errors.
+     The TTL_MS constant is still defined above for reference only. */
   async function scheduleExpiredPostCleanup() {
-      const cutoff = Date.now() - TTL_MS;
-      try {
-          const expired = await getDocs(
-              query(collection(db, "posts"), where("createdAt", "<", cutoff))
-          );
-          if (expired.empty) return;
-          const batch = writeBatch(db);
-          expired.forEach(d => batch.delete(d.ref));
-          await batch.commit();
-          console.log(`[TTL] Cleaned up ${expired.size} expired post(s).`);
-      } catch (e) {
-          // Silently fail — cleanup is best-effort
-          console.warn("[TTL] Cleanup skipped:", e.message);
-      }
+      // No-op: post permanence is the intended behaviour.
+      // To re-enable auto-deletion in future, restore the batch-delete query here.
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -8695,20 +8735,63 @@ body.arcade-fs-ios body::after { display:none !important; }
       const q = document.getElementById("searchInput").value.trim().toLowerCase();
       const resultsBox = document.getElementById("searchResults");
       if (!q) { resultsBox.innerHTML = '<div class="search-empty">Enter a name or username above and press Search.</div>'; return; }
+      if (q.length < 2) { resultsBox.innerHTML = '<div class="search-empty">Type at least 2 characters to search.</div>'; return; }
       resultsBox.innerHTML = '<div class="search-empty">Searching…</div>';
-      const snap = await getDocs(collection(db, "users"));
+
+      // Use a range query on username to avoid downloading all users.
+      // Firestore doesn't support case-insensitive search natively, so we query by
+      // username prefix (lowercase stored) and displayName prefix separately, then merge.
       const myFriends = userData?.friends || [];
       const mySent = userData?.friendRequestsSent || [];
       const results = [];
-      snap.forEach(d => {
-          const u = d.data();
-          if (!u.uid || u.uid === currentUser.uid) return;
-          if (!u.displayName) return;  // skip incomplete accounts
-          const priv = u.privacySettings?.findMe || 'everyone';
-          if (priv === 'nobody') return;
-          if (priv === 'friends' && !myFriends.includes(u.uid)) return;
-          if ((u.displayName||'').toLowerCase().includes(q) || (u.username||'').toLowerCase().includes(q)) results.push(u);
-      });
+      const seen = new Set();
+
+      const addResults = (snap) => {
+          snap.forEach(d => {
+              const u = d.data();
+              if (!u.uid || u.uid === currentUser.uid || seen.has(u.uid)) return;
+              if (!u.displayName) return;
+              const priv = u.privacySettings?.findMe || 'everyone';
+              if (priv === 'nobody') return;
+              if (priv === 'friends' && !myFriends.includes(u.uid)) return;
+              seen.add(u.uid);
+              results.push(u);
+          });
+      };
+
+      try {
+          // Query 1: username prefix match (usernames stored lowercase)
+          const [snapU, snapD] = await Promise.all([
+              getDocs(query(collection(db, 'users'),
+                  where('username', '>=', q),
+                  where('username', '<', q + '\uf8ff'),
+                  limit(20)
+              )),
+              getDocs(query(collection(db, 'users'),
+                  where('displayName', '>=', q),
+                  where('displayName', '<', q + '\uf8ff'),
+                  limit(20)
+              ))
+          ]);
+          addResults(snapU);
+          addResults(snapD);
+      } catch(_) {
+          // Firestore index may be missing — fall back to full scan (max 200 docs)
+          try {
+              const snap = await getDocs(query(collection(db, 'users'), limit(200)));
+              snap.forEach(d => {
+                  const u = d.data();
+                  if (!u.uid || u.uid === currentUser.uid || seen.has(u.uid)) return;
+                  if (!u.displayName) return;
+                  const priv = u.privacySettings?.findMe || 'everyone';
+                  if (priv === 'nobody') return;
+                  if (priv === 'friends' && !myFriends.includes(u.uid)) return;
+                  if ((u.displayName||'').toLowerCase().includes(q) || (u.username||'').toLowerCase().includes(q)) {
+                      seen.add(u.uid); results.push(u);
+                  }
+              });
+          } catch(_) {}
+      }
       if (!results.length) {
           resultsBox.innerHTML = `<div class="search-empty">No users found matching "<strong style="color:#4a7aaa">${escFeed(q)}</strong>".<br><span style="font-size:12px;color:#3a5a7a;">Invite your friends to join Shadow Nexus Social!</span></div>`;
           return;
@@ -9436,6 +9519,11 @@ body.arcade-fs-ios body::after { display:none !important; }
           document.getElementById("cntFollowers").textContent = (p.followers?.length || 0);
           document.getElementById("cntFollowing").textContent = (p.following?.length || 0);
           document.getElementById("cntFriends").textContent   = (p.friends?.length || 0);
+          // Post count — fetch once per profile open (best-effort, non-blocking)
+          getDocs(query(collection(db, 'posts'), where('uid', '==', uid))).then(s => {
+              const el = document.getElementById('cntPosts');
+              if (el) el.textContent = s.size;
+          }).catch(() => {});
 
           // Apply per-profile customizations (styles, links, spotlight, section visibility)
           applyProfileCustom(p.profileCustom || {}, uid);
@@ -9867,9 +9955,9 @@ body.arcade-fs-ios body::after { display:none !important; }
       hAvatar.onclick = () => viewProfile(targetUid);
       const hName = document.getElementById("chatHeaderName");
       hName.innerHTML = escapeHtml(tData.displayName) + buildBadgeHtml(tData.badges||[], tData.role||'member') + buildMoodChipHtml(tData.profileCustom?.moodType || '', tData.profileCustom?.moodValue || '');
-      hName.style.cursor = '';
-      hName.title = '';
-      hName.onclick = null;
+      hName.style.cursor = 'pointer';
+      hName.title = 'View profile';
+      hName.onclick = () => viewProfile(targetUid);
       // Header status updated live below ↓
 
       // Show footer + panel — use classes, never inline style, so CSS media queries stay in control
@@ -10057,14 +10145,16 @@ body.arcade-fs-ios body::after { display:none !important; }
   }
 
   // Send message — supports type:'text' and type:'image'
-  // Wire up both click AND touchstart so it always fires on mobile
+  // Use click only. Adding both click + touchstart causes double-fire on many Android browsers.
+  // touch-action:manipulation on the button element already eliminates the 300ms tap delay.
   (function() {
       const btn = document.getElementById("btnSendMsg");
-      btn.addEventListener("click", sendMessage);
-      btn.addEventListener("touchstart", function(e) {
-          e.preventDefault(); // prevent the 300ms delay & double-fire
-          sendMessage();
-      }, { passive: false });
+      let _sendBusy = false;
+      btn.addEventListener("click", () => {
+          if (_sendBusy) return;
+          _sendBusy = true;
+          sendMessage().finally(() => { _sendBusy = false; });
+      });
   })();
   document.getElementById("msgInputBox").addEventListener("keydown", (e) => {
       if(e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -10244,6 +10334,15 @@ body.arcade-fs-ios body::after { display:none !important; }
           document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active-conv'));
           toastNotification('Conversation deleted.');
       } catch(e) { toastNotification('Could not delete: ' + e.message); }
+  };
+
+  // Expose chat teardown for non-module scripts (closeChatPanel in the global script)
+  window._snxCloseChatPanel = function() {
+      activeChatTargetUid = null;
+      activeChatChannelId = null;
+      if (activeChatUnsubscribe) { activeChatUnsubscribe(); activeChatUnsubscribe = null; }
+      if (activeChatStatusUnsub) { activeChatStatusUnsub(); activeChatStatusUnsub = null; }
+      if (activeChatTypingUnsub) { activeChatTypingUnsub(); activeChatTypingUnsub = null; }
   };
 
   // Inbox monitor — scoped to this user's channels only via a where() query,
@@ -10822,14 +10921,19 @@ body.arcade-fs-ios body::after { display:none !important; }
       _m_ready = true;
   };
 
-  // ── Wire up send button: click + touchstart (mobile keyboard tap fix) ──
+  // ── Wire up send button — single click handler with busy guard.
+  //    touch-action:manipulation on the button eliminates the 300ms delay
+  //    without needing touchstart. Using both click + touchstart causes
+  //    double-sends on Android (touchstart fires _mSend, then the synthetic
+  //    click fires it again 300ms later).
   (function() {
       const btn = document.getElementById('ipcModalSendBtn');
-      btn.addEventListener('click', _mSend);
-      btn.addEventListener('touchstart', function(e) {
-          e.preventDefault(); // kill 300ms tap delay and prevent ghost click
-          _mSend();
-      }, { passive: false });
+      let _mBusy = false;
+      btn.addEventListener('click', () => {
+          if (_mBusy) return;
+          _mBusy = true;
+          _mSend().finally(() => { _mBusy = false; });
+      });
   })();
   document.getElementById('ipcModalInput').addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _mSend(); }
@@ -12086,18 +12190,9 @@ function closeChatPanel() {
     // Restore footer-hidden so layout doesn't show orphan input bar
     document.getElementById("chatFooter").classList.add("footer-hidden");
     closeEmojiPicker();
-    // Clear selection state so the inbox snapshot doesn't re-highlight the old item
-    activeChatTargetUid = null;
-    activeChatChannelId = null;
-    // Tear down live listeners — they're no longer needed when no chat is open
-    if (typeof activeChatUnsubscribe !== 'undefined' && activeChatUnsubscribe) {
-        activeChatUnsubscribe(); activeChatUnsubscribe = null;
-    }
-    if (typeof activeChatStatusUnsub !== 'undefined' && activeChatStatusUnsub) {
-        activeChatStatusUnsub(); activeChatStatusUnsub = null;
-    }
-    if (typeof activeChatTypingUnsub !== 'undefined' && activeChatTypingUnsub) {
-        activeChatTypingUnsub(); activeChatTypingUnsub = null;
+    // Delegate teardown to the module function that owns the variables
+    if (typeof window._snxCloseChatPanel === 'function') {
+        window._snxCloseChatPanel();
     }
     // Remove active highlight from every conversation row
     document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active-conv'));
@@ -12280,15 +12375,30 @@ window.addEventListener("keydown", (e) => {
     if (e.code === "Space") { e.preventDefault(); jump(); }
 });
 
-// Touch: passive:false is required to be able to call preventDefault (blocks page scroll)
-document.getElementById("game-container").addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    jump();
-}, { passive: false });
-
-document.getElementById("game-container").addEventListener("click", () => {
-    jump();
-});
+// Attach touch and click listeners after DOM is ready so getElementById never returns null.
+(function _attachMiniGameListeners() {
+    function _attach() {
+        const box = document.getElementById("game-container");
+        if (!box) return; // element not present (section hidden or DOM not ready)
+        // passive:false required so e.preventDefault() can block page scroll
+        box.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            jump();
+        }, { passive: false });
+        // touchmove block prevents the page from scrolling while playing
+        box.addEventListener("touchmove", (e) => {
+            e.preventDefault();
+        }, { passive: false });
+        box.addEventListener("click", () => {
+            jump();
+        });
+    }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", _attach);
+    } else {
+        _attach(); // already interactive
+    }
+})();
 
 /* ═══════════════════════════════════════════════════
    ECLIPSE HORROR BACKGROUND ENGINE
@@ -12325,9 +12435,17 @@ const fogWisps = [
 let _bgRafId = null;
 let _bgPaused = false;
 
+// Detect low-end / mobile devices so we scale down particle counts.
+// Uses navigator.hardwareConcurrency and window width as a proxy.
+const _isMobileDevice = typeof window !== 'undefined' && (
+    window.innerWidth < 768 || (navigator.hardwareConcurrency || 4) <= 4
+);
+
 function _seedAsh(w, h) {
     ashPts = [];
-    const count = Math.min(35, Math.floor((w * h) / 32000));
+    // Mobile: max 15 particles; desktop: max 35
+    const maxAsh = _isMobileDevice ? 15 : 35;
+    const count = Math.min(maxAsh, Math.floor((w * h) / 32000));
     for (let i = 0; i < count; i++) {
         ashPts.push({
             x:     Math.random() * w,
@@ -12344,7 +12462,9 @@ function _seedAsh(w, h) {
 
 function _seedGrid(w, h) {
     points = [];
-    const count = Math.min(50, Math.floor((w * h) / 24000));
+    // Mobile: max 25 grid points; desktop: max 50
+    const maxGrid = _isMobileDevice ? 25 : 50;
+    const count = Math.min(maxGrid, Math.floor((w * h) / 24000));
     for (let i = 0; i < count; i++) {
         points.push({
             x:     Math.random() * w,
@@ -12784,7 +12904,9 @@ const R2_UPLOAD_URL = 'https://yellow-term-11e6.nthntjrn.workers.dev';
  * @param {string}   progressWrapId - Element ID of the progress wrapper div
  * @returns {Promise<string>}  The public URL of the uploaded file
  */
-async function uploadToR2(file, progressBarId, progressWrapId) {
+async function uploadToR2(file, progressBarId, progressWrapId, _attempt) {
+    _attempt = _attempt || 1;
+    const MAX_RETRIES = 3;
     const uid = window._snxCurrentUser ? window._snxCurrentUser.uid : 'guest';
 
     // Show progress bar
@@ -12826,7 +12948,17 @@ async function uploadToR2(file, progressBarId, progressWrapId) {
 
         xhr.onerror = () => {
             if (wrap) wrap.style.display = 'none';
-            reject(new Error('Network error — check your connection'));
+            if (_attempt < MAX_RETRIES) {
+                // Exponential back-off: 1s → 2s → 4s
+                const delay = Math.pow(2, _attempt - 1) * 1000;
+                toastNotification(`⚠️ Upload interrupted — retrying (${_attempt}/${MAX_RETRIES})…`);
+                setTimeout(() => {
+                    uploadToR2(file, progressBarId, progressWrapId, _attempt + 1)
+                        .then(resolve).catch(reject);
+                }, delay);
+            } else {
+                reject(new Error('Network error — check your connection and try again'));
+            }
         };
 
         xhr.send(formData);
@@ -15186,6 +15318,36 @@ function toastArcade(msg) {
   if (window.toastNotification) window.toastNotification(msg);
 }
 
+/* Loading overlay — shown while canvas is being sized & game is initialising */
+function _arcadeShowLoading(on) {
+  let el = document.getElementById('arcadeLoadingOverlay');
+  if (on) {
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'arcadeLoadingOverlay';
+      el.style.cssText = [
+        'position:absolute','inset:0','display:flex','flex-direction:column',
+        'align-items:center','justify-content:center',
+        'background:rgba(0,5,20,0.88)','z-index:10',
+        'color:#00AEEF','font-size:13px','gap:10px','pointer-events:none'
+      ].join(';');
+      el.innerHTML = '<div style="width:32px;height:32px;border:3px solid rgba(0,174,239,0.25);border-top-color:#00AEEF;border-radius:50%;animation:arcadeSpinKf 0.75s linear infinite;"></div><span>Loading…</span>';
+      // Inject keyframe only once
+      if (!document.getElementById('arcadeSpinStyle')) {
+        const st = document.createElement('style');
+        st.id = 'arcadeSpinStyle';
+        st.textContent = '@keyframes arcadeSpinKf{to{transform:rotate(360deg)}}';
+        document.head.appendChild(st);
+      }
+      const wrap = document.querySelector('.arcade-game-canvas-wrap');
+      if (wrap) wrap.appendChild(el);
+    }
+    el.style.display = 'flex';
+  } else if (el) {
+    el.style.display = 'none';
+  }
+}
+
 /* Local best score storage */
 function _localBest(gameId, val) {
   const k = 'snx_arcade_best_' + gameId;
@@ -15205,7 +15367,10 @@ window.openArcadeHub = function() {
   if (!modal) return;
   modal.classList.add('open');
   _buildGameGrid();
+  // Always reset to the Games tab so the user never lands on a stale tab
   switchArcadeTab('games', document.getElementById('ahTab-games'));
+  // Re-subscribe each open so badge + invite list are always fresh
+  // (handles the case where the user navigated away then came back without re-logging in)
   _subscribeInvites();
   // Close sidebar on mobile
   const side = document.getElementById('side');
@@ -15254,8 +15419,16 @@ function _buildGameGrid() {
       <span class="arcade-game-icon">${g.icon}</span>
       <div class="arcade-game-name">${g.name}</div>
       <div class="arcade-game-desc">${g.desc}</div>`;
-    div.addEventListener('click', () => launchArcadeGame(g.id));
-    div.addEventListener('touchend', e => { e.preventDefault(); launchArcadeGame(g.id); }, { passive:false });
+    // Use touchend only on touch devices; fall back to click on pointer devices.
+    // A _touched flag prevents the subsequent synthetic click from firing a second launch.
+    let _touched = false;
+    div.addEventListener('touchend', e => {
+      e.preventDefault();
+      _touched = true;
+      launchArcadeGame(g.id);
+      setTimeout(() => { _touched = false; }, 600);
+    }, { passive: false });
+    div.addEventListener('click', () => { if (_touched) return; launchArcadeGame(g.id); });
     grid.appendChild(div);
   });
 }
@@ -15263,40 +15436,58 @@ function _buildGameGrid() {
 /* ─────────────────────────────────────────────
    LAUNCH / CLOSE GAME
    ───────────────────────────────────────────── */
+/* Guard flag: prevents a second in-flight launch while the double-rAF is pending */
+let _arcadeLaunching = false;
+
 window.launchArcadeGame = function(gameId) {
+  if (_arcadeLaunching) return;           // ignore re-entrant calls during init
   const g = ARCADE_GAMES.find(x => x.id === gameId);
   if (!g) return;
+
+  // Tear down any running game cleanly before starting a new one
+  if (_arcadeRAF) { cancelAnimationFrame(_arcadeRAF); _arcadeRAF = null; }
+  _removeGameListeners();
+  window.removeEventListener('resize', _arcadeHandleResize);
+
   _arcadeCurrentGame = gameId;
   _arcadeScore = 0;
+  _arcadeGameState = null;
 
   const modal = document.getElementById('arcadeGameModal');
   modal.classList.add('open');
-  // Lock body scroll so the page doesn't scroll behind the game modal
+  // Lock body scroll so the page doesn't scroll behind the game modal.
+  // Save & restore scroll position because position:fixed resets it on iOS.
+  window._arcadeScrollY = window.scrollY || window.pageYOffset || 0;
+  document.body.style.top = '-' + window._arcadeScrollY + 'px';
   document.body.classList.add('arcade-open');
   document.getElementById('agmTitle').textContent = g.icon + ' ' + g.name;
   document.getElementById('agmScore').textContent = '';
   document.getElementById('agmDesktopHint').textContent = '⌨ ' + g.hint;
   document.getElementById('arcadeGameOver').classList.remove('show');
 
-  if (_arcadeRAF) { cancelAnimationFrame(_arcadeRAF); _arcadeRAF = null; }
-  _arcadeGameState = null;
+  // Show loading overlay while canvas sizes up
+  _arcadeShowLoading(true);
 
   // Build mobile controls before sizing so layout is stable
   _buildMobileControls(g);
 
+  _arcadeLaunching = true;
   // Double-rAF: first frame resolves flex layout, second reads settled dimensions
   requestAnimationFrame(() => requestAnimationFrame(() => {
+    _arcadeLaunching = false;
     const wrap = modal.querySelector('.arcade-game-canvas-wrap');
     const cv   = document.getElementById('arcadeGameCanvas');
-    const W = wrap.clientWidth  || window.innerWidth;
-    const H = wrap.clientHeight || Math.max(200, window.innerHeight - 160);
+    const W = wrap ? (wrap.clientWidth  || window.innerWidth)  : window.innerWidth;
+    const H = wrap ? (wrap.clientHeight || Math.max(200, window.innerHeight - 160)) : Math.max(200, window.innerHeight - 160);
     cv.width  = Math.max(W, 200);
     cv.height = Math.max(H, 200);
 
+    _arcadeShowLoading(false);
     _startGame(gameId);
   }));
 
-  window.addEventListener('resize', _arcadeHandleResize);
+  // Attach resize listener (removeEventListener above ensures no duplicates)
+  window.addEventListener('resize', _arcadeHandleResize, { passive: true });
   // ResizeObserver keeps canvas pixel-perfect when keyboard/browser-chrome resize happens
   if (typeof ResizeObserver !== 'undefined') {
     const wrap = modal.querySelector('.arcade-game-canvas-wrap');
@@ -15308,8 +15499,10 @@ window.launchArcadeGame = function(gameId) {
 };
 
 window.closeArcadeGame = function() {
+  _arcadeLaunching = false;              // unblock if closed while init was pending
   if (_arcadeRAF) { cancelAnimationFrame(_arcadeRAF); _arcadeRAF = null; }
   _removeGameListeners();
+  _arcadeShowLoading(false);
   // Exit any active fullscreen before closing
   if (_arcadeFsIOS) {
     _arcadeApplyIosFallback(document.getElementById('arcadeGameModal'), false);
@@ -15325,7 +15518,13 @@ window.closeArcadeGame = function() {
     if (wrap && wrap._arcadeRO) { wrap._arcadeRO.disconnect(); wrap._arcadeRO = null; }
   }
   document.body.classList.remove('arcade-open');
+  document.body.style.top = '';
+  if (window._arcadeScrollY !== undefined) {
+    window.scrollTo(0, window._arcadeScrollY);
+    window._arcadeScrollY = undefined;
+  }
   _arcadeCurrentGame = null;
+  _arcadeGameState = null;
   window.removeEventListener('resize', _arcadeHandleResize);
   // Reset fullscreen button appearance
   _updateFsBtn();
@@ -15334,10 +15533,11 @@ window.closeArcadeGame = function() {
 };
 
 window.arcadeRestartGame = function() {
+  // Capture game id before launchArcadeGame resets it
+  const gameId = _arcadeCurrentGame;
+  if (!gameId) return;
   document.getElementById('arcadeGameOver').classList.remove('show');
-  if (_arcadeRAF) { cancelAnimationFrame(_arcadeRAF); _arcadeRAF = null; }
-  _removeGameListeners();
-  launchArcadeGame(_arcadeCurrentGame);
+  launchArcadeGame(gameId);   // launchArcadeGame now handles full teardown internally
 };
 
 /* ─────────────────────────────────────────────
@@ -15811,14 +16011,20 @@ window.renderLeaderboard = async function() {
    MULTIPLAYER INVITES
    ───────────────────────────────────────────── */
 function _subscribeInvites() {
-  if (!_me()) return;
+  const me = _me();
   const fs = _fs();
-  if (!fs) return;
+  if (!me || !fs) {
+    // Firebase may not have resolved auth yet — retry once auth fires if possible
+    if (typeof window._snxOnAuthReady === 'function') {
+      window._snxOnAuthReady(() => _subscribeInvites());
+    }
+    return;
+  }
   _unsubInvites();
   try {
     const { db, collection, query, where, onSnapshot } = fs;
     _arcadeInviteUnsub = onSnapshot(
-      query(collection(db,'arcadeInvites'), where('toUid','==',_me().uid), where('status','==','pending')),
+      query(collection(db,'arcadeInvites'), where('toUid','==',me.uid), where('status','==','pending')),
       snap => {
         const cnt = snap.size;
         // Update Arcade sidebar nav badge
@@ -15836,9 +16042,15 @@ function _subscribeInvites() {
           const tab = document.getElementById('ahTab-invites');
           if (tab) tab.textContent = '📩 Invites';
         }
+      },
+      err => {
+        // Listener error (e.g. permission denied mid-session) — retry once after 2 s
+        console.warn('[Arcade] invite listener error:', err.code || err.message);
+        _arcadeInviteUnsub = null;
+        setTimeout(() => { if (_me()) _subscribeInvites(); }, 2000);
       }
     );
-  } catch(e) { /* silent */ }
+  } catch(e) { console.warn('[Arcade] _subscribeInvites failed:', e); }
 }
 
 function _unsubInvites() {
@@ -17380,24 +17592,29 @@ window._arcadeRenderProfileSection = async function(targetUid, containerEl) {
 
 /* ─────────────────────────────────────────────
    ORIENTATION CHANGE — keep game intact
+   On modern browsers 'orientationchange' fires before the window resizes, so
+   we cancel any pending resize debounce and start a fresh one with a longer
+   settle window (350 ms) so the layout is fully resolved before we reinit.
    ───────────────────────────────────────────── */
 window.addEventListener('orientationchange', () => {
   if (!_arcadeCurrentGame) return;
-  // 250 ms covers most device OS rotation animations + layout reflow
-  setTimeout(() => {
-    // Use the full wrap — no artificial size cap so landscape gets full width
+  // Preempt the short 60 ms resize debounce — use 350 ms for orientation
+  if (_arcadeResizeTimer) { clearTimeout(_arcadeResizeTimer); _arcadeResizeTimer = null; }
+  _arcadeResizeTimer = setTimeout(() => {
     const wrap = document.querySelector('.arcade-game-canvas-wrap');
     const cv   = document.getElementById('arcadeGameCanvas');
-    if (!wrap || !cv) return;
+    if (!wrap || !cv || !_arcadeCurrentGame) return;
     const W = wrap.clientWidth  || window.innerWidth;
     const H = wrap.clientHeight || Math.max(200, window.innerHeight - 160);
-    cv.width  = Math.max(W, 200);
-    cv.height = Math.max(H, 200);
-    if (_arcadeRAF) { cancelAnimationFrame(_arcadeRAF); _arcadeRAF = null; }
-    _removeGameListeners();
-    document.getElementById('arcadeGameOver').classList.remove('show');
-    _startGame(_arcadeCurrentGame);
-  }, 250);
+    if (Math.abs(cv.width - W) > 4 || Math.abs(cv.height - H) > 4) {
+      cv.width  = Math.max(W, 200);
+      cv.height = Math.max(H, 200);
+      if (_arcadeRAF) { cancelAnimationFrame(_arcadeRAF); _arcadeRAF = null; }
+      _removeGameListeners();
+      document.getElementById('arcadeGameOver').classList.remove('show');
+      _startGame(_arcadeCurrentGame);
+    }
+  }, 350);
 });
 
 /* Expose open function for nav item */
