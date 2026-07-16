@@ -4682,6 +4682,204 @@ body.arcade-fs-ios body::after { display:none !important; }
     box-shadow:0 0 12px rgba(57,255,20,0.25)!important;
 }
 
+/* ── Challenge Friend Modal ── */
+#challengeModal {
+    display:none; position:fixed; inset:0; z-index:9200;
+    background:rgba(0,3,15,0.92); align-items:center; justify-content:center;
+    padding:14px; box-sizing:border-box; backdrop-filter:blur(8px);
+}
+#challengeModal.open { display:flex; }
+.challenge-modal-card {
+    background:linear-gradient(180deg,#071428 0%,#0B1F3A 100%);
+    border:1px solid rgba(0,174,239,0.45); border-radius:18px;
+    width:100%; max-width:420px; max-height:88vh;
+    display:flex; flex-direction:column; overflow:hidden;
+    box-shadow:0 0 60px rgba(0,174,239,0.25);
+    animation:deleteModalIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.challenge-modal-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 18px 12px; border-bottom:1px solid rgba(0,174,239,0.18);
+    flex-shrink:0; background:rgba(7,20,40,0.98);
+}
+.challenge-modal-title { font-size:16px; font-weight:800; color:#fff; }
+.challenge-modal-close {
+    background:none; border:none; color:#ff5566; font-size:22px;
+    cursor:pointer; padding:2px 8px; border-radius:6px; line-height:1;
+}
+.challenge-modal-close:hover { background:rgba(255,51,102,0.12); }
+.challenge-modal-body { overflow-y:auto; padding:14px 16px; flex:1; -webkit-overflow-scrolling:touch; }
+
+/* Step indicators */
+.challenge-steps {
+    display:flex; gap:4px; align-items:center; margin-bottom:16px;
+}
+.challenge-step-dot {
+    flex:1; height:3px; border-radius:3px;
+    background:rgba(0,174,239,0.2); transition:background 0.2s;
+}
+.challenge-step-dot.done { background:#00AEEF; }
+.challenge-step-label { font-size:11px; color:#6a90b8; text-align:center; margin-bottom:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
+
+/* Friend picker */
+.challenge-friend-search {
+    width:100%; padding:9px 12px; margin-bottom:10px;
+    background:rgba(7,20,40,0.95); border:1px solid rgba(0,174,239,0.35);
+    color:#fff; border-radius:8px; font-family:inherit; font-size:13px;
+    box-sizing:border-box;
+}
+.challenge-friend-search:focus { outline:none; border-color:rgba(0,180,255,0.65); }
+.challenge-friend-search::placeholder { color:rgba(80,150,220,0.4); }
+.challenge-friend-list { max-height:260px; overflow-y:auto; }
+.challenge-friend-row {
+    display:flex; align-items:center; gap:12px;
+    padding:10px 6px; border-radius:10px; cursor:pointer;
+    transition:background 0.13s; border-bottom:1px solid rgba(0,51,102,0.2);
+}
+.challenge-friend-row:last-child { border-bottom:none; }
+.challenge-friend-row:hover { background:rgba(0,174,239,0.1); }
+.challenge-friend-row.selected { background:rgba(57,255,20,0.08); border-color:rgba(57,255,20,0.25) !important; }
+.challenge-friend-avatar {
+    width:40px; height:40px; border-radius:50%; flex-shrink:0;
+    background:#0B1F3A center/cover no-repeat;
+    border:2px solid rgba(0,174,239,0.4);
+    display:flex; align-items:center; justify-content:center;
+    font-size:15px; font-weight:700; color:#00AEEF; overflow:hidden;
+}
+.challenge-friend-name { font-size:13px; font-weight:600; color:#fff; }
+.challenge-friend-handle { font-size:11px; color:#6a90b8; }
+.challenge-friend-check { margin-left:auto; color:#39FF14; font-size:18px; display:none; }
+.challenge-friend-row.selected .challenge-friend-check { display:block; }
+
+/* Game picker */
+.challenge-game-grid {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; margin-top:4px;
+}
+.challenge-game-row {
+    background:rgba(0,15,40,0.75); border:1px solid rgba(0,174,239,0.22);
+    border-radius:12px; padding:12px 8px; text-align:center; cursor:pointer;
+    transition:all 0.13s; position:relative;
+}
+.challenge-game-row:hover { border-color:rgba(0,174,239,0.55); background:rgba(0,50,120,0.2); }
+.challenge-game-row.selected { border-color:rgba(57,255,20,0.65); background:rgba(57,255,20,0.07); box-shadow:0 0 10px rgba(57,255,20,0.2); }
+.challenge-game-row .cg-icon { font-size:28px; display:block; margin-bottom:5px; }
+.challenge-game-row .cg-name { font-size:11px; font-weight:700; color:#d0e8ff; }
+.challenge-game-row.selected::after { content:'✓'; position:absolute; top:5px; right:7px; font-size:10px; color:#39FF14; font-weight:700; }
+
+/* Confirm step */
+.challenge-confirm-preview {
+    background:rgba(0,20,55,0.7); border:1px solid rgba(0,174,239,0.25);
+    border-radius:12px; padding:16px; margin-bottom:14px;
+    display:flex; align-items:center; gap:14px;
+}
+.challenge-confirm-to { font-size:12px; color:#6a90b8; margin-bottom:3px; }
+.challenge-confirm-name { font-size:15px; font-weight:700; color:#fff; }
+.challenge-confirm-game { font-size:13px; color:#39FF14; margin-top:2px; }
+.challenge-confirm-msg-label { font-size:12px; color:#6a90b8; margin-bottom:5px; }
+.challenge-confirm-msg {
+    width:100%; padding:9px 12px; background:rgba(7,20,40,0.95);
+    border:1px solid rgba(0,174,239,0.32); color:#fff; border-radius:8px;
+    font-family:inherit; font-size:13px; box-sizing:border-box; resize:none;
+    margin-bottom:14px;
+}
+.challenge-confirm-msg:focus { outline:none; border-color:rgba(0,180,255,0.6); }
+.challenge-modal-footer {
+    display:flex; gap:8px; padding:12px 16px;
+    border-top:1px solid rgba(0,174,239,0.15); flex-shrink:0;
+    background:rgba(7,20,40,0.95);
+}
+.challenge-modal-footer button { flex:1; padding:10px; font-size:13px; border-radius:10px; font-weight:700; }
+.challenge-send-btn { background:linear-gradient(135deg,#003d1a,#006633) !important; border-color:rgba(57,255,20,0.6) !important; color:#39FF14 !important; }
+.challenge-send-btn:hover { background:linear-gradient(135deg,#005522,#008844) !important; box-shadow:0 0 16px rgba(57,255,20,0.3) !important; }
+
+/* ── Upgraded Invite Card ── */
+.arcade-invite-card {
+    background:rgba(0,20,55,0.75); border:1px solid rgba(0,174,239,0.28);
+    border-radius:12px; padding:14px 16px; margin-bottom:10px;
+    animation:postSlideIn 0.2s ease-out both;
+}
+.arcade-invite-top {
+    display:flex; align-items:center; gap:12px; margin-bottom:10px;
+}
+.arcade-invite-avatar {
+    width:44px; height:44px; border-radius:50%; flex-shrink:0;
+    background:#0B1F3A center/cover no-repeat;
+    border:2px solid rgba(0,174,239,0.45);
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px; font-weight:700; color:#00AEEF; overflow:hidden;
+}
+.arcade-invite-meta { flex:1; min-width:0; }
+.arcade-invite-title { font-size:13px; font-weight:700; color:#d0e8ff; line-height:1.4; }
+.arcade-invite-sub { font-size:11px; color:#6a90b8; margin-top:2px; }
+.arcade-invite-time { font-size:10px; color:#3a5a7a; margin-top:1px; }
+.arcade-invite-actions {
+    display:flex; gap:7px; flex-wrap:wrap;
+}
+.arcade-invite-actions button { font-size:11px; padding:7px 13px; border-radius:10px; font-weight:700; flex:1; min-width:80px; }
+.btn-arcade-accept  { border-color:rgba(57,255,20,0.55)!important; color:#39FF14!important; background:rgba(57,255,20,0.06)!important; }
+.btn-arcade-accept:hover  { background:rgba(57,255,20,0.14)!important; box-shadow:0 0 10px rgba(57,255,20,0.25)!important; }
+.btn-arcade-decline { border-color:rgba(255,51,102,0.45)!important; color:#ff6680!important; }
+.btn-arcade-decline:hover { background:rgba(255,51,102,0.08)!important; }
+.btn-arcade-remind  { border-color:rgba(255,170,50,0.45)!important; color:#ffbb44!important; }
+.btn-arcade-remind:hover  { background:rgba(255,170,50,0.08)!important; }
+.btn-arcade-rematch { border-color:rgba(0,174,239,0.55)!important; color:#00AEEF!important; }
+.arcade-invite-empty { text-align:center; color:#334; font-size:13px; padding:20px 0; }
+
+/* ── Match History ── */
+.arcade-match-row {
+    display:flex; align-items:center; gap:12px;
+    padding:10px 0; border-bottom:1px solid rgba(0,51,102,0.25);
+}
+.arcade-match-row:last-child { border-bottom:none; }
+.arcade-match-result {
+    width:36px; height:36px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:800;
+}
+.arcade-match-result.win  { background:rgba(57,255,20,0.15); border:2px solid rgba(57,255,20,0.5); color:#39FF14; }
+.arcade-match-result.loss { background:rgba(255,51,102,0.12); border:2px solid rgba(255,51,102,0.4); color:#ff6680; }
+.arcade-match-result.solo { background:rgba(0,174,239,0.12); border:2px solid rgba(0,174,239,0.4); color:#00AEEF; }
+.arcade-match-info { flex:1; min-width:0; }
+.arcade-match-game { font-size:13px; font-weight:600; color:#d0e8ff; }
+.arcade-match-opp  { font-size:11px; color:#6a90b8; margin-top:1px; }
+.arcade-match-score { font-size:12px; font-weight:700; color:#39FF14; white-space:nowrap; }
+.arcade-match-date  { font-size:10px; color:#3a5a7a; display:block; margin-top:1px; text-align:right; }
+
+/* ── Achievements ── */
+.arcade-achievements-grid {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin-top:10px;
+}
+.arcade-achievement-card {
+    background:rgba(0,15,40,0.75); border:1px solid rgba(0,174,239,0.22);
+    border-radius:12px; padding:14px 10px; text-align:center;
+    transition:border-color 0.15s, box-shadow 0.15s;
+}
+.arcade-achievement-card.unlocked { border-color:rgba(255,200,0,0.55); box-shadow:0 0 14px rgba(255,185,0,0.2); }
+.arcade-achievement-card.locked   { opacity:0.45; filter:grayscale(0.5); }
+.arcade-achievement-icon { font-size:28px; display:block; margin-bottom:6px; }
+.arcade-achievement-name { font-size:11px; font-weight:700; color:#d0e8ff; }
+.arcade-achievement-desc { font-size:10px; color:#6a90b8; margin-top:3px; line-height:1.4; }
+.arcade-achievement-badge { display:inline-block; margin-top:5px; font-size:9px; font-weight:700; padding:2px 7px; border-radius:8px; }
+.arcade-achievement-badge.unlocked { background:rgba(255,200,0,0.15); border:1px solid rgba(255,200,0,0.5); color:#ffd700; }
+.arcade-achievement-badge.locked   { background:rgba(80,80,80,0.15); border:1px solid rgba(80,80,80,0.3); color:#556; }
+
+/* Games-tab "Challenge Friend" banner */
+.arcade-challenge-banner {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px; padding:11px 14px; margin-bottom:14px;
+    background:rgba(57,255,20,0.05); border:1px solid rgba(57,255,20,0.22);
+    border-radius:12px;
+}
+.arcade-challenge-banner-text { font-size:12px; color:#a0cca0; line-height:1.4; }
+.arcade-challenge-banner-text strong { color:#39FF14; }
+.btn-challenge-banner {
+    flex-shrink:0; padding:8px 16px; font-size:12px; font-weight:700;
+    border-radius:20px; border-color:rgba(57,255,20,0.55)!important;
+    color:#39FF14!important; background:rgba(57,255,20,0.08)!important;
+    white-space:nowrap;
+}
+.btn-challenge-banner:hover { background:rgba(57,255,20,0.16)!important; box-shadow:0 0 14px rgba(57,255,20,0.3)!important; }
+
 /* Responsive arcade hub */
 @media (max-width:768px) {
     .arcade-hub-card { max-width:100%; max-height:96vh; border-radius:18px 18px 0 0; }
@@ -4690,9 +4888,12 @@ body.arcade-fs-ios body::after { display:none !important; }
     .arcade-hub-body  { padding:12px 14px; }
     .arcade-game-tile { padding:12px 8px; }
     .arcade-game-icon { font-size:26px; }
+    .challenge-modal-card { max-height:96vh; border-radius:18px 18px 0 0; }
+    #challengeModal { align-items:flex-end; padding:0; }
 }
 @supports (padding:env(safe-area-inset-bottom)) {
     .arcade-hub-card { padding-bottom:env(safe-area-inset-bottom); }
+    .challenge-modal-card { padding-bottom:env(safe-area-inset-bottom); }
 }
 </style>
 
@@ -4746,6 +4947,7 @@ body.arcade-fs-ios body::after { display:none !important; }
         </button>
         <button class="nav-item" id="navArcade" onclick="openArcadeHub()">
             <span class="nav-icon">🕹️</span> Arcade
+            <span class="nav-badge" id="sidebarArcadeBadge"></span>
         </button>
         <button class="nav-item" id="navStorm" onclick="navTo('stormRoomsPage')">
             <span class="nav-icon">⚡</span> Storm Rooms
@@ -5771,6 +5973,21 @@ body.arcade-fs-ios body::after { display:none !important; }
                     <option value="everyone">Everyone</option>
                     <option value="friends">Friends only</option>
                     <option value="nobody">Nobody (disable tags)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h4>🕹️ Game Challenges</h4>
+            <div class="settings-row" style="border-bottom:none;">
+                <div class="settings-label">
+                    Who can challenge me to a game?
+                    <small>Controls who can send you arcade game invitations</small>
+                </div>
+                <select id="privGameInvites" onchange="savePrivacySetting('gameInvites', this.value)">
+                    <option value="everyone">Everyone</option>
+                    <option value="friends">Friends only</option>
+                    <option value="nobody">Nobody (disable game invites)</option>
                 </select>
             </div>
         </div>
@@ -7197,6 +7414,10 @@ body.arcade-fs-ios body::after { display:none !important; }
 
           // Expose current user for non-module scripts (notification settings)
           window._snxCurrentUser = user;
+          // Start passive invite listener for sidebar badge (deferred so arcade IIFE has loaded)
+          setTimeout(() => {
+            if (typeof window._snxArcadeSubscribeInvites === 'function') window._snxArcadeSubscribeInvites();
+          }, 1500);
           window._snxUserData    = userData;
 
           // ── Single unified live listener for own user doc ──
@@ -7235,6 +7456,7 @@ body.arcade-fs-ios body::after { display:none !important; }
               sel('privFriendsList',         ps.friendsList        || 'public');
               sel('privSendFamilyRequests',  ps.sendFamilyRequests || 'everyone');
               sel('privTagging',      ps.tagging      || 'everyone');
+              sel('privGameInvites',  ps.gameInvites  || 'everyone');
 
               // ── Notification bell badge ──
               const _notifs = userData.notifications || [];
@@ -8922,13 +9144,20 @@ body.arcade-fs-ios body::after { display:none !important; }
                   <button class="btn-decline" style="font-size:11px;" onclick="event.stopPropagation();if(confirm('Remove yourself from this tag?'))window.snxRemoveTag('${n.postId||''}','${n.fromUid||''}');markNotifRead(${origIdx})">✕ Remove Tag</button>
               </div>`;
               navFn = `navTo('feed')`;
+          } else if (n.type === 'game_challenge') {
+              icon = '🕹️';
+              text = `<b>${escFeed(n.fromName)}</b> challenged you to <b>${escFeed(n.game||'a game')}</b>!`;
+              actHtml = `<div class="notif-actions">
+                  <button class="btn-accept" onclick="event.stopPropagation();openArcadeHub();switchArcadeTab('invites',document.getElementById('ahTab-invites'));markNotifRead(${origIdx})">🎮 View Challenge</button>
+              </div>`;
+              navFn = `openArcadeHub();switchArcadeTab('invites',document.getElementById('ahTab-invites'))`;
           } else if (n.type === 'announcement') {
               icon = '📢';
               text = `<b>Admin</b>: ${escFeed(n.body || 'New announcement')}`;
               navFn = `navTo('notificationsPage')`;
           }
 
-          if (!text) return; // skip unknown types
+         if (!text) return; // skip unknown types
 
           item.innerHTML = `
               <div class="notif-icon">${icon}</div>
@@ -15277,22 +15506,22 @@ function _setScore(val) {
   if (el) el.textContent = 'Score: ' + val;
 }
 
-function _gameOver(score) {
+function _gameOver(score, opponentName, isWin) {
   if (_arcadeRAF) { cancelAnimationFrame(_arcadeRAF); _arcadeRAF = null; }
   const best = _localBest(_arcadeCurrentGame, score);
   const go   = document.getElementById('arcadeGameOver');
   document.getElementById('agoScore').textContent = 'Score: ' + score;
   document.getElementById('agoBest').textContent  = 'Best: '  + best;
   go.classList.add('show');
-  _saveScore(_arcadeCurrentGame, score);
+  _saveScore(_arcadeCurrentGame, score, opponentName, isWin);
 }
 
-async function _saveScore(gameId, score) {
+async function _saveScore(gameId, score, opponentName, isWin) {
   if (!_me()) return;
   const fs = _fs();
   if (!fs) return;
   try {
-    const { db, doc, getDoc, setDoc } = fs;
+    const { db, doc, getDoc, setDoc, collection, addDoc } = fs;
     const ref  = doc(db, 'arcadeScores', _me().uid + '_' + gameId);
     const snap = await getDoc(ref);
     const prev = snap.exists() ? (snap.data().best || 0) : 0;
@@ -15308,22 +15537,38 @@ async function _saveScore(gameId, score) {
         month:       _monthKey(),
       }, { merge: true });
     }
-    // Also update total in user's arcade stats doc
+    // Save match history entry
+    await addDoc(collection(db, 'arcadeMatches'), {
+      uid:          _me().uid,
+      displayName:  _myData().displayName || 'Player',
+      avatar:       _myData().avatar || '',
+      gameId,
+      score,
+      opponentName: opponentName || null,
+      result:       opponentName ? (isWin ? 'win' : 'loss') : 'solo',
+      ts:           Date.now(),
+    });
+    // Update total in user's arcade stats doc
     const statsRef = doc(db, 'arcadeStats', _me().uid);
     const sSnap    = await getDoc(statsRef);
     const sData    = sSnap.exists() ? sSnap.data() : {};
     const prevTotal = sData.totalScore || 0;
     const prevGames = sData.gamesPlayed || 0;
     const prevWins  = sData.wins || 0;
+    const addWin    = (opponentName && isWin) ? 1 : 0;
+    // Check achievements after saving
+    const newGames = prevGames + 1;
+    const newWins  = prevWins + addWin;
     await setDoc(statsRef, {
       uid:         _me().uid,
       displayName: _myData().displayName || 'Player',
       avatar:      _myData().avatar || '',
       totalScore:  prevTotal + score,
-      gamesPlayed: prevGames + 1,
-      wins:        prevWins,
+      gamesPlayed: newGames,
+      wins:        newWins,
       ts:          Date.now(),
     }, { merge: true });
+    _checkAchievements(newGames, newWins, score);
   } catch(e) { /* silent */ }
 }
 
@@ -15348,35 +15593,143 @@ async function _renderMyStats() {
   const fs = _fs();
   if (!fs) return;
   try {
-    const { db, doc, getDoc, collection, query, where, getDocs } = fs;
+    const { db, doc, getDoc, collection, query, where, getDocs, orderBy, limit } = fs;
     // Overall stats
     const sSnap = await getDoc(doc(db,'arcadeStats',_me().uid));
     const sd    = sSnap.exists() ? sSnap.data() : {};
+    const losses = (sd.gamesPlayed||0) - (sd.wins||0);
     const grid  = document.getElementById('arcadeStatsGrid');
     grid.innerHTML = `
       <div class="arcade-stat-card"><div class="arcade-stat-num">${sd.gamesPlayed||0}</div><div class="arcade-stat-label">Games Played</div></div>
       <div class="arcade-stat-card"><div class="arcade-stat-num">${(sd.totalScore||0).toLocaleString()}</div><div class="arcade-stat-label">Total Score</div></div>
       <div class="arcade-stat-card"><div class="arcade-stat-num">${sd.wins||0}</div><div class="arcade-stat-label">Wins</div></div>
+      <div class="arcade-stat-card"><div class="arcade-stat-num">${Math.max(0,losses)}</div><div class="arcade-stat-label">Losses</div></div>
     `;
-    // Per-game bests
+    // Per-game bests (Records sub-tab)
     const qSnap = await getDocs(query(collection(db,'arcadeScores'), where('uid','==',_me().uid)));
     const recs  = document.getElementById('arcadeMyRecords');
-    if (qSnap.empty) { recs.innerHTML = '<div class="arcade-lb-empty">No records yet. Play a game!</div>'; return; }
-    recs.innerHTML = '';
-    qSnap.forEach(d => {
-      const r  = d.data();
-      const gd = ARCADE_GAMES.find(x => x.id === r.gameId) || { icon:'🎮', name: r.gameId };
-      recs.insertAdjacentHTML('beforeend', `
-        <div class="arcade-lb-row">
-          <div class="arcade-lb-rank">${gd.icon}</div>
-          <div class="arcade-lb-info">
-            <div class="arcade-lb-name">${esc(gd.name)}</div>
-            <div class="arcade-lb-score">Best: ${r.best.toLocaleString()}</div>
+    if (qSnap.empty) { recs.innerHTML = '<div class="arcade-lb-empty">No records yet. Play a game!</div>'; }
+    else {
+      recs.innerHTML = '';
+      qSnap.forEach(d => {
+        const r  = d.data();
+        const gd = ARCADE_GAMES.find(x => x.id === r.gameId) || { icon:'🎮', name: r.gameId };
+        recs.insertAdjacentHTML('beforeend', `
+          <div class="arcade-lb-row">
+            <div class="arcade-lb-rank">${gd.icon}</div>
+            <div class="arcade-lb-info">
+              <div class="arcade-lb-name">${esc(gd.name)}</div>
+              <div class="arcade-lb-score">Best: ${r.best.toLocaleString()}</div>
+            </div>
+            <div style="font-size:10px;color:#3a5a7a;">${_fmtDate(r.ts)}</div>
+          </div>`);
+      });
+    }
+    // Load match history for Matches sub-tab
+    _renderMatchHistory();
+    // Render achievements
+    _renderAchievements(sd);
+  } catch(e) { /* silent */ }
+}
+
+/* Sub-tab switcher for My Stats panel */
+window.switchStatSubTab = function(tab) {
+  ['records','matches','achievements'].forEach(t => {
+    const panel = document.getElementById('statSubPanel-' + t);
+    const btn   = document.getElementById('statSubTab-' + t);
+    if (panel) panel.style.display = t === tab ? '' : 'none';
+    if (btn)   btn.classList.toggle('active', t === tab);
+  });
+  if (tab === 'matches')      _renderMatchHistory();
+  if (tab === 'achievements') _renderAchievements();
+};
+
+/* Render match history */
+async function _renderMatchHistory() {
+  const el = document.getElementById('arcadeMatchHistory');
+  if (!el || !_me()) return;
+  const fs = _fs();
+  if (!fs) return;
+  try {
+    const { db, collection, query, where, orderBy, limit, getDocs } = fs;
+    el.innerHTML = '<div class="arcade-lb-empty">Loading…</div>';
+    const snap = await getDocs(
+      query(collection(db,'arcadeMatches'), where('uid','==',_me().uid), orderBy('ts','desc'), limit(20))
+    );
+    if (snap.empty) { el.innerHTML = '<div class="arcade-lb-empty">No match history yet. Play a game!</div>'; return; }
+    el.innerHTML = '';
+    snap.forEach(d => {
+      const m   = d.data();
+      const gd  = ARCADE_GAMES.find(x => x.id === m.gameId) || { icon:'🎮', name: m.gameId };
+      const res = m.result || 'solo';
+      const resLabel = res === 'win' ? 'W' : res === 'loss' ? 'L' : '▶';
+      const oppLine  = m.opponentName ? `vs ${esc(m.opponentName)}` : 'Solo play';
+      el.insertAdjacentHTML('beforeend', `
+        <div class="arcade-match-row">
+          <div class="arcade-match-result ${res}">${resLabel}</div>
+          <div class="arcade-match-info">
+            <div class="arcade-match-game">${gd.icon} ${esc(gd.name)}</div>
+            <div class="arcade-match-opp">${oppLine}</div>
           </div>
-          <div style="font-size:10px;color:#3a5a7a;">${_fmtDate(r.ts)}</div>
+          <div>
+            <div class="arcade-match-score">${m.score.toLocaleString()} pts</div>
+            <div class="arcade-match-date">${_fmtDate(m.ts)}</div>
+          </div>
+        </div>`);
+    });
+  } catch(e) { el.innerHTML = '<div class="arcade-lb-empty">Could not load matches.</div>'; }
+}
+
+/* Achievement definitions */
+const ACHIEVEMENTS = [
+  { id:'first_game',   icon:'🎮', name:'First Move',      desc:'Play your first game.',               req: s => s.gamesPlayed >= 1 },
+  { id:'ten_games',    icon:'🎯', name:'Arcade Regular',  desc:'Play 10 games.',                      req: s => s.gamesPlayed >= 10 },
+  { id:'fifty_games',  icon:'🕹️', name:'Arcade Veteran', desc:'Play 50 games.',                      req: s => s.gamesPlayed >= 50 },
+  { id:'first_win',    icon:'🏆', name:'First Victory',   desc:'Win your first challenge.',            req: s => s.wins >= 1 },
+  { id:'five_wins',    icon:'⚔️', name:'Champion',        desc:'Win 5 multiplayer challenges.',       req: s => s.wins >= 5 },
+  { id:'twenty_wins',  icon:'👑', name:'Nexus Legend',    desc:'Win 20 multiplayer challenges.',      req: s => s.wins >= 20 },
+  { id:'high_score_1k',icon:'💫', name:'1K Club',         desc:'Score 1,000+ points in one game.',    req: s => s.topScore >= 1000 },
+  { id:'high_score_5k',icon:'🌟', name:'5K Club',         desc:'Score 5,000+ points in one game.',    req: s => s.topScore >= 5000 },
+];
+
+async function _renderAchievements(sdOverride) {
+  const el = document.getElementById('arcadeAchievements');
+  if (!el || !_me()) return;
+  const fs = _fs();
+  if (!fs) { el.innerHTML = '<div class="arcade-lb-empty">Sign in to view achievements.</div>'; return; }
+  try {
+    let sd = sdOverride;
+    if (!sd) {
+      const { db, doc, getDoc } = fs;
+      const sSnap = await getDoc(doc(db,'arcadeStats',_me().uid));
+      sd = sSnap.exists() ? sSnap.data() : {};
+    }
+    el.innerHTML = '';
+    ACHIEVEMENTS.forEach(a => {
+      const unlocked = a.req(sd);
+      el.insertAdjacentHTML('beforeend', `
+        <div class="arcade-achievement-card ${unlocked ? 'unlocked' : 'locked'}">
+          <span class="arcade-achievement-icon">${a.icon}</span>
+          <div class="arcade-achievement-name">${esc(a.name)}</div>
+          <div class="arcade-achievement-desc">${esc(a.desc)}</div>
+          <span class="arcade-achievement-badge ${unlocked ? 'unlocked' : 'locked'}">${unlocked ? '✓ Unlocked' : '🔒 Locked'}</span>
         </div>`);
     });
   } catch(e) { /* silent */ }
+}
+
+/* Check and toast newly unlocked achievements */
+function _checkAchievements(gamesPlayed, wins, latestScore) {
+  const sd = { gamesPlayed, wins, topScore: latestScore };
+  // Load stored unlocks from localStorage
+  const stored = JSON.parse(localStorage.getItem('snx_arcade_ach') || '{}');
+  ACHIEVEMENTS.forEach(a => {
+    if (!stored[a.id] && a.req(sd)) {
+      stored[a.id] = Date.now();
+      toastArcade('🏆 Achievement Unlocked: ' + a.name + '!');
+    }
+  });
+  localStorage.setItem('snx_arcade_ach', JSON.stringify(stored));
 }
 
 function _fmtDate(ts) {
@@ -15467,10 +15820,13 @@ function _subscribeInvites() {
     _arcadeInviteUnsub = onSnapshot(
       query(collection(db,'arcadeInvites'), where('toUid','==',_me().uid), where('status','==','pending')),
       snap => {
-        // Update sidebar badge
         const cnt = snap.size;
-        const badge = document.getElementById('sidebarMsgBadge');
-        // We don't hijack the msg badge — just update tab indicator
+        // Update Arcade sidebar nav badge
+        const arcadeBadge = document.getElementById('sidebarArcadeBadge');
+        if (arcadeBadge) {
+          if (cnt > 0) { arcadeBadge.textContent = cnt > 99 ? '99+' : cnt; arcadeBadge.classList.add('visible'); }
+          else arcadeBadge.classList.remove('visible');
+        }
         _renderInvites(snap);
         if (cnt > 0) {
           const tab = document.getElementById('ahTab-invites');
@@ -15493,26 +15849,44 @@ function _renderInvites(snap) {
   const list = document.getElementById('arcadeInvitesList');
   if (!list) return;
   if (!snap || snap.empty) {
-    list.innerHTML = '<div class="arcade-invite-empty">No pending game challenges. Challenge a friend from their profile!</div>';
+    list.innerHTML = '<div class="arcade-invite-empty">No pending challenges. Use ⚡ Challenge to invite a friend!</div>';
     return;
   }
   list.innerHTML = '';
   snap.forEach(d => {
     const inv = d.data();
     const gd  = ARCADE_GAMES.find(x => x.id === inv.gameId) || { icon:'🎮', name: inv.gameId };
+    const avStyle = inv.fromAvatar
+      ? `style="background-image:url('${esc(inv.fromAvatar)}');"` : '';
+    const avLetter = inv.fromAvatar ? '' : (inv.fromName||'?')[0].toUpperCase();
+    const msgLine  = inv.message ? ` · "${esc(inv.message)}"` : '';
+    const timeAgo  = _fmtTimeAgoArcade(inv.ts);
     list.insertAdjacentHTML('beforeend', `
       <div class="arcade-invite-card">
-        <div class="arcade-invite-icon">${gd.icon}</div>
-        <div class="arcade-invite-info">
-          <div class="arcade-invite-title">${esc(inv.fromName||'?')} challenged you to ${esc(gd.name)}</div>
-          <div class="arcade-invite-sub">${_fmtDate(inv.ts)} · ${esc(inv.message||'')}</div>
+        <div class="arcade-invite-top">
+          <div class="arcade-invite-avatar" ${avStyle}>${avLetter}</div>
+          <div class="arcade-invite-meta">
+            <div class="arcade-invite-title">${esc(inv.fromName||'?')} challenges you to <strong>${gd.icon} ${esc(gd.name)}</strong></div>
+            <div class="arcade-invite-sub">${esc(inv.toName||'')}${msgLine}</div>
+            <div class="arcade-invite-time">⏱ ${timeAgo}</div>
+          </div>
         </div>
         <div class="arcade-invite-actions">
-          <button class="btn-arcade-accept"  onclick="arcadeAcceptInvite('${d.id}','${esc(inv.gameId)}')">✓ Accept</button>
-          <button class="btn-arcade-decline" onclick="arcadeDeclineInvite('${d.id}')">✗ Decline</button>
+          <button class="btn-arcade-accept"  onclick="arcadeAcceptInvite('${d.id}','${esc(inv.gameId)}')">✅ Accept</button>
+          <button class="btn-arcade-remind"  onclick="arcadeRemindInvite('${d.id}')">⏰ Later</button>
+          <button class="btn-arcade-decline" onclick="arcadeDeclineInvite('${d.id}')">❌ Decline</button>
         </div>
       </div>`);
   });
+}
+
+function _fmtTimeAgoArcade(ts) {
+  if (!ts) return '';
+  const d = Date.now() - ts;
+  if (d < 60000)    return 'just now';
+  if (d < 3600000)  return Math.floor(d/60000) + 'm ago';
+  if (d < 86400000) return Math.floor(d/3600000) + 'h ago';
+  return Math.floor(d/86400000) + 'd ago';
 }
 
 window.arcadeAcceptInvite = async function(invId, gameId) {
@@ -15533,31 +15907,267 @@ window.arcadeDeclineInvite = async function(invId) {
     const { db, doc, updateDoc } = fs;
     await updateDoc(doc(db,'arcadeInvites',invId), { status:'declined' });
   } catch(e) {}
+  toastArcade('Challenge declined.');
 };
 
-/* Challenge button — rendered on profiles */
-window.challengeToGame = async function(targetUid, targetName) {
+window.arcadeRemindInvite = async function(invId) {
+  const fs = _fs();
+  if (!fs || !_me()) return;
+  try {
+    const { db, doc, updateDoc } = fs;
+    await updateDoc(doc(db,'arcadeInvites',invId), { remindAt: Date.now() + 3600000 });
+  } catch(e) {}
+  toastArcade('⏰ Reminder set for 1 hour!');
+};
+
+/* ─────────────────────────────────────────────
+   CHALLENGE FRIEND MODAL — 3-step flow
+   Step 1: Pick a friend
+   Step 2: Pick a game
+   Step 3: Review & send
+   ───────────────────────────────────────────── */
+let _csStep = 1;         // current step
+let _csTarget = null;    // { uid, name, avatar }
+let _csGameId = null;    // chosen game id
+let _csFriendFilter = '';
+
+window.openChallengeModal = function(presetUid, presetName, presetAvatar) {
   if (!_me()) { toastArcade('Sign in to challenge.'); return; }
-  if (targetUid === _me().uid) { toastArcade('You can\'t challenge yourself!'); return; }
-  const gameId = prompt('Which game? Type one:\n' + ARCADE_GAMES.map(g => g.id).join(', '));
-  if (!gameId || !ARCADE_GAMES.find(g => g.id === gameId)) { toastArcade('Unknown game.'); return; }
+  _csStep = 1; _csTarget = null; _csGameId = null; _csFriendFilter = '';
+  // If called from a profile with a preset target skip to step 2
+  if (presetUid && presetUid !== _me().uid) {
+    _csTarget = { uid: presetUid, name: presetName || 'Player', avatar: presetAvatar || '' };
+    _csStep = 2;
+  }
+  document.getElementById('challengeModal').classList.add('open');
+  _csRender();
+};
+
+window.closeChallengeModal = function() {
+  document.getElementById('challengeModal').classList.remove('open');
+};
+/* Close on backdrop click — deferred so the element exists when script runs */
+document.addEventListener('DOMContentLoaded', function() {
+  var cm = document.getElementById('challengeModal');
+  if (cm) cm.addEventListener('click', function(e) {
+    if (e.target === this) closeChallengeModal();
+  });
+});
+
+window.challengeStepNext = async function() {
+  if (_csStep === 1) {
+    if (!_csTarget) { toastArcade('Select a friend first.'); return; }
+    _csStep = 2; _csRender();
+  } else if (_csStep === 2) {
+    if (!_csGameId) { toastArcade('Select a game first.'); return; }
+    _csStep = 3; _csRender();
+  } else if (_csStep === 3) {
+    await _csSend();
+  }
+};
+
+window.challengeStepBack = function() {
+  if (_csStep > 1) { _csStep--; _csRender(); }
+};
+
+function _csRender() {
+  // Update step dots
+  for (let i = 1; i <= 3; i++) {
+    const dot = document.getElementById('csDot' + i);
+    if (dot) dot.classList.toggle('done', i <= _csStep);
+  }
+  const labels = ['Select a Friend', 'Choose a Game', 'Confirm & Send'];
+  const lbl = document.getElementById('csStepLabel');
+  if (lbl) lbl.textContent = labels[_csStep - 1];
+  const title = document.getElementById('challengeModalTitle');
+  if (title) title.textContent = ['⚡ Challenge a Friend', '🎮 Choose a Game', '📩 Review & Send'][_csStep - 1];
+  // Back button
+  const backBtn = document.getElementById('csBtnBack');
+  const nextBtn = document.getElementById('csBtnNext');
+  if (backBtn) backBtn.style.display = _csStep > 1 ? '' : 'none';
+  if (nextBtn) {
+    nextBtn.textContent = _csStep === 3 ? '🚀 Send Challenge' : 'Next →';
+    nextBtn.className   = _csStep === 3 ? 'challenge-send-btn' : '';
+    if (_csStep === 3) {
+      nextBtn.style.background = '';
+      nextBtn.style.borderColor = '';
+      nextBtn.style.color = '';
+    } else {
+      nextBtn.style.background = 'rgba(0,80,200,0.25)';
+      nextBtn.style.borderColor = 'rgba(0,174,239,0.55)';
+      nextBtn.style.color = '#00AEEF';
+    }
+  }
+  // Hide all panels
+  ['friend','game','confirm'].forEach(p => {
+    const el = document.getElementById('csPanel-' + p);
+    if (el) el.style.display = 'none';
+  });
+  // Show & populate current step panel
+  if (_csStep === 1) { _csBuildFriendPanel(); document.getElementById('csPanel-friend').style.display = ''; }
+  if (_csStep === 2) { _csBuildGamePanel();   document.getElementById('csPanel-game').style.display = ''; }
+  if (_csStep === 3) { _csBuildConfirmPanel(); document.getElementById('csPanel-confirm').style.display = ''; }
+}
+
+async function _csBuildFriendPanel() {
+  const panel = document.getElementById('csPanel-friend');
+  if (!panel) return;
+  panel.innerHTML = `
+    <input class="challenge-friend-search" id="csFriendSearch"
+           placeholder="Search friends…" autocomplete="off" value="${_csFriendFilter||''}"
+           oninput="_csFriendFilter=this.value.toLowerCase();_csBuildFriendPanel()">
+    <div class="challenge-friend-list" id="csFriendList"><div class="arcade-lb-empty">Loading friends…</div></div>`;
+  const fs = _fs();
+  if (!fs || !_me()) return;
+  try {
+    const { db, doc, getDoc } = fs;
+    const snap = await getDoc(doc(db,'users',_me().uid));
+    const me   = snap.exists() ? snap.data() : {};
+    const friends = me.friends || [];
+    if (!friends.length) {
+      document.getElementById('csFriendList').innerHTML = '<div class="arcade-lb-empty">You have no friends yet. Add some first!</div>';
+      return;
+    }
+    const fDocs = await Promise.all(friends.map(uid => getDoc(doc(db,'users',uid))));
+    const fList = document.getElementById('csFriendList');
+    if (!fList) return;
+    const q = _csFriendFilter || '';
+    const filtered = fDocs.filter(d => {
+      if (!d.exists()) return false;
+      const u = d.data();
+      return !q || (u.displayName||'').toLowerCase().includes(q) || (u.username||'').toLowerCase().includes(q);
+    });
+    if (!filtered.length) { fList.innerHTML = '<div class="arcade-lb-empty">No matching friends.</div>'; return; }
+    fList.innerHTML = '';
+    // Filter out friends who have disabled game invites
+    for (const d of filtered) {
+      const u   = d.data();
+      // Check their gameInvites privacy (default everyone)
+      const gip = u.privacySettings?.gameInvites || 'everyone';
+      const myData = _myData();
+      const myFriends = (me.friends || []);
+      if (gip === 'nobody') continue;
+      if (gip === 'friends' && !myFriends.includes(u.uid)) continue;
+      const avStyle  = u.avatar ? `background-image:url('${esc(u.avatar)}');` : '';
+      const avLetter = u.avatar ? '' : (u.displayName||'?')[0].toUpperCase();
+      const selected = _csTarget?.uid === u.uid;
+      const div = document.createElement('div');
+      div.className = 'challenge-friend-row' + (selected ? ' selected' : '');
+      div.innerHTML = `
+        <div class="challenge-friend-avatar" style="${avStyle}">${avLetter}</div>
+        <div>
+          <div class="challenge-friend-name">${esc(u.displayName||u.username||'?')}</div>
+          <div class="challenge-friend-handle">@${esc(u.username||'')}</div>
+        </div>
+        <div class="challenge-friend-check">✓</div>`;
+      div.addEventListener('click', () => {
+        _csTarget = { uid: u.uid, name: u.displayName || u.username || 'Player', avatar: u.avatar || '' };
+        document.querySelectorAll('.challenge-friend-row').forEach(r => r.classList.remove('selected'));
+        div.classList.add('selected');
+      });
+      fList.appendChild(div);
+    }
+    if (!fList.children.length) {
+      fList.innerHTML = '<div class="arcade-lb-empty">No friends available to challenge right now.</div>';
+    }
+  } catch(e) { document.getElementById('csFriendList').innerHTML = '<div class="arcade-lb-empty">Error loading friends.</div>'; }
+}
+
+function _csBuildGamePanel() {
+  const panel = document.getElementById('csPanel-game');
+  if (!panel) return;
+  panel.innerHTML = '<div class="challenge-game-grid">' +
+    ARCADE_GAMES.map(g => {
+      const sel = _csGameId === g.id;
+      return `<div class="challenge-game-row${sel ? ' selected' : ''}" onclick="_csSelectGame('${g.id}',this)">
+        <span class="cg-icon">${g.icon}</span>
+        <div class="cg-name">${esc(g.name)}</div>
+      </div>`;
+    }).join('') + '</div>';
+}
+
+window._csSelectGame = function(gameId, el) {
+  _csGameId = gameId;
+  document.querySelectorAll('.challenge-game-row').forEach(r => r.classList.remove('selected'));
+  if (el) el.classList.add('selected');
+};
+
+function _csBuildConfirmPanel() {
+  const panel = document.getElementById('csPanel-confirm');
+  if (!panel || !_csTarget || !_csGameId) return;
+  const gd = ARCADE_GAMES.find(x => x.id === _csGameId) || { icon:'🎮', name: _csGameId };
+  const avStyle  = _csTarget.avatar ? `style="background-image:url('${esc(_csTarget.avatar)}');"` : '';
+  const avLetter = _csTarget.avatar ? '' : (_csTarget.name||'?')[0].toUpperCase();
+  panel.innerHTML = `
+    <div class="challenge-confirm-preview">
+      <div class="arcade-invite-avatar" ${avStyle}>${avLetter}</div>
+      <div>
+        <div class="challenge-confirm-to">Challenging</div>
+        <div class="challenge-confirm-name">${esc(_csTarget.name)}</div>
+        <div class="challenge-confirm-game">${gd.icon} ${esc(gd.name)}</div>
+      </div>
+    </div>
+    <div class="challenge-confirm-msg-label">Add a message (optional)</div>
+    <textarea class="challenge-confirm-msg" id="csMsgInput" placeholder="e.g. Think you can beat me? 😈" rows="2" maxlength="100"></textarea>`;
+}
+
+async function _csSend() {
+  if (!_csTarget || !_csGameId || !_me()) { toastArcade('Missing information.'); return; }
   const fs = _fs();
   if (!fs) return;
+  const msg = document.getElementById('csMsgInput')?.value?.trim() || '';
+  const nextBtn = document.getElementById('csBtnNext');
+  if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = 'Sending…'; }
   try {
     const { db, collection, addDoc } = fs;
     await addDoc(collection(db,'arcadeInvites'), {
-      fromUid:   _me().uid,
-      fromName:  _myData().displayName || 'Player',
-      fromAvatar:_myData().avatar || '',
-      toUid:     targetUid,
-      toName:    targetName,
-      gameId,
-      status:    'pending',
-      ts:        Date.now(),
-      message:   '',
+      fromUid:    _me().uid,
+      fromName:   _myData().displayName || 'Player',
+      fromAvatar: _myData().avatar || '',
+      toUid:      _csTarget.uid,
+      toName:     _csTarget.name,
+      gameId:     _csGameId,
+      status:     'pending',
+      ts:         Date.now(),
+      message:    msg,
     });
-    toastArcade('🕹️ Challenge sent to ' + targetName + '!');
-  } catch(e) { toastArcade('Could not send challenge.'); }
+    // Send in-site notification to target
+    _csSendNotification(_csTarget.uid, _csTarget.name, _csGameId);
+    toastArcade('🕹️ Challenge sent to ' + _csTarget.name + '!');
+    closeChallengeModal();
+  } catch(e) {
+    toastArcade('Could not send challenge. Please try again.');
+    if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = '🚀 Send Challenge'; }
+  }
+}
+
+async function _csSendNotification(toUid, toName, gameId) {
+  const fs = _fs();
+  if (!fs || !_me()) return;
+  try {
+    const { db, doc, updateDoc, arrayUnion } = fs;
+    const gd   = ARCADE_GAMES.find(x => x.id === gameId) || { name: gameId };
+    const notif = {
+      id:     'gi_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      type:   'game_challenge',
+      fromUid:_me().uid,
+      fromName:_myData().displayName || 'Player',
+      fromAvatar: _myData().avatar || '',
+      game:   gd.name,
+      gameId,
+      text:   `${_myData().displayName || 'Someone'} challenged you to ${gd.name}!`,
+      ts:     Date.now(),
+      read:   false,
+    };
+    await updateDoc(doc(db,'users',toUid), { notifications: arrayUnion(notif) });
+  } catch(e) { /* silent */ }
+}
+
+/* Legacy entry-point: called from profile Arcade section */
+window.challengeToGame = function(targetUid, targetName, targetAvatar) {
+  if (!_me()) { toastArcade('Sign in to challenge.'); return; }
+  if (targetUid === _me().uid) { toastArcade("You can't challenge yourself!"); return; }
+  openChallengeModal(targetUid, targetName, targetAvatar);
 };
 
 /* ─────────────────────────────────────────────
@@ -16708,25 +17318,41 @@ window._arcadeRenderProfileSection = async function(targetUid, containerEl) {
   const fs = _fs();
   if (!fs) return;
   try {
-    const { db, collection, query, where, getDocs, orderBy, limit } = fs;
+    const { db, collection, query, where, getDocs, orderBy, limit, doc, getDoc } = fs;
+    // Respect target's gameInvites privacy setting
+    const tSnap  = await getDoc(doc(db,'users',targetUid));
+    const tData  = tSnap.exists() ? tSnap.data() : {};
+    const isSelf = _me() && _me().uid === targetUid;
+    const gip    = tData.privacySettings?.gameInvites || 'everyone';
+    const myFriends  = window._snxUserData?.friends || [];
+    const isFriend   = myFriends.includes(targetUid);
+    const canChallenge = isSelf ? false
+      : gip === 'everyone'
+      || (gip === 'friends' && isFriend);
+
     const snap = await getDocs(
       query(collection(db,'arcadeScores'), where('uid','==',targetUid), orderBy('best','desc'), limit(5))
     );
-    if (snap.empty) return;
+    if (snap.empty && !canChallenge) return;
     const records = [];
     snap.forEach(d => records.push(d.data()));
+    const targetAvatar = tData.avatar || '';
+    const targetName   = tData.displayName || tData.username || 'Player';
+    const challengeBtn = canChallenge
+      ? `<button class="btn-challenge-game" onclick="challengeToGame('${esc(targetUid)}','${esc(targetName)}','${esc(targetAvatar)}')">⚡ Challenge</button>`
+      : '';
     const sectionDiv = document.createElement('div');
     sectionDiv.className = 'profile-arcade-section';
     sectionDiv.innerHTML = `
       <div class="profile-arcade-header">
         <span class="profile-arcade-title">🕹️ Arcade Records</span>
-        <button class="btn-challenge-game" onclick="challengeToGame('${esc(targetUid)}','${esc(_myData().displayName||'Player')}')">⚡ Challenge</button>
+        ${challengeBtn}
       </div>
       <div class="profile-arcade-games">
-        ${records.map(r => {
+        ${records.length ? records.map(r => {
           const gd = ARCADE_GAMES.find(x => x.id === r.gameId) || { icon:'🎮', name: r.gameId };
           return `<div class="profile-arcade-chip">${gd.icon} ${esc(gd.name)}<span class="chip-score">${r.best.toLocaleString()}</span></div>`;
-        }).join('')}
+        }).join('') : '<div style="font-size:12px;color:#3a5a7a;">No records yet.</div>'}
       </div>`;
     containerEl.appendChild(sectionDiv);
   } catch(e) { /* silent */ }
@@ -16776,6 +17402,8 @@ window.addEventListener('orientationchange', () => {
 
 /* Expose open function for nav item */
 window.openArcadeHub = window.openArcadeHub;
+/* Expose invite listener for passive badge updates (called from auth block after login) */
+window._snxArcadeSubscribeInvites = _subscribeInvites;
 
 })(); // end IIFE
 </script>
@@ -16784,6 +17412,33 @@ window.openArcadeHub = window.openArcadeHub;
 <!-- ═══════════════════════════════════════════════════════════
      SHADOW NEXUS ARCADE — Modals & Game Canvas
      ═══════════════════════════════════════════════════════════ -->
+
+<!-- ── Challenge Friend Modal ── -->
+<div id="challengeModal" role="dialog" aria-modal="true" aria-label="Challenge a Friend">
+<div class="challenge-modal-card">
+    <div class="challenge-modal-header">
+        <div class="challenge-modal-title" id="challengeModalTitle">⚡ Challenge a Friend</div>
+        <button class="challenge-modal-close" onclick="closeChallengeModal()" aria-label="Close">✕</button>
+    </div>
+    <!-- Step dots -->
+    <div class="challenge-modal-body" id="challengeModalBody">
+        <div class="challenge-steps">
+            <div class="challenge-step-dot" id="csDot1"></div>
+            <div class="challenge-step-dot" id="csDot2"></div>
+            <div class="challenge-step-dot" id="csDot3"></div>
+        </div>
+        <div class="challenge-step-label" id="csStepLabel">Select a Friend</div>
+        <!-- Step panels injected by JS -->
+        <div id="csPanel-friend"></div>
+        <div id="csPanel-game"   style="display:none;"></div>
+        <div id="csPanel-confirm" style="display:none;"></div>
+    </div>
+    <div class="challenge-modal-footer" id="challengeModalFooter">
+        <button id="csBtnBack" onclick="challengeStepBack()" style="display:none;border-color:rgba(255,255,255,0.15);color:#8ab0cc;">← Back</button>
+        <button id="csBtnNext" onclick="challengeStepNext()" style="background:rgba(0,80,200,0.25);border-color:rgba(0,174,239,0.55);color:#00AEEF;">Next →</button>
+    </div>
+</div>
+</div>
 
 <!-- ── Arcade Hub Modal ── -->
 <div id="arcadeHubModal" role="dialog" aria-modal="true" aria-label="Arcade Hub">
@@ -16811,6 +17466,10 @@ window.openArcadeHub = window.openArcadeHub;
 
         <!-- ── Tab: Games ── -->
         <div id="ahPanel-games">
+            <div class="arcade-challenge-banner">
+                <div class="arcade-challenge-banner-text"><strong>Challenge a Friend</strong> — pick a game and send an invite!</div>
+                <button class="btn-challenge-banner" onclick="openChallengeModal()">⚡ Challenge</button>
+            </div>
             <div class="arcade-game-grid" id="arcadeGameGrid">
                 <!-- tiles injected by JS -->
             </div>
@@ -16818,15 +17477,34 @@ window.openArcadeHub = window.openArcadeHub;
 
         <!-- ── Tab: Invites / Active Games ── -->
         <div id="ahPanel-invites" style="display:none;">
-            <p style="font-size:12px;color:#6a90b8;margin:0 0 14px;">Game challenges sent to you and active matches.</p>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <p style="font-size:12px;color:#6a90b8;margin:0;">Game challenges sent to you and active matches.</p>
+                <button class="btn-challenge-banner" onclick="openChallengeModal()" style="font-size:11px;padding:6px 12px;">⚡ New Challenge</button>
+            </div>
             <div id="arcadeInvitesList"></div>
         </div>
 
         <!-- ── Tab: My Stats ── -->
         <div id="ahPanel-stats" style="display:none;">
             <div class="arcade-stats-grid" id="arcadeStatsGrid"></div>
-            <p style="font-size:12px;font-weight:700;color:#00AEEF;margin:0 0 10px;text-transform:uppercase;letter-spacing:0.6px;">Game Records</p>
-            <div id="arcadeMyRecords"></div>
+            <!-- Sub-tabs for Records / Matches / Achievements -->
+            <div class="arcade-lb-tabs" style="margin-bottom:12px;">
+                <button class="arcade-lb-tab active" id="statSubTab-records"      onclick="switchStatSubTab('records',this)">🏅 Records</button>
+                <button class="arcade-lb-tab"         id="statSubTab-matches"     onclick="switchStatSubTab('matches',this)">⚔️ Matches</button>
+                <button class="arcade-lb-tab"         id="statSubTab-achievements" onclick="switchStatSubTab('achievements',this)">🏆 Achievements</button>
+            </div>
+            <div id="statSubPanel-records">
+                <p style="font-size:12px;font-weight:700;color:#00AEEF;margin:0 0 10px;text-transform:uppercase;letter-spacing:0.6px;">Best Scores</p>
+                <div id="arcadeMyRecords"></div>
+            </div>
+            <div id="statSubPanel-matches" style="display:none;">
+                <p style="font-size:12px;font-weight:700;color:#00AEEF;margin:0 0 10px;text-transform:uppercase;letter-spacing:0.6px;">Recent Matches</p>
+                <div id="arcadeMatchHistory"></div>
+            </div>
+            <div id="statSubPanel-achievements" style="display:none;">
+                <p style="font-size:12px;font-weight:700;color:#00AEEF;margin:0 0 10px;text-transform:uppercase;letter-spacing:0.6px;">Achievements</p>
+                <div class="arcade-achievements-grid" id="arcadeAchievements"></div>
+            </div>
         </div>
 
         <!-- ── Tab: Leaderboard ── -->
