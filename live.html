@@ -243,14 +243,18 @@ html, body {
   top: calc(14px + env(safe-area-inset-top, 0px));
   right: 14px; z-index: 210;
   display: none;
-  width: 38px; height: 38px; border-radius: 50%;
+  height: 38px; border-radius: 20px;
+  padding: 0 14px 0 10px;
+  gap: 5px;
   background: rgba(180,0,30,0.55); border: 1px solid rgba(255,30,60,0.55);
-  color: #fff; font-size: 18px; cursor: pointer;
+  color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
   align-items: center; justify-content: center;
   touch-action: manipulation;
   backdrop-filter: blur(8px);
   transition: background 0.15s;
+  white-space: nowrap;
 }
+#btnExitLive .exit-icon { font-size: 16px; line-height: 1; }
 #btnExitLive.visible { display: flex; }
 #btnExitLive:hover { background: rgba(255,30,60,0.75); }
 
@@ -1234,8 +1238,10 @@ html, body {
   </div>
 </div>
 
-<!-- ── Exit Live button (always-accessible red X) ── -->
-<button id="btnExitLive" aria-label="Exit Live">✕</button>
+<!-- ── Exit Live button (always-accessible, visible while in a live) ── -->
+<button id="btnExitLive" aria-label="Exit Live">
+  <span class="exit-icon">✕</span> Exit Live
+</button>
 
 <!-- ── Request to Join button (shown to viewers who haven't requested yet) ── -->
 <button id="request-join-btn" aria-label="Request to join Live">➕ Request to Join</button>

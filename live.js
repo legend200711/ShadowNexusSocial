@@ -287,6 +287,10 @@ async function enterAsViewer(code) {
   listenForRoomRequestState();  // watch requestsOpen flag so button hides if host closes requests
   // Show the "Request to Join" button so the viewer can request a box
   showRequestJoinBtn();
+
+  // Push a sentinel history entry so the device/browser back button can be
+  // intercepted by the popstate handler below rather than navigating away raw.
+  history.pushState({ liveViewer: true, roomId: code }, "");
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -703,6 +707,19 @@ function attachKeyboardHandlers() {
     if (!liveActive) return;
     if (e.altKey && e.key === "m") toggleMic();
     if (e.altKey && e.key === "v") toggleCam();
+  });
+
+  // ── Device / browser back button — intercept while a viewer is in a live ──
+  // When the user presses the phone back button or browser back, the sentinel
+  // state we pushed in enterAsViewer() pops off first, firing this handler.
+  // We show the leave-confirm overlay instead of silently navigating away.
+  window.addEventListener("popstate", e => {
+    if (liveActive && !isHost) {
+      // Re-push the sentinel so that pressing "Stay" doesn't leave the page
+      // on the next back-press without going through the overlay again.
+      history.pushState({ liveViewer: true, roomId }, "");
+      $("leaveConfirm").classList.add("open");
+    }
   });
 }
 
@@ -2721,8 +2738,10 @@ async function confirmLeave() {
   if (isMobile()) $("mobile-chat-btn").style.display = "none";
   buildVideoGrid();
   exitFullscreen();
-  // Use replace() so the viewer cannot navigate back to the dead live session.
-  window.location.replace("index.html");
+  // Navigate back to the Feed WITHOUT a hard reload so the auth session stays
+  // active. Replace the sentinel history entry (or the live.html entry) so
+  // the viewer cannot press browser-forward back into a dead stream.
+  _navigateToFeed();
 }
 
 async function leaveAsGuest() {
@@ -2732,7 +2751,10 @@ async function leaveAsGuest() {
   localStream = null;
   _vadRunning = false;
   if (_vadCtx) { try { _vadCtx.close(); } catch (_) {} _vadCtx = null; }
+  // Remove this viewer from the RTDB viewer count
   if (presenceRef) set(presenceRef, null).catch(() => {});
+  // Remove viewerRef explicitly in case presenceRef differs (pure-viewer path)
+  if (viewerRef && viewerRef !== presenceRef) set(viewerRef, null).catch(() => {});
   if (roomId && currentUser) {
     deleteDoc(doc(db, "liveRooms", roomId, "requests", currentUser.uid)).catch(() => {});
     deleteDoc(doc(db, "liveRooms", roomId, "signals",  currentUser.uid)).catch(() => {});
@@ -2740,6 +2762,32 @@ async function leaveAsGuest() {
   _unsubs.forEach(u => u()); _unsubs.length = 0;
   _chatSettingsUnsub = null;  // allow re-registration on next live session
   hideRequestJoinBtn();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Navigate back to the Feed without a hard page reload so the
+// Firebase Auth session (and all app state in index.html) is
+// preserved.  Uses history.back() when there is a real Feed entry
+// in the stack; otherwise replaces with index.html (which still
+// keeps the auth cookie / localStorage token intact).
+// ─────────────────────────────────────────────────────────────────
+function _navigateToFeed() {
+  // The sentinel entry we pushed is now the current state.
+  // history.back() will pop it and land on the Feed page (index.html)
+  // that originally navigated here — same tab, no reload of index.html
+  // from scratch because the browser uses the bfcache / page-cache.
+  // If there is no real prior entry (user typed live.html directly),
+  // fall back to a replace so the history stack stays clean.
+  if (window.history.length > 1) {
+    // Pop the sentinel + any extra live entries until we reach index.html.
+    // A single back() is sufficient because index.html was the page before
+    // the sentinel push; the sentinel is the topmost entry.
+    window.history.back();
+  } else {
+    // No prior history — open Feed in-place. replace() keeps the session;
+    // it does reload index.html but auth token in localStorage is intact.
+    window.location.replace("index.html");
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
