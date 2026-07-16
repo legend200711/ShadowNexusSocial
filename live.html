@@ -351,17 +351,138 @@ html, body {
 }
 .react-btn:hover { background: rgba(255,255,255,0.12); transform: scale(1.18); }
 
-#requests-panel { padding: 10px; gap: 8px; overflow-y: auto; }
+/* ── Requests panel header / settings bar ── */
+#requests-panel { padding: 0; gap: 0; overflow-y: auto; display: none; flex-direction: column; }
+#requests-panel.active { display: flex; }
+
+#req-settings-bar {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding: 8px 10px; border-bottom: 1px solid rgba(0,174,239,0.12);
+  flex-wrap: wrap;
+}
+#req-settings-bar label { font-size: 11px; color: var(--text-muted); }
+#req-allow-select {
+  flex: 1; min-width: 0; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,174,239,0.22); color: #fff;
+  border-radius: 8px; padding: 4px 7px; font-size: 11px; outline: none;
+}
+#btn-toggle-requests {
+  flex-shrink: 0; font-size: 11px; font-weight: 700;
+  border: 1px solid rgba(57,255,20,0.4); border-radius: 8px;
+  background: rgba(57,255,20,0.08); color: var(--neon-green);
+  padding: 4px 9px; cursor: pointer; transition: background 0.14s;
+  touch-action: manipulation;
+}
+#btn-toggle-requests.off {
+  border-color: rgba(255,51,85,0.4); background: rgba(255,51,85,0.08); color: #ff5566;
+}
+
+#req-list { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; }
+
+/* Request card */
 .request-card {
   background: rgba(0,0,0,0.3); border: 1px solid rgba(0,174,239,0.2);
   border-radius: 10px; padding: 10px 12px;
   display: flex; align-items: center; gap: 10px;
+  animation: msgIn 0.18s ease;
 }
-.request-avatar { font-size: 22px; }
-.request-name   { flex: 1; font-size: 13px; font-weight: 700; }
-.request-btns   { display: flex; gap: 6px; }
-.req-accept { background: var(--neon-green); color: #000; border: none; border-radius: 6px; padding: 5px 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
-.req-deny   { background: rgba(255,51,85,0.2); color: #ff5566; border: 1px solid rgba(255,51,85,0.3); border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+.request-card.denied { opacity: 0.45; pointer-events: none; }
+
+/* Avatar with photo */
+.request-avatar {
+  position: relative; flex-shrink: 0;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--bg-deep); border: 2px solid rgba(0,174,239,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; overflow: hidden;
+}
+.request-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+.request-info { flex: 1; min-width: 0; }
+.request-name { font-size: 13px; font-weight: 700; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 4px; }
+.request-meta { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+
+.request-btns { display: flex; gap: 6px; align-items: center; }
+.req-accept { background: var(--neon-green); color: #000; border: none; border-radius: 6px; padding: 5px 10px; font-size: 12px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.req-deny   { background: rgba(255,51,85,0.2); color: #ff5566; border: 1px solid rgba(255,51,85,0.3); border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; touch-action: manipulation; }
+.req-more   { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.5); border-radius: 6px; padding: 5px 7px;
+  font-size: 13px; cursor: pointer; line-height: 1; touch-action: manipulation; }
+
+/* Per-request safety dropdown */
+.req-safety-menu {
+  display: none; position: absolute; right: 10px;
+  background: rgba(7,20,40,0.98); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px; padding: 5px 0; min-width: 150px; z-index: 700;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.7); backdrop-filter: blur(10px);
+}
+.req-safety-menu.open { display: block; }
+.req-safety-item {
+  padding: 9px 14px; font-size: 12px; cursor: pointer; color: var(--text-secondary);
+  display: flex; align-items: center; gap: 8px; transition: background 0.12s;
+}
+.req-safety-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.req-safety-item.danger { color: #ff5566; }
+.req-safety-item.danger:hover { background: rgba(255,51,85,0.1); }
+
+/* Permission pre-check modal */
+#perm-check-modal {
+  display: none; position: fixed; inset: 0; z-index: 870;
+  background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+  align-items: center; justify-content: center; padding: 20px;
+}
+#perm-check-modal.visible { display: flex; }
+.perm-modal {
+  background: #0a0d16; border: 1px solid rgba(0,174,239,0.4);
+  border-radius: 18px; padding: 28px 24px; max-width: 320px; width: 100%;
+  text-align: center; display: flex; flex-direction: column;
+  gap: 14px; align-items: center;
+  animation: elcIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.perm-modal-icon  { font-size: 46px; }
+.perm-modal-title { font-size: 17px; font-weight: 800; color: #fff; }
+.perm-modal-sub   { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+.perm-perms-list  {
+  display: flex; flex-direction: column; gap: 8px; width: 100%; text-align: left;
+}
+.perm-perm-row {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(0,174,239,0.07); border: 1px solid rgba(0,174,239,0.15);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #fff;
+}
+.perm-perm-icon { font-size: 18px; flex-shrink: 0; }
+.perm-modal-btns { display: flex; gap: 10px; width: 100%; }
+.perm-confirm {
+  flex: 1; background: var(--neon-blue); color: #000; border: none;
+  border-radius: 12px; padding: 13px; font-size: 14px; font-weight: 800;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.perm-confirm:hover { opacity: 0.88; }
+.perm-cancel {
+  flex: 1; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px; color: rgba(255,255,255,0.6);
+  font-size: 13px; padding: 11px; cursor: pointer; transition: background 0.15s;
+}
+.perm-cancel:hover { background: rgba(255,255,255,0.1); }
+
+/* Cooldown state on request-join-btn */
+#request-join-btn.cooldown {
+  background: rgba(255,160,0,0.15); color: #ffcc44;
+  border: 1px solid rgba(255,160,0,0.3);
+  box-shadow: none; cursor: default; pointer-events: none;
+}
+
+/* Requests-closed notice */
+#req-closed-notice {
+  display: none; margin: 12px 10px;
+  background: rgba(255,51,85,0.08); border: 1px solid rgba(255,51,85,0.25);
+  border-radius: 10px; padding: 10px 14px;
+  font-size: 12px; color: #ff8899; text-align: center; line-height: 1.5;
+}
+#req-closed-notice.visible { display: block; }
 
 /* ── Join / waiting / lobby overlays ── */
 #join-overlay, #waiting-overlay, #lobby-overlay {
@@ -713,6 +834,146 @@ html, body {
   font-size: 13px; padding: 11px; cursor: pointer; transition: background 0.15s;
 }
 .elc-btn-cancel:hover { background: rgba(255,255,255,0.12); }
+
+/* ════════════════════════════════════════════════
+   PEOPLE / GUESTS PANEL  (3rd side-tab)
+════════════════════════════════════════════════ */
+#people-panel {
+  flex: 1; display: none; flex-direction: column; overflow: hidden;
+}
+#people-panel.active { display: flex; }
+
+#people-search-row {
+  padding: 8px 10px 0;
+}
+#people-search {
+  width: 100%; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,174,239,0.22);
+  color: #fff; border-radius: 20px; padding: 7px 14px;
+  font-size: 13px; outline: none;
+}
+#people-search:focus { border-color: var(--neon-blue); }
+
+#people-list {
+  flex: 1; overflow-y: auto; padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 4px;
+  scrollbar-width: thin; scrollbar-color: rgba(0,174,239,0.2) transparent;
+}
+
+/* Section header inside people list */
+.people-section-hdr {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  color: var(--text-muted); padding: 8px 4px 4px;
+  text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 2px;
+}
+
+/* Individual person row */
+.person-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 8px; border-radius: 10px;
+  transition: background 0.14s;
+  cursor: default;
+}
+.person-row:hover { background: rgba(255,255,255,0.05); }
+
+.person-avatar {
+  position: relative; flex-shrink: 0;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--bg-deep); border: 2px solid rgba(0,174,239,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; overflow: hidden;
+}
+.person-avatar img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+}
+
+/* Online status dot on avatar corner */
+.person-status-dot {
+  position: absolute; bottom: 0; right: 0;
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid #071428;
+}
+.person-status-dot.online  { background: var(--neon-green); }
+.person-status-dot.offline { background: rgba(255,255,255,0.25); }
+.person-status-dot.live    { background: var(--neon-red); animation: dotBlink 1.2s infinite; }
+
+.person-info { flex: 1; min-width: 0; }
+.person-name {
+  font-size: 13px; font-weight: 700; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 4px;
+}
+.person-status-txt {
+  font-size: 11px; color: var(--text-muted);
+}
+.person-status-txt.online  { color: var(--neon-green); }
+.person-status-txt.live    { color: var(--neon-red); }
+
+.verify-badge { font-size: 12px; }
+
+/* Invite button on each row */
+.invite-btn {
+  flex-shrink: 0; background: rgba(0,174,239,0.12);
+  border: 1px solid rgba(0,174,239,0.35); color: var(--neon-blue);
+  border-radius: 8px; padding: 5px 11px; font-size: 12px;
+  font-weight: 700; cursor: pointer;
+  transition: background 0.14s, border-color 0.14s;
+  touch-action: manipulation;
+}
+.invite-btn:hover  { background: rgba(0,174,239,0.25); border-color: var(--neon-blue); }
+.invite-btn.sent   { background: rgba(57,255,20,0.08); border-color: rgba(57,255,20,0.3); color: var(--neon-green); pointer-events: none; }
+.invite-btn.in-live { background: rgba(255,51,85,0.1); border-color: rgba(255,51,85,0.3); color: #ff8899; pointer-events: none; font-size: 11px; }
+
+/* Empty / loading state */
+.people-empty {
+  text-align: center; color: var(--text-muted); font-size: 13px;
+  padding: 28px 12px; line-height: 1.6;
+}
+
+/* ── Invite notification overlay (received by the invitee) ── */
+#invite-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 850;
+  background: rgba(0,0,0,0.72); backdrop-filter: blur(8px);
+  align-items: center; justify-content: center; padding: 20px;
+}
+#invite-overlay.visible { display: flex; }
+.invite-modal {
+  background: #0a0d16; border: 1px solid rgba(0,174,239,0.45);
+  border-radius: 18px; padding: 28px 24px; max-width: 320px; width: 100%;
+  text-align: center; box-shadow: 0 0 60px rgba(0,174,239,0.2);
+  animation: elcIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both;
+  display: flex; flex-direction: column; gap: 14px; align-items: center;
+}
+.invite-modal-icon { font-size: 48px; }
+.invite-modal-title { font-size: 17px; font-weight: 800; color: #fff; line-height: 1.4; }
+.invite-modal-sub   { font-size: 13px; color: var(--text-muted); }
+.invite-modal-btns  { display: flex; gap: 10px; width: 100%; }
+.invite-accept {
+  flex: 1; background: var(--neon-green); color: #000; border: none;
+  border-radius: 12px; padding: 13px; font-size: 14px; font-weight: 800;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.invite-accept:hover { opacity: 0.88; }
+.invite-decline {
+  flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px; color: rgba(255,255,255,0.65);
+  font-size: 13px; padding: 11px; cursor: pointer; transition: background 0.15s;
+}
+.invite-decline:hover { background: rgba(255,255,255,0.12); }
+
+/* ── Privacy settings row (host-only footer in People panel) ── */
+#invite-privacy-row {
+  padding: 8px 10px; border-top: 1px solid rgba(0,174,239,0.1);
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+#invite-privacy-row label { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+#invite-privacy-select {
+  flex: 1; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,174,239,0.22); color: #fff;
+  border-radius: 8px; padding: 4px 8px; font-size: 12px; outline: none;
+}
 </style>
 </head>
 <body>
@@ -754,6 +1015,9 @@ html, body {
   <button class="ctrl-btn" id="btnLock" title="Lock room" aria-label="Lock room">
     🔓<span class="ctrl-tooltip">Lock room</span>
   </button>
+  <button class="ctrl-btn" id="btnRequests" title="Toggle join requests" aria-label="Toggle requests" style="display:none;">
+    👥<span class="ctrl-tooltip">Requests on</span>
+  </button>
 </div>
 
 <!-- ── Desktop side panel: chat + requests ── -->
@@ -764,6 +1028,9 @@ html, body {
     </button>
     <button class="side-tab" data-tab="requests" onclick="switchSideTab('requests')">
       Requests <span class="tab-badge" id="req-badge"></span>
+    </button>
+    <button class="side-tab" data-tab="people" onclick="switchSideTab('people')">
+      People <span class="tab-badge" id="people-badge"></span>
     </button>
   </div>
   <div id="chat-panel" class="active">
@@ -780,7 +1047,42 @@ html, body {
       <button id="chat-send">➤</button>
     </div>
   </div>
-  <div id="requests-panel"></div>
+  <div id="requests-panel">
+    <!-- Settings bar (host-only, shown via JS) -->
+    <div id="req-settings-bar" style="display:none;">
+      <label>Allow:</label>
+      <select id="req-allow-select">
+        <option value="everyone">Everyone</option>
+        <option value="followers">Followers only</option>
+        <option value="friends">Friends only</option>
+        <option value="family">Family only</option>
+      </select>
+      <button id="btn-toggle-requests">✅ Requests on</button>
+    </div>
+    <!-- Closed notice (viewers see this when requests are off) -->
+    <div id="req-closed-notice">🚫 The host has closed guest requests.</div>
+    <div id="req-list"></div>
+  </div>
+
+  <!-- ── People / Online Friends Panel ── -->
+  <div id="people-panel">
+    <div id="people-search-row">
+      <input id="people-search" type="text" placeholder="🔍 Search people…" autocomplete="off">
+    </div>
+    <div id="people-list">
+      <div class="people-empty">Opening the panel…</div>
+    </div>
+    <!-- Privacy setting (host-only, shown via JS) -->
+    <div id="invite-privacy-row" style="display:none;">
+      <label for="invite-privacy-select">Who can invite me:</label>
+      <select id="invite-privacy-select">
+        <option value="everyone">Everyone</option>
+        <option value="friends">Friends only</option>
+        <option value="family">Family only</option>
+        <option value="none">Disabled</option>
+      </select>
+    </div>
+  </div>
 </div>
 
 <!-- ── Mobile chat button + bottom drawer ── -->
@@ -789,6 +1091,7 @@ html, body {
   <div class="side-tabs" style="border-radius:16px 16px 0 0;">
     <button class="side-tab active" data-tab="chat" onclick="switchSideTab('chat')">Chat</button>
     <button class="side-tab" data-tab="requests" onclick="switchSideTab('requests')">Requests</button>
+    <button class="side-tab" data-tab="people" onclick="switchSideTab('people')">People</button>
     <button class="side-tab" style="flex:0;padding:12px 14px;color:#ff5566;" onclick="toggleMobileChat()">✕</button>
   </div>
   <div id="mobile-chat-messages" style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px;"></div>
@@ -815,6 +1118,9 @@ html, body {
   <div class="ctx-item" id="ctx-cam">📷 Disable cam</div>
   <div class="ctx-item" id="ctx-restart">🔄 Restart connection</div>
   <div class="ctx-item danger" id="ctx-remove">🚫 Remove from Live</div>
+  <div style="height:1px;background:rgba(255,255,255,0.07);margin:4px 0;"></div>
+  <div class="ctx-item danger" id="ctx-report">⚠️ Report</div>
+  <div class="ctx-item danger" id="ctx-block">🚫 Block user</div>
 </div>
 
 <!-- ── Floating reaction stage ── -->
@@ -849,6 +1155,37 @@ html, body {
   <div class="overlay-title">Waiting for approval…</div>
   <div class="overlay-sub" id="waitingSub">The host will accept or deny your request to join.</div>
   <button class="btn-secondary" id="btnCancelRequest">Cancel request</button>
+</div>
+
+<!-- ── Permission pre-check modal (shown before cam/mic access) ── -->
+<div id="perm-check-modal">
+  <div class="perm-modal">
+    <div class="perm-modal-icon">🎥</div>
+    <div class="perm-modal-title">Join as Guest</div>
+    <div class="perm-modal-sub">To appear in the Live, the app needs access to:</div>
+    <div class="perm-perms-list">
+      <div class="perm-perm-row"><span class="perm-perm-icon">🎙️</span> Microphone</div>
+      <div class="perm-perm-row"><span class="perm-perm-icon">📷</span> Camera</div>
+    </div>
+    <div class="perm-modal-sub" style="font-size:11px;">Your browser will ask for permission. You can turn off camera or mic anytime.</div>
+    <div class="perm-modal-btns">
+      <button class="perm-confirm" id="permBtnConfirm">Allow &amp; Join</button>
+      <button class="perm-cancel"  id="permBtnCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Invite notification overlay (shown to the invitee) ── -->
+<div id="invite-overlay">
+  <div class="invite-modal">
+    <div class="invite-modal-icon">🎥</div>
+    <div class="invite-modal-title" id="invite-modal-title">You have been invited to join a Live</div>
+    <div class="invite-modal-sub" id="invite-modal-sub">Tap Accept to join as a guest.</div>
+    <div class="invite-modal-btns">
+      <button class="invite-accept" id="inviteBtnAccept">✅ Accept</button>
+      <button class="invite-decline" id="inviteBtnDecline">❌ Decline</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── End Live Confirmation Modal ── -->

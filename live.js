@@ -108,6 +108,13 @@ let currentQuality  = "HIGH";
 let _networkTier    = "HIGH";   // derived from navigator.connection
 let _connMonInterval = null;    // heartbeat for self-recovery (guest)
 
+// ── Join-request gating (host-side) ──
+let requestsOpen    = true;          // host can close/open requests
+let requestAllowMode = "everyone";   // "everyone"|"followers"|"friends"|"family"
+
+// ── Viewer-side cooldown (after being denied) ──
+let _reqCooldownTimer = null;        // setTimeout handle
+
 // guests[uid] = { pc, stream, displayName, muted, camOff, retries, quality, _qualityInterval }
 const guests = {};
 
@@ -186,6 +193,10 @@ onAuthStateChanged(auth, async user => {
   } catch (_) { /* best-effort */ }
 
   initUI();
+  // Start global presence (shows this user as online to others)
+  startGlobalPresence();
+  // Start listening for Live invites from other hosts
+  listenForIncomingInvites();
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -245,8 +256,41 @@ async function enterAsViewer(code) {
   listenViewerCount();
   listenChat();
   listenForHostCommands();
+  listenForRoomRequestState();  // watch requestsOpen flag so button hides if host closes requests
   // Show the "Request to Join" button so the viewer can request a box
   showRequestJoinBtn();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Viewer: watch requestsOpen so we can show/hide the request button live
+// ─────────────────────────────────────────────────────────────────
+function listenForRoomRequestState() {
+  if (!roomId) return;
+  const roomRef = doc(db, "liveRooms", roomId);
+  const unsub   = onSnapshot(roomRef, snap => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const open = data.requestsOpen !== false; // default true
+    const btn  = $("request-join-btn");
+    const notice = $("req-closed-notice");
+    if (!isHost) {
+      // Update the viewer-side btn label/state
+      if (!open) {
+        if (btn) {
+          btn.textContent = "🚫 Requests closed";
+          btn.classList.add("waiting"); // reuse disabled style
+        }
+        if (notice) notice.classList.add("visible");
+      } else {
+        if (btn?.classList.contains("waiting") && btn.textContent.includes("closed")) {
+          // restore if host re-opens
+          showRequestJoinBtn();
+        }
+        if (notice) notice.classList.remove("visible");
+      }
+    }
+  });
+  _unsubs.push(unsub);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -578,9 +622,28 @@ function attachButtonHandlers() {
   // Request to Join button (viewer flow)
   $("request-join-btn").onclick = handleRequestToJoin;
 
-  // Dismiss context menu on outside click
+  // Invite overlay buttons
+  $("inviteBtnAccept")?.addEventListener("click",  acceptLiveInvite);
+  $("inviteBtnDecline")?.addEventListener("click", declineLiveInvite);
+
+  // Privacy selector (host-only, inside people panel)
+  $("invite-privacy-select")?.addEventListener("change", e => saveInvitePrivacy(e.target.value));
+
+  // Permission pre-check modal (viewer perm gate before camera access)
+  $("permBtnConfirm")?.addEventListener("click", confirmPermAndJoin);
+  $("permBtnCancel")?.addEventListener("click",  hidePermCheckModal);
+
+  // Request-settings bar (host-only)
+  $("btn-toggle-requests")?.addEventListener("click", toggleRequestsOpen);
+  $("btnRequests")?.addEventListener("click",         toggleRequestsOpen);
+  $("req-allow-select")?.addEventListener("change",   e => setRequestAllowMode(e.target.value));
+
+  // Dismiss context menu + per-request safety menus on outside click
   document.addEventListener("click", e => {
     if (!e.target.closest("#guest-ctx-menu")) hideCtxMenu();
+    if (!e.target.closest(".req-safety-menu") && !e.target.closest(".req-more")) {
+      document.querySelectorAll(".req-safety-menu.open").forEach(m => m.classList.remove("open"));
+    }
   });
 }
 
@@ -606,12 +669,12 @@ function hideAll()        { ["lobby-overlay","join-overlay","waiting-overlay"].f
 function showRequestJoinBtn() {
   const btn = $("request-join-btn");
   if (!btn || isHost) return;
-  btn.textContent = "➕ Request to Join";
-  btn.classList.remove("waiting");
+  btn.textContent = "🎥 Join Live Box";
+  btn.classList.remove("waiting", "cooldown");
   btn.classList.add("visible");
 }
 function hideRequestJoinBtn() {
-  $("request-join-btn")?.classList.remove("visible", "waiting");
+  $("request-join-btn")?.classList.remove("visible", "waiting", "cooldown");
 }
 function setRequestJoinWaiting() {
   const btn = $("request-join-btn");
@@ -619,15 +682,44 @@ function setRequestJoinWaiting() {
   btn.textContent = "⏳ Waiting for host…";
   btn.classList.add("waiting");
 }
+function setRequestJoinCooldown(seconds) {
+  const btn = $("request-join-btn");
+  if (!btn) return;
+  let remaining = seconds;
+  btn.classList.remove("waiting");
+  btn.classList.add("visible", "cooldown");
+  const tick = () => {
+    btn.textContent = `⏳ Try again in ${remaining}s`;
+    if (remaining <= 0) {
+      btn.classList.remove("cooldown");
+      btn.textContent = "🎥 Join Live Box";
+      return;
+    }
+    remaining--;
+    _reqCooldownTimer = setTimeout(tick, 1000);
+  };
+  tick();
+}
 
-// Handle viewer tapping "Request to Join"
+// Handle viewer tapping "Request to Join" — show perm-check modal first
 function handleRequestToJoin() {
   if (!roomId || isHost || !liveActive) return;
   const btn = $("request-join-btn");
-  if (btn?.classList.contains("waiting")) return;
-  // Show waiting-overlay and submit request (reuse existing requestToJoin flow)
+  if (btn?.classList.contains("waiting") || btn?.classList.contains("cooldown")) return;
+  // Show permission pre-check modal before acquiring camera/mic
+  showPermCheckModal();
+}
+
+// Show / hide the perm-check modal
+function showPermCheckModal() {
+  $("perm-check-modal")?.classList.add("visible");
+}
+function hidePermCheckModal() {
+  $("perm-check-modal")?.classList.remove("visible");
+}
+function confirmPermAndJoin() {
+  hidePermCheckModal();
   hideRequestJoinBtn();
-  // Already watching as viewer — re-use the requestToJoin path
   requestToJoin(roomId);
 }
 
@@ -650,10 +742,44 @@ async function startAsHost(code) {
   await acquireLocalStream();
   assignSlot(currentUser.uid, myDisplayName + " (you)", localStream, true);
   showCtrlBar();
+  _showHostRequestControls();
   toast(`🔴 Live started — your followers can join from the Feed!`);
   listenForJoinRequests();
   setupRTDB();
   startHostStreamGuard();
+  markPresenceLive(roomId);
+}
+
+// Show host-only request controls (settings bar + ctrl-bar button)
+function _showHostRequestControls() {
+  const bar = $("req-settings-bar");
+  if (bar) bar.style.display = "flex";
+  const btn = $("btnRequests");
+  if (btn) btn.style.display = "";
+  _syncRequestsOpenUI();
+}
+
+// Sync all UI to match requestsOpen / requestAllowMode
+function _syncRequestsOpenUI() {
+  const toggleBtn = $("btn-toggle-requests");
+  const ctrlBtn   = $("btnRequests");
+  const notice    = $("req-closed-notice");
+  if (toggleBtn) {
+    toggleBtn.textContent = requestsOpen ? "✅ Requests on" : "🚫 Requests off";
+    toggleBtn.classList.toggle("off", !requestsOpen);
+  }
+  if (ctrlBtn) {
+    ctrlBtn.innerHTML = (requestsOpen ? "👥" : "🚫") + `<span class="ctrl-tooltip">${requestsOpen ? "Requests on" : "Requests off"}</span>`;
+    ctrlBtn.classList.toggle("active", !requestsOpen);
+  }
+  if (notice) notice.classList.toggle("visible", !requestsOpen);
+  // Persist to Firestore so viewers can read the state
+  if (roomId && liveActive) {
+    updateDoc(doc(db, "liveRooms", roomId), {
+      requestsOpen,
+      requestAllowMode,
+    }).catch(() => {});
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -668,16 +794,20 @@ async function handleGoLive() {
   $("live-badge").classList.add("visible");
   $("viewer-count").style.display = "flex";
   await setDoc(doc(db, "liveRooms", roomId), {
-    host:        currentUser.uid,
-    hostName:    myDisplayName,
+    host:             currentUser.uid,
+    hostName:         myDisplayName,
     roomId,
-    live:        true,
-    locked:      false,
-    createdAt:   serverTimestamp(),
-    viewerCount: 0
+    live:             true,
+    locked:           false,
+    requestsOpen:     true,
+    requestAllowMode: "everyone",
+    createdAt:        serverTimestamp(),
+    viewerCount:      0
   });
   listenForJoinRequests();
   listenViewerCount();
+  _showHostRequestControls();
+  markPresenceLive(roomId);
   toast("🔴 You are now Live! Your followers can see you on their Feed.");
 }
 
@@ -699,6 +829,8 @@ async function endLive() {
     catch (_) { /* best-effort — may not exist for legacy rooms */ }
   }
   if (presenceRef) { set(presenceRef, null).catch(() => {}); }
+  // Clear liveRoomId from global presence
+  markPresenceLive(null);
   localStream?.getTracks().forEach(t => t.stop());
   localStream = null;
   $("live-badge").classList.remove("visible");
@@ -753,9 +885,18 @@ async function requestToJoin(code) {
   await setDoc(doc(db, "liveRooms", roomId, "requests", currentUser.uid), {
     uid:         currentUser.uid,
     displayName: myDisplayName,
+    photoURL:    currentUser.photoURL || null,
+    verified:    false,  // enriched from Firestore profile below (best-effort)
     status:      "pending",
     requestedAt: serverTimestamp()
   });
+  // Best-effort enrich with verified flag from profile
+  try {
+    const snap = await getDoc(doc(db, "users", currentUser.uid));
+    if (snap.exists() && (snap.data().verified || snap.data().isVerified)) {
+      updateDoc(doc(db, "liveRooms", roomId, "requests", currentUser.uid), { verified: true }).catch(() => {});
+    }
+  } catch (_) { /* best-effort */ }
 
   const reqRef = doc(db, "liveRooms", roomId, "requests", currentUser.uid);
   const unsub  = onSnapshot(reqRef, snap => {
@@ -770,11 +911,22 @@ async function requestToJoin(code) {
       localStream?.getTracks().forEach(t => t.stop());
       localStream = null;
       if (alreadyViewing) {
-        showRequestJoinBtn();
-        toast("❌ Host declined your request.");
+        // 60-second cooldown before they can re-request
+        setRequestJoinCooldown(60);
+        toast("❌ Host declined your request. You can try again in 60s.");
       } else {
-        showLobby();
-        toast("Host denied your request.");
+        // Came from overlay — go back to viewing state with cooldown
+        hideOverlay("waiting-overlay");
+        showCtrlBar();
+        $("btnGoLive").style.display  = "none";
+        $("btnEndLive").style.display = "none";
+        setupRTDB();
+        listenViewerCount();
+        listenChat();
+        listenForHostCommands();
+        listenForRoomRequestState();
+        setRequestJoinCooldown(60);
+        toast("❌ Host declined your request. You can try again in 60s.");
       }
     }
   });
@@ -884,7 +1036,14 @@ function listenForJoinRequests() {
     snap.docChanges().forEach(change => {
       if (change.type === "added") {
         const req = change.doc.data();
-        if (req.status === "pending") renderJoinRequest(req);
+        if (req.status === "pending") {
+          // Auto-deny if requests are closed or allow-mode blocks this user
+          if (!requestsOpen) {
+            denyGuest(req.uid);
+            return;
+          }
+          renderJoinRequest(req);
+        }
       }
       if (change.type === "removed") {
         removeRequestCard(change.doc.id);
@@ -898,25 +1057,68 @@ function listenForJoinRequests() {
 }
 
 function renderJoinRequest(req) {
-  const panel = $("requests-panel");
-  if (!panel || panel.querySelector(`[data-uid="${req.uid}"]`)) return;
+  const list = $("req-list") || $("requests-panel");
+  if (!list || list.querySelector(`[data-uid="${req.uid}"]`)) return;
+
   const card = el("div", "request-card");
   card.dataset.uid = req.uid;
+  card.style.position = "relative";
+
+  const avatarHtml = req.photoURL
+    ? `<img src="${esc(req.photoURL)}" alt="">`
+    : `👤`;
+  const verifyHtml = req.verified ? `<span class="verify-badge">✔️</span>` : "";
+  const timeAgo    = req.requestedAt?.seconds
+    ? _formatTimeAgo(req.requestedAt.seconds * 1000)
+    : "just now";
+
   card.innerHTML = `
-    <div class="request-avatar">👤</div>
-    <div class="request-name">${esc(req.displayName)}</div>
+    <div class="request-avatar">${avatarHtml}</div>
+    <div class="request-info">
+      <div class="request-name">${esc(req.displayName)} ${verifyHtml}</div>
+      <div class="request-meta">Wants to join · ${timeAgo}</div>
+    </div>
     <div class="request-btns">
       <button class="req-accept">✓ Accept</button>
-      <button class="req-deny">✕ Deny</button>
+      <button class="req-deny">✕ Decline</button>
+      <button class="req-more" title="More options">⋯</button>
+    </div>
+    <div class="req-safety-menu">
+      <div class="req-safety-item danger ctx-req-report">⚠️ Report</div>
+      <div class="req-safety-item danger ctx-req-block">🚫 Block</div>
     </div>`;
+
   card.querySelector(".req-accept").onclick = () => acceptGuest(req);
   card.querySelector(".req-deny").onclick   = () => denyGuest(req.uid);
-  panel.appendChild(card);
+  card.querySelector(".req-more").onclick   = e => {
+    e.stopPropagation();
+    const menu = card.querySelector(".req-safety-menu");
+    // Close any other open safety menus first
+    document.querySelectorAll(".req-safety-menu.open").forEach(m => { if (m !== menu) m.classList.remove("open"); });
+    menu.classList.toggle("open");
+  };
+  card.querySelector(".ctx-req-report").onclick = () => {
+    reportUser(req.uid, req.displayName);
+    denyGuest(req.uid);
+  };
+  card.querySelector(".ctx-req-block").onclick = () => {
+    blockUser(req.uid, req.displayName);
+    denyGuest(req.uid);
+  };
+  list.appendChild(card);
 
   // On mobile the side panel is hidden — show a persistent toast with quick actions
   if (isMobile()) {
     showJoinRequestToast(req);
   }
+}
+
+// Format timestamp as "X min ago" etc.
+function _formatTimeAgo(ms) {
+  const diff = Date.now() - ms;
+  if (diff < 60_000)  return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  return `${Math.floor(diff / 3_600_000)}h ago`;
 }
 
 // Mobile-only: shows a toast with Accept/Deny inline so host can act without opening the drawer
@@ -951,9 +1153,25 @@ function removeRequestCard(uid) {
   document.querySelector(`.request-card[data-uid="${uid}"]`)?.remove();
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Host: toggle requests open/closed
+// ─────────────────────────────────────────────────────────────────
+function toggleRequestsOpen() {
+  if (!isHost) return;
+  requestsOpen = !requestsOpen;
+  _syncRequestsOpenUI();
+  toast(requestsOpen ? "👥 Guest requests are now open." : "🚫 Guest requests closed.");
+}
+
+function setRequestAllowMode(mode) {
+  requestAllowMode = mode;
+  _syncRequestsOpenUI();
+}
+
 async function acceptGuest(req) {
   if (Object.keys(guests).length >= 7) { toast("Max 7 guests reached."); return; }
   if (roomLocked) { toast("Room is locked."); return; }
+  if (!requestsOpen) { toast("Requests are currently closed."); return; }
   removeRequestCard(req.uid);
   await updateDoc(doc(db, "liveRooms", roomId, "requests", req.uid), { status: "accepted" });
   createHostPeer(req.uid, req.displayName);
@@ -962,6 +1180,42 @@ async function acceptGuest(req) {
 async function denyGuest(uid) {
   removeRequestCard(uid);
   await updateDoc(doc(db, "liveRooms", roomId, "requests", uid), { status: "denied" });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Safety: report / block a user (writes to Firestore safety collections)
+// ─────────────────────────────────────────────────────────────────
+async function reportUser(uid, displayName) {
+  if (!currentUser || !uid) return;
+  try {
+    await addDoc(collection(db, "reports"), {
+      reportedUid:  uid,
+      reportedName: displayName,
+      reporterUid:  currentUser.uid,
+      context:      "live_request",
+      roomId:       roomId || null,
+      ts:           serverTimestamp(),
+    });
+    toast(`⚠️ ${displayName} reported.`);
+  } catch (_) {
+    toast("Could not send report. Try again.");
+  }
+}
+
+async function blockUser(uid, displayName) {
+  if (!currentUser || !uid) return;
+  try {
+    await setDoc(doc(db, "users", currentUser.uid, "blocked", uid), {
+      uid,
+      displayName,
+      blockedAt: serverTimestamp(),
+    });
+    // Also deny any open requests from this user
+    if (roomId && isHost) denyGuest(uid);
+    toast(`🚫 ${displayName} blocked.`);
+  } catch (_) {
+    toast("Could not block user. Try again.");
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1607,6 +1861,8 @@ $("ctx-mute").onclick    = () => { if (_ctxUid) hostMuteGuest(_ctxUid);    hideC
 $("ctx-cam").onclick     = () => { if (_ctxUid) hostDisableCam(_ctxUid);   hideCtxMenu(); };
 $("ctx-remove").onclick  = () => { if (_ctxUid) hostRemoveGuest(_ctxUid);  hideCtxMenu(); };
 $("ctx-restart").onclick = () => { if (_ctxUid) { reconnectPeer(_ctxUid); toast(`Restarting ${guests[_ctxUid]?.displayName || "guest"}…`); } hideCtxMenu(); };
+$("ctx-report")?.onclick = () => { if (_ctxUid) { reportUser(_ctxUid, guests[_ctxUid]?.displayName || "Guest"); } hideCtxMenu(); };
+$("ctx-block")?.onclick  = () => { if (_ctxUid) { blockUser(_ctxUid,  guests[_ctxUid]?.displayName || "Guest"); hostRemoveGuest(_ctxUid); } hideCtxMenu(); };
 
 // ─────────────────────────────────────────────────────────────────
 // Mobile mini-strip — pause hidden video previews to save battery
@@ -1663,6 +1919,8 @@ function switchSideTab(tab) {
   document.querySelectorAll(".side-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
   $("chat-panel")?.classList.toggle("active",     tab === "chat");
   $("requests-panel")?.classList.toggle("active", tab === "requests");
+  $("people-panel")?.classList.toggle("active",   tab === "people");
+  if (tab === "people") openPeoplePanel();
 }
 window.switchSideTab = switchSideTab;
 
@@ -1744,11 +2002,302 @@ function toast(msg, dur = 3500) {
   setTimeout(() => t.classList.remove("show"), dur);
 }
 
+// ═════════════════════════════════════════════════════════════════
+// PEOPLE PANEL  — Online Presence, Invite-to-Live, Privacy
+// ═════════════════════════════════════════════════════════════════
+
+// ── State ──
+let _peopleUnsub       = null;   // RTDB online-users listener
+let _inviteUnsub       = null;   // Firestore invite listener (for invitee)
+let _invitePrivacy     = "everyone"; // current user's invite privacy setting
+let _pendingInvite     = null;   // invite payload waiting for user action
+let _peopleSelfRef     = null;   // RTDB ref for this user's global presence
+
+// ─────────────────────────────────────────────────────────────────
+// Global presence — write to rtdb:/presence/<uid> when online
+// ─────────────────────────────────────────────────────────────────
+async function startGlobalPresence() {
+  if (!currentUser) return;
+  // Load invite privacy preference from Firestore profile
+  try {
+    const snap = await getDoc(doc(db, "users", currentUser.uid));
+    if (snap.exists()) _invitePrivacy = snap.data().invitePrivacy || "everyone";
+  } catch (_) { /* best-effort */ }
+
+  _peopleSelfRef = ref(rtdb, `presence/${currentUser.uid}`);
+  const presenceData = {
+    uid:          currentUser.uid,
+    displayName:  myDisplayName,
+    photoURL:     currentUser.photoURL || null,
+    verified:     false,   // updated below if available
+    liveRoomId:   null,
+    onlineAt:     Date.now(),
+    invitePrivacy: _invitePrivacy,
+  };
+
+  // Enrich with Firestore verification flag if available
+  try {
+    const snap = await getDoc(doc(db, "users", currentUser.uid));
+    if (snap.exists()) {
+      presenceData.verified   = snap.data().verified || snap.data().isVerified || false;
+      presenceData.photoURL   = snap.data().photoURL  || snap.data().avatarUrl || currentUser.photoURL || null;
+      presenceData.displayName = snap.data().displayName || snap.data().username || myDisplayName;
+    }
+  } catch (_) { /* best-effort */ }
+
+  await set(_peopleSelfRef, presenceData).catch(() => {});
+  onDisconnect(_peopleSelfRef).remove();
+}
+
+// Update own presence to mark as currently Live
+async function markPresenceLive(rId) {
+  if (!_peopleSelfRef) return;
+  set(_peopleSelfRef, { ...(await _readPresenceSelf()), liveRoomId: rId || null }).catch(() => {});
+}
+
+async function _readPresenceSelf() {
+  // helper: read current value back (fallback if we don't cache it)
+  return {
+    uid:          currentUser?.uid,
+    displayName:  myDisplayName,
+    photoURL:     currentUser?.photoURL || null,
+    verified:     false,
+    liveRoomId:   null,
+    onlineAt:     Date.now(),
+    invitePrivacy: _invitePrivacy,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// People Panel — load & render online users
+// Called when the host switches to the "People" tab
+// ─────────────────────────────────────────────────────────────────
+function openPeoplePanel() {
+  renderPeopleList(); // immediate render with cached/stale data
+  _subscribePeoplePresence();
+  listenForIncomingInvites(); // (no-op if already subscribed)
+  // Show privacy row only for host
+  const privRow = $("invite-privacy-row");
+  if (privRow) privRow.style.display = isHost ? "flex" : "none";
+  // Bind search input
+  const searchEl = $("people-search");
+  if (searchEl) {
+    searchEl.oninput = () => renderPeopleList(searchEl.value.trim().toLowerCase());
+  }
+}
+
+// Subscribe to RTDB /presence to get live online list
+function _subscribePeoplePresence() {
+  if (_peopleUnsub) return; // already subscribed
+  const presRef = ref(rtdb, "presence");
+  const handler = onValue(presRef, snap => {
+    _onlineUsersCache = snap.exists() ? Object.values(snap.val() || {}) : [];
+    const q = $("people-search")?.value?.trim().toLowerCase() || "";
+    renderPeopleList(q);
+    // Update badge count (online users excluding self)
+    const count = _onlineUsersCache.filter(u => u.uid !== currentUser?.uid).length;
+    const badge = $("people-badge");
+    if (badge) { badge.textContent = count || ""; badge.classList.toggle("has-items", count > 0); }
+  });
+  // Store unsubscribe: RTDB `onValue` returns an unsubscribe fn
+  _peopleUnsub = () => off(presRef, "value", handler);
+  _unsubs.push(_peopleUnsub);
+}
+
+let _onlineUsersCache = [];
+
+// Render the people list (optionally filtered by query string)
+function renderPeopleList(query = "") {
+  const list = $("people-list");
+  if (!list) return;
+  list.innerHTML = "";
+
+  // Filter self out; apply search query
+  let users = _onlineUsersCache.filter(u => u.uid !== currentUser?.uid);
+  if (query) users = users.filter(u =>
+    (u.displayName || "").toLowerCase().includes(query)
+  );
+
+  if (users.length === 0) {
+    list.innerHTML = `<div class="people-empty">No one else is online right now.<br>Invite sent users will appear here.</div>`;
+    return;
+  }
+
+  // Sort: online first, then live, then offline
+  const statusOrder = u => u.liveRoomId ? 0 : (u.onlineAt && Date.now() - u.onlineAt < 3_600_000 ? 1 : 2);
+  users.sort((a, b) => statusOrder(a) - statusOrder(b));
+
+  // Single flat section — no friends/family grouping since social graph
+  // is not yet present on the client; add section headers once available.
+  const hdr = document.createElement("div");
+  hdr.className = "people-section-hdr";
+  hdr.textContent = `Online now (${users.length})`;
+  list.appendChild(hdr);
+
+  users.forEach(u => {
+    const row = _buildPersonRow(u);
+    list.appendChild(row);
+  });
+}
+
+// Build a single person row element
+function _buildPersonRow(u) {
+  const isInThisLive = u.liveRoomId === roomId;
+  const isLive       = !!u.liveRoomId && !isInThisLive;
+  const statusClass  = u.liveRoomId ? "live" : "online";
+  const statusTxt    = isInThisLive ? "Already in this Live" : u.liveRoomId ? "🔴 Currently Live" : "🟢 Online";
+
+  const row = el("div", "person-row");
+  row.dataset.uid = u.uid;
+
+  const avatarHtml = u.photoURL
+    ? `<img src="${esc(u.photoURL)}" alt="">`
+    : `👤`;
+  const verifyHtml = u.verified ? `<span class="verify-badge" title="Verified">✔️</span>` : "";
+
+  row.innerHTML = `
+    <div class="person-avatar">
+      ${avatarHtml}
+      <div class="person-status-dot ${statusClass}"></div>
+    </div>
+    <div class="person-info">
+      <div class="person-name">${esc(u.displayName || "User")} ${verifyHtml}</div>
+      <div class="person-status-txt ${statusClass}">${statusTxt}</div>
+    </div>`;
+
+  // Only show Invite button if host is live and person is not already in this Live
+  if (isHost && liveActive && !isInThisLive) {
+    const btn = el("button", isLive ? "invite-btn in-live" : "invite-btn", isLive ? "In Live" : "➕ Invite");
+    if (!isLive) {
+      btn.onclick = () => sendInviteToUser(u, btn);
+    }
+    row.appendChild(btn);
+  }
+
+  return row;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Send invite — host writes to Firestore invites subcollection
+// ─────────────────────────────────────────────────────────────────
+async function sendInviteToUser(u, btn) {
+  if (!isHost || !liveActive || !roomId) return;
+  btn.textContent = "Sending…";
+  btn.disabled = true;
+  try {
+    await setDoc(doc(db, "users", u.uid, "liveInvites", roomId), {
+      roomId,
+      hostUid:     currentUser.uid,
+      hostName:    myDisplayName,
+      invitedAt:   serverTimestamp(),
+      status:      "pending",
+    });
+    btn.textContent = "✓ Sent";
+    btn.className   = "invite-btn sent";
+    toast(`📨 Invited ${u.displayName}`);
+  } catch (e) {
+    btn.textContent = "➕ Invite";
+    btn.disabled    = false;
+    toast("Could not send invite. Try again.");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Listen for incoming invites — runs for all users (not only guests)
+// ─────────────────────────────────────────────────────────────────
+function listenForIncomingInvites() {
+  if (_inviteUnsub || !currentUser) return;
+  const invRef = collection(db, "users", currentUser.uid, "liveInvites");
+  const unsub  = onSnapshot(invRef, snap => {
+    snap.docChanges().forEach(ch => {
+      if (ch.type === "added" || ch.type === "modified") {
+        const data = ch.doc.data();
+        if (data.status === "pending") {
+          // Check privacy gate
+          if (_invitePrivacy === "none") return;
+          // TODO: add friends/family checks when social graph is available
+          showInviteNotification(data);
+        }
+      }
+    });
+  });
+  _inviteUnsub = unsub;
+  _unsubs.push(unsub);
+}
+
+// Show the invite overlay
+function showInviteNotification(invite) {
+  _pendingInvite = invite;
+  $("invite-modal-title").textContent = `${esc(invite.hostName)} invited you to join their Live`;
+  $("invite-modal-sub").textContent   = "You will enter as a guest. Camera & mic will be requested.";
+  $("invite-overlay").classList.add("visible");
+}
+
+function hideInviteOverlay() {
+  $("invite-overlay").classList.remove("visible");
+  _pendingInvite = null;
+}
+
+// Accept invite — navigate to the Live room
+async function acceptLiveInvite() {
+  if (!_pendingInvite) return;
+  const inv = _pendingInvite;
+  hideInviteOverlay();
+
+  // Mark invite as accepted in Firestore
+  setDoc(doc(db, "users", currentUser.uid, "liveInvites", inv.roomId), {
+    ...inv, status: "accepted"
+  }).catch(() => {});
+
+  // If already on live.html, join directly — otherwise navigate
+  if (window.location.pathname.includes("live.html") || window.location.pathname.endsWith("/live")) {
+    // Re-use requestToJoin flow
+    if (!liveActive) {
+      roomId    = inv.roomId;
+      liveActive = true;
+      $("roomTitle").textContent = `🔴 Live`;
+      hideAll();
+      setupRTDB();
+      listenViewerCount();
+      listenChat();
+      listenForHostCommands();
+    }
+    requestToJoin(inv.roomId);
+  } else {
+    window.location.href = `live.html?room=${encodeURIComponent(inv.roomId)}`;
+  }
+}
+
+// Decline invite
+async function declineLiveInvite() {
+  if (!_pendingInvite) return;
+  const inv = _pendingInvite;
+  hideInviteOverlay();
+  setDoc(doc(db, "users", currentUser.uid, "liveInvites", inv.roomId), {
+    ...inv, status: "declined"
+  }).catch(() => {});
+  toast("Invite declined.");
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Privacy preference — saved to Firestore user doc
+// ─────────────────────────────────────────────────────────────────
+async function saveInvitePrivacy(val) {
+  _invitePrivacy = val;
+  if (!currentUser) return;
+  try {
+    await updateDoc(doc(db, "users", currentUser.uid), { invitePrivacy: val });
+  } catch (_) { /* best-effort */ }
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Expose globals needed by inline HTML onclick handlers
 // ─────────────────────────────────────────────────────────────────
-window.sendReaction   = sendReaction;
-window.sendChatMobile = sendChatMobile;
+window.sendReaction      = sendReaction;
+window.sendChatMobile    = sendChatMobile;
+window.acceptLiveInvite  = acceptLiveInvite;
+window.declineLiveInvite = declineLiveInvite;
+window.openPeoplePanel   = openPeoplePanel;
 
 // ─────────────────────────────────────────────────────────────────
 // Mobile orientation change — re-acquire stream at new resolution
