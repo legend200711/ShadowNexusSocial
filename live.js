@@ -22,7 +22,7 @@
 
 import { initializeApp, getApps }
   from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, onAuthStateChanged }
+import { getAuth, onAuthStateChanged, browserLocalPersistence, setPersistence }
   from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import {
   getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc,
@@ -47,6 +47,9 @@ const FB_CONFIG = {
 const fbApp  = getApps().length ? getApps()[0] : initializeApp(FB_CONFIG);
 const auth   = getAuth(fbApp);
 const db     = getFirestore(fbApp);
+
+// ── Persist auth token in localStorage so the user stays signed in after close ──
+setPersistence(auth, browserLocalPersistence).catch(() => {});
 const rtdb   = getDatabase(fbApp);
 
 // ─────────────────────────────────────────────────────────────────
@@ -863,17 +866,19 @@ async function endLive() {
   if (presenceRef) { set(presenceRef, null).catch(() => {}); }
   // Clear liveRoomId from global presence
   markPresenceLive(null);
-  localStream?.getTracks().forEach(t => t.stop());
-  localStream = null;
+  // Stop ALL local media tracks — camera & microphone fully off
+  if (localStream) {
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
+  }
   $("live-badge").classList.remove("visible");
   $("btnGoLive").style.display  = "";
   $("btnEndLive").style.display = "none";
   $("btnExitLive").classList.remove("visible");
   hideRequestJoinBtn();
   exitFullscreen();
-  buildVideoGrid();
-  showLobby();
-  $("roomTitle").textContent = "Shadow Nexus Live";
+  // Navigate back to the Feed — user stays logged in, no page reload loop
+  window.location.href = "index.html";
 }
 
 // ─────────────────────────────────────────────────────────────────

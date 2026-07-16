@@ -7951,7 +7951,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, browserLocalPersistence, setPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, runTransaction, where, getDocs, writeBatch, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
   import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
@@ -7968,6 +7968,9 @@ body.arcade-fs-ios body::after { display:none !important; }
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
+
+  // ── Ensure auth token is always persisted in localStorage (survives tab/app close) ──
+  setPersistence(auth, browserLocalPersistence).catch(() => {});
 
   // ── Firebase Cloud Messaging ──
   let messaging = null;
@@ -8101,6 +8104,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   let currentUser = null;
   let userData = null;
+  let _authFirstResolved = false; // prevents login-flash on initial page load
   let activeProfileUid = null;
   let activeChatChannelId = null;
   let activeChatTargetUid = null;
@@ -8257,6 +8261,8 @@ body.arcade-fs-ios body::after { display:none !important; }
   });
 
   onAuthStateChanged(auth, async (user) => {
+      const _firstCall = !_authFirstResolved;
+      _authFirstResolved = true;
       if (user) {
           currentUser = user;
 
@@ -8425,7 +8431,20 @@ body.arcade-fs-ios body::after { display:none !important; }
           window._snxInitPush = initPushNotifications;
           setTimeout(initPushNotifications, 2500);
       } else {
-          // Ensure login form is visible if user signs out
+          // ── Guard: on the very first auth resolution, Firebase may briefly fire
+          //    null while rehydrating the persisted token from localStorage.
+          //    Do NOT show the login screen until we are certain no token exists.
+          if (_firstCall) {
+              // Give Firebase up to 800 ms to rehydrate from localStorage.
+              // If a cached token exists it will re-fire onAuthStateChanged with a user.
+              // If it doesn't re-fire, show the login screen.
+              _hideLoginLoading();
+              setTimeout(() => {
+                  if (!currentUser) show('login');
+              }, 800);
+              return;
+          }
+          // Genuine sign-out (user explicitly logged out or session truly expired)
           _hideLoginLoading();
           currentUser = null; userData = null;
           // ── Tear down EVERY real-time listener so nothing fires against a null user ──
@@ -18983,7 +19002,7 @@ window.submitStory = async function() {
         await addDoc(collection(db, 'stories'), {
             authorUid    : me.uid,
             authorName   : ud.displayName || me.displayName || 'User',
-            authorAvatar : ud.avatarUrl || '',
+            authorAvatar : ud.avatar || ud.avatarUrl || '',
             text,
             mediaUrl,
             mediaType,
