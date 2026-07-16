@@ -1057,12 +1057,9 @@ function handleReplayDiscard() {
 }
 
 function _replayToFeed() {
-  // Return to the Feed — no hard reload, session stays active
-  if (window.history.length > 1) {
-    window.history.back();
-  } else {
-    window.location.replace("index.html");
-  }
+  // Return to Feed and signal it to show the "Live ended" confirmation toast.
+  // Use replace() so the host cannot navigate back to the dead live.html session.
+  window.location.replace("index.html?liveEnded=1");
 }
 
 async function endLive() {
@@ -1910,13 +1907,8 @@ function listenForHostCommands() {
       if (_vadCtx) { try { _vadCtx.close(); } catch (_) {} _vadCtx = null; }
       exitFullscreen();
       _showLiveEndedOverlay();
-      setTimeout(() => {
-        if (window.history.length > 1) {
-          window.history.back();
-        } else {
-          window.location.replace("index.html");
-        }
-      }, 3500);
+      // Use replace() so viewers cannot navigate back to the dead live session.
+      setTimeout(() => window.location.replace("index.html"), 3500);
     }
     deleteDoc(cmdRef).catch(() => {});
   });
@@ -2101,18 +2093,15 @@ function listenChatSettings() {
         liveActive = false;
         // Show a prominent full-screen "Live has ended" overlay
         _showLiveEndedOverlay();
-        // Clean up and navigate back after the overlay is seen
+        // Clean up and navigate back after the overlay is seen.
+        // Use replace() so viewers cannot navigate back to the dead live session.
         setTimeout(() => {
           _unsubs.forEach(u => u()); _unsubs.length = 0;
           if (_chatSettingsUnsub) { _chatSettingsUnsub(); _chatSettingsUnsub = null; }
           localStream?.getTracks().forEach(t => t.stop());
           localStream = null;
           exitFullscreen();
-          if (window.history.length > 1) {
-            window.history.back();
-          } else {
-            window.location.replace("index.html");
-          }
+          window.location.replace("index.html");
         }, 3500);
       }
       return;
@@ -2732,11 +2721,8 @@ async function confirmLeave() {
   if (isMobile()) $("mobile-chat-btn").style.display = "none";
   buildVideoGrid();
   exitFullscreen();
-  if (window.history.length > 1) {
-    window.history.back();
-  } else {
-    window.location.replace("index.html");
-  }
+  // Use replace() so the viewer cannot navigate back to the dead live session.
+  window.location.replace("index.html");
 }
 
 async function leaveAsGuest() {

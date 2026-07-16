@@ -19771,6 +19771,16 @@ window._snxOnAuthReady(function() {
     initStoryStrip();
     initLiveFeedCards();
     setTimeout(_sweepExpiredStories, 3000);
+
+    // ── "Live ended" confirmation — shown after returning from live.html ──
+    // live.js navigates back with ?liveEnded=1 so the host sees the toast
+    // on the Feed without any reload or login disruption.
+    if (new URLSearchParams(location.search).has('liveEnded')) {
+        // Clean the URL immediately so a manual refresh won't re-show it
+        history.replaceState(null, '', location.pathname);
+        // Small delay so the Feed has settled before the toast appears
+        setTimeout(() => _toast('✅ Your Live has ended.'), 600);
+    }
 });
 
 })(); // end IIFE
