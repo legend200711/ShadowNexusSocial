@@ -8430,6 +8430,25 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Start push notifications (requests permission if not yet granted)
           window._snxInitPush = initPushNotifications;
           setTimeout(initPushNotifications, 2500);
+
+          // ── Startup Live Check ──
+          // On index.html the user is never actively live.  Reset any stale liveActive:true
+          // story docs so the LIVE badge doesn't ghost on the Feed after a crashed session.
+          setTimeout(async () => {
+              try {
+                  const staleSnap = await getDocs(query(
+                      collection(db, 'stories'),
+                      where('authorUid', '==', user.uid),
+                      where('liveActive', '==', true)
+                  ));
+                  staleSnap.forEach(d => {
+                      updateDoc(doc(db, 'stories', d.id), {
+                          liveActive: false,
+                          endedAt:    serverTimestamp(),
+                      }).catch(() => {});
+                  });
+              } catch(_) { /* best-effort */ }
+          }, 1500);
       } else {
           // ── Guard: on the very first auth resolution, Firebase may briefly fire
           //    null while rehydrating the persisted token from localStorage.
@@ -18701,17 +18720,27 @@ let _storyUnsub = null;
 
 function initStoryStrip() {
     if (!_db()) return;
-    const { db, collection, query, where, orderBy, onSnapshot } = _db();
+    const { db, collection, query, where, orderBy, onSnapshot, getDocs } = _db();
     const now = new Date();
     const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     if (_storyUnsub) _storyUnsub();
+
+    // Try ordered query first; fall back to unordered if the composite index is missing
     _storyUnsub = onSnapshot(
         query(collection(db, 'stories'),
               where('expiresAt', '>', cutoff),
               orderBy('expiresAt', 'asc')),
         snap => renderStoryStrip(snap),
-        () => {}
+        () => {
+            // Composite index missing — fall back to simple query without ordering
+            if (_storyUnsub) _storyUnsub();
+            _storyUnsub = onSnapshot(
+                query(collection(db, 'stories'), where('expiresAt', '>', cutoff)),
+                snap => renderStoryStrip(snap),
+                () => {}
+            );
+        }
     );
 }
 
@@ -18998,6 +19027,10 @@ window.submitStory = async function() {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
+    // Hide progress bar before write attempt
+    const progWrap = document.getElementById('storyUploadProgress');
+    if (progWrap) progWrap.style.display = 'none';
+
     try {
         await addDoc(collection(db, 'stories'), {
             authorUid    : me.uid,
@@ -19017,14 +19050,16 @@ window.submitStory = async function() {
             isLive       : false,
             liveActive   : false,
         });
-        _toast('✅ Story posted successfully!');
+        // Re-enable button so the modal can be used again
+        if (btn) btn.disabled = false;
+        _toast('✅ Story posted! It will appear in the Stories row momentarily.');
         closeStoryCreator();
-        // The real-time listener in initStoryStrip() will fire automatically and
-        // update the strip. Re-init the listener as well in case it was lost.
+        // Re-initialise the live listener so the strip updates immediately
         try { initStoryStrip(); } catch(_) {}
     } catch(err) {
-        _toast('❌ Database save failed: ' + (err.message || err));
+        _toast('❌ Could not save Story: ' + (err.message || err) + ' — please try again.');
         if (btn) btn.disabled = false;
+        if (progWrap) progWrap.style.display = 'none';
     }
 };
 
@@ -19569,23 +19604,50 @@ function _subscribeToLiveDoc(docId) {
     if (SNX_STORY.liveUnsub) SNX_STORY.liveUnsub();
     const { db, doc, onSnapshot } = _db();
     SNX_STORY.liveUnsub = onSnapshot(doc(db, 'stories', docId), snap => {
-        if (!snap.exists()) {
-            closeLiveStreamViewer();
-            _toast('Live stream has ended.');
-            return;
-        }
-        const data = snap.data();
-        if (!data.liveActive) {
-            // Host ended the live — close overlay and toast viewer, do NOT navigate
-            closeLiveStreamViewer();
-            _toast('The live stream has ended.');
+        if (!snap.exists() || !snap.data().liveActive) {
+            // Live ended — unsubscribe immediately so no double-fire
+            if (SNX_STORY.liveUnsub) { SNX_STORY.liveUnsub(); SNX_STORY.liveUnsub = null; }
+            _showLiveEndedBanner();
             return;
         }
         // Update viewer count
-        document.getElementById('lvViewerCount').textContent = '👁 ' + (data.viewerCount || 0);
+        document.getElementById('lvViewerCount').textContent = '👁 ' + (snap.data().viewerCount || 0);
         // Render chat
-        _renderLiveChat(data.chat || []);
+        _renderLiveChat(snap.data().chat || []);
     });
+}
+
+function _showLiveEndedBanner() {
+    // Show a clear "This Live has ended" overlay before closing
+    const viewer = document.getElementById('liveStreamViewer');
+    if (!viewer || !viewer.classList.contains('open')) {
+        // Viewer already closed — just clean up
+        closeLiveStreamViewer();
+        return;
+    }
+    // Inject banner into the viewer overlay
+    let banner = document.getElementById('liveEndedBanner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'liveEndedBanner';
+        banner.style.cssText = [
+            'position:absolute', 'inset:0', 'z-index:200',
+            'display:flex', 'flex-direction:column', 'align-items:center', 'justify-content:center',
+            'background:rgba(5,15,35,0.92)', 'color:#fff', 'text-align:center', 'padding:32px',
+        ].join(';');
+        banner.innerHTML = `
+            <div style="font-size:48px;margin-bottom:16px;">📺</div>
+            <div style="font-size:22px;font-weight:800;margin-bottom:8px;">This Live has ended.</div>
+            <div style="font-size:14px;color:#8ab8d8;margin-bottom:28px;">The host has stopped their live stream.</div>
+            <button onclick="closeLiveStreamViewer()"
+                style="background:#00AEEF;color:#000;font-weight:700;border:none;border-radius:10px;padding:12px 28px;font-size:15px;cursor:pointer;">
+                Return to Feed
+            </button>`;
+        viewer.appendChild(banner);
+    }
+    banner.style.display = 'flex';
+    // Auto-close after 4 seconds
+    setTimeout(() => closeLiveStreamViewer(), 4000);
 }
 
 function _renderLiveChat(msgs) {
@@ -19642,19 +19704,23 @@ window.endLiveStream = async function() {
     if (!confirm('End your live stream?')) return;
     const docId = SNX_STORY.liveDocId;
     try {
-        const { db, doc, updateDoc, serverTimestamp } = _db();
-        // Mark ended in stories (removes Feed bubble for everyone) and in liveRooms
+        const { db, doc, updateDoc, deleteDoc, serverTimestamp } = _db();
+        // Mark liveActive:false — removes Feed bubble and notifies all viewers instantly
         await updateDoc(doc(db, 'stories', docId), { liveActive: false, endedAt: serverTimestamp() });
-        // Best-effort: mark liveRooms doc as ended so live.js viewers get notified
-        updateDoc(doc(db, 'liveRooms', docId), { live: false, endedAt: serverTimestamp() }).catch(() => {});
+        // Delete the liveRooms doc so live.html viewers and guests get notified
+        deleteDoc(doc(db, 'liveRooms', docId)).catch(() => {});
     } catch(_) {}
-    closeLiveStreamViewer();
     _stopLiveStream();
-    _toast('Live stream ended.');
+    closeLiveStreamViewer();
+    SNX_STORY.liveDocId = null;
+    _toast('✅ Live stream ended.');
 };
 
 window.closeLiveStreamViewer = function() {
     if (SNX_STORY.liveUnsub) { SNX_STORY.liveUnsub(); SNX_STORY.liveUnsub = null; }
+    // Remove any "Live has ended" banner so it doesn't linger on next open
+    const banner = document.getElementById('liveEndedBanner');
+    if (banner) banner.remove();
     document.getElementById('liveStreamViewer').classList.remove('open');
     document.body.style.overflow = '';
     _liveExitFullscreen();

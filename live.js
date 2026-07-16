@@ -26,7 +26,8 @@ import { getAuth, onAuthStateChanged, browserLocalPersistence, setPersistence }
   from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import {
   getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc,
-  collection, addDoc, onSnapshot, serverTimestamp, query, orderBy, limit
+  collection, addDoc, onSnapshot, serverTimestamp, query, orderBy, limit,
+  getDocs, where, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
   getDatabase, ref, set, push, onValue, off, remove, increment as rtIncrement, onDisconnect
@@ -1072,7 +1073,7 @@ async function endLive() {
   const blob = await _stopRecording();
   if (blob) _replayBlob = blob;
 
-  // ── 2. Notify every connected guest that the stream has ended ──
+  // ── 2. Notify every connected guest (box) that the stream has ended ──
   const guestUids = Object.keys(guests);
   await Promise.all(guestUids.map(uid =>
     setDoc(doc(db, "liveRooms", roomId, "commands", uid), { cmd: "liveEnded" }).catch(() => {})
@@ -1082,13 +1083,25 @@ async function endLive() {
   guestUids.forEach(uid => closePeer(uid));
 
   if (roomId) {
-    // ── 4a. Mark live ended in Firestore liveRooms (viewers on live.js detect this) ──
-    try { await updateDoc(doc(db, "liveRooms", roomId), { live: false, endedAt: serverTimestamp() }); }
-    catch (_) { /* best-effort */ }
-    // ── 4b. Mark liveActive:false in stories so the Feed bubble disappears for everyone ──
+    // ── 4a. Mark liveActive:false in stories — removes Feed bubble for everyone ──
     try { await updateDoc(doc(db, "stories", roomId), { liveActive: false, endedAt: serverTimestamp() }); }
     catch (_) { /* best-effort — may not exist for manually-created rooms */ }
-    // ── 4c. Remove the RTDB room node so viewer counts and chat are cleared ──
+
+    // ── 4b. Delete the Firestore liveRooms doc so viewers on live.html also get notified ──
+    try { await deleteDoc(doc(db, "liveRooms", roomId)); }
+    catch (_) { /* best-effort */ }
+
+    // ── 4c. Clear all pending boxRequests so no ghost requests linger ──
+    try {
+      const reqSnap = await getDocs(collection(db, "liveRooms", roomId, "boxRequests"));
+      if (!reqSnap.empty) {
+        const batch = writeBatch(db);
+        reqSnap.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    } catch (_) { /* best-effort */ }
+
+    // ── 4d. Remove the RTDB room node — clears viewer count and chat ──
     try { await remove(ref(rtdb, `liveRooms/${roomId}`)); }
     catch (_) { /* best-effort */ }
   }
@@ -1896,14 +1909,14 @@ function listenForHostCommands() {
       _vadRunning = false;
       if (_vadCtx) { try { _vadCtx.close(); } catch (_) {} _vadCtx = null; }
       exitFullscreen();
-      toast("📺 The Live has ended.");
+      _showLiveEndedOverlay();
       setTimeout(() => {
         if (window.history.length > 1) {
           window.history.back();
         } else {
           window.location.replace("index.html");
         }
-      }, 2200);
+      }, 3500);
     }
     deleteDoc(cmdRef).catch(() => {});
   });
@@ -2086,8 +2099,9 @@ function listenChatSettings() {
       if (!isHost && liveActive && !_liveEndNavigating) {
         _liveEndNavigating = true;
         liveActive = false;
-        toast("📺 The Live has ended.");
-        // Give the toast a moment to be seen, then navigate back
+        // Show a prominent full-screen "Live has ended" overlay
+        _showLiveEndedOverlay();
+        // Clean up and navigate back after the overlay is seen
         setTimeout(() => {
           _unsubs.forEach(u => u()); _unsubs.length = 0;
           if (_chatSettingsUnsub) { _chatSettingsUnsub(); _chatSettingsUnsub = null; }
@@ -2099,7 +2113,7 @@ function listenChatSettings() {
           } else {
             window.location.replace("index.html");
           }
-        }, 2200);
+        }, 3500);
       }
       return;
     }
@@ -2755,6 +2769,29 @@ function toast(msg, dur = 3500) {
   t.textContent = msg;
   t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), dur);
+}
+
+// Show a full-screen "This Live has ended" overlay so the viewer sees a clear message
+// before being auto-navigated back to the Feed.
+function _showLiveEndedOverlay() {
+  let overlay = document.getElementById("liveEndedOverlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "liveEndedOverlay";
+    overlay.style.cssText = [
+      "position:fixed", "inset:0", "z-index:9999",
+      "display:flex", "flex-direction:column", "align-items:center", "justify-content:center",
+      "background:rgba(5,15,35,0.96)", "color:#fff", "text-align:center", "padding:32px",
+    ].join(";");
+    overlay.innerHTML = [
+      '<div style="font-size:52px;margin-bottom:18px;">📺</div>',
+      '<div style="font-size:24px;font-weight:800;margin-bottom:10px;">This Live has ended.</div>',
+      '<div style="font-size:15px;color:#8ab8d8;margin-bottom:6px;">The host has stopped the stream.</div>',
+      '<div style="font-size:13px;color:#4a7a9a;">Returning you to the Feed…</div>',
+    ].join("");
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = "flex";
 }
 
 // ═════════════════════════════════════════════════════════════════
