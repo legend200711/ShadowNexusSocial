@@ -6636,57 +6636,6 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 <body>
 
-<!-- ═══════════════════════════════════════════════════════════
-     AUTH-GUARD SPLASH
-     Covers the page immediately on load.  Hidden by JS once
-     Firebase resolves onAuthStateChanged.  Prevents:
-       • flash of login form for returning users
-       • flash of feed before auth is confirmed
-       • blank white screen at startup
-     A localStorage hint decides which label to show instantly.
-     ═══════════════════════════════════════════════════════════ -->
-<div id="snx-auth-splash" style="
-    position:fixed;inset:0;z-index:999999;
-    background:#0B1F3A;
-    display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:18px;
-    transition:opacity 0.25s ease;
-">
-    <!-- Logo -->
-    <div style="width:72px;height:72px;border-radius:50%;
-        background:radial-gradient(circle at 38% 35%,#003d99 0%,#071428 100%);
-        border:2.5px solid rgba(0,174,239,0.72);
-        display:flex;align-items:center;justify-content:center;
-        font-size:34px;
-        box-shadow:0 0 36px rgba(0,174,239,0.55);">🌑</div>
-    <!-- Spinner -->
-    <div style="width:36px;height:36px;border-radius:50%;
-        border:3px solid rgba(0,174,239,0.22);
-        border-top-color:#00AEEF;
-        animation:spin360 0.7s linear infinite;"></div>
-    <!-- Label — set immediately by the inline script below -->
-    <span id="snx-splash-msg" style="color:#6a90b8;font-size:13px;letter-spacing:0.3px;">Loading…</span>
-</div>
-
-<!-- ── Auth-hint script: runs right after the splash div is parsed ── -->
-<script>
-(function() {
-  'use strict';
-  // Apply returning-user label immediately (element is already in DOM)
-  var hint = localStorage.getItem('snx-auth-hint');
-  var lbl  = document.getElementById('snx-splash-msg');
-  if (lbl) lbl.textContent = hint === '1' ? 'Welcome back…' : 'Loading…';
-  // Safety net: dismiss splash if Firebase never responds within 5 s
-  window._snxSplashTimeout = setTimeout(function() {
-    var splash = document.getElementById('snx-auth-splash');
-    if (splash && splash.style.display !== 'none') {
-      splash.style.opacity = '0';
-      setTimeout(function() { if (splash) splash.style.display = 'none'; }, 260);
-    }
-  }, 5000);
-})();
-</script>
-
 <canvas id="bg-canvas"></canvas>
 
 <!-- Hamburger button -->
@@ -9783,21 +9732,9 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
   });
 
-  // ── Helper: dismiss the auth-guard splash ──────────────────────────
-  function _dismissSplash() {
-      clearTimeout(window._snxSplashTimeout);
-      const splash = document.getElementById('snx-auth-splash');
-      if (!splash || splash.style.display === 'none') return;
-      splash.style.opacity = '0';
-      setTimeout(() => { if (splash) splash.style.display = 'none'; }, 260);
-  }
-
   onAuthStateChanged(auth, async (user) => {
       if (user) {
           currentUser = user;
-
-          // ── Mark auth hint so next load shows "Welcome back…" ──
-          try { localStorage.setItem('snx-auth-hint', '1'); } catch(_) {}
 
           // ── Enforce Founder role (email-authoritative, no Firestore read yet) ──
           const _isFounder = user.email && user.email.toLowerCase() === FOUNDER_EMAIL.toLowerCase();
@@ -9952,8 +9889,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Show role-gated nav buttons now that role is known
           try { if (typeof window._showRolePanels === 'function') window._showRolePanels(); } catch(_) {}
 
-          // Dismiss splash, hide login loading overlay, navigate to feed
-          _dismissSplash();
+          // Hide login loading overlay, navigate to feed
           _hideLoginLoading();
           navTo('feed');
           initTimelineStream();
@@ -9966,11 +9902,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           window._snxInitPush = initPushNotifications;
           setTimeout(initPushNotifications, 3000);
       } else {
-          // ── Signed out — clear auth hint ──
-          try { localStorage.removeItem('snx-auth-hint'); } catch(_) {}
-
-          // Dismiss splash and restore login form
-          _dismissSplash();
+          // Dismiss login loading overlay and restore login form
           _hideLoginLoading();
 
           // Tear down presence engine before nulling currentUser
