@@ -831,11 +831,12 @@ async function startAsHost(code) {
   assignSlot(currentUser.uid, myDisplayName + " (you)", localStream, true);
   showCtrlBar();
   _showHostRequestControls();
-  toast(`🔴 Live started — your followers can join from the Feed!`);
   listenForJoinRequests();
   setupRTDB();
   startHostStreamGuard();
   markPresenceLive(roomId);
+  // Auto-start the broadcast immediately — no extra "Go Live" tap needed
+  await handleGoLive();
 }
 
 // Show host-only request controls (settings bar + ctrl-bar button)
@@ -873,10 +874,11 @@ function _syncRequestsOpenUI() {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Go Live button (host must press to officially start broadcast)
+// Start the broadcast — called automatically when host enters live.html
 // ─────────────────────────────────────────────────────────────────
 async function handleGoLive() {
   if (!isHost) return;
+  if (liveActive) return;          // already live — no double-start
   if (!localStream) await acquireLocalStream();
   liveActive = true;
   $("btnGoLive").style.display  = "none";
@@ -910,13 +912,10 @@ async function handleGoLive() {
     });
   } catch (_) { /* doc may not exist for manually-created rooms — ignore */ }
 
-  listenForJoinRequests();
   listenViewerCount();
-  _showHostRequestControls();
-  markPresenceLive(roomId);
   // Start recording the host's local stream
   _startRecording();
-  toast("🔴 You are now Live! Your followers can see you on their Feed.");
+  toast("🔴 You are Live! Your followers can see you on their Feed.");
 }
 
 function handleEndLive() {

@@ -3336,6 +3336,29 @@ img, video { max-width: 100%; height: auto; }
 .story-add-btn:active .story-add-circle { transform: scale(0.92); background: rgba(0,174,239,0.15); }
 .story-add-label { font-size: 10px; color: #00AEEF; text-align: center; }
 
+/* ── Go Live direct button in story strip ── */
+.story-golive-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    flex-shrink: 0; cursor: pointer; min-width: 64px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+.story-golive-circle {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: rgba(255,30,60,0.12);
+    border: 2px solid rgba(255,30,60,0.65);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    animation: goLiveRingPulse 2.2s ease-in-out infinite;
+}
+@keyframes goLiveRingPulse {
+    0%,100% { border-color: rgba(255,30,60,0.65); box-shadow: 0 0 0 0 rgba(255,30,60,0); }
+    50%     { border-color: rgba(255,60,80,1);     box-shadow: 0 0 0 4px rgba(255,30,60,0); }
+}
+.story-golive-btn:active .story-golive-circle { transform: scale(0.92); background: rgba(255,30,60,0.22); }
+.story-golive-label { font-size: 10px; color: #ff4466; text-align: center; font-weight: 700; }
+
 /* ── Story Type Chooser Modal ── */
 #storyChooserModal {
     display: none; position: fixed; inset: 0; z-index: 9500;
@@ -5943,10 +5966,10 @@ body.arcade-fs-ios body::after { display:none !important; }
             <span>📖 Legend Stories</span>
         </div>
         <div class="story-strip" id="storyStrip">
-            <!-- Share Story button (always first) -->
-            <div class="story-add-btn" id="storyAddBtn" onclick="openStoryChooser()" title="Share a Story">
-                <div class="story-add-circle">📖</div>
-                <span class="story-add-label">Share Story</span>
+            <!-- Single button → opens chooser with Post Story & Go Live options -->
+            <div class="story-add-btn" id="storyAddBtn" onclick="openStoryChooser()" title="Share Story / Go Live">
+                <div class="story-add-circle">➕</div>
+                <span class="story-add-label">Add</span>
             </div>
             <!-- Story circles injected by JS -->
         </div>
@@ -20178,6 +20201,11 @@ function _syncLiveCtrlBtns() {
         cam.textContent = SNX_STORY.liveCamOn ? '📷 Camera: On' : '📷 Camera: Off';
         cam.classList.toggle('cam-off', !SNX_STORY.liveCamOn);
     }
+    // Update mic status indicator
+    const dot  = document.getElementById('liveMicStatusDot');
+    const txt  = document.getElementById('liveMicStatusText');
+    if (dot) dot.style.background = SNX_STORY.liveMicOn ? '#39FF14' : '#ff3355';
+    if (txt) txt.textContent = SNX_STORY.liveMicOn ? 'Microphone: On' : 'Microphone: Muted';
 }
 
 window.startLiveStream = async function() {
@@ -21167,14 +21195,20 @@ function _snxToast(msg) {
 <div id="storyLiveModal">
     <div class="live-modal-inner">
         <div class="live-modal-header">
-            <span class="live-modal-title">🔴 Go Live</span>
+            <span class="live-modal-title">🔴 Camera Preview</span>
             <button class="live-modal-close" onclick="closeGoLive()">✕</button>
         </div>
 
         <!-- Camera preview -->
         <div class="live-preview-wrap">
             <video id="livePreviewVideo" autoplay muted playsinline></video>
-            <span class="live-preview-badge" id="livePreviewBadge">● LIVE</span>
+            <span class="live-preview-badge" id="livePreviewBadge">● PREVIEW</span>
+        </div>
+
+        <!-- Mic status indicator -->
+        <div id="liveMicStatus" style="font-size:12px;color:#b8d4f0;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+            <span id="liveMicStatusDot" style="width:8px;height:8px;border-radius:50%;background:#39FF14;display:inline-block;flex-shrink:0;"></span>
+            <span id="liveMicStatusText">Microphone: On</span>
         </div>
 
         <!-- Controls -->
@@ -21187,18 +21221,18 @@ function _snxToast(msg) {
         <!-- Live title -->
         <input class="live-title-input" id="liveTitleInput" placeholder="Live title… (optional)" maxlength="80">
 
-        <!-- Privacy -->
+        <!-- Audience -->
         <select class="live-privacy-select" id="livePrivacySelect">
             <option value="everyone">🌍 Everyone can watch</option>
             <option value="friends">👥 Friends Only</option>
             <option value="family">❤️ Family Only</option>
         </select>
 
-        <!-- Start streaming -->
-        <button class="live-start-btn" id="liveStartBtn" onclick="startLiveStream()">🔴 Start Live Stream</button>
+        <!-- Start Live — prominent, always visible -->
+        <button class="live-start-btn" id="liveStartBtn" onclick="startLiveStream()">🔴 Start Live</button>
 
-        <!-- Back / Cancel — always accessible -->
-        <button class="live-cancel-btn" onclick="closeGoLive()">← Back to Feed</button>
+        <!-- Cancel -->
+        <button class="live-cancel-btn" onclick="closeGoLive()">✕ Cancel</button>
     </div>
 </div>
 
