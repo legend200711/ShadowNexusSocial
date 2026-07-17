@@ -44,12 +44,12 @@
         });
       });
 
-      // When the new SW takes control, reload so the fresh files are used
+      // New SW has taken control — do NOT reload here.
+      // An automatic reload during controllerchange can interrupt the login
+      // flow mid-flight. Fresh files will be served on the user's next
+      // natural navigation (they are already in the new cache).
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!sessionStorage.getItem('snx-sw-reloading')) {
-          sessionStorage.setItem('snx-sw-reloading', '1');
-          window.location.reload();
-        }
+        console.log('[SW] New service worker is now in control.');
       });
     } catch (err) {
       console.warn('[SW] Registration failed:', err);
