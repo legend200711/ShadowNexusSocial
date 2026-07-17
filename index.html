@@ -2510,18 +2510,32 @@ img.post-media-preview::before {
     backdrop-filter: blur(8px); flex-shrink: 0; position: relative;
 }
 .storm-footer-input-wrap {
-    flex: 1; display: flex; align-items: center; background: #ffffff;
+    flex: 1; display: flex; align-items: center; background: rgba(0,12,36,0.95);
     border: 1px solid rgba(77,184,255,0.4); border-radius: 22px;
     padding: 2px 6px 2px 14px; transition: border-color 0.15s; min-height: 40px;
 }
 .storm-footer-input-wrap:focus-within { border-color: rgba(77,184,255,0.75); }
 #stormMsgInput {
-    flex: 1; background: transparent; border: none; color: #111111;
+    flex: 1; background: transparent; border: none; color: #d8eeff;
     font-size: 13px; padding: 7px 4px; outline: none; resize: none;
     max-height: 80px; overflow-y: auto; line-height: 1.4; margin: 0; width: 100%;
     font-family: inherit;
 }
-#stormMsgInput::placeholder { color: rgba(80, 80, 80, 0.5); }
+#stormMsgInput::placeholder { color: rgba(77,184,255,0.38); }
+/* Typing indicator */
+.storm-typing-bar {
+    min-height: 18px; font-size: 11px; color: #4db8ff; padding: 2px 18px 0;
+    opacity: 0.8; flex-shrink: 0; font-style: italic;
+    background: rgba(6,14,30,0.88); border-left: 1px solid rgba(77,184,255,0.15);
+    border-right: 1px solid rgba(77,184,255,0.15); display: block;
+}
+/* Reconnect banner */
+.storm-reconnect-bar {
+    background: rgba(255,80,0,0.15); border: 1px solid rgba(255,120,0,0.4);
+    color: #ffaa66; font-size: 11px; padding: 6px 16px; text-align: center;
+    flex-shrink: 0; display: none; border-radius: 4px; margin: 0 1px;
+}
+.storm-reconnect-bar.show { display: block; }
 .storm-icon-btn {
     background: none; border: none; color: #446; font-size: 18px; cursor: pointer;
     padding: 4px 5px; border-radius: 6px; line-height: 1; flex-shrink: 0;
@@ -2805,18 +2819,32 @@ img.post-media-preview::before {
     backdrop-filter: blur(8px); flex-shrink: 0; position: relative;
 }
 .support-footer-input-wrap {
-    flex: 1; display: flex; align-items: center; background: #ffffff;
+    flex: 1; display: flex; align-items: center; background: rgba(10,4,22,0.95);
     border: 1px solid rgba(180,120,255,0.38); border-radius: 22px;
     padding: 2px 6px 2px 14px; transition: border-color 0.15s; min-height: 40px;
 }
 .support-footer-input-wrap:focus-within { border-color: rgba(200,150,255,0.75); }
 #supportMsgInput {
-    flex: 1; background: transparent; border: none; color: #111;
+    flex: 1; background: transparent; border: none; color: #f0e0ff;
     font-size: 13px; padding: 7px 4px; outline: none; resize: none;
     max-height: 80px; overflow-y: auto; line-height: 1.4; margin: 0; width: 100%;
     font-family: inherit;
 }
-#supportMsgInput::placeholder { color: rgba(80,80,80,0.5); }
+#supportMsgInput::placeholder { color: rgba(180,120,255,0.38); }
+/* Typing indicator */
+.support-typing-bar {
+    min-height: 18px; font-size: 11px; color: #c8a8ff; padding: 2px 18px 0;
+    opacity: 0.8; flex-shrink: 0; font-style: italic;
+    background: rgba(12,5,26,0.92); border-left: 1px solid rgba(180,120,255,0.12);
+    border-right: 1px solid rgba(180,120,255,0.12); display: block;
+}
+/* Reconnect banner */
+.support-reconnect-bar {
+    background: rgba(255,80,0,0.12); border: 1px solid rgba(255,120,0,0.35);
+    color: #ffaa88; font-size: 11px; padding: 6px 16px; text-align: center;
+    flex-shrink: 0; display: none; border-radius: 4px; margin: 0 1px;
+}
+.support-reconnect-bar.show { display: block; }
 .support-icon-btn {
     background: none; border: none; color: #6a4a8a; font-size: 18px; cursor: pointer;
     padding: 4px 5px; border-radius: 6px; line-height: 1; flex-shrink: 0;
@@ -3253,6 +3281,38 @@ img, video { max-width: 100%; height: auto; }
 .adm-audit-entry:last-child { border-bottom: none; }
 .adm-audit-ts   { color: #3a5a7a; flex-shrink: 0; font-size: 10px; white-space: nowrap; }
 .adm-audit-action { flex: 1; }
+
+/* ── Profile LIVE ring & badge ── */
+.p-avatar.live-ring-active {
+    border-color: #ff0040 !important;
+    box-shadow: 0 0 0 3px rgba(255,0,64,0.55), 0 0 20px rgba(255,0,64,0.5) !important;
+    animation: profileLiveRingPulse 1.4s ease-in-out infinite !important;
+}
+@keyframes profileLiveRingPulse {
+    0%,100% { box-shadow: 0 0 0 3px rgba(255,0,64,0.55), 0 0 16px rgba(255,0,64,0.4); }
+    50%     { box-shadow: 0 0 0 5px rgba(255,0,64,0.75), 0 0 32px rgba(255,0,64,0.7); }
+}
+/* Past live replay card */
+.live-history-card {
+    display: flex; gap: 12px; padding: 10px; border-radius: 12px;
+    background: rgba(0,10,30,0.7); border: 1px solid rgba(255,30,60,0.2);
+    align-items: center; transition: border-color 0.15s;
+}
+.live-history-card:hover { border-color: rgba(255,30,60,0.45); }
+.live-history-thumb {
+    width: 72px; height: 56px; border-radius: 8px; background: #03080f;
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 24px; border: 1px solid rgba(255,30,60,0.2); overflow: hidden;
+}
+.live-history-thumb video { width:100%;height:100%;object-fit:cover;border-radius:8px; }
+.live-history-info { flex: 1; min-width: 0; }
+.live-history-title { font-size: 13px; font-weight: 700; color: #e0f0ff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 3px; }
+.live-history-meta  { font-size: 11px; color: #4a6a8a; }
+.live-history-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.live-history-btn {
+    font-size: 11px; padding: 4px 10px; border-radius: 8px;
+    background: rgba(0,30,80,0.7); border: 1px solid rgba(0,174,239,0.3); color: #00AEEF;
+}
 
 /* ══════════════════════════════════════════════════════════════
    LEGEND STORIES SYSTEM
@@ -5864,6 +5924,9 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="nav-item" id="navSettings" onclick="navTo('settingsPage')">
             <span class="nav-icon">⚙️</span> Settings
         </button>
+        <button class="nav-item" id="navGoLive" onclick="openStoryChooser()" style="border-color:rgba(255,30,60,0.35);color:#ff6688;">
+            <span class="nav-icon">🔴</span> Go Live
+        </button>
         <button class="nav-item" id="navArcade" onclick="openArcadeHub()">
             <span class="nav-icon">🕹️</span> Arcade
             <span class="nav-badge" id="sidebarArcadeBadge"></span>
@@ -6443,12 +6506,16 @@ body.arcade-fs-ios body::after { display:none !important; }
         </div>
     </div>
 
+    <!-- ── Live NOW badge on profile avatar ── -->
+    <div id="profileLiveNowBadge" style="display:none;margin:-8px 0 8px;"><span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:#ff0040;background:rgba(180,0,30,0.18);border:1px solid rgba(255,0,64,0.45);border-radius:20px;padding:3px 11px;animation:liveBadgePulse 1.2s ease-in-out infinite;">● LIVE NOW</span> <button onclick="if(window._profileLiveRoomId)window.location.href='live.html?room='+encodeURIComponent(window._profileLiveRoomId)" style="font-size:11px;padding:4px 10px;border-radius:14px;background:rgba(255,0,64,0.25);border:1px solid rgba(255,0,64,0.6);color:#ff7799;">Watch Live →</button></div>
+
     <!-- ── Profile tabs ── -->
     <div class="profile-tabs">
         <button class="tab-btn active" id="tabWallLink" onclick="switchProfileTab('wall')">📝 Wall</button>
         <button class="tab-btn" id="tabFamilyLink" onclick="switchProfileTab('family')">❤️ Family</button>
         <button class="tab-btn" id="tabFriendsLink" onclick="switchProfileTab('friends')">👥 Friends</button>
         <button class="tab-btn" id="tabMessagesLink" onclick="switchProfileTab('messages')" style="display:none;">💬 Message</button>
+        <button class="tab-btn" id="tabLiveHistoryLink" onclick="switchProfileTab('liveHistory')">🔴 Lives</button>
     </div>
 
     <!-- Wall tab -->
@@ -6458,6 +6525,18 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div id="wallInputRow" style="display:flex;gap:8px;margin-top:10px;align-items:center;">
                 <input id="wallInput" placeholder="Write on this wall…" style="flex:1;margin:0;" maxlength="300">
                 <button id="btnWallSubmit" style="flex-shrink:0;">Post</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live History tab -->
+    <div id="tabContentLiveHistory" style="display:none;">
+        <div class="section-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                <span style="font-size:12px;font-weight:700;color:#ff4466;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:#ff0040;animation:liveBadgePulse 1.2s ease-in-out infinite;display:inline-block;"></span>Past Live Streams</span>
+            </div>
+            <div id="profileLiveHistory" style="display:flex;flex-direction:column;gap:10px;">
+                <div style="padding:20px 0;color:#334;font-size:13px;text-align:center;" id="profileLiveHistoryEmpty">No past live streams yet.</div>
             </div>
         </div>
     </div>
@@ -7165,8 +7244,14 @@ body.arcade-fs-ios body::after { display:none !important; }
             </div>
         </div>
 
+        <!-- Reconnect banner -->
+        <div class="storm-reconnect-bar" id="stormReconnectBar">🔄 Reconnecting… messages will resume shortly</div>
+
         <!-- Messages scroll area -->
         <div class="storm-messages" id="stormMessages"></div>
+
+        <!-- Typing indicator -->
+        <div class="storm-typing-bar" id="stormTypingBar"></div>
 
         <!-- Footer: emoji + input + send -->
         <div class="storm-footer" id="stormFooter">
@@ -7309,8 +7394,14 @@ body.arcade-fs-ios body::after { display:none !important; }
             🛡️ This is a safe space. Be gentle with each other. · Crisis? Call <strong style="color:#ff99bb;">988</strong> · Text HOME to <strong style="color:#ff99bb;">741741</strong>
         </div>
 
+        <!-- Reconnect banner -->
+        <div class="support-reconnect-bar" id="supportReconnectBar">🔄 Reconnecting… messages will resume shortly</div>
+
         <!-- Messages -->
         <div class="support-messages" id="supportMessages"></div>
+
+        <!-- Typing indicator -->
+        <div class="support-typing-bar" id="supportTypingBar"></div>
 
         <!-- Footer input -->
         <div class="support-footer" id="supportFooter">
@@ -7607,6 +7698,46 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="admin-stat-card"><div class="admin-stat-num" id="adminStatReports">—</div><div class="admin-stat-label">Open Reports</div></div>
     </div>
 
+    <!-- ── MAINTENANCE MODE PANEL ── -->
+    <div class="section-card" style="margin-bottom:16px; border-color:rgba(0,174,239,0.4);">
+        <h3 style="margin:0 0 14px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">⚡ Maintenance Mode</h3>
+
+        <!-- Status indicator -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:12px 14px;background:rgba(0,20,50,0.5);border-radius:10px;border:1px solid rgba(0,174,239,0.2);">
+            <span id="maintStatusDot" style="width:12px;height:12px;border-radius:50%;background:#39FF14;box-shadow:0 0 8px #39FF14;flex-shrink:0;transition:background 0.3s,box-shadow 0.3s;"></span>
+            <div>
+                <div style="font-size:13px;font-weight:700;color:#e0f0ff;">Website Status: <span id="maintStatusLabel" style="color:#39FF14;">🟢 Online</span></div>
+                <div id="maintStatusSub" style="font-size:11px;color:#4a6a8a;margin-top:2px;">All users have full access</div>
+            </div>
+        </div>
+
+        <!-- Buttons -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <button id="btnEnableMaintenance" onclick="snxEnableMaintenance()"
+                style="flex:1;min-width:140px;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:700;
+                       background:linear-gradient(135deg,#660022,#cc0044);border:1px solid rgba(255,51,102,0.6);
+                       color:#fff;box-shadow:0 0 14px rgba(200,0,50,0.35);">
+                🔴 Enable Maintenance
+            </button>
+            <button id="btnDisableMaintenance" onclick="snxDisableMaintenance()"
+                style="flex:1;min-width:140px;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:700;
+                       background:linear-gradient(135deg,#004d00,#00aa44);border:1px solid rgba(57,255,20,0.5);
+                       color:#fff;box-shadow:0 0 14px rgba(57,255,20,0.25);">
+                🟢 Disable Maintenance
+            </button>
+        </div>
+
+        <!-- Custom message -->
+        <div style="margin-bottom:4px;">
+            <label style="font-size:11px;color:#4a6a8a;text-transform:uppercase;letter-spacing:0.7px;">Custom Maintenance Message</label>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+                <input id="maintMsgInput" placeholder="e.g. Back in 30 minutes…"
+                    style="flex:1;margin:0;font-size:12px;padding:8px 10px;border-color:rgba(0,174,239,0.3);">
+                <button onclick="snxSaveMaintenanceMsg()" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap;">Save</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Feature Toggles -->
     <div class="section-card" style="margin-bottom:16px;">
         <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">⚙️ Site Controls</h3>
@@ -7615,7 +7746,7 @@ body.arcade-fs-ios body::after { display:none !important; }
             <label class="notif-toggle-wrap"><input type="checkbox" id="toggleRegistration" class="notif-toggle-cb" checked onchange="adminToggleFeature('registrationEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
         <div class="settings-row">
-            <div class="settings-label">Maintenance Mode<small>Show maintenance page to users</small></div>
+            <div class="settings-label">Maintenance Mode<small>Toggle shown above</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="toggleMaintenance" class="notif-toggle-cb" onchange="adminToggleFeature('maintenanceMode',this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
         <div class="settings-row">
@@ -8806,6 +8937,16 @@ body.arcade-fs-ios body::after { display:none !important; }
               }
               if (typeof window._showRolePanels === 'function') window._showRolePanels();
           } catch(_) {}
+          // ── Maintenance Mode Check ──
+          // Founders always bypass; everyone else is sent to maintenance.html
+          try {
+              const _maintSnap = await getDoc(doc(db, 'siteSettings', 'config'));
+              if (_maintSnap.exists() && _maintSnap.data().maintenanceMode === true && window._snxRole !== 'founder') {
+                  window.location.replace('maintenance.html');
+                  return;
+              }
+          } catch(_) {}
+
           // Dismiss auth gate + login loading overlay, then navigate to feed
           const _gate = document.getElementById('snx-auth-gate');
           if (_gate) _gate.classList.add('resolved');
@@ -8885,7 +9026,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
   });
 
-  /* ── Startup: real-time siteSettings listener — keeps _aiModerationEnabled in sync ── */
+  /* ── Startup: real-time siteSettings listener — keeps flags in sync ── */
   onSnapshot(doc(db, 'siteSettings', 'config'), (snap) => {
       if (!snap.exists()) return;
       const cfg = snap.data();
@@ -8893,6 +9034,21 @@ body.arcade-fs-ios body::after { display:none !important; }
       window._aiModerationEnabled = isOn;
       // Update the UI control if it is currently visible
       if (typeof _syncAIToggleUI === 'function') _syncAIToggleUI(isOn);
+      // ── Maintenance mode real-time enforcement ──
+      // If maintenance turns ON while a non-founder is on the page, redirect them.
+      if (cfg.maintenanceMode === true && window._snxRole !== 'founder') {
+          // Only redirect if the user is actually logged in (not on the login page)
+          if (window._snxCurrentUser) {
+              window.location.replace('maintenance.html');
+          }
+      }
+      // Sync the maintenance toggle checkbox in the Founder Dashboard
+      const _mTog = document.getElementById('toggleMaintenance');
+      if (_mTog) _mTog.checked = cfg.maintenanceMode === true;
+      // Update status indicator in the dedicated maintenance panel
+      if (typeof window._snxUpdateMaintenanceStatus === 'function') {
+          window._snxUpdateMaintenanceStatus(cfg.maintenanceMode === true, cfg.maintenanceMessage || '');
+      }
   });
 
   /* ── Social List Modal — friends / followers / following ──────────────
@@ -10813,6 +10969,19 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Online badge
           const onlineBadge = document.getElementById("profileOnlineBadge");
           if (onlineBadge) onlineBadge.style.display = p.status === 'online' ? 'inline-flex' : 'none';
+
+          // ── LIVE ring + badge ──
+          const avatarRingEl = document.getElementById("profileAvatar");
+          const liveBadgeEl  = document.getElementById("profileLiveNowBadge");
+          window._profileLiveRoomId = null;
+          if (p.isLive && p.liveRoomId) {
+              window._profileLiveRoomId = p.liveRoomId;
+              if (avatarRingEl) avatarRingEl.classList.add('live-ring-active');
+              if (liveBadgeEl)  liveBadgeEl.style.display = '';
+          } else {
+              if (avatarRingEl) avatarRingEl.classList.remove('live-ring-active');
+              if (liveBadgeEl)  liveBadgeEl.style.display = 'none';
+          }
 
           // Joined date
           const joinedEl = document.getElementById("profileJoinedText");
@@ -12932,6 +13101,50 @@ body.arcade-fs-ios body::after { display:none !important; }
       await adminAuditLog('TOGGLE_FEATURE',`${key} = ${val}`);
       toastNotification(`⚙️ ${key}: ${val?'ON':'OFF'}`);
   };
+
+  /* ── Maintenance Mode dedicated controls ─────────────────────────────── */
+  window.snxEnableMaintenance = async function() {
+      if(!founderOnly())return;
+      if(!confirm('⚠️ Enable Maintenance Mode?\n\nAll non-founder users will be redirected to the maintenance page immediately.')) return;
+      try {
+          await setDoc(doc(db,'siteSettings','config'),{maintenanceMode:true},{merge:true});
+          await adminAuditLog('MAINTENANCE_ON','Maintenance mode ENABLED');
+          toastNotification('🔴 Maintenance mode is now ON');
+      } catch(e) { toastNotification('Error: '+e.message); }
+  };
+  window.snxDisableMaintenance = async function() {
+      if(!founderOnly())return;
+      try {
+          await setDoc(doc(db,'siteSettings','config'),{maintenanceMode:false},{merge:true});
+          await adminAuditLog('MAINTENANCE_OFF','Maintenance mode DISABLED');
+          toastNotification('🟢 Maintenance mode is now OFF — site is live!');
+      } catch(e) { toastNotification('Error: '+e.message); }
+  };
+  window.snxSaveMaintenanceMsg = async function() {
+      if(!founderOnly())return;
+      const inp = document.getElementById('maintMsgInput');
+      const msg = inp ? inp.value.trim() : '';
+      if (!msg) { toastNotification('Enter a message first.'); return; }
+      try {
+          await setDoc(doc(db,'siteSettings','config'),{maintenanceMessage:msg},{merge:true});
+          await adminAuditLog('MAINTENANCE_MSG',`Message: "${msg}"`);
+          toastNotification('✅ Maintenance message saved');
+      } catch(e) { toastNotification('Error: '+e.message); }
+  };
+  /* Called by the siteSettings real-time listener to keep the status UI in sync */
+  window._snxUpdateMaintenanceStatus = function(isOn, msg) {
+      const dot   = document.getElementById('maintStatusDot');
+      const label = document.getElementById('maintStatusLabel');
+      const sub   = document.getElementById('maintStatusSub');
+      const inp   = document.getElementById('maintMsgInput');
+      if (dot) {
+          dot.style.background  = isOn ? '#ff2244' : '#39FF14';
+          dot.style.boxShadow   = isOn ? '0 0 8px #ff2244' : '0 0 8px #39FF14';
+      }
+      if (label) { label.style.color = isOn ? '#ff4466' : '#39FF14'; label.textContent = isOn ? '🔴 Maintenance' : '🟢 Online'; }
+      if (sub)   { sub.textContent   = isOn ? 'Non-founder users are redirected' : 'All users have full access'; }
+      if (inp && msg && !inp.value) { inp.value = msg; }
+  };
   window.adminSaveSetting = async function(key,val) {
       if(!founderOnly())return;
       await setDoc(doc(db,'siteSettings','config'),{[key]:val},{merge:true});
@@ -12941,13 +13154,18 @@ body.arcade-fs-ios body::after { display:none !important; }
       try {
           const snap=await getDoc(doc(db,'siteSettings','config')); if(!snap.exists())return;
           const cfg=snap.data();
-          const _cb=(id,k)=>{const el=document.getElementById(id);if(el)el.checked=cfg[k]!==false;};
-          _cb('toggleRegistration','registrationEnabled'); _cb('toggleMaintenance','maintenanceMode');
-          _cb('toggleStormRooms','stormRoomsEnabled'); _cb('togglePosts','postsEnabled');
+          const _cb=(id,k)=>{const el=document.getElementById(id);if(el)el.checked=cfg[k]===true;};
+          const _cbOn=(id,k)=>{const el=document.getElementById(id);if(el)el.checked=cfg[k]!==false;};
+          _cbOn('toggleRegistration','registrationEnabled'); _cb('toggleMaintenance','maintenanceMode');
+          _cbOn('toggleStormRooms','stormRoomsEnabled'); _cbOn('togglePosts','postsEnabled');
           const n=document.getElementById('siteSettingAppName'); if(n&&cfg.appName)n.value=cfg.appName;
           const r=document.getElementById('siteSettingRulesUrl'); if(r&&cfg.rulesUrl)r.value=cfg.rulesUrl;
           // Sync AI moderation toggle state
           _syncAIToggleUI(cfg.aiModerationEnabled !== false);
+          // Sync maintenance status panel
+          if (typeof window._snxUpdateMaintenanceStatus === 'function') {
+              window._snxUpdateMaintenanceStatus(cfg.maintenanceMode === true, cfg.maintenanceMessage || '');
+          }
       }catch(_){}
   };
   window.adminExportUsers = async function() {
@@ -13258,7 +13476,7 @@ function toastNotification(msg) {
 }
 function switchProfileTab(t) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    ['tabContentWall','tabContentFamily','tabContentFriendsList','tabContentMessages'].forEach(id => {
+    ['tabContentWall','tabContentFamily','tabContentFriendsList','tabContentMessages','tabContentLiveHistory'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });
@@ -13266,6 +13484,12 @@ function switchProfileTab(t) {
         const tl = document.getElementById('tabWallLink');
         if (tl) tl.classList.add('active');
         document.getElementById('tabContentWall').style.display = 'block';
+    } else if (t === 'liveHistory') {
+        const tl = document.getElementById('tabLiveHistoryLink');
+        if (tl) tl.classList.add('active');
+        const el = document.getElementById('tabContentLiveHistory');
+        if (el) el.style.display = 'block';
+        if (window.activeProfileUid) _loadProfileLiveHistory(window.activeProfileUid);
     } else if (t === 'family') {
         const tl = document.getElementById('tabFamilyLink');
         if (tl) tl.classList.add('active');
@@ -13289,6 +13513,47 @@ function switchProfileTab(t) {
             const inp = document.getElementById('ipcModalInput');
             if (inp && !inp.disabled) inp.focus();
         }, 150);
+    }
+}
+
+/* ── Live History loader ── */
+async function _loadProfileLiveHistory(uid) {
+    const list    = document.getElementById('profileLiveHistory');
+    const emptyEl = document.getElementById('profileLiveHistoryEmpty');
+    if (!list) return;
+    list.innerHTML = '<div style="padding:20px 0;color:#334;font-size:13px;text-align:center;">Loading…</div>';
+    try {
+        const snap = await getDocs(query(
+            collection(db, 'posts'),
+            where('authorUid', '==', uid),
+            where('mediaType', '==', 'video'),
+            where('text', '==', '🔴 Live replay')
+        ));
+        list.innerHTML = '';
+        if (snap.empty) {
+            list.innerHTML = '<div style="padding:20px 0;color:#334;font-size:13px;text-align:center;" id="profileLiveHistoryEmpty">No past live streams yet.</div>';
+            return;
+        }
+        const docs = [];
+        snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+        docs.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+        docs.forEach(post => {
+            const card = document.createElement('div');
+            card.className = 'live-history-card';
+            const ts = post.createdAt ? new Date(post.createdAt.toMillis ? post.createdAt.toMillis() : post.createdAt).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '';
+            card.innerHTML = `
+                <div class="live-history-thumb">${post.mediaUrl ? `<video src="${post.mediaUrl}" muted></video>` : '📹'}</div>
+                <div class="live-history-info">
+                    <div class="live-history-title">🔴 Live Replay</div>
+                    <div class="live-history-meta">${ts}</div>
+                </div>
+                <div class="live-history-actions">
+                    ${post.mediaUrl ? `<button class="live-history-btn" onclick="window.open('${post.mediaUrl}','_blank')">▶ Play</button>` : ''}
+                </div>`;
+            list.appendChild(card);
+        });
+    } catch(_) {
+        list.innerHTML = '<div style="padding:20px 0;color:#334;font-size:13px;text-align:center;">Could not load live history.</div>';
     }
 }
 
@@ -15154,16 +15419,19 @@ window.clearBannerUpload   = clearBannerUpload;
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════
-     STORM ROOMS — Firebase Realtime DB + canvas + full engine
+     STORM ROOMS + SUPPORT ROOMS — Firebase Realtime DB engine
      ═══════════════════════════════════════════════════════════ -->
 
 <script type="module">
-/* ── Storm Rooms uses the same Firebase app but Realtime Database ── */
+/* ─────────────────────────────────────────────────────────────────
+   Firebase init — always reuse [DEFAULT] app (same project)
+   We call getDatabase with the explicit databaseURL to be safe.
+───────────────────────────────────────────────────────────────── */
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, push, onValue, off, set, remove, serverTimestamp, onDisconnect, get }
+import { getDatabase, ref, push, onValue, off, set, remove, onDisconnect, get, update }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-const _STORM_CFG = {
+const _ROOMS_CFG = {
     apiKey: "AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y",
     authDomain: "horr-a08f4.firebaseapp.com",
     databaseURL: "https://horr-a08f4-default-rtdb.firebaseio.com",
@@ -15172,25 +15440,13 @@ const _STORM_CFG = {
     messagingSenderId: "933810617818",
     appId: "1:933810617818:web:efb24f123337dd987c14e3"
 };
-// Reuse existing app if already initialized (avoids duplicate-app error)
-const _stormApp = getApps().find(a => a.name === '[DEFAULT]') ||
-    initializeApp(_STORM_CFG, 'storm');
-const _rtdb = getDatabase(_stormApp);
+// Always reuse the [DEFAULT] app — both modules live on the same page.
+const _roomsApp = getApps().find(a => a.name === '[DEFAULT]') ||
+    initializeApp(_ROOMS_CFG);
+const _rtdb = getDatabase(_roomsApp, "https://horr-a08f4-default-rtdb.firebaseio.com");
 
 /* ────────────────────────────────
-   State
-   ──────────────────────────────── */
-let _stormRoom     = null;   // active room id
-let _stormName     = '';     // display name
-let _stormPresence = null;   // ref to my presence node
-let _msgsUnsub     = null;   // onValue unsubscriber for messages
-let _presUnsub     = null;   // onValue unsubscriber for presence
-let _stormMsgMap   = {};     // msgId → rendered DOM element
-
-const MSG_TTL = 10 * 60 * 1000; // 10 minutes in ms
-
-/* ────────────────────────────────
-   Helpers
+   Shared helpers
    ──────────────────────────────── */
 function _esc(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
@@ -15201,12 +15457,92 @@ function _fmtTime(ts) {
     const d = new Date(ts);
     return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
 }
-function _uid8() {
+// Stable session key — generated once, reused on every join so onDisconnect always matches
+const _SESSION_KEY = Math.random().toString(36).slice(2,14).toUpperCase();
+
+function _uid8() { // used only for generating room codes
     return Math.random().toString(36).slice(2,10).toUpperCase();
 }
+
+/* ════════════════════════════════════════════════════════════
+   STORM ROOMS
+   ════════════════════════════════════════════════════════════ */
+
+/* ────────────────────────────────
+   State
+   ──────────────────────────────── */
+let _stormRoom     = null;
+let _stormName     = '';
+let _stormPresKey  = _SESSION_KEY + '_S';  // stable presence key this session
+let _stormPresence = null;
+let _msgsUnsub     = null;
+let _presUnsub     = null;
+let _typingUnsub   = null;
+let _connUnsub     = null;
+let _stormMsgMap   = {};
+let _stormTypingTimer = null;
+
+const MSG_TTL = 10 * 60 * 1000; // 10 minutes
+
+/* ── Get display name from input ── */
 function _stormGetName() {
     const n = document.getElementById('stormDisplayName').value.trim();
     return n || 'Anonymous';
+}
+function _safeName(name) {
+    return (name || _stormName).replace(/[^a-zA-Z0-9]/g,'_').slice(0,20) || 'user';
+}
+
+/* ────────────────────────────────
+   Connection state — reconnect banner
+   ──────────────────────────────── */
+function _stormWatchConnection() {
+    if (_connUnsub) return; // already watching
+    const connRef = ref(_rtdb, '.info/connected');
+    const banner  = document.getElementById('stormReconnectBar');
+    _connUnsub = (snap) => {
+        if (!banner) return;
+        if (snap.val() === true) {
+            banner.classList.remove('show');
+        } else {
+            if (_stormRoom) banner.classList.add('show');
+        }
+    };
+    onValue(connRef, _connUnsub);
+}
+
+/* ────────────────────────────────
+   Typing indicator
+   ──────────────────────────────── */
+function _stormSetTyping(isTyping) {
+    if (!_stormRoom) return;
+    const typRef = ref(_rtdb, `stormRooms/${_stormRoom}/typing/${_stormPresKey}`);
+    if (isTyping) {
+        set(typRef, { name: _stormName, ts: Date.now() });
+        onDisconnect(typRef).remove();
+    } else {
+        remove(typRef).catch(() => {});
+    }
+}
+
+function _stormListenTyping() {
+    if (!_stormRoom) return;
+    const typRef = ref(_rtdb, `stormRooms/${_stormRoom}/typing`);
+    if (_typingUnsub) off(typRef, 'value', _typingUnsub);
+    _typingUnsub = (snap) => {
+        const bar = document.getElementById('stormTypingBar');
+        if (!bar) return;
+        if (!snap.exists()) { bar.textContent = ''; return; }
+        const now = Date.now();
+        const typists = Object.values(snap.val())
+            .filter(v => v && v.name && v.name !== _stormName && (now - (v.ts||0)) < 8000)
+            .map(v => v.name);
+        if (!typists.length) { bar.textContent = ''; return; }
+        bar.textContent = typists.length === 1
+            ? `${typists[0]} is typing…`
+            : `${typists.slice(0,-1).join(', ')} and ${typists.at(-1)} are typing…`;
+    };
+    onValue(typRef, _typingUnsub);
 }
 
 /* ────────────────────────────────
@@ -15228,11 +15564,15 @@ window.stormJoinRoom = async function(roomId) {
     document.getElementById('stormCodeLabel').textContent = roomId;
     document.getElementById('stormCodePill').style.display = isPublic ? 'none' : 'inline-flex';
 
-    // Register presence
-    const presenceRef = ref(_rtdb, `stormRooms/${_stormRoom}/presence/${_uid8()}`);
+    // Register presence using stable session key (prevents orphaned entries)
+    const presenceRef = ref(_rtdb, `stormRooms/${_stormRoom}/presence/${_stormPresKey}`);
     _stormPresence = presenceRef;
-    await set(presenceRef, { name: _stormName, joined: Date.now() });
-    onDisconnect(presenceRef).remove();
+    try {
+        await set(presenceRef, { name: _stormName, joined: Date.now() });
+        onDisconnect(presenceRef).remove();
+    } catch(e) {
+        console.warn('Storm presence write failed:', e.message);
+    }
 
     // Listen for presence count
     if (_presUnsub) off(ref(_rtdb, `stormRooms/${_stormRoom}/presence`), 'value', _presUnsub);
@@ -15242,6 +15582,12 @@ window.stormJoinRoom = async function(roomId) {
         document.getElementById('stormOnlineCount').textContent = cnt;
     };
     onValue(presRef, _presUnsub);
+
+    // Watch connection state for reconnect banner
+    _stormWatchConnection();
+
+    // Typing indicator
+    _stormListenTyping();
 
     // Post join system message
     _stormPushSystem(`${_esc(_stormName)} entered the storm ⚡`);
@@ -15271,21 +15617,31 @@ window.stormCreatePrivate = function() {
 
 window.stormLeaveRoom = async function() {
     if (!_stormRoom) return;
+    const roomBeingLeft = _stormRoom;
+
+    // Clear typing
+    _stormSetTyping(false);
+    if (_stormTypingTimer) { clearTimeout(_stormTypingTimer); _stormTypingTimer = null; }
 
     // Post leave system message
     _stormPushSystem(`${_esc(_stormName)} left the storm 🌑`);
 
     // Remove presence
-    if (_stormPresence) { await remove(_stormPresence); _stormPresence = null; }
+    if (_stormPresence) { try { await remove(_stormPresence); } catch(_) {} _stormPresence = null; }
 
     // Unsubscribe listeners
-    if (_msgsUnsub) { off(ref(_rtdb, `stormRooms/${_stormRoom}/messages`), 'value', _msgsUnsub); _msgsUnsub = null; }
-    if (_presUnsub) { off(ref(_rtdb, `stormRooms/${_stormRoom}/presence`), 'value', _presUnsub); _presUnsub = null; }
+    if (_msgsUnsub)  { off(ref(_rtdb, `stormRooms/${roomBeingLeft}/messages`), 'value', _msgsUnsub); _msgsUnsub = null; }
+    if (_presUnsub)  { off(ref(_rtdb, `stormRooms/${roomBeingLeft}/presence`), 'value', _presUnsub); _presUnsub = null; }
+    if (_typingUnsub){ off(ref(_rtdb, `stormRooms/${roomBeingLeft}/typing`),   'value', _typingUnsub); _typingUnsub = null; }
 
     _stormRoom = null;
     _stormMsgMap = {};
 
     // Reset UI
+    const tb = document.getElementById('stormTypingBar');
+    if (tb) tb.textContent = '';
+    const rb = document.getElementById('stormReconnectBar');
+    if (rb) rb.classList.remove('show');
     document.getElementById('stormMessages').innerHTML = '';
     document.getElementById('stormRoomWrap').classList.remove('active');
     document.getElementById('stormLobby').style.display = '';
@@ -15314,15 +15670,13 @@ function _stormListenMessages() {
         const msgs = snap.val();
         const container = document.getElementById('stormMessages');
         const now = Date.now();
-        const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
+        const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 120;
 
-        // Build a sorted array
         const sorted = Object.entries(msgs)
             .map(([k,v]) => ({ key: k, ...v }))
             .filter(m => m.ts && (now - m.ts) < MSG_TTL)
             .sort((a,b) => a.ts - b.ts);
 
-        // Re-render all (simple approach — small rooms)
         container.innerHTML = '';
         _stormMsgMap = {};
         sorted.forEach(m => {
@@ -15331,7 +15685,9 @@ function _stormListenMessages() {
             _stormMsgMap[m.key] = el;
         });
 
-        if (wasAtBottom) container.scrollTop = container.scrollHeight;
+        if (wasAtBottom) {
+            requestAnimationFrame(() => { container.scrollTop = container.scrollHeight; });
+        }
     };
     onValue(msgsRef, _msgsUnsub);
 }
@@ -15349,8 +15705,6 @@ function _stormRenderMsg(m) {
     }
 
     wrap.className = `storm-msg ${isMine ? 'mine' : 'theirs'}`;
-
-    // Reactions object: { "❤️": { uid1: true, uid2: true }, … }
     const reactions = m.reactions || {};
     const reactionHtml = _stormReactionsHtml(reactions, m.key);
 
@@ -15363,7 +15717,7 @@ function _stormRenderMsg(m) {
                 ).join('')}
             </div>
             <div class="storm-msg-text">${_esc(m.text)}</div>
-            <div class="msg-meta-row" style="justify-content:${isMine?'flex-end':'flex-start'};display:flex;gap:4px;margin-top:3px;">
+            <div style="justify-content:${isMine?'flex-end':'flex-start'};display:flex;gap:4px;margin-top:3px;">
                 <span class="storm-msg-ts">${_fmtTime(m.ts)}</span>
             </div>
         </div>
@@ -15382,15 +15736,11 @@ function _stormReactionsHtml(reactions, key) {
     return html;
 }
 
-function _safeName() {
-    return _stormName.replace(/[^a-zA-Z0-9]/g,'_').slice(0,20) || 'user';
-}
-
 function _stormPushSystem(text) {
     if (!_stormRoom) return;
     push(ref(_rtdb, `stormRooms/${_stormRoom}/messages`), {
         type: 'system', text, ts: Date.now(), name: 'System'
-    });
+    }).catch(() => {});
 }
 
 window.stormSendMsg = function() {
@@ -15400,22 +15750,31 @@ window.stormSendMsg = function() {
     input.value = '';
     input.style.height = 'auto';
 
+    // Clear typing indicator immediately
+    _stormSetTyping(false);
+    if (_stormTypingTimer) { clearTimeout(_stormTypingTimer); _stormTypingTimer = null; }
+
     push(ref(_rtdb, `stormRooms/${_stormRoom}/messages`), {
         name: _stormName,
         text,
         ts: Date.now(),
         type: 'text'
-    });
+    }).catch(e => { toastNotification('Failed to send: ' + (e.code || e.message)); });
 };
 
-// Enter key sends, Shift+Enter = newline
+// Enter sends, Shift+Enter = newline
 document.getElementById('stormMsgInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); stormSendMsg(); }
 });
-// Auto-grow textarea
+// Auto-grow + typing indicator
 document.getElementById('stormMsgInput').addEventListener('input', (e) => {
     e.target.style.height = 'auto';
     e.target.style.height = Math.min(e.target.scrollHeight, 80) + 'px';
+    if (!_stormRoom) return;
+    // Typing: set true, clear after 5s of no input
+    _stormSetTyping(true);
+    if (_stormTypingTimer) clearTimeout(_stormTypingTimer);
+    _stormTypingTimer = setTimeout(() => { _stormSetTyping(false); _stormTypingTimer = null; }, 5000);
 });
 
 /* ────────────────────────────────
@@ -15428,10 +15787,9 @@ window.stormReact = function(msgKey, emoji, event) {
     const reactRef = ref(_rtdb, `stormRooms/${_stormRoom}/messages/${msgKey}/reactions/${emoji}/${safeName}`);
     get(reactRef).then(snap => {
         if (snap.exists()) {
-            remove(reactRef); // toggle off
+            remove(reactRef);
         } else {
             set(reactRef, true);
-            // Float animation
             if (event) {
                 const r = event.currentTarget.getBoundingClientRect();
                 const el = document.createElement('div');
@@ -15443,7 +15801,7 @@ window.stormReact = function(msgKey, emoji, event) {
                 setTimeout(() => el.remove(), 1300);
             }
         }
-    });
+    }).catch(() => {});
 };
 
 /* ────────────────────────────────
@@ -15455,15 +15813,14 @@ function _stormCleanupLoop() {
     get(msgsRef).then(snap => {
         if (!snap.exists()) return;
         const now = Date.now();
-        const updates = {};
+        const toDelete = {};
         Object.entries(snap.val()).forEach(([k, v]) => {
-            if (v.ts && (now - v.ts) >= MSG_TTL) updates[k] = null;
+            if (v.ts && (now - v.ts) >= MSG_TTL) toDelete[k] = null;
         });
-        if (Object.keys(updates).length) set(msgsRef, Object.fromEntries(
-            Object.entries(snap.val()).filter(([k]) => !updates[k])
-        ));
-    });
-    // Schedule next cleanup in 60s
+        if (Object.keys(toDelete).length) {
+            update(ref(_rtdb, `stormRooms/${_stormRoom}/messages`), toDelete).catch(()=>{});
+        }
+    }).catch(() => {});
     setTimeout(() => { if (_stormRoom) _stormCleanupLoop(); }, 60_000);
 }
 
@@ -15616,20 +15973,23 @@ if (_origNavTo) {
    Firebase RTDB path: supportRooms/<roomId>/messages + presence
    ══════════════════════════════════════════════════════════════════ */
 
-const SUPPORT_MSG_TTL = 24 * 60 * 60 * 1000; // messages live 24 hours (not 10 min like storm)
+const SUPPORT_MSG_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
-let _supportRoom     = null;   // current room id
-let _supportName     = 'Anonymous';
-let _supportPresence = null;
-let _supportMsgsUnsub  = null;
-let _supportPresUnsub  = null;
-let _supportMsgMap   = {};
-let _supportLobbyPresUnsubs = {}; // per-room presence watchers for lobby counts
+let _supportRoom         = null;
+let _supportName         = 'Anonymous';
+let _supportPresKey      = _SESSION_KEY + '_P';  // stable presence key this session
+let _supportPresence     = null;
+let _supportMsgsUnsub    = null;
+let _supportPresUnsub    = null;
+let _supportTypingUnsub  = null;
+let _supportConnUnsub    = null;
+let _supportMsgMap       = {};
+let _supportTypingTimer  = null;
+let _supportLobbyPresUnsubs = {};
 
 /* ── Helper: enter room from Community Hub shortcut ── */
 window.supportEnterRoom = function(roomId, roomLabel) {
     navTo('supportRoomsPage');
-    // Small delay so the page renders before joining
     setTimeout(() => supportJoinRoom(roomId, roomLabel), 120);
 };
 
@@ -15637,6 +15997,63 @@ window.supportEnterRoom = function(roomId, roomLabel) {
 function _supportGetName() {
     const n = document.getElementById('supportDisplayName')?.value.trim();
     return n || 'Anonymous';
+}
+function _supportSafeName(name) {
+    return (name || _supportName).replace(/[^a-zA-Z0-9]/g,'_').slice(0,20) || 'user';
+}
+
+/* ── Connection watcher — reconnect banner ── */
+function _supportWatchConnection() {
+    if (_supportConnUnsub) return;
+    const connRef = ref(_rtdb, '.info/connected');
+    const banner  = document.getElementById('supportReconnectBar');
+    _supportConnUnsub = (snap) => {
+        if (!banner) return;
+        if (snap.val() === true) {
+            banner.classList.remove('show');
+            // Re-register presence on reconnect
+            if (_supportRoom && _supportPresence) {
+                set(_supportPresence, { name: _supportName, joined: Date.now() })
+                    .then(() => onDisconnect(_supportPresence).remove())
+                    .catch(() => {});
+            }
+        } else {
+            if (_supportRoom) banner.classList.add('show');
+        }
+    };
+    onValue(connRef, _supportConnUnsub);
+}
+
+/* ── Typing indicator ── */
+function _supportSetTyping(isTyping) {
+    if (!_supportRoom) return;
+    const typRef = ref(_rtdb, `supportRooms/${_supportRoom}/typing/${_supportPresKey}`);
+    if (isTyping) {
+        set(typRef, { name: _supportName, ts: Date.now() });
+        onDisconnect(typRef).remove();
+    } else {
+        remove(typRef).catch(() => {});
+    }
+}
+
+function _supportListenTyping() {
+    if (!_supportRoom) return;
+    const typRef = ref(_rtdb, `supportRooms/${_supportRoom}/typing`);
+    if (_supportTypingUnsub) off(typRef, 'value', _supportTypingUnsub);
+    _supportTypingUnsub = (snap) => {
+        const bar = document.getElementById('supportTypingBar');
+        if (!bar) return;
+        if (!snap.exists()) { bar.textContent = ''; return; }
+        const now = Date.now();
+        const typists = Object.values(snap.val())
+            .filter(v => v && v.name && v.name !== _supportName && (now - (v.ts||0)) < 8000)
+            .map(v => v.name);
+        if (!typists.length) { bar.textContent = ''; return; }
+        bar.textContent = typists.length === 1
+            ? `${typists[0]} is typing…`
+            : `${typists.slice(0,-1).join(', ')} and ${typists.at(-1)} are typing…`;
+    };
+    onValue(typRef, _supportTypingUnsub);
 }
 
 /* ── Join a room ── */
@@ -15659,11 +16076,15 @@ window.supportJoinRoom = async function(roomId, roomLabel) {
     document.getElementById('supportRoomTitle').textContent = roomLabel || ('🌸 ' + roomId);
     document.getElementById('supportRoomMeta').textContent = 'Safe, anonymous, moderated · Messages fade after 24h';
 
-    // Register presence
-    const presRef = ref(_rtdb, `supportRooms/${_supportRoom}/presence/${_supportSafeName()}`);
+    // Register presence with stable key
+    const presRef = ref(_rtdb, `supportRooms/${_supportRoom}/presence/${_supportPresKey}`);
     _supportPresence = presRef;
-    await set(presRef, { name: _supportName, joined: Date.now() });
-    onDisconnect(presRef).remove();
+    try {
+        await set(presRef, { name: _supportName, joined: Date.now() });
+        onDisconnect(presRef).remove();
+    } catch(e) {
+        console.warn('Support presence write failed:', e.message);
+    }
 
     // Watch presence count
     if (_supportPresUnsub) off(ref(_rtdb, `supportRooms/${_supportRoom}/presence`), 'value', _supportPresUnsub);
@@ -15673,6 +16094,12 @@ window.supportJoinRoom = async function(roomId, roomLabel) {
         document.getElementById('supportOnlineCount').textContent = cnt;
     };
     onValue(presCountRef, _supportPresUnsub);
+
+    // Connection watcher
+    _supportWatchConnection();
+
+    // Typing indicator
+    _supportListenTyping();
 
     // Post join system message
     _supportPushSystem(`${_esc(_supportName)} joined 🌸`);
@@ -15687,26 +16114,35 @@ window.supportJoinRoom = async function(roomId, roomLabel) {
 /* ── Leave room ── */
 window.supportLeaveRoom = async function() {
     if (!_supportRoom) return;
+    const roomBeingLeft = _supportRoom;
+
+    // Clear typing
+    _supportSetTyping(false);
+    if (_supportTypingTimer) { clearTimeout(_supportTypingTimer); _supportTypingTimer = null; }
 
     _supportPushSystem(`${_esc(_supportName)} left 🍃`);
 
-    if (_supportPresence) { await remove(_supportPresence); _supportPresence = null; }
-    if (_supportMsgsUnsub) { off(ref(_rtdb, `supportRooms/${_supportRoom}/messages`), 'value', _supportMsgsUnsub); _supportMsgsUnsub = null; }
-    if (_supportPresUnsub) { off(ref(_rtdb, `supportRooms/${_supportRoom}/presence`), 'value', _supportPresUnsub); _supportPresUnsub = null; }
+    if (_supportPresence) { try { await remove(_supportPresence); } catch(_) {} _supportPresence = null; }
+    if (_supportMsgsUnsub)   { off(ref(_rtdb, `supportRooms/${roomBeingLeft}/messages`), 'value', _supportMsgsUnsub);   _supportMsgsUnsub = null; }
+    if (_supportPresUnsub)   { off(ref(_rtdb, `supportRooms/${roomBeingLeft}/presence`), 'value', _supportPresUnsub);   _supportPresUnsub = null; }
+    if (_supportTypingUnsub) { off(ref(_rtdb, `supportRooms/${roomBeingLeft}/typing`),   'value', _supportTypingUnsub); _supportTypingUnsub = null; }
 
     _supportRoom = null;
     _supportMsgMap = {};
 
+    const tb = document.getElementById('supportTypingBar');
+    if (tb) tb.textContent = '';
+    const rb = document.getElementById('supportReconnectBar');
+    if (rb) rb.classList.remove('show');
     document.getElementById('supportMessages').innerHTML = '';
     document.getElementById('supportRoomWrap').classList.remove('active');
     document.getElementById('supportLobby').style.display = '';
 
-    // Restart lobby presence counts
     _supportWatchLobbyPresence();
     _supportStopCanvas();
 };
 
-/* ── Lobby presence count watchers (so users see how many are in each room) ── */
+/* ── Lobby presence count watchers ── */
 const SUPPORT_ROOMS = ['night-owls','morning-light','venting-lounge','healing-circle','grief-garden','self-love'];
 
 function _supportWatchLobbyPresence() {
@@ -15722,11 +16158,7 @@ function _supportWatchLobbyPresence() {
     });
 }
 
-/* Start watching when the support page loads */
-document.addEventListener('DOMContentLoaded', () => {
-    _supportWatchLobbyPresence();
-});
-// Also call immediately in case DOMContentLoaded already fired
+document.addEventListener('DOMContentLoaded', () => { _supportWatchLobbyPresence(); });
 if (document.readyState !== 'loading') _supportWatchLobbyPresence();
 
 /* ── Message listener ── */
@@ -15739,7 +16171,7 @@ function _supportListenMessages() {
         const msgs = snap.val();
         const container = document.getElementById('supportMessages');
         const now = Date.now();
-        const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
+        const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 120;
 
         const sorted = Object.entries(msgs)
             .map(([k,v]) => ({ key: k, ...v }))
@@ -15754,7 +16186,9 @@ function _supportListenMessages() {
             _supportMsgMap[m.key] = el;
         });
 
-        if (wasAtBottom) container.scrollTop = container.scrollHeight;
+        if (wasAtBottom) {
+            requestAnimationFrame(() => { container.scrollTop = container.scrollHeight; });
+        }
     };
     onValue(msgsRef, _supportMsgsUnsub);
 }
@@ -15773,11 +16207,8 @@ function _supportRenderMsg(m) {
     }
 
     wrap.className = `support-msg ${isMine ? 'mine' : 'theirs'}`;
-
     const reactions = m.reactions || {};
     const reactionHtml = _supportReactionsHtml(reactions, m.key);
-
-    // Support-specific reaction emojis — warm and caring
     const supportReacts = ['💙','🤗','✨','🌸','🕊️'];
 
     wrap.innerHTML = `
@@ -15808,15 +16239,11 @@ function _supportReactionsHtml(reactions, key) {
     return html;
 }
 
-function _supportSafeName() {
-    return _supportName.replace(/[^a-zA-Z0-9]/g,'_').slice(0,20) || 'user';
-}
-
 function _supportPushSystem(text) {
     if (!_supportRoom) return;
     push(ref(_rtdb, `supportRooms/${_supportRoom}/messages`), {
         type: 'system', text, ts: Date.now(), name: 'System'
-    });
+    }).catch(() => {});
 }
 
 /* ── Send message ── */
@@ -15827,12 +16254,16 @@ window.supportSendMsg = function() {
     input.value = '';
     input.style.height = 'auto';
 
+    // Clear typing immediately
+    _supportSetTyping(false);
+    if (_supportTypingTimer) { clearTimeout(_supportTypingTimer); _supportTypingTimer = null; }
+
     push(ref(_rtdb, `supportRooms/${_supportRoom}/messages`), {
         name: _supportName,
         text,
         ts: Date.now(),
         type: 'text'
-    });
+    }).catch(e => { toastNotification('Failed to send: ' + (e.code || e.message)); });
 };
 
 // Enter sends, Shift+Enter = newline
@@ -15842,6 +16273,10 @@ document.getElementById('supportMsgInput').addEventListener('keydown', (e) => {
 document.getElementById('supportMsgInput').addEventListener('input', (e) => {
     e.target.style.height = 'auto';
     e.target.style.height = Math.min(e.target.scrollHeight, 80) + 'px';
+    if (!_supportRoom) return;
+    _supportSetTyping(true);
+    if (_supportTypingTimer) clearTimeout(_supportTypingTimer);
+    _supportTypingTimer = setTimeout(() => { _supportSetTyping(false); _supportTypingTimer = null; }, 5000);
 });
 
 /* ── Reactions ── */
@@ -15866,7 +16301,7 @@ window.supportReact = function(msgKey, emoji, event) {
                 setTimeout(() => el.remove(), 1500);
             }
         }
-    });
+    }).catch(() => {});
 };
 
 /* ── Emoji picker ── */
@@ -15977,6 +16412,16 @@ function _supportStopCanvas() {
     const cv = document.getElementById('support-canvas');
     if (cv) { const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height); }
 }
+
+/* ── Cleanup presence on page close / refresh ── */
+window.addEventListener('beforeunload', () => {
+    // Synchronously remove presence so counts drop immediately
+    // (onDisconnect handles RTDB-level cleanup; this is best-effort for the sync case)
+    try {
+        if (_stormPresence) { remove(_stormPresence); }
+        if (_supportPresence) { remove(_supportPresence); }
+    } catch(_) {}
+});
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -20127,29 +20572,12 @@ window.svToggleReplies = async function() {
 /* ════════════════════════════════════════════════════
    GO LIVE — Setup & Preview
    ════════════════════════════════════════════════════ */
-window.openGoLive = async function() {
+window.openGoLive = function() {
     closeStoryChooser();
     if (!_me()) { _toast('Sign in to go live.'); return; }
-
-    // Request camera + mic permissions
-    const modal = document.getElementById('storyLiveModal');
-    modal.classList.add('open');
-
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: SNX_STORY.liveFacing },
-            audio: true
-        });
-        SNX_STORY.liveStream = stream;
-        const preview = document.getElementById('livePreviewVideo');
-        if (preview) { preview.srcObject = stream; }
-        // Reset UI state
-        SNX_STORY.liveMicOn = true;
-        SNX_STORY.liveCamOn = true;
-        _syncLiveCtrlBtns();
-    } catch(err) {
-        _toast('Camera/mic permission required: ' + (err.message || err));
-    }
+    // Go directly to the dedicated live page — it handles camera setup,
+    // Firestore room creation, WebRTC, chat and everything else.
+    window.location.href = 'live.html?host=1';
 };
 
 window.closeGoLive = function() {

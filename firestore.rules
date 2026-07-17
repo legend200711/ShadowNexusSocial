@@ -1,0 +1,142 @@
+rules_version = '2';
+
+//
+// Shadow Nexus Social — Firestore Security Rules
+//
+// Collections used by this app:
+//   /users/{uid}                                      — user profiles
+//   /stories/{storyId}                                — posts + live rooms
+//   /stories/{storyId}/signals/{guestUid}             — WebRTC offer/answer (host ↔ guest)
+//   /stories/{storyId}/signals_viewer/{viewerUid}     — WebRTC offer/answer (host ↔ viewer)
+//   /stories/{storyId}/ice_host_to_guest/{uid}/candidates/{doc}
+//   /stories/{storyId}/ice_guest_to_host/{uid}/candidates/{doc}
+//   /stories/{storyId}/ice_host_to_viewer/{uid}/candidates/{doc}
+//   /stories/{storyId}/ice_viewer_to_host/{uid}/candidates/{doc}
+//   /stories/{storyId}/boxRequests/{uid}              — camera-join requests
+//   /stories/{storyId}/hostCommands/{uid}             — host mute/cam-off/remove
+//   /posts/{postId}                                   — replay posts
+//   /liveNotifications/{uid}                          — live push notifications
+//   /siteSettings/{doc}                               — site config (maintenance mode, feature flags)
+//
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ─────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isFounder() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'founder';
+    }
+
+    // ── Users ─────────────────────────────────────────────────────────────────
+
+    match /users/{uid} {
+      // Anyone signed in can read any profile (needed for notifications, guest info)
+      allow read: if isSignedIn();
+      // Only the account owner can write their own profile
+      allow write: if isOwner(uid);
+    }
+
+    // ── Stories / Live rooms ──────────────────────────────────────────────────
+
+    match /stories/{storyId} {
+      // Any signed-in user can read a story/live room
+      allow read: if isSignedIn();
+      // Anyone signed in can create (host starting a new live)
+      allow create: if isSignedIn();
+      // Any signed-in user can update (viewer count, endedAt, requestsOpen, etc.)
+      allow update: if isSignedIn();
+      // Only the author can delete
+      allow delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
+
+      // ── WebRTC signaling — host ↔ guest ────────────────────────────────────
+
+      match /signals/{guestUid} {
+        // Host writes the offer; guest reads it and writes the answer back
+        allow read, write: if isSignedIn();
+      }
+
+      // ── WebRTC signaling — host ↔ viewer ───────────────────────────────────
+
+      match /signals_viewer/{viewerUid} {
+        allow read, write: if isSignedIn();
+      }
+
+      // ── ICE candidates: host → guest ────────────────────────────────────────
+
+      match /ice_host_to_guest/{uid}/candidates/{candId} {
+        allow read, write: if isSignedIn();
+      }
+
+      // ── ICE candidates: guest → host ────────────────────────────────────────
+
+      match /ice_guest_to_host/{uid}/candidates/{candId} {
+        allow read, write: if isSignedIn();
+      }
+
+      // ── ICE candidates: host → viewer ───────────────────────────────────────
+
+      match /ice_host_to_viewer/{uid}/candidates/{candId} {
+        allow read, write: if isSignedIn();
+      }
+
+      // ── ICE candidates: viewer → host ───────────────────────────────────────
+
+      match /ice_viewer_to_host/{uid}/candidates/{candId} {
+        allow read, write: if isSignedIn();
+      }
+
+      // ── Camera join requests (guests requesting to go on screen) ─────────────
+
+      match /boxRequests/{uid} {
+        // Any signed-in user can create their own request
+        allow create: if isOwner(uid);
+        // Host and the requesting user can read; host can update status
+        allow read, update: if isSignedIn();
+      }
+
+      // ── Host commands (mute / cam-off / remove sent to guests) ───────────────
+
+      match /hostCommands/{uid} {
+        // Only the command target reads it; any signed-in user can write
+        // (host writes commands for a specific guest uid)
+        allow read: if isOwner(uid);
+        allow write: if isSignedIn();
+      }
+    }
+
+    // ── Posts (replay uploads) ────────────────────────────────────────────────
+
+    match /posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
+    }
+
+    // ── Live notifications ────────────────────────────────────────────────────
+
+    match /liveNotifications/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // ── Site settings (maintenance mode, feature flags) ───────────────────────
+    // Anyone signed in may read (needed for maintenance check on load).
+    // Only the Founder may write.
+
+    match /siteSettings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isFounder();
+    }
+
+  }
+}

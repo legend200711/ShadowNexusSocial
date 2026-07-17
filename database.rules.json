@@ -1,0 +1,83 @@
+{
+  "rules": {
+    // ── Live rooms ─────────────────────────────────────────────────────────────
+    // Path: /liveRooms/{roomId}/...
+    "liveRooms": {
+      "$roomId": {
+        ".read": "auth != null",
+        "viewerCount": { ".write": "auth != null" },
+        "viewers": {
+          "$uid": {
+            ".read":  "auth != null",
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        },
+        "chat": {
+          ".read": "auth != null",
+          "$msgId": { ".write": "auth != null" }
+        }
+      }
+    },
+
+    // ── Storm Rooms ─────────────────────────────────────────────────────────────
+    // Path: /stormRooms/{roomId}/...
+    //   presence/{key}  — online user presence (anonymous, no auth required)
+    //   messages/{msgId} — chat messages
+    "stormRooms": {
+      "$roomId": {
+        // Anyone can read storm rooms — they're public/code-gated
+        ".read": true,
+
+        "presence": {
+          "$key": {
+            ".write": true,
+            ".validate": "newData.hasChildren(['name','joined'])"
+          }
+        },
+
+        "typing": {
+          "$key": {
+            ".write": true,
+            ".validate": "newData.hasChildren(['name','ts'])"
+          }
+        },
+
+        "messages": {
+          "$msgId": {
+            ".write": true,
+            ".validate": "newData.hasChildren(['text','ts','name','type']) || newData.hasChildren(['type','text','ts','name'])"
+          }
+        }
+      }
+    },
+
+    // ── Support Rooms ───────────────────────────────────────────────────────────
+    "supportRooms": {
+      "$roomId": {
+        // Publicly readable so lobby counts work without sign-in
+        ".read": true,
+
+        "presence": {
+          "$key": {
+            ".write": true,
+            ".validate": "newData.hasChildren(['name','joined'])"
+          }
+        },
+
+        "typing": {
+          "$key": {
+            ".write": true,
+            ".validate": "newData.hasChildren(['name','ts'])"
+          }
+        },
+
+        "messages": {
+          "$msgId": {
+            ".write": true,
+            ".validate": "newData.hasChildren(['text','ts','name','type']) || newData.hasChildren(['type','text','ts','name'])"
+          }
+        }
+      }
+    }
+  }
+}
