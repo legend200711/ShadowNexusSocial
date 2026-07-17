@@ -254,8 +254,12 @@ function initUI() {
     if (params.get("host") === "1") {
       startAsHost(code);
     } else {
-      // Viewer arriving from the Feed — enter as viewer and show "Request to Join"
-      enterAsViewer(code);
+      // Viewer arriving from the Feed — enter as viewer
+      await enterAsViewer(code);
+      // If ?requestBox=1, auto-trigger the join request flow
+      if (params.get("requestBox") === "1") {
+        handleRequestToJoin();
+      }
     }
   }
 }

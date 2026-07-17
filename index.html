@@ -20975,21 +20975,34 @@ document.getElementById('storyChooserModal').addEventListener('click', function(
 /* ════════════════════════════════════════════════════
    INIT — wire up on auth ready
    ════════════════════════════════════════════════════ */
-window._snxOnAuthReady(function() {
-    initStoryStrip();
-    initLiveFeedCards();
-    setTimeout(_sweepExpiredStories, 3000);
+// _snxOnAuthReady is defined by the module script (type="module") which is
+// deferred — it may not exist yet when this non-module script runs.
+// Use the pre-queue pattern so the callback is always registered safely.
+(function _storiesInit() {
+    function _doInit() {
+        initStoryStrip();
+        initLiveFeedCards();
+        setTimeout(_sweepExpiredStories, 3000);
 
-    // ── "Live ended" confirmation — shown after returning from live.html ──
-    // live.js navigates back with ?liveEnded=1 so the host sees the toast
-    // on the Feed without any reload or login disruption.
-    if (new URLSearchParams(location.search).has('liveEnded')) {
-        // Clean the URL immediately so a manual refresh won't re-show it
-        history.replaceState(null, '', location.pathname);
-        // Small delay so the Feed has settled before the toast appears
-        setTimeout(() => _toast('✅ Your Live has ended.'), 600);
+        // ── "Live ended" confirmation — shown after returning from live.html ──
+        // live.js navigates back with ?liveEnded=1 so the host sees the toast
+        // on the Feed without any reload or login disruption.
+        if (new URLSearchParams(location.search).has('liveEnded')) {
+            // Clean the URL immediately so a manual refresh won't re-show it
+            history.replaceState(null, '', location.pathname);
+            // Small delay so the Feed has settled before the toast appears
+            setTimeout(() => _toast('✅ Your Live has ended.'), 600);
+        }
     }
-});
+    if (typeof window._snxOnAuthReady === 'function') {
+        window._snxOnAuthReady(_doInit);
+    } else {
+        // Module script hasn't run yet — push to the queue that the module
+        // script will flush once Firebase auth resolves.
+        window._snxAuthReadyQueue = window._snxAuthReadyQueue || [];
+        window._snxAuthReadyQueue.push(_doInit);
+    }
+})();
 
 })(); // end IIFE
 </script>
@@ -21131,31 +21144,22 @@ function closeLiveJoinChoice() {
 }
 window.closeLiveJoinChoice = closeLiveJoinChoice;
 
-/* User chose "Watch Live" */
+/* User chose "Watch Live" — redirect to live.html as a viewer */
 function ljcWatchLive() {
     if (!_ljcStory) return;
-    const story = _ljcStory;
+    const roomId = _ljcStory.roomId || _ljcStory.id;
     closeLiveJoinChoice();
-    _isHostViewer = false;
-    window.openLiveStreamViewer(story);
-    // Show the "Request to Join Box" button for viewers
-    setTimeout(() => {
-        const btn = $id('lvJoinBoxBtn');
-        if (btn) btn.style.display = '';
-    }, 300);
+    window.location.href = `live.html?room=${encodeURIComponent(roomId)}`;
 }
 window.ljcWatchLive = ljcWatchLive;
 
-/* User chose "Request to Join Box" */
+/* User chose "Request to Join Box" — redirect to live.html; the built-in
+   "Request to Join" button inside live.html handles the camera+request flow */
 function ljcRequestBox() {
     if (!_ljcStory) return;
-    const story = _ljcStory;
+    const roomId = _ljcStory.roomId || _ljcStory.id;
     closeLiveJoinChoice();
-    // Open viewer first (so they can watch while waiting)
-    _isHostViewer = false;
-    window.openLiveStreamViewer(story);
-    // Immediately submit the request
-    setTimeout(() => lvRequestBox(), 300);
+    window.location.href = `live.html?room=${encodeURIComponent(roomId)}&requestBox=1`;
 }
 window.ljcRequestBox = ljcRequestBox;
 
