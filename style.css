@@ -74,6 +74,8 @@ body {
   -webkit-tap-highlight-color: transparent;
   text-rendering: optimizeSpeed;
   line-height: 1.5;
+  /* Improve paint performance */
+  -webkit-font-smoothing: antialiased;
 }
 
 img, video, canvas, svg {

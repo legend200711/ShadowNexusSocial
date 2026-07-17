@@ -26,20 +26,18 @@
   const swPath  = base + 'sw.js';
   const fcmPath = base + 'firebase-messaging-sw.js';
 
-  window.addEventListener('load', async () => {
+  // Register after the page fully loads so SW install never delays first paint.
+  window.addEventListener('load', () => {
 
-    // ── Register main app service worker ──
-    try {
-      const reg = await navigator.serviceWorker.register(swPath, { scope: base });
-      console.log('[SW] Registered, scope:', reg.scope);
-
+    // ── Register main app service worker (non-blocking) ──
+    navigator.serviceWorker.register(swPath, { scope: base }).then((reg) => {
       // Detect new SW installing while the page is open
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         if (!newWorker) return;
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New version is ready — it will take over on next load
+            // New version ready — takes over on next natural navigation
           }
         });
       });
@@ -51,17 +49,17 @@
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         console.log('[SW] New service worker is now in control.');
       });
-    } catch (err) {
+    }).catch((err) => {
       console.warn('[SW] Registration failed:', err);
-    }
+    });
 
-    // ── Register FCM messaging service worker ──
-    try {
-      await navigator.serviceWorker.register(fcmPath, { scope: base });
-      console.log('[FCM-SW] Registered');
-    } catch (err) {
-      console.warn('[FCM-SW] Registration failed:', err);
-    }
+    // ── Register FCM messaging SW after a short delay ──
+    // Deferred so FCM registration never competes with auth/feed startup.
+    setTimeout(() => {
+      navigator.serviceWorker.register(fcmPath, { scope: base })
+        .then(() => { /* [FCM-SW] Registered */ })
+        .catch((err) => { console.warn('[FCM-SW] Registration failed:', err); });
+    }, 2000);
 
   });
 

@@ -57,12 +57,16 @@ const rtdb   = getDatabase(fbApp);
 // ICE servers (STUN + fallback TURN)
 // ─────────────────────────────────────────────────────────────────
 const ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302"   },
-  { urls: "stun:stun1.l.google.com:19302"  },
-  { urls: "stun:stun2.l.google.com:19302"  }
+  { urls: "stun:stun.l.google.com:19302"  },
+  { urls: "stun:stun1.l.google.com:19302" },
+  // Only use 2 STUN servers — more servers = longer ICE gathering time
   // Add TURN credentials here when available:
   // { urls: "turn:your-turn-server:3478", username: "user", credential: "pass" }
 ];
+
+// Tighter ICE gathering timeout — fail-fast so reconnect starts sooner.
+// Standard: ICE times out after ~30 s; we cut this to 10 s.
+const ICE_GATHERING_TIMEOUT_MS = 10_000;
 
 // ─────────────────────────────────────────────────────────────────
 // Quality presets — applied to the local sender encodings
@@ -1291,13 +1295,17 @@ function startGuestConnectionMonitor() {
     // Transient weak signal → just update status dot, no reconnect yet
     if (ice === "disconnected") {
       setBoxStatus(currentUser.uid, "weak");
-      toast("🟡 Weak connection — keeping you in the Live…");
+      // Only show toast every 3rd check to avoid spamming
+      if (!g._weakToastCount) g._weakToastCount = 0;
+      if (g._weakToastCount++ % 3 === 0) toast("🟡 Weak connection — keeping you in the Live…");
       return;
     }
+    g._weakToastCount = 0;
     // Full failure → attempt self-recovery
     if ((state === "failed" || state === "disconnected") && g.retries < 8) {
       g.retries++;
-      const delay = Math.min(1000 * 2 ** g.retries, 20000);
+      // Faster initial retry (500 ms → 1 s → 2 s → 4 s …), capped at 12 s
+      const delay = Math.min(500 * 2 ** (g.retries - 1), 12000);
       setBoxStatus(currentUser.uid, "reconnecting");
       showReconnectBanner();
       toast(`Connection lost. Reconnecting… (${g.retries}/8)`);
@@ -1319,7 +1327,7 @@ function startGuestConnectionMonitor() {
         }
       }, delay);
     }
-  }, 8000);
+  }, 5000);   // Check every 5 s instead of 8 s for faster failure detection
 }
 
 function stopGuestConnectionMonitor() {
@@ -1678,10 +1686,27 @@ async function initiateGuestPeerConnection(guestUid) {
 function newPC() {
   return new RTCPeerConnection({
     iceServers:           ICE_SERVERS,
-    iceCandidatePoolSize: 10,
+    // Pre-gather 4 candidates so the initial offer goes out immediately
+    iceCandidatePoolSize: 4,
     bundlePolicy:         "max-bundle",
     rtcpMuxPolicy:        "require",
   });
+}
+
+// ── Wrap createOffer with an ICE-gathering timeout ──
+// If gathering stalls (e.g. symmetric NAT), we stop waiting after
+// ICE_GATHERING_TIMEOUT_MS and send whatever candidates we have so far.
+async function createOfferWithTimeout(pc, options = {}) {
+  const offer = await pc.createOffer(options);
+  await pc.setLocalDescription(offer);
+  await new Promise((resolve) => {
+    if (pc.iceGatheringState === 'complete') { resolve(); return; }
+    const onGather = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', onGather); resolve(); } };
+    pc.addEventListener('icegatheringstatechange', onGather);
+    // Fail-fast: don't wait forever — use whatever candidates gathered so far
+    setTimeout(() => { pc.removeEventListener('icegatheringstatechange', onGather); resolve(); }, ICE_GATHERING_TIMEOUT_MS);
+  });
+  return pc.localDescription;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1700,7 +1725,8 @@ function handlePCState(pc, uid) {
     const MAX_RETRIES = 8;
     if (g.retries < MAX_RETRIES) {
       g.retries++;
-      const delay = Math.min(1000 * 2 ** (g.retries - 1), 20000);
+      // Faster reconnect: 500 ms → 1 s → 2 s → 4 s, capped at 12 s
+      const delay = Math.min(500 * 2 ** (g.retries - 1), 12000);
       setBoxStatus(uid, "reconnecting");
       showReconnectBanner();
       if (uid === currentUser?.uid) {
