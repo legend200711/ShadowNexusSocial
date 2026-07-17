@@ -42,7 +42,8 @@ html, body {
   overflow: hidden;
   /* prevent iOS bounce from showing white */
   position: fixed;
-  touch-action: none;
+  /* touch-action: manipulation — do NOT use 'none' here; it blocks all taps on iOS/Android */
+  touch-action: manipulation;
 }
 
 /* ── Video grid — fills entire viewport ── */
@@ -156,20 +157,22 @@ html, body {
 /* ── Top HUD bar ── */
 #topbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-  height: 52px;
   background: linear-gradient(rgba(0,0,0,0.72), transparent);
   display: flex; align-items: center; gap: 10px;
   padding: 0 14px;
   pointer-events: auto;
+  touch-action: manipulation;
   /* safe-area for notch phones */
   padding-top: env(safe-area-inset-top, 0px);
   height: calc(52px + env(safe-area-inset-top, 0px));
 }
 #topbar .back-btn {
   background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.2);
-  color: #fff; font-size: 22px; cursor: pointer; padding: 4px 10px;
+  color: #fff; font-size: 22px; cursor: pointer;
+  padding: 8px 16px; min-width: 44px; min-height: 44px;
   border-radius: 8px; transition: background 0.15s;
   touch-action: manipulation; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
 }
 #topbar .back-btn:hover { background: rgba(255,255,255,0.15); }
 #topbar .room-title {
@@ -222,6 +225,8 @@ html, body {
   transition: background 0.15s, box-shadow 0.15s;
   touch-action: manipulation; position: relative;
   flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 44px; min-height: 44px;
 }
 .ctrl-btn:hover  { background: rgba(255,255,255,0.22); }
 .ctrl-btn.active { background: rgba(255,51,85,0.3); color: #ff5566; box-shadow: var(--red-glow); }
@@ -653,6 +658,7 @@ html, body {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 16px; padding: 24px;
+  touch-action: manipulation;
 }
 #join-overlay.hidden,
 #waiting-overlay.hidden,
@@ -668,6 +674,8 @@ html, body {
   cursor: pointer; box-shadow: var(--blue-glow-sm);
   transition: background 0.15s, box-shadow 0.15s;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
 }
 .btn-primary:hover { background: var(--neon-cyan); box-shadow: var(--blue-glow-md); }
 .btn-secondary {
@@ -676,6 +684,8 @@ html, body {
   padding: 11px 28px; font-size: 14px; font-weight: 700;
   cursor: pointer; transition: background 0.15s;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
 }
 .btn-secondary:hover { background: rgba(0,174,239,0.18); }
 

@@ -727,12 +727,19 @@ function attachKeyboardHandlers() {
   // state we pushed in enterAsViewer() pops off first, firing this handler.
   // We show the leave-confirm overlay instead of silently navigating away.
   window.addEventListener("popstate", e => {
-    if (liveActive && !isHost) {
-      // Re-push the sentinel so that pressing "Stay" doesn't leave the page
-      // on the next back-press without going through the overlay again.
-      history.pushState({ liveViewer: true, roomId }, "");
-      $("leaveConfirm").classList.add("open");
+    if (liveActive) {
+      if (isHost) {
+        // Host hardware/browser back → show end-live confirmation instead of navigating away
+        history.pushState({ liveHost: true, roomId }, "");
+        handleEndLive();
+      } else {
+        // Viewer/guest hardware/browser back → show leave confirmation
+        // Re-push the sentinel so pressing "Stay" keeps them on the page
+        history.pushState({ liveViewer: true, roomId }, "");
+        $("leaveConfirm").classList.add("open");
+      }
     }
+    // If NOT in a live (lobby), let the default navigation happen (go back to index.html)
   });
 }
 

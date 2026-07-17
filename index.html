@@ -3323,6 +3323,7 @@ img, video { max-width: 100%; height: auto; }
     display: flex; flex-direction: column; align-items: center; gap: 5px;
     flex-shrink: 0; cursor: pointer; min-width: 64px;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 .story-add-circle {
     width: 64px; height: 64px; border-radius: 50%;
@@ -3337,9 +3338,10 @@ img, video { max-width: 100%; height: auto; }
 
 /* ── Story Type Chooser Modal ── */
 #storyChooserModal {
-    display: none; position: fixed; inset: 0; z-index: 8500;
+    display: none; position: fixed; inset: 0; z-index: 9500;
     background: rgba(0,3,15,0.88); align-items: flex-end; justify-content: center;
     padding: 0; box-sizing: border-box; backdrop-filter: blur(6px);
+    touch-action: manipulation;
 }
 #storyChooserModal.open { display: flex; }
 .story-chooser-inner {
@@ -3365,6 +3367,9 @@ img, video { max-width: 100%; height: auto; }
     border-radius: 16px; cursor: pointer; text-align: center;
     transition: background 0.18s, border-color 0.18s, transform 0.12s, box-shadow 0.18s;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    min-height: 44px;
 }
 .story-chooser-option:hover {
     background: rgba(0,60,140,0.4); border-color: rgba(0,174,239,0.7);
@@ -3386,6 +3391,8 @@ img, video { max-width: 100%; height: auto; }
     background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
     border-radius: 12px; color: #6a90b8; font-size: 14px; cursor: pointer;
     transition: background 0.15s;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    min-height: 46px;
 }
 .story-chooser-cancel:hover { background: rgba(255,255,255,0.08); }
 
@@ -3661,9 +3668,10 @@ img, video { max-width: 100%; height: auto; }
 
 /* ── Go Live Modal ── */
 #storyLiveModal {
-    display: none; position: fixed; inset: 0; z-index: 8700;
+    display: none; position: fixed; inset: 0; z-index: 9400;
     background: rgba(0,3,15,0.92); align-items: center; justify-content: center;
     padding: 16px; box-sizing: border-box; backdrop-filter: blur(6px);
+    touch-action: manipulation;
 }
 #storyLiveModal.open { display: flex; }
 .live-modal-inner {
@@ -3682,7 +3690,10 @@ img, video { max-width: 100%; height: auto; }
 .live-modal-title { font-size: 16px; font-weight: 800; color: #ff4466; text-shadow: 0 0 12px rgba(255,40,70,0.5); }
 .live-modal-close {
     background: none; border: none; color: #4a6a8a; font-size: 22px; cursor: pointer;
-    padding: 2px 8px; border-radius: 6px; transition: color 0.15s; line-height: 1;
+    padding: 6px 10px; min-width: 44px; min-height: 44px;
+    border-radius: 6px; transition: color 0.15s; line-height: 1;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    display: flex; align-items: center; justify-content: center;
 }
 .live-modal-close:hover { color: #c8e8ff; }
 
@@ -3710,6 +3721,8 @@ img, video { max-width: 100%; height: auto; }
     padding: 8px 14px; border-radius: 10px; font-size: 12px; cursor: pointer;
     background: rgba(0,20,55,0.7); border: 1px solid rgba(255,30,60,0.3); color: #ff6688;
     transition: background 0.15s, border-color 0.15s; flex-shrink: 0;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    min-height: 40px;
 }
 .live-ctrl-btn:hover { background: rgba(120,0,30,0.3); border-color: rgba(255,60,80,0.7); }
 .live-ctrl-btn.cam-off  { border-color: rgba(255,170,0,0.4); color: #ffcc66; }
@@ -3735,9 +3748,22 @@ img, video { max-width: 100%; height: auto; }
     border: 1px solid rgba(255,30,60,0.7); color: #fff;
     box-shadow: 0 0 22px rgba(255,30,60,0.45); cursor: pointer;
     transition: background 0.2s, box-shadow 0.2s;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    min-height: 50px;
 }
 .live-start-btn:hover { background: linear-gradient(135deg, #aa0015, #ee0040); box-shadow: 0 0 30px rgba(255,30,60,0.6); }
-.live-start-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.live-start-btn:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+
+/* Cancel/back button inside Go Live modal */
+.live-cancel-btn {
+    width: 100%; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 600;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(200,220,240,0.7); cursor: pointer;
+    transition: background 0.15s, color 0.15s; margin-top: 8px;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    min-height: 46px;
+}
+.live-cancel-btn:hover { background: rgba(255,255,255,0.09); color: #c8e8ff; }
 
 /* Active live stream viewer */
 #liveStreamViewer {
@@ -21170,6 +21196,9 @@ function _snxToast(msg) {
 
         <!-- Start streaming -->
         <button class="live-start-btn" id="liveStartBtn" onclick="startLiveStream()">🔴 Start Live Stream</button>
+
+        <!-- Back / Cancel — always accessible -->
+        <button class="live-cancel-btn" onclick="closeGoLive()">← Back to Feed</button>
     </div>
 </div>
 
