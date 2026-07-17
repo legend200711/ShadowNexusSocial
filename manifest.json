@@ -57,6 +57,13 @@
       "description": "Open your Nexus DMs",
       "url": "/ShadowNexusSocial/#messages",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Go Live / Watch Live",
+      "short_name": "Live",
+      "description": "Start or watch live streams",
+      "url": "/ShadowNexusSocial/#live",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ],
   "prefer_related_applications": false

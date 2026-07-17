@@ -4973,6 +4973,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     height: 100vh;
     overflow: hidden;
     position: relative;
+    z-index: 1;
 }
 
 /* ── Pre-live: camera preview wrapper ── */
@@ -5385,6 +5386,9 @@ body.arcade-fs-ios body::after { display:none !important; }
     padding: 80px 15px 32px;
     max-width: 650px;
     margin: 0 auto;
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
 }
 
 </style>
@@ -5502,7 +5506,7 @@ body.arcade-fs-ios body::after { display:none !important; }
             <span class="nav-icon">🕹️</span> Arcade
             <span class="nav-badge" id="sidebarArcadeBadge"></span>
         </button>
-        <button class="nav-item" id="navLive" onclick="openLivePage()">
+        <button class="nav-item" id="navLive" onclick="navTo('livePage')">
             <span class="nav-icon">🔴</span> Go Live / Watch Live
         </button>
         <button class="nav-item" id="navStorm" onclick="navTo('stormRoomsPage')">
@@ -8462,7 +8466,13 @@ body.arcade-fs-ios body::after { display:none !important; }
               }
           } catch(_) {}
 
-          navTo('feed');
+          /* Route to page from URL hash (PWA shortcuts use #live, #feed, #messages, etc.) */
+          const _hashMap = { live:'livePage', feed:'feed', messages:'messagesInbox',
+                             search:'searchPage', friends:'friendsPage',
+                             notifications:'notificationsPage', settings:'settingsPage' };
+          const _startHash = location.hash.replace('#','').toLowerCase();
+          navTo(_hashMap[_startHash] || 'feed');
+          if (location.hash) history.replaceState(null, '', location.pathname);
           initTimelineStream();
           presenceUnsubscribe = initPresenceStrip();
           inboxUnsubscribe    = initInboxMonitor();
@@ -13080,7 +13090,7 @@ function navTo(pageId) {
         stormRoomsPage:'navStorm', adminPage:'navAdmin',
         moderatorPage:'navMod', administratorPage:'navAdminOfficer',
         communityPage:'navCommunity', supportRoomsPage:'navSupport',
-        communityRulesPage:'navCommunityRules'
+        communityRulesPage:'navCommunityRules', livePage:'navLive'
     };
     const navEl = document.getElementById(map[pageId]);
     if (navEl) navEl.classList.add('active-nav');
@@ -13103,14 +13113,15 @@ function navTo(pageId) {
     }
     // Init community hub on first visit
     if (pageId === 'communityPage') commInitPage();
+    // Refresh live rooms when navigating to the live page
+    if (pageId === 'livePage' && typeof window.liveRefreshRooms === 'function') window.liveRefreshRooms();
     // Auto-close sidebar on mobile after navigation
     closeSidebar();
 }
 
-/* ── Open the standalone live.html page ── */
+/* ── Kept for backward compat — now just navigates in-app ── */
 function openLivePage() {
-    closeSidebar();
-    window.open('live.html', '_blank');
+    navTo('livePage');
 }
 
 /* ── Sidebar open/close ── */
