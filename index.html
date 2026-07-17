@@ -4103,6 +4103,85 @@ img, video { max-width: 100%; height: auto; }
 }
 .lv-join-box-btn:hover { background: rgba(255,30,60,0.3); border-color: rgba(255,60,80,0.75); }
 .lv-join-box-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ════════════════════════════════════════════════════
+   SNX LIVE PROFILE RING — shown on every avatar when
+   that user is currently broadcasting a live stream.
+   Works on any element that has .snx-live-ring-wrap
+   as a PARENT or on the element itself via JS injection.
+   ════════════════════════════════════════════════════ */
+
+/* The container wrapping the avatar image */
+.snx-live-ring-wrap {
+    position: relative;
+    display: inline-block;
+    border-radius: 50%;
+    /* Animated red gradient ring */
+    background: linear-gradient(135deg, #ff0040, #ff6600);
+    padding: 3px;
+    box-shadow: 0 0 0 0 rgba(255,0,64,0.7);
+    animation: snxLiveRingPulse 1.4s ease-in-out infinite;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+@keyframes snxLiveRingPulse {
+    0%   { box-shadow: 0 0 6px 2px rgba(255,0,64,0.65),  0 0 16px 4px rgba(255,60,0,0.40); }
+    50%  { box-shadow: 0 0 14px 5px rgba(255,0,64,0.85), 0 0 30px 8px rgba(255,60,0,0.55); }
+    100% { box-shadow: 0 0 6px 2px rgba(255,0,64,0.65),  0 0 16px 4px rgba(255,60,0,0.40); }
+}
+
+/* Inner circle that clips the avatar image */
+.snx-live-ring-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #071428;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Isolate so the avatar image doesn't bleed over the ring */
+    position: relative;
+    z-index: 0;
+}
+
+/* The "LIVE" badge pinned to bottom-center of the ring */
+.snx-live-badge-pill {
+    position: absolute;
+    bottom: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ff0040;
+    color: #fff;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 0.8px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 2;
+    animation: snxLiveBadgePulse 1.2s ease-in-out infinite;
+    border: 1px solid rgba(255,255,255,0.3);
+    line-height: 1.4;
+}
+@keyframes snxLiveBadgePulse {
+    0%,100% { opacity: 1; }
+    50%     { opacity: 0.6; }
+}
+
+/* Size variants — used by JS based on original avatar size */
+.snx-live-ring-wrap.sz-sm  { padding: 2px; }   /* 28-38px avatars */
+.snx-live-ring-wrap.sz-sm .snx-live-badge-pill { font-size: 7px; padding: 1px 4px; bottom: -6px; }
+
+.snx-live-ring-wrap.sz-lg  { padding: 4px; }   /* 64-96px avatars (profile page) */
+.snx-live-ring-wrap.sz-lg .snx-live-badge-pill { font-size: 10px; padding: 3px 8px; bottom: -10px; }
+
+/* When the original avatar already has border-radius:50%, the inner wrapper
+   must match so the clip doesn't show corners */
+.snx-live-ring-wrap .snx-live-ring-inner { border-radius: inherit; }
 </style>
 
 
@@ -8971,6 +9050,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
               const avatarDiv = document.createElement('div');
               avatarDiv.className = 'social-list-avatar';
+              avatarDiv.setAttribute('data-uid', u.uid);
               if (u.avatar) {
                   avatarDiv.style.backgroundImage = `url('${u.avatar}')`;
               } else {
@@ -9110,6 +9190,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                   item.className = "msg-online-item";
                   const av = document.createElement("div");
                   av.className = "msg-online-avatar";
+                  av.setAttribute('data-uid', u.uid);
                   if (u.avatar) av.style.backgroundImage = `url('${u.avatar}')`;
                   else { av.textContent = (u.displayName || '?')[0].toUpperCase(); av.style.cssText += ';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;color:#00AEEF;'; }
                   const badgeNames = (u.badges||[]).filter(b => b !== 'Founder' || u.role === 'founder').join(', ');
@@ -9334,7 +9415,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                     ${repostHeaderHTML}
                     <div class="post-header-row">
                         <div style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:80%;">
-                            <div class="post-author-avatar" style="${avatarStyle}" onclick="viewProfile('${authorUid}')" title="View profile">${authorAvatar ? '' : escFeed(avatarInitial)}</div>
+                            <div class="post-author-avatar" style="${avatarStyle}" onclick="viewProfile('${authorUid}')" title="View profile" data-uid="${authorUid}">${authorAvatar ? '' : escFeed(avatarInitial)}</div>
                             <span style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;">
                                 <b class="post-author-link" onclick="viewProfile('${authorUid}')">${escFeed(authorName)} (@${escFeed(authorHandle)})</b>${primaryBadges}${authorMoodHtml}
                             </span>
@@ -10164,7 +10245,7 @@ body.arcade-fs-ios body::after { display:none !important; }
               : `background:#0B1F3A;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;color:#00AEEF;`;
           const avatarContent = u.avatar ? '' : (u.displayName||'?')[0].toUpperCase();
           card.innerHTML = `
-            <div class="user-card-avatar" style="${avatarStyle}">${avatarContent}<div class="online-pip ${u.status==='online'?'on':''}"></div></div>
+            <div class="user-card-avatar" style="${avatarStyle}" data-uid="${u.uid}">${avatarContent}<div class="online-pip ${u.status==='online'?'on':''}"></div></div>
             <div class="user-card-info">
                 <div class="user-card-name" style="cursor:pointer;display:flex;align-items:center;gap:4px;flex-wrap:wrap;" onclick="viewProfile('${u.uid}')">${escFeed(u.displayName)}${buildBadgeHtml(u.badges||[],u.role||'member')}</div>
                 <div class="user-card-handle">@${escFeed(u.username||'')}</div>
@@ -10415,7 +10496,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           const u = d.exists()?d.data():{displayName:friends[i].substring(0,8),username:'',avatar:'',uid:friends[i]};
           const isF2 = family.includes(u.uid);
           const row = document.createElement('div'); row.className='friend-card';
-          row.innerHTML=`<div class="friend-avatar" style="background-image:url('${u.avatar||''}');${!u.avatar?'display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#00AEEF;background:#0B1F3A;':''}" onclick="viewProfile('${u.uid}')">${!u.avatar?escFeed((u.displayName||'?')[0].toUpperCase()):''}</div>
+          row.innerHTML=`<div class="friend-avatar" style="background-image:url('${u.avatar||''}');${!u.avatar?'display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#00AEEF;background:#0B1F3A;':''}" onclick="viewProfile('${u.uid}')" data-uid="${u.uid}">${!u.avatar?escFeed((u.displayName||'?')[0].toUpperCase()):''}</div>
             <div class="friend-meta"><div class="friend-name" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;" onclick="viewProfile('${u.uid}')">${escFeed(u.displayName)}${buildBadgeHtml(u.badges||[],u.role||'member')}${isF2?'<span class="friend-tag-family">❤️ Family</span>':''}</div><div class="friend-handle">@${escFeed(u.username||'')}</div></div>
             <div class="friend-actions"><button class="${isF2?'btn-family-on':'btn-family-off'}" onclick="toggleFamily('${u.uid}')">${isF2?'❤️':'🤍'}</button><button onclick="if(typeof window.ipcOpen==='function')window.ipcOpen('${u.uid}');else establishDirectMessageChannel('${u.uid}')">💬</button><button class="btn-decline" onclick="unfriend('${u.uid}')">✕</button></div>`;
           fb.appendChild(row);
@@ -10428,7 +10509,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       rDocs.forEach((d,i) => {
           const u = d.exists()?d.data():{displayName:received[i].substring(0,8),username:'',avatar:'',uid:received[i]};
           const row = document.createElement('div'); row.className='req-card';
-          row.innerHTML=`<div class="req-avatar" style="background-image:url('${u.avatar||''}');"></div>
+          row.innerHTML=`<div class="req-avatar" style="background-image:url('${u.avatar||''}');" data-uid="${u.uid}"></div>
             <div class="req-meta"><div class="req-name">${escFeed(u.displayName)}</div><div class="req-handle">@${escFeed(u.username||'')}</div></div>
             <div class="req-actions"><button class="btn-accept" onclick="acceptFriendRequest('${u.uid}')">✓ Accept</button><button class="btn-decline" onclick="declineFriendRequest('${u.uid}')">✕ Decline</button></div>`;
           rbox.appendChild(row);
@@ -10447,7 +10528,7 @@ body.arcade-fs-ios body::after { display:none !important; }
               const row = document.createElement('div'); row.className='fam-invite-card';
               const avStyle = inv.fromAvatar ? `background-image:url('${inv.fromAvatar}');background-size:cover;background-position:center;` : 'display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#00AEEF;background:#0B1F3A;';
               const msgSnippet = inv.message ? `<div style="font-size:11px;color:#8ab0cc;margin-top:2px;font-style:italic;">"${escFeed(inv.message)}"</div>` : '';
-              row.innerHTML=`<div class="friend-avatar" style="${avStyle}" onclick="viewProfile('${inv.fromUid}')">${!inv.fromAvatar?escFeed((inv.fromName||'?')[0].toUpperCase()):''}</div>
+              row.innerHTML=`<div class="friend-avatar" style="${avStyle}" onclick="viewProfile('${inv.fromUid}')" data-uid="${inv.fromUid}">${!inv.fromAvatar?escFeed((inv.fromName||'?')[0].toUpperCase()):''}</div>
                 <div class="friend-meta"><div class="friend-name" onclick="viewProfile('${inv.fromUid}')">${escFeed(inv.fromName)}<span class="fam-invite-pending-label">❤️ Family Request</span></div>${msgSnippet}</div>
                 <div class="fam-invite-actions">
                   <button class="btn-accept" onclick="approveFamilyRequest('${inv.fromUid}')">❤️ Accept</button>
@@ -10469,7 +10550,7 @@ body.arcade-fs-ios body::after { display:none !important; }
               if(!d.exists()) return;
               const u=d.data();
               const row=document.createElement('div'); row.className='friend-card';
-              row.innerHTML=`<div class="friend-avatar" style="background-image:url('${u.avatar||''}');${!u.avatar?'display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#00AEEF;background:#0B1F3A;':''}" onclick="viewProfile('${u.uid}')">${!u.avatar?escFeed((u.displayName||'?')[0].toUpperCase()):''}</div>
+              row.innerHTML=`<div class="friend-avatar" style="background-image:url('${u.avatar||''}');${!u.avatar?'display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#00AEEF;background:#0B1F3A;':''}" onclick="viewProfile('${u.uid}')" data-uid="${u.uid}">${!u.avatar?escFeed((u.displayName||'?')[0].toUpperCase()):''}</div>
                 <div class="friend-meta"><div class="friend-name" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;" onclick="viewProfile('${u.uid}')">${escFeed(u.displayName)}${buildBadgeHtml(u.badges||[],u.role||'member')}<span class="friend-tag-family">❤️ Family</span></div><div class="friend-handle">@${escFeed(u.username||'')}</div></div>
                 <div class="friend-actions"><button class="btn-family-on" onclick="removeFamilyMember('${u.uid}')">❤️ Remove</button><button onclick="if(typeof window.ipcOpen==='function')window.ipcOpen('${u.uid}');else establishDirectMessageChannel('${u.uid}')">💬</button></div>`;
               fbox.appendChild(row);
@@ -10845,6 +10926,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Avatar — use image background if set, otherwise show first-letter initial
           // Preserve child elements (edit button) by only touching text nodes and background
           const avatarEl = document.getElementById("profileAvatar");
+          // Tag with uid so the live-ring scanner can find it
+          avatarEl.setAttribute('data-uid', uid);
           if (p.avatar && p.avatar.trim()) {
               avatarEl.style.backgroundImage    = `url('${p.avatar}')`;
               avatarEl.style.backgroundSize     = 'cover';
@@ -11305,6 +11388,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       hAvatar.style.cursor = 'pointer';
       hAvatar.title = 'View profile';
       hAvatar.onclick = () => viewProfile(targetUid);
+      hAvatar.setAttribute('data-uid', targetUid);
       const hName = document.getElementById("chatHeaderName");
       hName.innerHTML = escapeHtml(tData.displayName) + buildBadgeHtml(tData.badges||[], tData.role||'member') + buildMoodChipHtml(tData.profileCustom?.moodType || '', tData.profileCustom?.moodValue || '');
       hName.style.cursor = 'pointer';
@@ -11751,7 +11835,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
                   const convInitial = (c.user.displayName||'?')[0].toUpperCase();
                   el.innerHTML = `
-                    <div class="conv-avatar" style="${c.user.avatar ? `background-image:url('${c.user.avatar}')` : 'display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#00AEEF;background:#0B1F3A'}" onclick="event.stopPropagation();viewProfile('${c.partnerUid}')" title="View profile" role="button">
+                    <div class="conv-avatar" style="${c.user.avatar ? `background-image:url('${c.user.avatar}')` : 'display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#00AEEF;background:#0B1F3A'}" onclick="event.stopPropagation();viewProfile('${c.partnerUid}')" title="View profile" role="button" data-uid="${c.partnerUid}">
                         ${!c.user.avatar ? escapeHtml(convInitial) : ''}
                         <div class="conv-online-dot ${isOn ? 'online' : ''}"></div>
                     </div>
@@ -12192,6 +12276,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       const nameEl   = document.getElementById('ipcModalName');
       const subEl    = document.getElementById('ipcModalSub');
       const avatarEl = document.getElementById('ipcModalAvatar');
+      if (avatarEl) avatarEl.setAttribute('data-uid', targetUid);
 
       // Store UID so clicking avatar/name opens that person's profile
       window._ipcModalUid = targetUid;
@@ -13044,7 +13129,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                   ? '<div style="position:absolute;bottom:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#39FF14;border:2px solid #0d2444;box-shadow:0 0 6px rgba(57,255,20,0.8);"></div>' : '';
               const onlineLabel = u.status === 'online' ? '<span style="color:#39FF14;font-size:10px;margin-left:4px;">● Online</span>' : '';
               card.innerHTML = `
-                  <div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')" title="View profile">${avLetter}${onlineDot}</div>
+                  <div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')" title="View profile" data-uid="${u.uid}">${avLetter}${onlineDot}</div>
                   <div class="profile-fl-meta" onclick="viewProfile('${u.uid}')">
                       <div class="profile-fl-name">${escFeed(u.displayName||u.username||'?')}${buildBadgeHtml(u.badges||[],u.role||'member')}</div>
                       <div class="profile-fl-handle">@${escFeed(u.username||'')}${onlineLabel}</div>
@@ -13121,7 +13206,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                   ? '<div style="position:absolute;bottom:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#39FF14;border:2px solid #0d2444;box-shadow:0 0 6px rgba(57,255,20,0.8);"></div>' : '';
               const onlineLabel = u.status === 'online' ? '<span style="color:#39FF14;font-size:10px;margin-left:4px;">● Online</span>' : '';
               card.innerHTML = `
-                  <div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')" title="View profile">${avLetter}${onlineDot}</div>
+                  <div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')" title="View profile" data-uid="${u.uid}">${avLetter}${onlineDot}</div>
                   <div class="profile-fl-meta" onclick="viewProfile('${u.uid}')">
                       <div class="profile-fl-name">${escFeed(u.displayName||u.username||'?')}${buildBadgeHtml(u.badges||[],u.role||'member')}</div>
                       <div class="profile-fl-handle">@${escFeed(u.username||'')}${onlineLabel}</div>
@@ -13786,7 +13871,7 @@ async function renderFamilyInviteSearch(q) {
             const avLetter=u.avatar?'':(u.displayName||'?')[0].toUpperCase();
             let btn=inFam?`<button disabled style="font-size:11px;border-color:rgba(255,51,102,0.3);color:#ff88aa;">❤️ Family</button>`:invited?`<button disabled style="font-size:11px;color:#6a90b8;">Invited</button>`:`<button onclick="sendFamilyInvite('${u.uid}');this.textContent='Invited';this.disabled=true;" style="font-size:11px;background:rgba(255,51,102,0.1);border-color:rgba(255,51,102,0.4);color:#ff88aa;">+ Invite</button>`;
             const row=document.createElement('div'); row.className='fam-invite-card';
-            row.innerHTML=`<div class="friend-avatar" style="${avStyle}" onclick="viewProfile('${u.uid}')">${avLetter}</div><div class="friend-meta"><div class="friend-name">${escFeed(u.displayName)}${buildBadgeHtml(u.badges||[],u.role||'member')}</div><div class="friend-handle">@${escFeed(u.username||'')}</div></div><div class="fam-invite-actions">${btn}</div>`;
+            row.innerHTML=`<div class="friend-avatar" style="${avStyle}" onclick="viewProfile('${u.uid}')" data-uid="${u.uid}">${avLetter}</div><div class="friend-meta"><div class="friend-name">${escFeed(u.displayName)}${buildBadgeHtml(u.badges||[],u.role||'member')}</div><div class="friend-handle">@${escFeed(u.username||'')}</div></div><div class="fam-invite-actions">${btn}</div>`;
             box.appendChild(row);
         });
     } catch(_) { box.innerHTML='<div style="font-size:12px;color:#ff4466;padding:8px 0;">Error loading friends.</div>'; }
@@ -21491,6 +21576,213 @@ function _snxToast(msg) {
         <button class="lbw-cancel" onclick="lvCancelBoxRequest()">Cancel</button>
     </div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SNX LIVE RING SYSTEM
+     Adds a pulsing red ring + LIVE badge to every avatar of a
+     user who is currently broadcasting a live stream.
+
+     Strategy:
+       1. Real-time Firestore listener on stories where liveActive=true
+       2. Maintains window.SNX_LIVE_RING.lives  Map<uid → storyData>
+       3. On any change → scan the entire DOM for [data-uid] elements
+          and inject / remove the .snx-live-ring-wrap wrapper
+       4. Clicking a live-ringed avatar opens the Join-Choice sheet
+          instead of navigating to the profile page
+     ═══════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+'use strict';
+
+/* ── Public singleton ── */
+const LR = window.SNX_LIVE_RING = {
+    lives:   new Map(),   // uid → storyData
+    _unsub:  null,
+    _ready:  false,
+};
+
+/* ── Helpers ── */
+function _db()   { return window._snxFirestore   || null; }
+function _me()   { return window._snxCurrentUser || null; }
+
+/* ── Size class from pixel width ── */
+function _sizeClass(px) {
+    if (px >= 56) return 'sz-lg';
+    if (px <= 40) return 'sz-sm';
+    return '';
+}
+
+/* ── Wrap one avatar element with the live ring ── */
+function _wrapEl(el, story) {
+    // Already wrapped — skip
+    if (el.closest('.snx-live-ring-wrap')) return;
+    // Guard: must have a parent to insert before
+    const parent = el.parentNode;
+    if (!parent) return;
+
+    // Compute displayed size so we pick the right ring thickness
+    const rect = el.getBoundingClientRect();
+    const px   = rect.width || parseInt(el.style.width) || 42;
+    const szCls = _sizeClass(px);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'snx-live-ring-wrap' + (szCls ? ' ' + szCls : '');
+    wrap.setAttribute('data-live-uid', story.authorUid);
+    wrap.title = 'LIVE — tap to watch';
+
+    // Copy layout-critical styles from the original element so the ring
+    // inherits the same dimensions without reflowing the page
+    const cs   = window.getComputedStyle(el);
+    const w    = cs.width  !== '0px' ? cs.width  : (el.offsetWidth  ? el.offsetWidth  + 'px' : '42px');
+    const h    = cs.height !== '0px' ? cs.height : (el.offsetHeight ? el.offsetHeight + 'px' : '42px');
+    wrap.style.width  = w;
+    wrap.style.height = h;
+
+    // Inner circle (clips avatar image inside the ring gap)
+    const inner = document.createElement('div');
+    inner.className = 'snx-live-ring-inner';
+    // Match the exact dimensions minus the ring padding
+    const pad = szCls === 'sz-lg' ? 4 : szCls === 'sz-sm' ? 2 : 3;
+    const innerPx = (parseInt(w) - pad * 2);
+    inner.style.width  = innerPx + 'px';
+    inner.style.height = innerPx + 'px';
+
+    // LIVE badge
+    const badge = document.createElement('div');
+    badge.className = 'snx-live-badge-pill';
+    badge.textContent = 'LIVE';
+
+    // Re-parent: insert wrap before el, move el inside inner
+    parent.insertBefore(wrap, el);
+    inner.appendChild(el);
+    wrap.appendChild(inner);
+    wrap.appendChild(badge);
+
+    // Override the original element's click so it opens the live stream,
+    // not just the profile page.
+    wrap.addEventListener('click', function (e) {
+        e.stopPropagation();
+        const uid = story.authorUid;
+        const liveStory = LR.lives.get(uid);
+        if (liveStory && typeof window.openLiveJoinChoice === 'function') {
+            window.openLiveJoinChoice(liveStory);
+        } else if (typeof window.viewProfile === 'function') {
+            window.viewProfile(uid);
+        }
+    }, true); // capture so it fires before any onclick on the avatar
+}
+
+/* ── Unwrap one uid's ring (live ended) ── */
+function _unwrapUid(uid) {
+    document.querySelectorAll(`.snx-live-ring-wrap[data-live-uid="${uid}"]`).forEach(wrap => {
+        const inner = wrap.querySelector('.snx-live-ring-inner');
+        if (!inner) { wrap.remove(); return; }
+        // Move avatar back out before removing the wrapper
+        const avatar = inner.firstElementChild;
+        if (avatar && wrap.parentNode) {
+            wrap.parentNode.insertBefore(avatar, wrap);
+        }
+        wrap.remove();
+    });
+}
+
+/* ── Scan DOM for all [data-uid] elements and apply / remove rings ── */
+function applyLiveRings() {
+    if (!LR._ready) return;
+
+    // 1. Remove rings for uids that are no longer live
+    document.querySelectorAll('.snx-live-ring-wrap[data-live-uid]').forEach(wrap => {
+        const uid = wrap.getAttribute('data-live-uid');
+        if (!LR.lives.has(uid)) _unwrapUid(uid);
+    });
+
+    // 2. Add rings for uids that are live but not yet wrapped
+    const me = _me();
+    LR.lives.forEach((story, uid) => {
+        // Don't ring our own avatar on the post feed (we are the broadcaster, not a viewer)
+        // but DO ring it on OTHER people's screens — i.e. always ring unless it's OUR OWN
+        // profile page big avatar (confusing UX to ring yourself)
+        const isSelf = me && me.uid === uid;
+
+        // Find all avatar elements tagged with this uid
+        document.querySelectorAll(`[data-uid="${uid}"]`).forEach(el => {
+            // Skip if already wrapped
+            if (el.closest('.snx-live-ring-wrap')) return;
+            // Skip the big profile-page avatar if it belongs to current user
+            if (isSelf && el.id === 'profileAvatar') return;
+            _wrapEl(el, story);
+        });
+    });
+}
+LR.applyLiveRings = applyLiveRings;
+
+/* ── Public helpers ── */
+LR.isLive    = (uid) => LR.lives.has(uid);
+LR.getStory  = (uid) => LR.lives.get(uid);
+
+/* ── Start real-time listener ── */
+function _startListener() {
+    const mods = _db();
+    if (!mods) return;
+    const { db, collection, query, where, onSnapshot } = mods;
+    if (LR._unsub) LR._unsub();
+
+    LR._unsub = onSnapshot(
+        query(collection(db, 'stories'), where('liveActive', '==', true)),
+        snap => {
+            // Rebuild the live map on every snapshot
+            const prev = new Set(LR.lives.keys());
+            LR.lives.clear();
+            snap.forEach(d => {
+                const data = { id: d.id, ...d.data() };
+                LR.lives.set(data.authorUid, data);
+            });
+
+            // Remove rings for uids that just ended
+            prev.forEach(uid => {
+                if (!LR.lives.has(uid)) _unwrapUid(uid);
+            });
+
+            LR._ready = true;
+            applyLiveRings();
+        },
+        () => {} // silently ignore permission errors
+    );
+}
+
+/* ── Boot when auth is ready ── */
+if (typeof window._snxOnAuthReady === 'function') {
+    window._snxOnAuthReady(function () {
+        _startListener();
+        // Re-apply rings after every navTo page transition
+        // (MutationObserver on the feed container covers dynamic content)
+        const _origNav = window.navTo;
+        if (typeof _origNav === 'function') {
+            window.navTo = function () {
+                const r = _origNav.apply(this, arguments);
+                // Give the page a moment to render its avatars before scanning
+                setTimeout(applyLiveRings, 180);
+                setTimeout(applyLiveRings, 600);
+                return r;
+            };
+        }
+        // MutationObserver: catches dynamically injected avatars (posts, search results, etc.)
+        const _mo = new MutationObserver(_throttle(applyLiveRings, 300));
+        _mo.observe(document.body, { childList: true, subtree: true });
+    });
+}
+
+/* ── Throttle helper (avoid excessive DOM scans) ── */
+function _throttle(fn, ms) {
+    let t = null;
+    return function () {
+        if (t) return;
+        t = setTimeout(() => { t = null; fn(); }, ms);
+    };
+}
+
+})();
+</script>
 
 </body>
 </html>
