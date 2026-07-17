@@ -1,9 +1,51 @@
 /**
  * Shadow Nexus Social — Cloudflare R2 Upload + Serve Worker
  * Handles both uploading files TO R2 (POST) and serving them FROM R2 (GET).
+ *
+ * Routes:
+ *  GET /turn        — returns time-limited TURN credentials (HMAC-SHA1, RFC 8489 §9.2)
+ *  GET /{key}       — serves a file from R2
+ *  POST /           — uploads a file to R2
  */
 
 const MAX_SIZE = 200 * 1024 * 1024; // 200MB
+
+// ── TURN servers (edit to match your provider) ────────────────────────────
+// Metered.ca free tier, Twilio, or self-hosted coturn all work here.
+// TURN_SECRET env var must match the shared secret configured on the TURN server.
+const TURN_URIS = [
+  'turn:global.relay.metered.ca:80',
+  'turn:global.relay.metered.ca:443',
+  'turns:global.relay.metered.ca:443?transport=tcp', // TLS fallback (firewall bypass)
+];
+const TURN_TTL = 3600; // credential lifetime in seconds (1 hour)
+
+/**
+ * Generate a time-limited TURN credential pair using the standard
+ * HMAC-SHA1 scheme understood by coturn and most hosted TURN providers.
+ *
+ * username = "<expiry-unix-timestamp>:<uid>"
+ * password = base64( HMAC-SHA1(secret, username) )
+ */
+async function makeTurnCredentials(secret, uid) {
+  const expiry   = Math.floor(Date.now() / 1000) + TURN_TTL;
+  const username = `${expiry}:${uid}`;
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-1' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    new TextEncoder().encode(username)
+  );
+  const password = btoa(String.fromCharCode(...new Uint8Array(sig)));
+  return { username, password };
+}
 
 const ALLOWED_ORIGINS = [
   'https://legend200711.github.io',
@@ -61,6 +103,35 @@ export default {
     // ── Preflight ──
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors });
+    }
+
+    // ── GET /turn — issue time-limited TURN credentials ──
+    if (request.method === 'GET' && url.pathname === '/turn') {
+      if (!env.TURN_SECRET) {
+        return new Response(JSON.stringify({ error: 'TURN_SECRET not configured' }), {
+          status: 503, headers: { ...cors, 'Content-Type': 'application/json' }
+        });
+      }
+      // uid from query string (optional, used to scope the credential)
+      const uid  = (url.searchParams.get('uid') || 'anon').replace(/[^a-zA-Z0-9_-]/g, '');
+      const cred = await makeTurnCredentials(env.TURN_SECRET, uid);
+      const iceServers = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        ...TURN_URIS.map(u => ({
+          urls:       u,
+          username:   cred.username,
+          credential: cred.password,
+        })),
+      ];
+      return new Response(JSON.stringify({ iceServers, ttl: TURN_TTL }), {
+        status: 200,
+        headers: {
+          ...cors,
+          'Content-Type':  'application/json',
+          'Cache-Control': `private, max-age=${TURN_TTL - 60}`, // expire 1 min early
+        }
+      });
     }
 
     // ── GET: serve a file from R2 ──
