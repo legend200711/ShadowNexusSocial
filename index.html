@@ -41,19 +41,12 @@
 <meta name="twitter:description" content="Connect, post, message, and share. No judgment. Stay legendary.">
 <meta name="twitter:image"       content="https://legend200711.github.io/ShadowNexusSocial/icon-512.png">
 
-<!-- ── Shared stylesheet (preload + async render) ── -->
-<link rel="preload" href="style.css" as="style" onload="this.rel='stylesheet'">
-<noscript><link rel="stylesheet" href="style.css"></noscript>
+<!-- ── Shared stylesheet ── -->
+<link rel="stylesheet" href="style.css">
 
-<!-- ── Preconnect / dns-prefetch for faster Firebase cold start ── -->
-<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
-<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
-<link rel="preconnect" href="https://www.googleapis.com" crossorigin>
-<link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
-<link rel="preconnect" href="https://firebaseinstallations.googleapis.com" crossorigin>
-<link rel="dns-prefetch" href="https://fcmregistrations.googleapis.com">
-<link rel="dns-prefetch" href="https://horr-a08f4-default-rtdb.firebaseio.com">
+<!-- ── Preconnect to Firebase so first load is faster ── -->
+<link rel="preconnect" href="https://www.gstatic.com">
+<link rel="preconnect" href="https://firestore.googleapis.com">
 
 <style>
 :root {
@@ -180,9 +173,10 @@ body::after {
 
 /* Fog layer drifting slowly across the screen */
 @keyframes fogDrift {
-    0%   { transform: translateX(-2%) translateY(0)   scale(1.01); opacity: 0.7; }
-    50%  { transform: translateX(2%)  translateY(-1%) scale(1.02); opacity: 0.9; }
-    100% { transform: translateX(-1%) translateY(0)   scale(1.01); opacity: 0.75;}
+    0%   { transform: translateX(-3%) translateY(0)   scale(1.02); opacity: 0.8; }
+    33%  { transform: translateX(2%)  translateY(-1%) scale(1.04); opacity: 1;   }
+    66%  { transform: translateX(-1%) translateY(1%)  scale(1.01); opacity: 0.9; }
+    100% { transform: translateX(4%)  translateY(0)   scale(1.03); opacity: 0.85;}
 }
 
 /* Floating particles drifting upward */
@@ -449,17 +443,13 @@ body::after {
     max-width: 650px;
     margin: 0 auto;
     animation: none;
-    /* content-visibility: auto saves layout cost for off-screen pages */
-    content-visibility: auto;
-    contain-intrinsic-size: 0 800px;
 }
 .page.active {
     display: block;
-    animation: pageFadeIn 0.18s ease-out both;
-    content-visibility: visible;
+    animation: pageFadeIn 0.22s ease-out both;
 }
 @keyframes pageFadeIn {
-    from { opacity: 0; transform: translateY(6px); }
+    from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -5716,25 +5706,6 @@ body.arcade-fs-ios body::after { display:none !important; }
     .arcade-hub-card { padding-bottom:env(safe-area-inset-bottom); }
     .challenge-modal-card { padding-bottom:env(safe-area-inset-bottom); }
 }
-/* ── Accessibility: disable all decorative animations for users who prefer reduced motion ── */
-@media (prefers-reduced-motion: reduce) {
-    body::before, body::after { animation: none !important; }
-    .ash-particle              { animation: none !important; display: none !important; }
-    .eclipse-title             { animation: none !important; }
-    .sidebar-brand-icon        { animation: none !important; }
-    .online-dot, .indicator-dot.online,
-    .conv-online-dot.online, .chat-header-online.online,
-    .ipc-modal-status-dot.online, .profile-online-dot,
-    .online-pip.on             { animation: none !important; }
-    .postBox                   { animation: none !important; }
-    .notif-item                { animation: none !important; }
-    #bg-canvas                 { display: none; }
-}
-
-/* ── Mobile: reduce fog animation cost ── */
-@media (max-width: 768px) {
-    body::after { animation-duration: 30s !important; }
-}
 </style>
 
 <!-- ══════════════════════════════════════════════════════════
@@ -5744,9 +5715,61 @@ body.arcade-fs-ios body::after { display:none !important; }
      screen from flashing for returning (logged-in) users.
      ══════════════════════════════════════════════════════════ -->
 <style>
+#snx-auth-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #0B1F3A;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    /* Gate fades out instead of snapping away */
+    transition: opacity 0.28s ease, visibility 0.28s ease;
+}
+#snx-auth-gate.resolved {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+.snx-gate-logo {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 35%, #003d99 0%, #071428 100%);
+    border: 2.5px solid rgba(0,174,239,0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    box-shadow: 0 0 36px rgba(0,174,239,0.58), 0 0 0 1px rgba(0,174,239,0.14);
+    animation: blueFlame 3s infinite;
+}
+.snx-gate-spinner {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid rgba(0,174,239,0.18);
+    border-top-color: #00AEEF;
+    animation: spin360 0.75s linear infinite;
+}
+.snx-gate-label {
+    font-size: 12px;
+    color: #3a6a9a;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
 </style>
 
 <body>
+
+<!-- Auth gate — rendered before anything else, removed after Firebase resolves -->
+<div id="snx-auth-gate" aria-hidden="true">
+    <div class="snx-gate-logo">🌑</div>
+    <div class="snx-gate-spinner"></div>
+    <div class="snx-gate-label">Loading…</div>
+</div>
 
 <canvas id="bg-canvas"></canvas>
 
@@ -8271,6 +8294,7 @@ body.arcade-fs-ios body::after { display:none !important; }
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, browserLocalPersistence, setPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, runTransaction, where, getDocs, writeBatch, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y",
@@ -8289,10 +8313,12 @@ body.arcade-fs-ios body::after { display:none !important; }
   // ── Ensure auth token is always persisted in localStorage (survives tab/app close) ──
   setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-  // ── Firebase Cloud Messaging (lazy — module loaded only when push is first requested) ──
+  // ── Firebase Cloud Messaging ──
   let messaging = null;
   let fcmToken   = null;
-  let _fcmOnMessage = null;
+  try {
+    messaging = getMessaging(app);
+  } catch(_) { /* browser may not support SW messaging */ }
 
   // ── Expose Firestore helpers to non-module scripts ──
   window._snxDb         = db;
@@ -8326,26 +8352,12 @@ body.arcade-fs-ios body::after { display:none !important; }
      this device when sending push messages.
   ─────────────────────────────────────────────────────────────────── */
   async function initPushNotifications() {
+    if (!messaging) return;
     if (!('Notification' in window)) return;
     if (!('serviceWorker' in navigator)) return;
 
     // Don't nag if user already made a choice
     if (Notification.permission === 'denied') return;
-
-    // Lazy-load the messaging module only on first call
-    if (!messaging) {
-      try {
-        const fcmMod = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js');
-        messaging = fcmMod.getMessaging(app);
-        _fcmOnMessage = fcmMod.onMessage;
-        // Foreground message handler
-        _fcmOnMessage(messaging, (payload) => {
-          const data = payload.data || {};
-          const body = payload.notification?.body || data.body || 'New notification';
-          toastNotification('🔔 ' + body);
-        });
-      } catch(_) { return; }
-    }
 
     try {
       // Register the FCM service worker explicitly so FCM knows where to deliver
@@ -8356,21 +8368,32 @@ body.arcade-fs-ios body::after { display:none !important; }
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') return;
 
-      // Get the FCM token — import getToken from the already-loaded module
-      const { getToken } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js');
+      // Get the FCM token for this device
       fcmToken = await getToken(messaging, {
         vapidKey:            FCM_VAPID_KEY,
         serviceWorkerRegistration: swReg
       });
 
       if (fcmToken && currentUser) {
+        // Save/merge token to the user's Firestore doc
         await updateDoc(doc(db, 'users', currentUser.uid), {
           fcmTokens: arrayUnion(fcmToken)
         });
         console.log('[FCM] Token saved:', fcmToken.substring(0, 20) + '…');
       }
 
+      // ── Foreground message handler ──
+      // When the app IS open FCM doesn't show an OS notification automatically —
+      // instead it fires onMessage, so we surface it as a toast + in-app notif.
+      onMessage(messaging, (payload) => {
+        console.log('[FCM] Foreground message:', payload);
+        const data = payload.data || {};
+        const body = payload.notification?.body || data.body || 'New notification';
+        toastNotification('🔔 ' + body);
+      });
+
     } catch (err) {
+      // Token fetch errors are non-fatal (e.g. user blocks permission mid-flow)
       console.warn('[FCM] Push setup failed:', err.message);
     }
   }
@@ -8736,28 +8759,24 @@ body.arcade-fs-ios body::after { display:none !important; }
               }
               if (typeof window._showRolePanels === 'function') window._showRolePanels();
           } catch(_) {}
-          // ── PHASE 1: Show feed immediately (critical path only) ──
+          // Dismiss auth gate + login loading overlay, then navigate to feed
+          const _gate = document.getElementById('snx-auth-gate');
+          if (_gate) _gate.classList.add('resolved');
           _hideLoginLoading();
           navTo('feed');
-          initTimelineStream();   // loads posts right away
-
-          // ── PHASE 2: Secondary features deferred — feed is already visible ──
-          // Presence strip: 300 ms — cheap, but not needed before first paint
-          setTimeout(() => { presenceUnsubscribe = initPresenceStrip(); }, 300);
-
-          // ── PHASE 3: Inbox, OG badge check, cleanup — after 1 s ──
-          setTimeout(() => {
-              inboxUnsubscribe = initInboxMonitor();
-              checkOGBadgeEligibility(user.uid);
-              scheduleExpiredPostCleanup();
-          }, 1000);
-
-          // ── PHASE 4: Push notifications — after 3 s, well after user sees feed ──
+          initTimelineStream();
+          presenceUnsubscribe = initPresenceStrip();
+          inboxUnsubscribe    = initInboxMonitor();
+          scheduleExpiredPostCleanup();
+          // Check if user has earned the OG badge (first 100 users, 50+ days old account)
+          checkOGBadgeEligibility(user.uid);
+          // Start push notifications (requests permission if not yet granted)
           window._snxInitPush = initPushNotifications;
-          setTimeout(initPushNotifications, 3000);
+          setTimeout(initPushNotifications, 2500);
 
-          // ── Startup Live Check — clears stale liveActive flags ──
-          // Runs after 2 s so it never competes with critical startup fetches.
+          // ── Startup Live Check ──
+          // On index.html the user is never actively live.  Reset any stale liveActive:true
+          // story docs so the LIVE badge doesn't ghost on the Feed after a crashed session.
           setTimeout(async () => {
               try {
                   const staleSnap = await getDocs(query(
@@ -8772,9 +8791,11 @@ body.arcade-fs-ios body::after { display:none !important; }
                       }).catch(() => {});
                   });
               } catch(_) { /* best-effort */ }
-          }, 2000);
+          }, 1500);
       } else {
-          // Auth state resolved.
+          // Dismiss the auth gate unconditionally — we now know the auth state.
+          const _gate = document.getElementById('snx-auth-gate');
+          if (_gate) _gate.classList.add('resolved');
           // Genuine sign-out, expired session, or first load with no saved session.
           _hideLoginLoading();
           if (_firstCall) {
@@ -9145,7 +9166,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                             </video>
                         </div>`;
                   } else {
-                      mediaHTML = `<img class="post-media-preview" src="${mu}" alt="photo" loading="lazy" decoding="async"
+                      mediaHTML = `<img class="post-media-preview" src="${mu}" alt="photo"
                           onclick="openMediaViewer('image','${mu}')"
                           onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div style=\\'padding:14px;background:rgba(0,30,70,0.5);border-radius:10px;color:#6a90b8;font-size:13px;margin-top:8px;\\'>🖼 Image unavailable</div>')">`;
                   }
@@ -9156,9 +9177,9 @@ body.arcade-fs-ios body::after { display:none !important; }
                       const ext = mu.split('?')[0].split('.').pop().toLowerCase();
                       const videoExts = ['mp4','webm','mov','avi','mkv'];
                       if (videoExts.some(e => ext === e)) {
-                          return `<video src="${mu}" controls playsinline preload="metadata" onclick="openMediaViewer('video','${mu}')" style="max-height:240px;"></video>`;
+                          return `<video src="${mu}" controls playsinline onclick="openMediaViewer('video','${mu}')" style="max-height:240px;"></video>`;
                       }
-                      return `<img src="${mu}" alt="media" loading="lazy" decoding="async" onclick="openMediaViewer('image','${mu}')" style="max-height:240px;">`;
+                      return `<img src="${mu}" alt="media" onclick="openMediaViewer('image','${mu}')" style="max-height:240px;">`;
                   }).join('');
                   mediaHTML = `<div class="post-media-carousel">${items}</div>`;
               }
@@ -13944,22 +13965,16 @@ let _bgRafId = null;
 let _bgPaused = false;
 
 // Detect low-end / mobile devices so we scale down particle counts.
-// Uses navigator.hardwareConcurrency, battery API hint, window width as proxy.
+// Uses navigator.hardwareConcurrency and window width as a proxy.
 const _isMobileDevice = typeof window !== 'undefined' && (
     window.innerWidth < 768 || (navigator.hardwareConcurrency || 4) <= 4
 );
-// Respect prefers-reduced-motion — skip all decorative animations
-const _prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-// Detect Save-Data mode (low data / battery)
-const _saveData = (navigator.connection && navigator.connection.saveData) || false;
-// Combined: cut particles when user asks for less motion or is on low bandwidth
-const _lightMode = _prefersReducedMotion || _saveData;
 
 function _seedAsh(w, h) {
     ashPts = [];
-    // prefers-reduced-motion: no particles; mobile: max 8; desktop: max 22
-    const maxAsh = _lightMode ? 0 : (_isMobileDevice ? 8 : 22);
-    const count = Math.min(maxAsh, Math.floor((w * h) / 38000));
+    // Mobile: max 15 particles; desktop: max 35
+    const maxAsh = _isMobileDevice ? 15 : 35;
+    const count = Math.min(maxAsh, Math.floor((w * h) / 32000));
     for (let i = 0; i < count; i++) {
         ashPts.push({
             x:     Math.random() * w,
@@ -13976,9 +13991,9 @@ function _seedAsh(w, h) {
 
 function _seedGrid(w, h) {
     points = [];
-    // prefers-reduced-motion: no grid; mobile: max 18; desktop: max 38
-    const maxGrid = _lightMode ? 0 : (_isMobileDevice ? 18 : 38);
-    const count = Math.min(maxGrid, Math.floor((w * h) / 28000));
+    // Mobile: max 25 grid points; desktop: max 50
+    const maxGrid = _isMobileDevice ? 25 : 50;
+    const count = Math.min(maxGrid, Math.floor((w * h) / 24000));
     for (let i = 0; i < count; i++) {
         points.push({
             x:     Math.random() * w,
@@ -14241,12 +14256,10 @@ document.addEventListener("visibilitychange", () => {
 /* ── DOM ash particle spawner ──
    Spawns lightweight CSS-animated `.ash-particle` divs.
    These are layered ABOVE the canvas but BELOW UI (z-index: 9996).
-   Disabled when prefers-reduced-motion or Save-Data is set.
+   We keep total count very low (max 14) to avoid performance issues.
 */
 (function spawnDomAsh() {
-    // Respect user accessibility / bandwidth preferences
-    if (_lightMode) return;
-    const MAX_DOM_ASH = _isMobileDevice ? 6 : 10;
+    const MAX_DOM_ASH = 14;
     let domAshCount = 0;
 
     function spawnOne() {
@@ -14278,20 +14291,13 @@ document.addEventListener("visibilitychange", () => {
         }, (parseFloat(dur) + 0.5) * 1000);
     }
 
-    // Stagger initial spawns — mobile gets a wider delay to stay gentle
-    const staggerMs = _isMobileDevice ? 500 : 250;
+    // Stagger initial spawns across 3 seconds
     for (let i = 0; i < MAX_DOM_ASH; i++) {
-        setTimeout(spawnOne, i * staggerMs);
+        setTimeout(spawnOne, i * 220);
     }
 })();
 
-// Defer canvas animation until after first paint so it doesn't compete with initial layout.
-// Also skip entirely when the user has prefers-reduced-motion — the canvas stays blank.
-if (!_prefersReducedMotion) {
-    (typeof requestIdleCallback === 'function'
-      ? requestIdleCallback
-      : (fn) => setTimeout(fn, 250))(render);
-}
+render();
 
 /* ═══════════════════════════════════════════════════════════
    NOTIFICATION SETTINGS & PUSH PERMISSION HELPERS
@@ -15924,12 +15930,22 @@ function _supportStopCanvas() {
   <button class="banner-dismiss" onclick="snxDismissInstallBanner()" aria-label="Dismiss">✕</button>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════
+     PWA: Update Available Toast
+     Shown by script.js when a new service worker is waiting.
+     ═══════════════════════════════════════════════════════════ -->
+<div id="pwa-update-toast" role="alert" aria-live="polite">
+  <span class="update-icon" aria-hidden="true">⚡</span>
+  <span class="update-text">New version available!</span>
+  <button class="update-btn" aria-label="Update app now">Update</button>
+</div>
+
 
 <!-- ═══════════════════════════════════════════════════════════
      Shared JavaScript utilities (SW registration, PWA install,
      online/offline detection, helper functions)
      ═══════════════════════════════════════════════════════════ -->
-<script src="script.js" defer></script>
+<script src="script.js"></script>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════

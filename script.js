@@ -26,44 +26,73 @@
   const swPath  = base + 'sw.js';
   const fcmPath = base + 'firebase-messaging-sw.js';
 
-  // Register after the page fully loads so SW install never delays first paint.
-  window.addEventListener('load', () => {
+  window.addEventListener('load', async () => {
 
-    // ── Register main app service worker (non-blocking) ──
-    navigator.serviceWorker.register(swPath, { scope: base }).then((reg) => {
+    // ── Register main app service worker ──
+    try {
+      const reg = await navigator.serviceWorker.register(swPath, { scope: base });
+      console.log('[SW] Registered, scope:', reg.scope);
+
+      // If a new SW is already waiting on first load, show the update toast now
+      if (reg.waiting) {
+        showUpdateToast(reg.waiting);
+      }
+
       // Detect new SW installing while the page is open
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         if (!newWorker) return;
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New version ready — takes over on next natural navigation
+            // New version ready — prompt user to reload
+            showUpdateToast(newWorker);
           }
         });
       });
 
-      // New SW has taken control — do NOT reload here.
-      // An automatic reload during controllerchange can interrupt the login
-      // flow mid-flight. Fresh files will be served on the user's next
-      // natural navigation (they are already in the new cache).
+      // When the new SW takes control, reload so the fresh files are used
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        console.log('[SW] New service worker is now in control.');
+        if (!sessionStorage.getItem('snx-sw-reloading')) {
+          sessionStorage.setItem('snx-sw-reloading', '1');
+          window.location.reload();
+        }
       });
-    }).catch((err) => {
+    } catch (err) {
       console.warn('[SW] Registration failed:', err);
-    });
+    }
 
-    // ── Register FCM messaging SW after a short delay ──
-    // Deferred so FCM registration never competes with auth/feed startup.
-    setTimeout(() => {
-      navigator.serviceWorker.register(fcmPath, { scope: base })
-        .then(() => { /* [FCM-SW] Registered */ })
-        .catch((err) => { console.warn('[FCM-SW] Registration failed:', err); });
-    }, 2000);
+    // ── Register FCM messaging service worker ──
+    try {
+      await navigator.serviceWorker.register(fcmPath, { scope: base });
+      console.log('[FCM-SW] Registered');
+    } catch (err) {
+      console.warn('[FCM-SW] Registration failed:', err);
+    }
 
   });
 
 })();
+
+/* ═══════════════════════════════════════════════
+   3. UPDATE AVAILABLE TOAST
+   ═══════════════════════════════════════════════ */
+function showUpdateToast(worker) {
+  const toast = document.getElementById('pwa-update-toast');
+  if (!toast) return;
+
+  toast.classList.add('visible');
+
+  const btn = toast.querySelector('.update-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      toast.classList.remove('visible');
+      worker.postMessage({ type: 'SKIP_WAITING' });
+    }, { once: true });
+  }
+
+  // Auto-dismiss after 12 seconds
+  setTimeout(() => toast.classList.remove('visible'), 12000);
+}
 
 /* ═══════════════════════════════════════════════
    4. PWA INSTALL BANNER

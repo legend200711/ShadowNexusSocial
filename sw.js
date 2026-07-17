@@ -10,7 +10,7 @@
  * GitHub Pages (/ShadowNexusSocial/) and any local dev server (/).
  */
 
-const CACHE_VERSION = 'v9';
+const CACHE_VERSION = 'v7';
 const CACHE_NAME    = `shadow-nexus-${CACHE_VERSION}`;
 
 // Detect base path from the SW's own URL (e.g. /ShadowNexusSocial/ or /)
@@ -25,8 +25,6 @@ const SHELL_FILES = [
   'offline.html',
   'style.css',
   'script.js',
-  'live.html',
-  'live.js',
   'manifest.json',
   'icon-192.png',
   'icon-512.png',
@@ -125,23 +123,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin assets — stale-while-revalidate:
-  // Serve cached version immediately (zero wait), then refresh cache in background.
+  // Same-origin assets — cache-first, network fallback
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.open(CACHE_NAME).then((cache) =>
-        cache.match(request).then((cached) => {
-          const networkFetch = fetch(request).then((response) => {
-            if (response && response.status === 200) {
-              cache.put(request, response.clone());
-            }
-            return response;
-          }).catch(() => null);
-
-          // If we have a cached copy, return it immediately and revalidate in BG
-          return cached || networkFetch;
-        })
-      )
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        }).catch(() =>
+          new Response('', { status: 404, statusText: 'Not Found' })
+        );
+      })
     );
     return;
   }
