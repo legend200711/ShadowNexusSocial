@@ -4962,6 +4962,434 @@ body.arcade-fs-ios body::after { display:none !important; }
 </style>
 
 <!-- ══════════════════════════════════════════════════════════
+     LIVE FEATURE STYLES
+     ══════════════════════════════════════════════════════════ -->
+<style>
+
+/* ── Live page: override default .page padding ── */
+#livePage {
+    padding: 0 !important;
+    max-width: none !important;
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+}
+
+/* ── Pre-live: camera preview wrapper ── */
+#livePreview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    padding: 24px 20px;
+    box-sizing: border-box;
+    gap: 18px;
+}
+.live-preview-video {
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 9/16;
+    border-radius: 18px;
+    border: 2px solid rgba(0,174,239,0.5);
+    background: #000;
+    object-fit: cover;
+    transform: scaleX(-1); /* mirror preview */
+    box-shadow: 0 0 30px rgba(0,174,239,0.3);
+    max-height: 60vh;
+}
+.live-preview-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 1px;
+    text-shadow: 0 0 16px rgba(255,60,60,0.6);
+}
+.live-preview-sub {
+    font-size: 12px;
+    color: #6a90b8;
+    text-align: center;
+    margin-top: -10px;
+}
+.live-start-btn {
+    background: linear-gradient(135deg, #cc0000, #ff1a1a) !important;
+    border: 2px solid rgba(255,80,80,0.7) !important;
+    color: #fff !important;
+    padding: 14px 40px !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    border-radius: 50px !important;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    box-shadow: 0 0 28px rgba(255,30,30,0.5) !important;
+    width: 100%;
+    max-width: 340px;
+}
+.live-start-btn:hover {
+    box-shadow: 0 0 44px rgba(255,30,30,0.7) !important;
+    background: linear-gradient(135deg, #dd0000, #ff3333) !important;
+}
+.live-cam-error {
+    color: #ff6688;
+    font-size: 13px;
+    text-align: center;
+    max-width: 300px;
+    line-height: 1.6;
+}
+.live-preview-btns {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.live-preview-ctrl-btn {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(0,20,55,0.85);
+    border: 1px solid rgba(0,174,239,0.4);
+    color: #00AEEF;
+    font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.live-preview-ctrl-btn:hover { background: rgba(0,80,200,0.3); }
+.live-preview-ctrl-btn.muted { border-color: rgba(255,60,60,0.6); color: #ff6666; }
+
+/* ── Live room: full-screen container ── */
+#liveRoom {
+    display: none;
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    background: #000;
+    overflow: hidden;
+}
+
+/* Host video fills screen */
+#liveHostVideo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+}
+
+/* Viewer remote video stream */
+#liveRemoteVideo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+    display: none;
+}
+
+/* Top bar with live badge + viewer count */
+.live-top-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 14px 16px 10px;
+    padding-top: max(14px, env(safe-area-inset-top));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.65) 0%, transparent 100%);
+    z-index: 10;
+}
+.live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #e50000;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+    animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(229,0,0,0.5); }
+    50%      { box-shadow: 0 0 0 6px rgba(229,0,0,0); }
+}
+.live-badge-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #fff;
+    animation: liveDotBlink 1.2s ease-in-out infinite;
+}
+@keyframes liveDotBlink {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+}
+.live-host-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.live-viewer-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.85);
+    background: rgba(0,0,0,0.4);
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+.live-like-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.85);
+    background: rgba(0,0,0,0.4);
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+/* Comments scroll area — overlay at bottom */
+.live-comments-area {
+    position: absolute;
+    bottom: 90px;
+    left: 0;
+    right: 72px;
+    max-height: 45vh;
+    overflow-y: auto;
+    padding: 0 14px 10px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 100%);
+    pointer-events: none; /* allow tapping through to video except on comments themselves */
+}
+.live-comments-area::-webkit-scrollbar { display: none; }
+.live-comment-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 6px;
+    pointer-events: auto;
+    animation: liveCommentIn 0.22s ease-out both;
+}
+@keyframes liveCommentIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.live-comment-author {
+    font-size: 12px;
+    font-weight: 800;
+    color: #00d4ff;
+    text-shadow: 0 0 8px rgba(0,200,255,0.5);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.live-comment-text {
+    font-size: 13px;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+/* Floating hearts / likes */
+.live-float-heart {
+    position: absolute;
+    font-size: 28px;
+    bottom: 90px;
+    right: 14px;
+    pointer-events: none;
+    animation: liveHeartFloat 2s ease-out forwards;
+    z-index: 20;
+}
+@keyframes liveHeartFloat {
+    0%   { opacity: 1; transform: translateY(0) scale(1); }
+    80%  { opacity: 0.7; }
+    100% { opacity: 0; transform: translateY(-200px) scale(1.5); }
+}
+
+/* Bottom controls bar */
+.live-bottom-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 14px;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+    z-index: 10;
+}
+.live-comment-input {
+    flex: 1;
+    background: rgba(255,255,255,0.14) !important;
+    border: 1px solid rgba(255,255,255,0.25) !important;
+    color: #fff !important;
+    border-radius: 50px !important;
+    padding: 9px 16px !important;
+    font-size: 13px !important;
+    margin: 0 !important;
+    min-height: unset !important;
+    backdrop-filter: blur(6px);
+}
+.live-comment-input::placeholder { color: rgba(255,255,255,0.45) !important; }
+.live-comment-input:focus {
+    border-color: rgba(255,255,255,0.5) !important;
+    box-shadow: none !important;
+}
+.live-send-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: rgba(0,174,239,0.9);
+    border: none;
+    color: #fff;
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+}
+.live-send-btn:hover { background: #00AEEF; }
+.live-send-btn:active { transform: scale(0.9); }
+.live-like-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: rgba(255,30,80,0.85);
+    border: none;
+    color: #fff;
+    font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: transform 0.12s, background 0.15s;
+}
+.live-like-btn:hover { background: rgba(255,30,80,1); }
+.live-like-btn:active { transform: scale(1.3); }
+
+/* Host-only floating controls (side) */
+.live-host-controls {
+    position: absolute;
+    right: 14px;
+    bottom: 90px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 15;
+}
+.live-ctrl-btn {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    backdrop-filter: blur(6px);
+}
+.live-ctrl-btn:hover { background: rgba(0,60,160,0.5); }
+.live-ctrl-btn:active { transform: scale(0.9); }
+.live-ctrl-btn.muted   { background: rgba(200,0,0,0.55); }
+.live-ctrl-btn.cam-off { background: rgba(200,0,0,0.55); }
+.live-end-btn {
+    background: rgba(200,0,0,0.75) !important;
+    border-color: rgba(255,60,60,0.6) !important;
+    font-size: 13px !important;
+    padding: 8px 18px !important;
+    border-radius: 50px !important;
+    font-weight: 800 !important;
+    color: #fff !important;
+    flex-shrink: 0;
+}
+.live-end-btn:hover { background: rgba(220,0,0,0.9) !important; }
+.live-leave-btn {
+    background: rgba(30,30,30,0.7) !important;
+    border-color: rgba(255,255,255,0.2) !important;
+    font-size: 13px !important;
+    padding: 8px 18px !important;
+    border-radius: 50px !important;
+    color: rgba(255,255,255,0.85) !important;
+    flex-shrink: 0;
+}
+.live-leave-btn:hover { background: rgba(80,80,80,0.7) !important; }
+
+/* Active live rooms browser (lobby) */
+#liveRoomsBrowser {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 0;
+}
+.live-room-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: rgba(11,31,58,0.92);
+    border: 1px solid rgba(0,174,239,0.22);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.live-room-card:hover {
+    border-color: rgba(0,174,239,0.6);
+    box-shadow: 0 0 18px rgba(0,100,255,0.15);
+}
+.live-room-avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: #071428; background-size: cover; background-position: center;
+    border: 2px solid #e50000;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 800; color: #fff;
+    flex-shrink: 0;
+    box-shadow: 0 0 10px rgba(229,0,0,0.45);
+}
+.live-room-info { flex: 1; min-width: 0; }
+.live-room-host { font-size: 14px; font-weight: 700; color: #fff; }
+.live-room-meta { font-size: 11px; color: #6a90b8; margin-top: 2px; }
+.live-room-join-btn {
+    padding: 7px 18px !important;
+    border-radius: 50px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    background: linear-gradient(135deg, #cc0000, #ff1a1a) !important;
+    border-color: rgba(255,60,60,0.6) !important;
+    color: #fff !important;
+    flex-shrink: 0;
+}
+
+/* No live rooms placeholder */
+.live-empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #3a5a7a;
+    font-size: 14px;
+    line-height: 1.7;
+}
+.live-empty-icon { font-size: 44px; margin-bottom: 12px; }
+
+/* Go Live page wrapper (visible when not in live room) */
+#livePageContent {
+    padding: 80px 15px 32px;
+    max-width: 650px;
+    margin: 0 auto;
+}
+
+</style>
+
+<!-- ══════════════════════════════════════════════════════════
      AUTH GATE OVERLAY
      Shown instantly on every page load, dismissed only after
      Firebase resolves the auth state.  Prevents the login
@@ -5073,6 +5501,9 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="nav-item" id="navArcade" onclick="openArcadeHub()">
             <span class="nav-icon">🕹️</span> Arcade
             <span class="nav-badge" id="sidebarArcadeBadge"></span>
+        </button>
+        <button class="nav-item" id="navLive" onclick="navTo('livePage')">
+            <span class="nav-icon">🔴</span> Go Live
         </button>
         <button class="nav-item" id="navStorm" onclick="navTo('stormRoomsPage')">
             <span class="nav-icon">⚡</span> Storm Rooms
@@ -19022,6 +19453,758 @@ window._snxArcadeSubscribeInvites = _subscribeInvites;
 
 </div>
 
+
+<!-- ═══════════════════════════════════════════════════════════
+     LIVE PAGE
+     Full-screen live streaming — host and viewer flows
+     ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="livePage">
+
+    <!-- ── Lobby / Go Live content (hidden during active stream) ── -->
+    <div id="livePageContent">
+
+        <h2 class="eclipse-title" style="color:#ff4444;text-shadow:0 0 20px rgba(255,60,60,0.6);">🔴 Live</h2>
+
+        <!-- Go Live card -->
+        <div class="section-card" id="liveGoLiveCard">
+            <h4 style="margin:0 0 10px;color:#fff;">Start a Live Stream</h4>
+            <p style="font-size:13px;color:#6a90b8;margin:0 0 14px;line-height:1.6;">Go live and let your followers watch and comment in real time.</p>
+            <button class="live-start-btn" style="max-width:none;border-radius:10px!important;" onclick="liveOpenPreview()">🔴 Go Live</button>
+        </div>
+
+        <!-- Active Live Rooms browser -->
+        <div class="section-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <h4 style="margin:0;color:#fff;">Live Now</h4>
+                <button onclick="liveRefreshRooms()" style="padding:5px 12px;font-size:11px;border-radius:10px;">↻ Refresh</button>
+            </div>
+            <div id="liveRoomsBrowser">
+                <div class="live-empty-state">
+                    <div class="live-empty-icon">📡</div>
+                    <div>No one is live right now.<br>Be the first to go live!</div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- end livePageContent -->
+
+    <!-- ── Camera preview (before going live) ── -->
+    <div id="livePreview" style="display:none;">
+        <div class="live-preview-title">🔴 Preview</div>
+        <video id="livePreviewVideo" class="live-preview-video" autoplay muted playsinline></video>
+        <div id="liveCamError" class="live-cam-error" style="display:none;">
+            📷 Camera access denied. Please allow camera &amp; microphone permissions and try again.
+        </div>
+        <div class="live-preview-btns">
+            <button class="live-preview-ctrl-btn" id="livePreviewMuteBtn" onclick="liveTogglePreviewMic()" title="Mute/Unmute">🎙️</button>
+            <button class="live-preview-ctrl-btn" id="livePreviewCamBtn" onclick="liveTogglePreviewCam()" title="Camera on/off">📷</button>
+        </div>
+        <div class="live-preview-sub">Make sure you look great before going live!</div>
+        <button class="live-start-btn" id="liveGoLiveBtn" onclick="liveStartStream()" disabled>🔴 Start LIVE</button>
+        <button onclick="liveCancelPreview()" style="background:none;border:none;color:#6a90b8;font-size:13px;margin-top:-8px;">Cancel</button>
+    </div><!-- end livePreview -->
+
+    <!-- ── Active live room (full-screen) ── -->
+    <div id="liveRoom">
+
+        <!-- Host video stream (host side) -->
+        <video id="liveHostVideo" autoplay muted playsinline></video>
+        <!-- Remote video stream (viewer side) -->
+        <video id="liveRemoteVideo" autoplay playsinline></video>
+
+        <!-- Top bar: LIVE badge · host name · viewer count · likes -->
+        <div class="live-top-bar">
+            <span class="live-badge"><span class="live-badge-dot"></span>LIVE</span>
+            <span class="live-host-name" id="liveRoomHostName">Loading…</span>
+            <span class="live-viewer-count">👁 <span id="liveViewerCount">0</span></span>
+            <span class="live-like-count">❤️ <span id="liveLikeCount">0</span></span>
+        </div>
+
+        <!-- Comments overlay -->
+        <div class="live-comments-area" id="liveCommentsArea"></div>
+
+        <!-- Host-only side controls (mute / camera / end) -->
+        <div class="live-host-controls" id="liveHostControls" style="display:none;">
+            <button class="live-ctrl-btn" id="liveMuteBtn" onclick="liveToggleMic()" title="Mute">🎙️</button>
+            <button class="live-ctrl-btn" id="liveCamBtn"  onclick="liveToggleCam()" title="Camera">📷</button>
+        </div>
+
+        <!-- Bottom bar: comment input + send + like + end/leave -->
+        <div class="live-bottom-bar">
+            <input class="live-comment-input" id="liveCommentInput"
+                   placeholder="Say something…" maxlength="200"
+                   autocomplete="off"
+                   onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();liveSendComment();}">
+            <button class="live-send-btn" onclick="liveSendComment()" title="Send">➤</button>
+            <button class="live-like-btn" id="liveLikeBtn" onclick="liveDoLike()" title="Like">❤️</button>
+            <button class="live-end-btn"   id="liveEndBtn"   onclick="liveEndStream()"   style="display:none;">■ End</button>
+            <button class="live-leave-btn" id="liveLeaveBtn" onclick="liveLeaveStream()" style="display:none;">✕ Leave</button>
+        </div>
+
+    </div><!-- end liveRoom -->
+
+</div><!-- end livePage -->
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     LIVE FEATURE — Firebase RTDB + WebRTC
+     ═══════════════════════════════════════════════════════════ -->
+<script type="module">
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import {
+  getDatabase, ref, set, push, onValue, onDisconnect,
+  remove, update, get, serverTimestamp, off
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+/* ── Re-use existing Firebase app ── */
+const _LIVE_CFG = {
+  apiKey:            "AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y",
+  authDomain:        "horr-a08f4.firebaseapp.com",
+  databaseURL:       "https://horr-a08f4-default-rtdb.firebaseio.com",
+  projectId:         "horr-a08f4",
+  storageBucket:     "horr-a08f4.firebasestorage.app",
+  messagingSenderId: "933810617818",
+  appId:             "1:933810617818:web:efb24f123337dd987c14e3"
+};
+const _liveApp = getApps().find(a => a.name === 'live') || initializeApp(_LIVE_CFG, 'live');
+const _liveAuth = getAuth(_liveApp);
+const _liveDb   = getDatabase(_liveApp);
+
+/* ═══════════════════════════════════
+   STATE
+   ═══════════════════════════════════ */
+let _liveUser       = null;   // current Firebase user
+let _liveMyData     = null;   // Firestore user profile snapshot
+let _liveRoomId     = null;   // active room ID
+let _liveIsHost     = false;  // true when this user is the host
+let _liveStream     = null;   // local MediaStream (host)
+let _livePc         = null;   // RTCPeerConnection
+let _liveMuted      = false;
+let _liveCamOff     = false;
+let _livePreviewMuted  = false;
+let _livePreviewCamOff = false;
+let _liveUnsubs     = [];     // RTDB off() cleanup refs
+
+/* ICE servers (public STUNs — enough for most NATs) */
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+];
+
+/* ═══════════════════════════════════
+   AUTH BRIDGE
+   Wait for the main module's auth state via the window bridge
+   ═══════════════════════════════════ */
+function _me()     { return _liveUser || window._snxCurrentUser || null; }
+function _myData() { return _liveMyData || window._snxUserData  || null; }
+
+// Sync from the main module's auth observer
+onAuthStateChanged(_liveAuth, u => { _liveUser = u; });
+
+/* ═══════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════ */
+function _uid()  { return _me()?.uid  || null; }
+function _name() { return _myData()?.displayName || _me()?.displayName || 'Anonymous'; }
+function _avatar(){ return _myData()?.avatar || ''; }
+function _toast(msg) { if(window.toastNotification) window.toastNotification(msg); else console.log('[LIVE]', msg); }
+
+function _el(id) { return document.getElementById(id); }
+
+/* ── Cleanup all active RTDB listeners ── */
+function _cleanListeners() {
+  for (const { r } of _liveUnsubs) { try { off(r); } catch(_) {} }
+  _liveUnsubs = [];
+}
+
+/* ── Stop all tracks in local stream ── */
+function _stopStream() {
+  if (_liveStream) { _liveStream.getTracks().forEach(t => t.stop()); _liveStream = null; }
+}
+
+/* ── Close peer connection ── */
+function _closePc() {
+  if (_livePc) { try { _livePc.close(); } catch(_) {} _livePc = null; }
+}
+
+/* ═══════════════════════════════════
+   LOBBY: browse active rooms
+   ═══════════════════════════════════ */
+async function liveRefreshRooms() {
+  const browser = _el('liveRoomsBrowser');
+  if (!browser) return;
+  browser.innerHTML = '<div class="live-empty-state"><div class="live-empty-icon">⏳</div><div>Loading…</div></div>';
+
+  try {
+    const snap = await get(ref(_liveDb, 'liveRooms'));
+    if (!snap.exists()) { _renderNoRooms(browser); return; }
+
+    const rooms = [];
+    snap.forEach(child => {
+      const d = child.val();
+      if (d?.host?.isLive) rooms.push({ id: child.key, ...d });
+    });
+
+    if (!rooms.length) { _renderNoRooms(browser); return; }
+
+    browser.innerHTML = '';
+    for (const room of rooms) {
+      const initial = (room.host?.username || '?').charAt(0).toUpperCase();
+      const avatarStyle = room.host?.avatar
+        ? `background-image:url('${room.host.avatar}');background-size:cover;background-position:center;`
+        : '';
+      const viewers = room.viewerCount || 0;
+      const card = document.createElement('div');
+      card.className = 'live-room-card';
+      card.innerHTML = `
+        <div class="live-room-avatar" style="${avatarStyle}">${avatarStyle ? '' : initial}</div>
+        <div class="live-room-info">
+          <div class="live-room-host">${_esc(room.host?.username || 'Unknown')}</div>
+          <div class="live-room-meta">👁 ${viewers} watching</div>
+        </div>
+        <button class="live-room-join-btn" onclick="liveJoinRoom('${room.id}')">Watch</button>
+      `;
+      browser.appendChild(card);
+    }
+  } catch(e) {
+    console.error('[LIVE] refreshRooms error', e);
+    _renderNoRooms(browser);
+  }
+}
+window.liveRefreshRooms = liveRefreshRooms;
+
+function _renderNoRooms(el) {
+  el.innerHTML = `
+    <div class="live-empty-state">
+      <div class="live-empty-icon">📡</div>
+      <div>No one is live right now.<br>Be the first to go live!</div>
+    </div>`;
+}
+
+function _esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ═══════════════════════════════════
+   PREVIEW FLOW
+   ═══════════════════════════════════ */
+async function liveOpenPreview() {
+  if (!_me()) { _toast('Sign in to go live.'); return; }
+
+  _el('livePageContent').style.display = 'none';
+  _el('livePreview').style.display     = 'flex';
+  _el('liveGoLiveBtn').disabled        = true;
+
+  try {
+    _liveStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    _el('livePreviewVideo').srcObject = _liveStream;
+    _el('liveCamError').style.display = 'none';
+    _el('liveGoLiveBtn').disabled     = false;
+  } catch(err) {
+    console.warn('[LIVE] Camera permission denied', err);
+    _el('liveCamError').style.display = 'block';
+  }
+}
+window.liveOpenPreview = liveOpenPreview;
+
+function liveCancelPreview() {
+  _stopStream();
+  _el('livePreviewVideo').srcObject = null;
+  _el('livePreview').style.display     = 'none';
+  _el('livePageContent').style.display = 'block';
+}
+window.liveCancelPreview = liveCancelPreview;
+
+function liveTogglePreviewMic() {
+  if (!_liveStream) return;
+  _livePreviewMuted = !_livePreviewMuted;
+  _liveStream.getAudioTracks().forEach(t => { t.enabled = !_livePreviewMuted; });
+  const btn = _el('livePreviewMuteBtn');
+  btn.textContent = _livePreviewMuted ? '🔇' : '🎙️';
+  btn.classList.toggle('muted', _livePreviewMuted);
+}
+window.liveTogglePreviewMic = liveTogglePreviewMic;
+
+function liveTogglePreviewCam() {
+  if (!_liveStream) return;
+  _livePreviewCamOff = !_livePreviewCamOff;
+  _liveStream.getVideoTracks().forEach(t => { t.enabled = !_livePreviewCamOff; });
+  const btn = _el('livePreviewCamBtn');
+  btn.textContent = _livePreviewCamOff ? '📵' : '📷';
+  btn.classList.toggle('muted', _livePreviewCamOff);
+}
+window.liveTogglePreviewCam = liveTogglePreviewCam;
+
+/* ═══════════════════════════════════
+   HOST: start live stream
+   ═══════════════════════════════════ */
+async function liveStartStream() {
+  if (!_me() || !_liveStream) return;
+  const btn = _el('liveGoLiveBtn');
+  btn.disabled   = true;
+  btn.textContent = '⏳ Starting…';
+
+  try {
+    /* 1. Create the room in RTDB */
+    const roomRef = push(ref(_liveDb, 'liveRooms'));
+    _liveRoomId = roomRef.key;
+    _liveIsHost = true;
+
+    await set(roomRef, {
+      host: {
+        uid:      _uid(),
+        username: _name(),
+        avatar:   _avatar(),
+        isLive:   true,
+      },
+      startedAt:   Date.now(),
+      viewerCount: 0,
+      likes:       { count: 0 },
+    });
+
+    /* 2. Auto-clean room when host disconnects */
+    onDisconnect(ref(_liveDb, `liveRooms/${_liveRoomId}/host/isLive`)).set(false);
+    onDisconnect(ref(_liveDb, `liveRooms/${_liveRoomId}/viewerCount`)).set(0);
+
+    /* 3. Enter the live room UI */
+    _enterLiveRoom(true);
+
+    /* 4. Attach local stream to host video element */
+    const hv = _el('liveHostVideo');
+    hv.srcObject = _liveStream;
+    hv.style.display = 'block';
+    _el('liveRemoteVideo').style.display = 'none';
+
+    /* 5. Show host controls */
+    _el('liveHostControls').style.display = 'flex';
+    _el('liveEndBtn').style.display   = 'inline-flex';
+    _el('liveLeaveBtn').style.display = 'none';
+
+    /* 6. Subscribe to viewer WebRTC offers */
+    _hostListenForOffers();
+
+    /* 7. Listen for real-time comments and likes */
+    _subscribeComments();
+    _subscribeLikes();
+    _subscribeViewers();
+
+    _el('liveRoomHostName').textContent = _name();
+
+  } catch(err) {
+    console.error('[LIVE] liveStartStream error', err);
+    _toast('Could not start live. Please try again.');
+    btn.disabled = false;
+    btn.textContent = '🔴 Start LIVE';
+  }
+}
+window.liveStartStream = liveStartStream;
+
+/* ═══════════════════════════════════
+   HOST: listen for viewer offers (WebRTC)
+   ═══════════════════════════════════ */
+function _hostListenForOffers() {
+  const offersRef = ref(_liveDb, `liveRooms/${_liveRoomId}/offers`);
+  const unsub = { r: offersRef };
+  _liveUnsubs.push(unsub);
+
+  onValue(offersRef, async snap => {
+    if (!snap.exists()) return;
+    snap.forEach(child => {
+      const offer = child.val();
+      if (offer?.sdp && !offer.answered) {
+        _handleViewerOffer(child.key, offer);
+      }
+    });
+  });
+}
+
+async function _handleViewerOffer(viewerKey, offer) {
+  try {
+    /* One RTCPeerConnection per viewer is ideal, but for simplicity
+       we create one shared connection — this supports one active viewer
+       stream at a time (adequate for basic live). */
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+
+    /* Add local stream tracks */
+    _liveStream.getTracks().forEach(t => pc.addTrack(t, _liveStream));
+
+    /* Collect ICE candidates and send to RTDB */
+    pc.onicecandidate = e => {
+      if (!e.candidate) return;
+      push(ref(_liveDb, `liveRooms/${_liveRoomId}/hostCandidates/${viewerKey}`), e.candidate.toJSON());
+    };
+
+    /* Set remote description (viewer's offer) */
+    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: offer.sdp }));
+
+    /* Create answer */
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    /* Write answer to RTDB */
+    await set(ref(_liveDb, `liveRooms/${_liveRoomId}/answers/${viewerKey}`), {
+      sdp:  answer.sdp,
+      type: 'answer',
+    });
+
+    /* Mark offer answered */
+    await update(ref(_liveDb, `liveRooms/${_liveRoomId}/offers/${viewerKey}`), { answered: true });
+
+    /* Listen for viewer ICE candidates */
+    const vcRef = ref(_liveDb, `liveRooms/${_liveRoomId}/viewerCandidates/${viewerKey}`);
+    const vcUnsub = { r: vcRef };
+    _liveUnsubs.push(vcUnsub);
+    onValue(vcRef, snap => {
+      snap.forEach(c => {
+        try { pc.addIceCandidate(new RTCIceCandidate(c.val())); } catch(_) {}
+      });
+    });
+
+  } catch(err) {
+    console.warn('[LIVE] handleViewerOffer error', err);
+  }
+}
+
+/* ═══════════════════════════════════
+   VIEWER: join an existing live room
+   ═══════════════════════════════════ */
+async function liveJoinRoom(roomId) {
+  if (!_me()) { _toast('Sign in to watch live streams.'); return; }
+
+  /* Verify room is still active */
+  const snap = await get(ref(_liveDb, `liveRooms/${roomId}/host`));
+  if (!snap.exists() || !snap.val()?.isLive) {
+    _toast('This stream has ended.'); liveRefreshRooms(); return;
+  }
+
+  _liveRoomId = roomId;
+  _liveIsHost = false;
+
+  /* Mark viewer presence */
+  const myViewerRef = ref(_liveDb, `liveRooms/${roomId}/viewers/${_uid()}`);
+  await set(myViewerRef, { username: _name(), joinedAt: Date.now() });
+  onDisconnect(myViewerRef).remove();
+
+  /* Increment viewer count */
+  const vcRef = ref(_liveDb, `liveRooms/${roomId}/viewerCount`);
+  const vcSnap = await get(vcRef);
+  await set(vcRef, (vcSnap.val() || 0) + 1);
+  onDisconnect(vcRef).set(Math.max(0, (vcSnap.val() || 0)));
+
+  /* Enter room UI */
+  _enterLiveRoom(false);
+  _el('liveEndBtn').style.display   = 'none';
+  _el('liveLeaveBtn').style.display = 'inline-flex';
+  _el('liveHostControls').style.display = 'none';
+
+  /* Update host name from RTDB */
+  const host = snap.val();
+  _el('liveRoomHostName').textContent = host?.username || 'Host';
+
+  /* Subscribe comments, likes, viewer count */
+  _subscribeComments();
+  _subscribeLikes();
+  _subscribeViewers();
+
+  /* WebRTC: connect to host stream */
+  _viewerConnect(roomId);
+}
+window.liveJoinRoom = liveJoinRoom;
+
+async function _viewerConnect(roomId) {
+  const viewerKey = _uid();
+  _livePc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+
+  /* Collect ICE candidates */
+  _livePc.onicecandidate = e => {
+    if (!e.candidate) return;
+    push(ref(_liveDb, `liveRooms/${roomId}/viewerCandidates/${viewerKey}`), e.candidate.toJSON());
+  };
+
+  /* Receive remote tracks (host video/audio) */
+  _livePc.ontrack = e => {
+    const rv = _el('liveRemoteVideo');
+    rv.srcObject = e.streams[0];
+    rv.style.display = 'block';
+    _el('liveHostVideo').style.display = 'none';
+  };
+
+  /* Create offer */
+  const offer = await _livePc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
+  await _livePc.setLocalDescription(offer);
+
+  /* Write offer to RTDB */
+  await set(ref(_liveDb, `liveRooms/${roomId}/offers/${viewerKey}`), {
+    sdp:      offer.sdp,
+    answered: false,
+  });
+
+  /* Listen for host answer */
+  const ansRef = ref(_liveDb, `liveRooms/${roomId}/answers/${viewerKey}`);
+  const ansUnsub = { r: ansRef };
+  _liveUnsubs.push(ansUnsub);
+  onValue(ansRef, async snap => {
+    if (!snap.exists()) return;
+    const ans = snap.val();
+    if (ans?.sdp && _livePc.remoteDescription === null) {
+      try { await _livePc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: ans.sdp })); }
+      catch(_) {}
+    }
+  });
+
+  /* Listen for host ICE candidates */
+  const hcRef = ref(_liveDb, `liveRooms/${roomId}/hostCandidates/${viewerKey}`);
+  const hcUnsub = { r: hcRef };
+  _liveUnsubs.push(hcUnsub);
+  onValue(hcRef, snap => {
+    snap.forEach(c => {
+      try { _livePc.addIceCandidate(new RTCIceCandidate(c.val())); } catch(_) {}
+    });
+  });
+
+  /* If stream isn't delivered in 10s, show a fallback message */
+  setTimeout(() => {
+    const rv = _el('liveRemoteVideo');
+    if (!rv.srcObject && _liveRoomId === roomId) {
+      _appendComment({ username: '📡 System', message: 'Connecting to stream…' });
+    }
+  }, 10000);
+}
+
+/* ═══════════════════════════════════
+   ENTER LIVE ROOM UI
+   ═══════════════════════════════════ */
+function _enterLiveRoom(isHost) {
+  /* Hide everything else, show only the live room */
+  _el('livePageContent').style.display = 'none';
+  _el('livePreview').style.display     = 'none';
+  _el('liveRoom').style.display        = 'block';
+
+  /* Reset comment area */
+  _el('liveCommentsArea').innerHTML = '';
+  _el('liveCommentInput').value     = '';
+  _el('liveViewerCount').textContent = '0';
+  _el('liveLikeCount').textContent   = '0';
+}
+
+/* ═══════════════════════════════════
+   COMMENTS
+   ═══════════════════════════════════ */
+function _subscribeComments() {
+  const msgRef = ref(_liveDb, `liveRooms/${_liveRoomId}/messages`);
+  _liveUnsubs.push({ r: msgRef });
+  onValue(msgRef, snap => {
+    const area = _el('liveCommentsArea');
+    if (!area) return;
+    area.innerHTML = '';
+    if (!snap.exists()) return;
+    snap.forEach(child => _appendComment(child.val()));
+    area.scrollTop = area.scrollHeight;
+  });
+}
+
+function _appendComment(data) {
+  const area = _el('liveCommentsArea');
+  if (!area) return;
+  const item = document.createElement('div');
+  item.className = 'live-comment-item';
+  item.innerHTML = `
+    <span class="live-comment-author">${_esc(data.username || 'Anonymous')}:</span>
+    <span class="live-comment-text">${_esc(data.message || '')}</span>
+  `;
+  area.appendChild(item);
+  area.scrollTop = area.scrollHeight;
+}
+
+async function liveSendComment() {
+  const input = _el('liveCommentInput');
+  const msg   = input?.value?.trim();
+  if (!msg || !_liveRoomId || !_me()) return;
+  input.value = '';
+
+  try {
+    await push(ref(_liveDb, `liveRooms/${_liveRoomId}/messages`), {
+      username:  _name(),
+      message:   msg,
+      timestamp: Date.now(),
+    });
+  } catch(e) {
+    console.warn('[LIVE] sendComment error', e);
+  }
+}
+window.liveSendComment = liveSendComment;
+
+/* ═══════════════════════════════════
+   LIKES
+   ═══════════════════════════════════ */
+function _subscribeLikes() {
+  const likesRef = ref(_liveDb, `liveRooms/${_liveRoomId}/likes/count`);
+  _liveUnsubs.push({ r: likesRef });
+  onValue(likesRef, snap => {
+    const el = _el('liveLikeCount');
+    if (el) el.textContent = snap.val() || 0;
+  });
+}
+
+async function liveDoLike() {
+  if (!_liveRoomId || !_me()) return;
+  /* Optimistic float heart */
+  _floatHeart();
+
+  try {
+    const likesRef = ref(_liveDb, `liveRooms/${_liveRoomId}/likes/count`);
+    const snap = await get(likesRef);
+    await set(likesRef, (snap.val() || 0) + 1);
+  } catch(e) {
+    console.warn('[LIVE] doLike error', e);
+  }
+}
+window.liveDoLike = liveDoLike;
+
+function _floatHeart() {
+  const room = _el('liveRoom');
+  if (!room) return;
+  const heart = document.createElement('div');
+  heart.className = 'live-float-heart';
+  heart.textContent = '❤️';
+  heart.style.right  = (10 + Math.random() * 30) + 'px';
+  heart.style.bottom = (80 + Math.random() * 30) + 'px';
+  room.appendChild(heart);
+  setTimeout(() => heart.remove(), 2100);
+}
+
+/* ═══════════════════════════════════
+   VIEWER COUNT
+   ═══════════════════════════════════ */
+function _subscribeViewers() {
+  const vcRef = ref(_liveDb, `liveRooms/${_liveRoomId}/viewerCount`);
+  _liveUnsubs.push({ r: vcRef });
+  onValue(vcRef, snap => {
+    const el = _el('liveViewerCount');
+    if (el) el.textContent = snap.val() || 0;
+  });
+}
+
+/* ═══════════════════════════════════
+   HOST CONTROLS
+   ═══════════════════════════════════ */
+function liveToggleMic() {
+  if (!_liveStream) return;
+  _liveMuted = !_liveMuted;
+  _liveStream.getAudioTracks().forEach(t => { t.enabled = !_liveMuted; });
+  const btn = _el('liveMuteBtn');
+  btn.textContent = _liveMuted ? '🔇' : '🎙️';
+  btn.classList.toggle('muted', _liveMuted);
+}
+window.liveToggleMic = liveToggleMic;
+
+function liveToggleCam() {
+  if (!_liveStream) return;
+  _liveCamOff = !_liveCamOff;
+  _liveStream.getVideoTracks().forEach(t => { t.enabled = !_liveCamOff; });
+  const btn = _el('liveCamBtn');
+  btn.textContent = _liveCamOff ? '📵' : '📷';
+  btn.classList.toggle('cam-off', _liveCamOff);
+}
+window.liveToggleCam = liveToggleCam;
+
+/* ═══════════════════════════════════
+   END / LEAVE
+   ═══════════════════════════════════ */
+async function liveEndStream() {
+  if (!_liveIsHost || !_liveRoomId) return;
+
+  /* Mark room as ended */
+  try {
+    await update(ref(_liveDb, `liveRooms/${_liveRoomId}/host`), { isLive: false });
+  } catch(_) {}
+
+  _liveCleanup();
+  _liveReturnToLobby();
+  _toast('Your live stream has ended.');
+}
+window.liveEndStream = liveEndStream;
+
+async function liveLeaveStream() {
+  if (!_liveRoomId || !_uid()) { _liveReturnToLobby(); return; }
+
+  /* Remove viewer presence */
+  try {
+    await remove(ref(_liveDb, `liveRooms/${_liveRoomId}/viewers/${_uid()}`));
+    const vcRef = ref(_liveDb, `liveRooms/${_liveRoomId}/viewerCount`);
+    const snap  = await get(vcRef);
+    await set(vcRef, Math.max(0, (snap.val() || 1) - 1));
+    /* Clean up own signalling data */
+    await remove(ref(_liveDb, `liveRooms/${_liveRoomId}/offers/${_uid()}`));
+    await remove(ref(_liveDb, `liveRooms/${_liveRoomId}/viewerCandidates/${_uid()}`));
+  } catch(_) {}
+
+  _liveCleanup();
+  _liveReturnToLobby();
+}
+window.liveLeaveStream = liveLeaveStream;
+
+function _liveCleanup() {
+  _cleanListeners();
+  _closePc();
+  _stopStream();
+  _liveRoomId = null;
+  _liveIsHost = false;
+  _liveMuted  = false;
+  _liveCamOff = false;
+  /* Reset video elements */
+  const hv = _el('liveHostVideo');
+  const rv = _el('liveRemoteVideo');
+  if (hv) { hv.srcObject = null; }
+  if (rv) { rv.srcObject = null; rv.style.display = 'none'; }
+}
+
+function _liveReturnToLobby() {
+  _el('liveRoom').style.display        = 'none';
+  _el('livePreview').style.display     = 'none';
+  _el('livePageContent').style.display = 'block';
+  liveRefreshRooms();
+}
+
+/* ═══════════════════════════════════
+   PAGE NAVIGATION HOOK
+   Refresh room list whenever the live page becomes active,
+   and auto-cleanup when navigating away.
+   ═══════════════════════════════════ */
+const _origNavTo = window.navTo;
+if (typeof _origNavTo === 'function') {
+  window.navTo = function(pageId) {
+    /* If navigating AWAY while in a live room, leave gracefully */
+    if (pageId !== 'livePage' && _liveRoomId) {
+      if (_liveIsHost) liveEndStream();
+      else             liveLeaveStream();
+    }
+    _origNavTo(pageId);
+    /* Refresh room list when entering the live page */
+    if (pageId === 'livePage') {
+      setTimeout(liveRefreshRooms, 120);
+    }
+  };
+}
+
+/* ── Back-button (popstate) should leave the live room, not reopen preview ── */
+window.addEventListener('popstate', () => {
+  if (_liveRoomId) {
+    if (_liveIsHost) liveEndStream();
+    else             liveLeaveStream();
+  }
+});
+
+/* Also clean up on page unload */
+window.addEventListener('beforeunload', () => {
+  if (_liveRoomId && _liveIsHost) {
+    navigator.sendBeacon && navigator.sendBeacon('/noop'); // trigger onDisconnect
+  }
+});
+
+</script>
 
 </body>
 </html>

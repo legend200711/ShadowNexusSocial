@@ -24,6 +24,38 @@
             ".read":  "auth != null",
             ".write": "auth != null && auth.uid === $uid"
           }
+        },
+
+        // WebRTC signalling — offers from viewers
+        "offers": {
+          "$viewerUid": {
+            ".read":  "auth != null",
+            ".write": "auth != null && auth.uid === $viewerUid"
+          }
+        },
+
+        // WebRTC signalling — answers from host
+        "answers": {
+          "$viewerUid": {
+            ".read":  "auth != null",
+            ".write": "auth != null"
+          }
+        },
+
+        // ICE candidates from host (one list per viewer)
+        "hostCandidates": {
+          "$viewerUid": {
+            ".read":  "auth != null",
+            ".write": "auth != null"
+          }
+        },
+
+        // ICE candidates from viewers (each viewer writes only their own)
+        "viewerCandidates": {
+          "$viewerUid": {
+            ".read":  "auth != null",
+            ".write": "auth != null && auth.uid === $viewerUid"
+          }
         }
       }
     },
