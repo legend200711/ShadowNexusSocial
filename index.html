@@ -13278,7 +13278,8 @@ function navTo(pageId) {
     };
     const navEl = document.getElementById(map[pageId]);
     if (navEl) navEl.classList.add('active-nav');
-    // Re-attach story strip listener each time the feed is opened
+    // Attach story strip listener when the feed is opened.
+    // initStoryStrip is idempotent — it no-ops if the listener is already running.
     if (pageId === 'feed' && typeof initStoryStrip === 'function') initStoryStrip();
     // Render friends page data on navigation
     if (pageId === 'friendsPage' && typeof renderFriendsPage === 'function') renderFriendsPage();
@@ -19545,7 +19546,13 @@ function _initials(name) {
 let _storyUnsub = null;
 let _storyInitPending = false; // guard against redundant re-inits
 
-function initStoryStrip() {
+function initStoryStrip(force) {
+    // ── Idempotent guard ─────────────────────────────────────────
+    // If a live listener already exists and we are not forcing a
+    // re-attach (e.g. after returning from live.html), skip the
+    // teardown+recreate cycle so Stories never disappear mid-session.
+    if (_storyUnsub && !force) return;
+
     if (!_db()) {
         // Firebase not ready yet — keep skeleton visible and retry once it is
         if (_storyInitPending) return;
@@ -19554,7 +19561,7 @@ function initStoryStrip() {
             if (_db()) {
                 clearInterval(_retryTimer);
                 _storyInitPending = false;
-                initStoryStrip();
+                initStoryStrip(force);
             }
         }, 300);
         return;
@@ -19567,14 +19574,19 @@ function initStoryStrip() {
     // Tear down any previous listener before creating a new one
     if (_storyUnsub) { _storyUnsub(); _storyUnsub = null; }
 
-    // Show loading skeleton
+    // Show loading skeleton only when starting fresh (no circles yet)
+    const strip = document.getElementById('storyStrip');
+    const hasCircles = strip && strip.querySelector('.story-item');
     const loadEl = document.getElementById('storyStripLoading');
-    if (loadEl) loadEl.style.display = 'flex';
+    if (loadEl) loadEl.style.display = hasCircles ? 'none' : 'flex';
+
+    function _hideLoading() {
+        const l = document.getElementById('storyStripLoading');
+        if (l) l.style.display = 'none';
+    }
 
     function _onSnap(snap) {
-        // Hide loading skeleton on first data arrival
-        const loadEl = document.getElementById('storyStripLoading');
-        if (loadEl) loadEl.style.display = 'none';
+        _hideLoading();
         renderStoryStrip(snap);
     }
 
@@ -19585,14 +19597,14 @@ function initStoryStrip() {
         _storyUnsub = onSnapshot(
             query(collection(db, 'stories'), where('expiresAt', '>', cutoffDate)),
             _onSnap,
-            (err2) => {
-                // Final fallback failed — hide skeleton and show a subtle retry
-                const l = document.getElementById('storyStripLoading');
-                if (l) l.style.display = 'none';
-                // Retry once after 5 s in case it was a transient network hiccup
+            () => {
+                // Final fallback failed — hide skeleton and show empty state
+                _hideLoading();
+                renderStoryStrip({ forEach: () => {} });
+                // Retry once after 6 s in case it was a transient network hiccup
                 setTimeout(() => {
-                    if (!_storyUnsub) initStoryStrip();
-                }, 5000);
+                    if (!_storyUnsub) initStoryStrip(true);
+                }, 6000);
             }
         );
     }
@@ -19651,8 +19663,8 @@ function renderStoryStrip(snap) {
     const strip = document.getElementById('storyStrip');
     if (!strip) return;
 
-    // Remove old dynamic circles (keep "Share Story" btn + loading skeleton)
-    strip.querySelectorAll('.story-item').forEach(el => el.remove());
+    // Remove old dynamic circles and empty-state message
+    strip.querySelectorAll('.story-item, .story-empty-state').forEach(el => el.remove());
 
     // Build queue for viewer
     SNX_STORY.queue = [];
@@ -19671,6 +19683,15 @@ function renderStoryStrip(snap) {
         SNX_STORY.queue.push({ uid, stories });
         strip.appendChild(_buildStoryCircle(stories[0], allSeen, stories.length));
     });
+
+    // Show empty-state hint when nothing is in the strip yet
+    if (SNX_STORY.queue.length === 0) {
+        const empty = document.createElement('span');
+        empty.className = 'story-empty-state';
+        empty.style.cssText = 'font-size:12px;color:#3a6a9a;align-self:center;padding:0 8px;white-space:nowrap;';
+        empty.textContent = 'No stories yet — be the first!';
+        strip.appendChild(empty);
+    }
 }
 
 function _buildStoryCircle(story, allSeen, count) {
@@ -20409,6 +20430,9 @@ window.startLiveStream = async function() {
     try {
         const { db, collection, addDoc, serverTimestamp } = _db();
         const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000); // 4h max live
+
+        // Create the room doc first so roomId is stable before the page navigation.
+        // liveActive is set to true here so followers see the ring immediately.
         const ref = await addDoc(collection(db, 'stories'), {
             authorUid    : me.uid,
             authorName   : ud.displayName || ud.username || me.displayName || 'User',
@@ -20419,7 +20443,7 @@ window.startLiveStream = async function() {
             privacy,
             isLive       : true,
             liveActive   : true,
-            roomId       : '',   // filled in after we know ref.id
+            roomId       : '',   // patched below once we have the id
             viewerUids   : [],
             viewerCount  : 0,
             reactions    : {},
@@ -20432,17 +20456,25 @@ window.startLiveStream = async function() {
         const docId = ref.id;
         SNX_STORY.liveDocId = docId;
 
-        // Write roomId = doc id (used by guests when redirected to live.html)
+        // Patch roomId field so guests can look up the room by id
         try {
             const { doc: docFn, updateDoc } = _db();
             await updateDoc(docFn(db, 'stories', docId), { roomId: docId });
         } catch(_) {}
 
-        // Stop setup stream — live.html will re-acquire
+        // ── Signal live.js to skip its setup-preview screen ──────────────
+        // MediaStream objects cannot survive a page navigation, so live.js must
+        // call getUserMedia() once more.  The sessionStorage flag tells it to
+        // skip the setup UI and go live immediately instead of looping back to
+        // the camera preview.
+        sessionStorage.setItem('snx_live_autostart', '1');
+
+        // Stop the preview stream cleanly now — the camera will be re-acquired
+        // by live.js in _directGoLive() right after the navigation completes.
         _stopLiveStream();
         document.getElementById('storyLiveModal').classList.remove('open');
 
-        // Redirect host to full WebRTC room
+        // Navigate to the full WebRTC room
         window.location.href = `live.html?room=${encodeURIComponent(docId)}&host=1`;
     } catch(err) {
         _toast('Failed to start live: ' + (err.message || err));
@@ -20672,8 +20704,9 @@ document.getElementById('storyChooserModal').addEventListener('click', function(
 window._snxOnAuthReady(function() {
     // Guard: navTo('feed') also calls initStoryStrip on first login — wait one
     // microtask so the navTo call runs first, then only init if no listener exists.
+    // initStoryStrip is idempotent — safe to call even if listener already running.
     setTimeout(function() {
-        if (!_storyUnsub) initStoryStrip();
+        initStoryStrip();
     }, 0);
     initLiveFeedCards();
     initGoingLiveBanner();
@@ -20687,6 +20720,20 @@ window._snxOnAuthReady(function() {
         history.replaceState(null, '', location.pathname);
         // Small delay so the Feed has settled before the toast appears
         setTimeout(() => _toast('✅ Your Live has ended.'), 600);
+    }
+});
+
+// ── pageshow: re-attach Stories listener if page is restored from bfcache ──
+// When live.html redirects back to index.html via window.location.href, some
+// browsers (Safari) restore index.html from the back-forward cache, so the
+// onAuthStateChanged callback never re-fires and _storyUnsub may be stale.
+window.addEventListener('pageshow', function(e) {
+    if (e.persisted) {
+        // Page restored from bfcache — force re-attach the story listener
+        setTimeout(function() {
+            if (typeof initStoryStrip === 'function') initStoryStrip(true);
+            if (typeof initLiveFeedCards === 'function') initLiveFeedCards();
+        }, 200);
     }
 });
 
@@ -21708,6 +21755,8 @@ function applyLiveRings() {
         document.querySelectorAll(`[data-uid="${uid}"]`).forEach(el => {
             // Skip if already wrapped
             if (el.closest('.snx-live-ring-wrap')) return;
+            // Skip story-strip items — they have their own .story-ring-wrap live-ring ring
+            if (el.classList.contains('story-item') || el.querySelector('.story-ring-wrap')) return;
             // Skip the big profile-page avatar if it belongs to current user
             if (isSelf && el.id === 'profileAvatar') return;
             _wrapEl(el, story);

@@ -193,7 +193,20 @@ function init() {
   }
 
   if (isHost) {
-    // Host: camera preview → confirm → go live
+    // ── Auto-start path ───────────────────────────────────────────────────
+    // When index.html pre-creates the room and redirects here, it sets the
+    // sessionStorage flag below.  In that case we skip the setup preview
+    // screen entirely and go live immediately using a fresh camera stream.
+    // This prevents the "loop back to preview" bug caused by calling
+    // startSetupPreview() (which calls getUserMedia() a second time) even
+    // though the host already went through the preview flow on index.html.
+    const autoStart = sessionStorage.getItem("snx_live_autostart") === "1";
+    if (autoStart && roomId) {
+      sessionStorage.removeItem("snx_live_autostart");
+      _directGoLive();
+      return;
+    }
+    // Normal path: show setup preview screen first.
     // roomId is null if "new", will be created in goLive()
     startSetupPreview();
   } else {
@@ -207,6 +220,73 @@ function init() {
         $("permModal").classList.add("open");
       }
     });
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   Host: direct-start (skips setup preview screen)
+   Used when index.html pre-creates the room and
+   redirects with sessionStorage snx_live_autostart=1.
+   Acquires camera once, marks Firestore liveActive,
+   then jumps straight into startLive().
+───────────────────────────────────────────────── */
+async function _directGoLive() {
+  if (_goingLive || liveActive) return;
+  _goingLive = true;
+
+  // Show a minimal "starting" overlay so the user sees something
+  showOverlay("joinOverlay");
+  const sub = $("joinSub");
+  if (sub) sub.textContent = "Starting your live stream…";
+
+  await loadIceServers();
+
+  // Acquire camera — single getUserMedia() call for the entire session
+  try {
+    setupStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: true,
+    });
+    if (!setupStream.getVideoTracks().length) {
+      throw new Error("No video track — please allow camera access.");
+    }
+  } catch (err) {
+    _goingLive = false;
+    toast("Camera/mic required: " + (err.message || err));
+    // Fall back to the setup preview so the user can retry
+    showOverlay("setupOverlay");
+    startSetupPreview();
+    return;
+  }
+
+  try {
+    // roomId was pre-created and written to Firestore by index.html with
+    // liveActive:true already set.  We only update the fields live.js owns.
+    const name   = userData.displayName || userData.username || me.displayName || "Host";
+    const avatar = userData.avatarUrl || me.photoURL || "";
+    await updateDoc(doc(db, "stories", roomId), {
+      isLive: true, liveActive: true,
+      authorName: name, authorAvatar: avatar,
+      roomId,
+    });
+
+    // Promote setupStream → localStream (no stopSetupPreview — tracks are live)
+    localStream = setupStream;
+    setupStream = null;
+
+    if (!localStream || !localStream.active) {
+      throw new Error("Camera stream lost. Please try again.");
+    }
+
+    hideAllOverlays();
+    startLive();
+  } catch (err) {
+    _goingLive = false;
+    toast("Failed to start live: " + (err.message || err));
+    // Release camera so it doesn't stay locked
+    if (setupStream) { setupStream.getTracks().forEach(t => t.stop()); setupStream = null; }
+    // Fall back to the setup screen so the user can retry
+    startSetupPreview();
   }
 }
 
