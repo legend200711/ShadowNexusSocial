@@ -7917,6 +7917,41 @@ body.arcade-fs-ios body::after { display:none !important; }
 ══════════════════════════════════ -->
 <div class="admin-tab-content" id="adminTab-aisafety">
 
+    <!-- ══ AI Safety System Toggle — Founder Only ══ -->
+    <div class="section-card" id="aiModerationControlCard" style="margin-bottom:16px;border-color:rgba(0,174,239,0.55);background:linear-gradient(135deg,rgba(0,30,60,0.55),rgba(11,31,58,0.96));">
+        <h3 style="margin:0 0 14px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🤖 AI Safety System</h3>
+
+        <!-- Live status badge -->
+        <div id="aiModerationStatusBadge" style="display:inline-flex;align-items:center;gap:8px;padding:7px 16px;border-radius:20px;font-size:13px;font-weight:700;margin-bottom:16px;background:rgba(57,255,20,0.12);border:1px solid rgba(57,255,20,0.50);color:#39FF14;transition:all 0.3s;">
+            <span id="aiModerationStatusDot" style="width:10px;height:10px;border-radius:50%;background:#39FF14;display:inline-block;box-shadow:0 0 8px rgba(57,255,20,0.8);"></span>
+            <span id="aiModerationStatusText">🟢 AI Moderation ON</span>
+        </div>
+
+        <!-- Description block — changes when toggled -->
+        <div id="aiModerationStatusDesc" style="font-size:12px;color:#9bbdd8;line-height:1.7;margin-bottom:14px;">
+            The AI is actively monitoring community activity: rule detection, warnings, violation tracking, live safety monitoring, and moderation assistance are all running.
+        </div>
+
+        <!-- What stays available when OFF -->
+        <div id="aiModerationOffNote" style="display:none;padding:10px 14px;border-radius:10px;background:rgba(255,51,85,0.08);border:1px solid rgba(255,51,85,0.28);margin-bottom:14px;">
+            <div style="font-size:12px;font-weight:700;color:#ff8899;margin-bottom:6px;">⚠️ Still available while AI is OFF:</div>
+            <div style="font-size:12px;color:#c8a0a8;line-height:1.9;">
+                ✅ User reports &nbsp;·&nbsp; ✅ Moderator actions &nbsp;·&nbsp; ✅ Admin actions &nbsp;·&nbsp; ✅ Founder controls
+            </div>
+        </div>
+
+        <!-- Toggle button — calls JS handler -->
+        <button id="btnAIToggle" onclick="window.founderToggleAIModeration()" style="padding:10px 24px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#003322,#006644);border:1px solid rgba(57,255,20,0.5);color:#39FF14;box-shadow:0 0 14px rgba(57,255,20,0.25);transition:all 0.2s;">
+            🔴 Disable AI Moderation
+        </button>
+    </div>
+
+    <!-- AI Toggle Change Log -->
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(255,185,0,0.28);">
+        <h3 style="margin:0 0 10px;font-size:13px;color:#ffe566;text-transform:uppercase;letter-spacing:0.8px;">📋 AI Toggle History</h3>
+        <div id="aiToggleLog" style="font-size:12px;color:#9bbdd8;"><div class="empty-state" style="padding:10px 0;">No changes recorded yet.</div></div>
+    </div>
+
     <!-- Overview -->
     <div class="section-card" style="margin-bottom:16px;border-color:rgba(0,174,239,0.40);background:linear-gradient(135deg,rgba(0,40,80,0.35),rgba(11,31,58,0.92));">
         <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🤖 AI Community Safety System — Overview</h3>
@@ -8795,6 +8830,16 @@ body.arcade-fs-ios body::after { display:none !important; }
           window._snxRole = 'member';
           show('login');
       }
+  });
+
+  /* ── Startup: real-time siteSettings listener — keeps _aiModerationEnabled in sync ── */
+  onSnapshot(doc(db, 'siteSettings', 'config'), (snap) => {
+      if (!snap.exists()) return;
+      const cfg = snap.data();
+      const isOn = cfg.aiModerationEnabled !== false;
+      window._aiModerationEnabled = isOn;
+      // Update the UI control if it is currently visible
+      if (typeof _syncAIToggleUI === 'function') _syncAIToggleUI(isOn);
   });
 
   /* ── Social List Modal — friends / followers / following ──────────────
@@ -12388,6 +12433,12 @@ body.arcade-fs-ios body::after { display:none !important; }
   /* ── AI Safety Log (Founder only) ── */
   window.adminLoadAISafetyLog = async function() {
       if (!founderOnly()) return;
+      // Refresh the AI toggle state and history log whenever this tab opens
+      try {
+          const cfgSnap = await getDoc(doc(db, 'siteSettings', 'config'));
+          if (cfgSnap.exists()) _syncAIToggleUI(cfgSnap.data().aiModerationEnabled !== false);
+      } catch(_) {}
+      _loadAIToggleLog();
       const logEl = document.getElementById('aiSafetyLog');
       if (!logEl) return;
       logEl.innerHTML = '<div class="empty-state">Loading AI safety events…</div>';
@@ -12422,6 +12473,127 @@ body.arcade-fs-ios body::after { display:none !important; }
           logEl.innerHTML = `<div class="empty-state" style="color:#ff5566;">Error: ${e.message}</div>`;
       }
   };
+
+  /* ── AI Moderation Toggle (Founder only) ── */
+
+  // Runtime gate: other parts of the app read window._aiModerationEnabled before firing AI actions.
+  window._aiModerationEnabled = true; // default ON until Firestore says otherwise
+
+  /* Sync the UI control to a boolean value */
+  function _syncAIToggleUI(isEnabled) {
+      window._aiModerationEnabled = isEnabled;
+      const badge   = document.getElementById('aiModerationStatusBadge');
+      const dot     = document.getElementById('aiModerationStatusDot');
+      const text    = document.getElementById('aiModerationStatusText');
+      const desc    = document.getElementById('aiModerationStatusDesc');
+      const offNote = document.getElementById('aiModerationOffNote');
+      const btn     = document.getElementById('btnAIToggle');
+      if (!badge) return;
+      if (isEnabled) {
+          badge.style.background = 'rgba(57,255,20,0.12)';
+          badge.style.borderColor = 'rgba(57,255,20,0.50)';
+          badge.style.color = '#39FF14';
+          dot.style.background = '#39FF14';
+          dot.style.boxShadow = '0 0 8px rgba(57,255,20,0.8)';
+          text.textContent = '🟢 AI Moderation ON';
+          desc.textContent = 'The AI is actively monitoring community activity: rule detection, warnings, violation tracking, live safety monitoring, and moderation assistance are all running.';
+          offNote.style.display = 'none';
+          btn.textContent = '🔴 Disable AI Moderation';
+          btn.style.background = 'linear-gradient(135deg,#003322,#006644)';
+          btn.style.borderColor = 'rgba(57,255,20,0.5)';
+          btn.style.color = '#39FF14';
+          btn.style.boxShadow = '0 0 14px rgba(57,255,20,0.25)';
+      } else {
+          badge.style.background = 'rgba(255,51,85,0.12)';
+          badge.style.borderColor = 'rgba(255,51,85,0.50)';
+          badge.style.color = '#ff5566';
+          dot.style.background = '#ff5566';
+          dot.style.boxShadow = '0 0 8px rgba(255,51,85,0.8)';
+          text.textContent = '🔴 AI Moderation OFF';
+          desc.textContent = 'Automatic AI rule detection, warnings, and AI-driven actions are currently stopped. Manual moderation tools remain fully operational.';
+          offNote.style.display = 'block';
+          btn.textContent = '🟢 Enable AI Moderation';
+          btn.style.background = 'linear-gradient(135deg,#220000,#660022)';
+          btn.style.borderColor = 'rgba(255,51,85,0.5)';
+          btn.style.color = '#ff8899';
+          btn.style.boxShadow = '0 0 14px rgba(255,51,85,0.25)';
+      }
+  }
+
+  /* Load the AI toggle history log */
+  async function _loadAIToggleLog() {
+      const logEl = document.getElementById('aiToggleLog');
+      if (!logEl) return;
+      try {
+          const snap = await getDocs(query(collection(db, 'aiToggleLog'), orderBy('ts', 'desc'), limit(30)));
+          if (snap.empty) { logEl.innerHTML = '<div class="empty-state" style="padding:10px 0;">No changes recorded yet.</div>'; return; }
+          logEl.innerHTML = snap.docs.map(d => {
+              const r = d.data();
+              const tsStr = r.ts ? new Date(r.ts).toLocaleString() : '—';
+              const prevLabel = r.previousStatus ? '🟢 ON' : '🔴 OFF';
+              const newLabel  = r.newStatus      ? '🟢 ON' : '🔴 OFF';
+              const color = r.newStatus ? '#39FF14' : '#ff5566';
+              return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px;border-left:3px solid ${color};background:rgba(0,0,0,0.18);border-radius:0 8px 8px 0;margin-bottom:6px;">
+                  <span style="font-size:12px;font-weight:700;color:${color};">${newLabel}</span>
+                  <span style="font-size:11px;color:#6a90b8;">was ${prevLabel}</span>
+                  <span style="font-size:11px;color:#c8e8ff;margin-left:auto;">by ${r.changedByName||'Founder'}</span>
+                  <span style="font-size:11px;color:#6a90b8;width:100%;">${tsStr}</span>
+              </div>`;
+          }).join('');
+      } catch(_) {}
+  }
+
+  /* Main toggle handler — Founder only, with confirmation when disabling */
+  window.founderToggleAIModeration = async function() {
+      if (!founderOnly()) return;
+      const currentlyOn = window._aiModerationEnabled !== false;
+      if (currentlyOn) {
+          // Show confirmation before disabling
+          const modal = document.createElement('div');
+          modal.id = '_aiConfirmModal';
+          modal.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.78);';
+          modal.innerHTML = `
+              <div style="background:#0d2444;border:1px solid rgba(255,51,85,0.55);border-radius:16px;padding:28px 24px;max-width:360px;width:calc(100% - 40px);box-shadow:0 0 40px rgba(255,51,85,0.3);">
+                  <div style="font-size:22px;margin-bottom:10px;">⚠️</div>
+                  <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:10px;">Disable AI Moderation?</div>
+                  <div style="font-size:13px;color:#c8a0a8;line-height:1.7;margin-bottom:22px;">Automatic rule detection will stop. Manual moderation, user reports, moderator actions, and Founder controls remain fully available.</div>
+                  <div style="display:flex;gap:10px;">
+                      <button id="_aiConfirmYes" style="flex:1;padding:10px;border-radius:10px;background:linear-gradient(135deg,#440011,#880022);border:1px solid rgba(255,51,85,0.6);color:#ff8899;font-size:13px;font-weight:700;cursor:pointer;">✅ Disable AI</button>
+                      <button id="_aiConfirmNo"  style="flex:1;padding:10px;border-radius:10px;background:rgba(0,40,80,0.6);border:1px solid rgba(0,174,239,0.4);color:#66ccff;font-size:13px;font-weight:700;cursor:pointer;">❌ Cancel</button>
+                  </div>
+              </div>`;
+          document.body.appendChild(modal);
+          document.getElementById('_aiConfirmNo').onclick  = () => modal.remove();
+          document.getElementById('_aiConfirmYes').onclick = async () => {
+              modal.remove();
+              await _applyAIToggle(false, currentlyOn);
+          };
+      } else {
+          await _applyAIToggle(true, currentlyOn);
+      }
+  };
+
+  async function _applyAIToggle(newState, previousState) {
+      try {
+          // Persist to Firestore siteSettings
+          await setDoc(doc(db, 'siteSettings', 'config'), { aiModerationEnabled: newState }, { merge: true });
+          // Write a toggle log entry
+          await addDoc(collection(db, 'aiToggleLog'), {
+              changedByUid:  currentUser.uid,
+              changedByName: userData.displayName || 'Founder',
+              previousStatus: previousState,
+              newStatus:      newState,
+              ts: Date.now()
+          });
+          // Write to the main audit log
+          await adminAuditLog('AI_MODERATION_TOGGLE', `AI moderation set to ${newState ? 'ON' : 'OFF'} (was ${previousState ? 'ON' : 'OFF'})`);
+          _syncAIToggleUI(newState);
+          _loadAIToggleLog();
+          toastNotification(newState ? '🟢 AI Moderation enabled.' : '🔴 AI Moderation disabled.');
+      } catch(e) {
+          toastNotification('⛔ Failed to update AI setting: ' + e.message);
+      }
+  }
 
   /* ── Role Assignment (Founder only) ── */
   let _roleSearchTimer = null;
@@ -12716,6 +12888,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           _cb('toggleStormRooms','stormRoomsEnabled'); _cb('togglePosts','postsEnabled');
           const n=document.getElementById('siteSettingAppName'); if(n&&cfg.appName)n.value=cfg.appName;
           const r=document.getElementById('siteSettingRulesUrl'); if(r&&cfg.rulesUrl)r.value=cfg.rulesUrl;
+          // Sync AI moderation toggle state
+          _syncAIToggleUI(cfg.aiModerationEnabled !== false);
       }catch(_){}
   };
   window.adminExportUsers = async function() {
