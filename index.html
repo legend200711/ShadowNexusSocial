@@ -3659,32 +3659,410 @@ img, video { max-width: 100%; height: auto; }
     display: flex; align-items: center; justify-content: center;
 }
 
-/* ── Live Now feed strip (public streams shown in Feed) ── */
-#liveFeedSection { margin-bottom: 16px; display: none; }
+/* ── Go Live Modal ── */
+#storyLiveModal {
+    display: none; position: fixed; inset: 0; z-index: 8700;
+    background: rgba(0,3,15,0.92); align-items: center; justify-content: center;
+    padding: 16px; box-sizing: border-box; backdrop-filter: blur(6px);
+}
+#storyLiveModal.open { display: flex; }
+.live-modal-inner {
+    background: linear-gradient(180deg, #0d1a30 0%, #071020 100%);
+    border: 1px solid rgba(255,30,60,0.35);
+    border-radius: 18px; width: 100%; max-width: 480px;
+    max-height: 90vh; overflow-y: auto; padding: 22px 20px 26px;
+    box-sizing: border-box; position: relative;
+    animation: deleteModalIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both;
+    -webkit-overflow-scrolling: touch;
+    box-shadow: 0 0 50px rgba(255,30,60,0.2);
+}
+.live-modal-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+}
+.live-modal-title { font-size: 16px; font-weight: 800; color: #ff4466; text-shadow: 0 0 12px rgba(255,40,70,0.5); }
+.live-modal-close {
+    background: none; border: none; color: #4a6a8a; font-size: 22px; cursor: pointer;
+    padding: 2px 8px; border-radius: 6px; transition: color 0.15s; line-height: 1;
+}
+.live-modal-close:hover { color: #c8e8ff; }
+
+/* Camera preview */
+.live-preview-wrap {
+    width: 100%; background: #000; border-radius: 14px; overflow: hidden;
+    aspect-ratio: 9/16; max-height: 340px; position: relative; margin-bottom: 14px;
+    border: 1px solid rgba(255,30,60,0.25);
+}
+#livePreviewVideo {
+    width: 100%; height: 100%; object-fit: cover; background: #000; display: block;
+}
+.live-preview-badge {
+    position: absolute; top: 10px; left: 12px; background: #ff0040; color: #fff;
+    font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px;
+    text-transform: uppercase; letter-spacing: 0.5px; display: none;
+    animation: liveBadgePulse 1.2s ease-in-out infinite;
+}
+@keyframes liveBadgePulse { 0%,100%{opacity:1}50%{opacity:0.55} }
+.live-preview-badge.visible { display: inline-block; }
+
+/* Live controls row */
+.live-controls-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.live-ctrl-btn {
+    padding: 8px 14px; border-radius: 10px; font-size: 12px; cursor: pointer;
+    background: rgba(0,20,55,0.7); border: 1px solid rgba(255,30,60,0.3); color: #ff6688;
+    transition: background 0.15s, border-color 0.15s; flex-shrink: 0;
+}
+.live-ctrl-btn:hover { background: rgba(120,0,30,0.3); border-color: rgba(255,60,80,0.7); }
+.live-ctrl-btn.cam-off  { border-color: rgba(255,170,0,0.4); color: #ffcc66; }
+.live-ctrl-btn.mic-off  { border-color: rgba(255,170,0,0.4); color: #ffcc66; }
+
+.live-title-input {
+    width: 100%; padding: 10px 12px; background: rgba(0,10,30,0.85);
+    border: 1px solid rgba(255,30,60,0.3); color: #fff; border-radius: 10px;
+    font-size: 13px; font-family: inherit; box-sizing: border-box; margin-bottom: 10px;
+}
+.live-title-input:focus { outline: none; border-color: rgba(255,60,80,0.65); box-shadow: 0 0 10px rgba(255,30,60,0.2); }
+.live-title-input::placeholder { color: rgba(200,100,120,0.4); }
+.live-privacy-select {
+    width: 100%; padding: 8px 10px; background: rgba(0,10,30,0.85);
+    border: 1px solid rgba(255,30,60,0.3); color: #c8e0f8; border-radius: 8px;
+    font-size: 12px; font-family: inherit; margin-bottom: 14px; box-sizing: border-box;
+}
+
+/* Start live button */
+.live-start-btn {
+    width: 100%; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 700;
+    background: linear-gradient(135deg, #880010, #cc0030);
+    border: 1px solid rgba(255,30,60,0.7); color: #fff;
+    box-shadow: 0 0 22px rgba(255,30,60,0.45); cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+}
+.live-start-btn:hover { background: linear-gradient(135deg, #aa0015, #ee0040); box-shadow: 0 0 30px rgba(255,30,60,0.6); }
+.live-start-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Active live stream viewer */
+#liveStreamViewer {
+    display: none; position: fixed; inset: 0; z-index: 9200;
+    background: #000; flex-direction: column;
+}
+#liveStreamViewer.open { display: flex; }
+.lv-video-wrap {
+    flex: 1; position: relative; overflow: hidden;
+}
+#liveStreamVideo {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.lv-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(transparent 60%, rgba(0,0,0,0.7) 100%);
+}
+.lv-header {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+    display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+    background: linear-gradient(rgba(0,0,0,0.6), transparent);
+}
+.lv-live-badge {
+    background: #ff0040; color: #fff; font-size: 10px; font-weight: 800;
+    padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;
+    animation: liveBadgePulse 1.2s ease-in-out infinite; flex-shrink: 0;
+}
+.lv-host-name { font-size: 13px; font-weight: 700; color: #fff; flex: 1; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
+.lv-viewer-count { font-size: 12px; color: rgba(255,255,255,0.8); flex-shrink: 0; }
+.lv-close-btn {
+    background: rgba(255,255,255,0.12); border: none; color: #fff;
+    font-size: 22px; width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    transition: background 0.15s;
+}
+.lv-close-btn:hover { background: rgba(255,255,255,0.25); }
+
+/* Guest video boxes */
+.lv-guests-row {
+    position: absolute; top: 70px; right: 10px; z-index: 5;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.lv-guest-box {
+    width: 80px; height: 120px; border-radius: 10px; overflow: hidden;
+    border: 2px solid rgba(0,174,239,0.5); background: #111; position: relative;
+}
+.lv-guest-box video { width: 100%; height: 100%; object-fit: cover; }
+.lv-guest-name {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    font-size: 8px; color: #fff; background: rgba(0,0,0,0.6);
+    text-align: center; padding: 2px 4px; font-weight: 600;
+}
+
+/* Live chat */
+.lv-chat-wrap {
+    position: absolute; bottom: 80px; left: 0; right: 0; z-index: 5;
+    max-height: 200px; overflow-y: auto; pointer-events: none;
+    padding: 0 12px; scrollbar-width: none;
+}
+.lv-chat-wrap::-webkit-scrollbar { display: none; }
+.lv-chat-msg {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(0,0,0,0.55); border-radius: 16px;
+    padding: 4px 10px; margin-bottom: 5px; font-size: 12px;
+    max-width: 75%; pointer-events: auto; word-break: break-word;
+}
+.lv-chat-author { color: #00AEEF; font-weight: 700; flex-shrink: 0; }
+.lv-chat-text { color: #f0f0f0; }
+
+/* Live reactions floating */
+.lv-react-float {
+    position: absolute; bottom: 100px; right: 20px; z-index: 6;
+    pointer-events: none;
+}
+.lv-float-emoji {
+    position: absolute; font-size: 26px;
+    animation: liveEmojiFloat 2s ease-out forwards;
+}
+@keyframes liveEmojiFloat {
+    0%   { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-140px) scale(1.5); }
+}
+
+/* Live footer */
+.lv-footer {
+    position: absolute; bottom: 0; left: 0; right: 0; z-index: 6;
+    padding: 10px 12px 24px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    display: flex; align-items: center; gap: 8px;
+}
+.lv-msg-input {
+    flex: 1; padding: 9px 14px; background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 22px;
+    color: #fff; font-size: 13px; font-family: inherit; outline: none;
+}
+.lv-msg-input::placeholder { color: rgba(255,255,255,0.45); }
+.lv-react-trigger-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+    color: #fff; font-size: 22px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.lv-end-btn {
+    padding: 8px 14px; border-radius: 10px; background: rgba(180,0,30,0.3);
+    border: 1px solid rgba(255,30,60,0.55); color: #ff6688; font-size: 12px;
+    cursor: pointer; flex-shrink: 0; font-weight: 700; transition: background 0.15s;
+}
+.lv-end-btn:hover { background: rgba(255,30,60,0.3); }
+
+/* Mobile safe area */
+@supports (padding: env(safe-area-inset-bottom)) {
+    .sv-footer  { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+    .lv-footer  { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+    .story-chooser-inner { padding-bottom: calc(32px + env(safe-area-inset-bottom)); }
+}
+
+/* ════════════════════════════════════════════
+   LIVE FEED CARDS — Public discoverable Lives
+   ════════════════════════════════════════════ */
+#liveFeedSection {
+    margin-bottom: 16px;
+    display: none; /* shown when lives exist */
+}
 #liveFeedSection.has-lives { display: block; }
-.live-feed-label { font-size: 11px; font-weight: 700; color: #ff4466; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px; display: flex; align-items: center; gap: 7px; }
-.live-feed-label-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff0040; animation: liveBadgePulse 1.2s ease-in-out infinite; flex-shrink: 0; }
-@keyframes liveBadgePulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
-.live-feed-strip { display: flex; gap: 12px; overflow-x: auto; padding: 2px 0 8px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+
+.live-feed-label {
+    font-size: 11px; font-weight: 700; color: #ff4466;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin: 0 0 10px; display: flex; align-items: center; gap: 7px;
+}
+.live-feed-label-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #ff0040;
+    animation: liveBadgePulse 1.2s ease-in-out infinite; flex-shrink: 0;
+}
+
+.live-feed-strip {
+    display: flex; gap: 12px; overflow-x: auto; padding: 2px 0 8px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
 .live-feed-strip::-webkit-scrollbar { display: none; }
-.live-feed-card { flex-shrink: 0; width: 160px; border-radius: 14px; overflow: hidden; background: linear-gradient(160deg, #0d1a30, #071020); border: 1px solid rgba(255,30,60,0.35); cursor: pointer; position: relative; box-shadow: 0 0 16px rgba(255,30,60,0.18); transition: transform 0.15s, box-shadow 0.18s; -webkit-tap-highlight-color: transparent; }
+
+/* Each Live card */
+.live-feed-card {
+    flex-shrink: 0; width: 160px; border-radius: 14px; overflow: hidden;
+    background: linear-gradient(160deg, #0d1a30, #071020);
+    border: 1px solid rgba(255,30,60,0.35);
+    cursor: pointer; position: relative;
+    box-shadow: 0 0 16px rgba(255,30,60,0.18);
+    transition: transform 0.15s, box-shadow 0.18s;
+    -webkit-tap-highlight-color: transparent;
+}
 .live-feed-card:hover { transform: translateY(-2px); box-shadow: 0 4px 24px rgba(255,30,60,0.35); }
 .live-feed-card:active { transform: scale(0.97); }
-.live-feed-card-thumb { width: 100%; height: 110px; background: #050f1e; display: flex; align-items: center; justify-content: center; font-size: 40px; position: relative; overflow: hidden; }
-.live-feed-card-thumb .lfc-avatar-large { width: 64px; height: 64px; border-radius: 50%; background: #0B1F3A center/cover no-repeat; border: 3px solid rgba(255,30,60,0.55); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; color: #ff6688; box-shadow: 0 0 20px rgba(255,30,60,0.45); }
-.live-feed-card-badge { position: absolute; top: 8px; left: 8px; background: #ff0040; color: #fff; font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 5px; text-transform: uppercase; letter-spacing: 0.5px; animation: liveBadgePulse 1.2s ease-in-out infinite; }
-.live-feed-card-viewers { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.65); color: rgba(255,255,255,0.9); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 8px; display: flex; align-items: center; gap: 3px; }
-.live-feed-card-info { padding: 8px 10px 10px; }
-.live-feed-card-name { font-size: 13px; font-weight: 700; color: #e8f4ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
-.live-feed-card-title { font-size: 11px; color: rgba(255,255,255,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 7px; }
-.live-feed-card-tap { font-size: 11px; font-weight: 600; color: #ff6688; letter-spacing: 0.3px; }
 
-/* ── Story ring live style ── */
-.story-ring-wrap.live-ring { border: 2px solid #ff0040; box-shadow: 0 0 10px rgba(255,0,64,0.55); animation: liveRingPulse 1.4s ease-in-out infinite; }
-@keyframes liveRingPulse { 0%,100%{box-shadow:0 0 10px rgba(255,0,64,0.55)} 50%{box-shadow:0 0 20px rgba(255,0,64,0.9)} }
-.story-live-badge { display: block; font-size: 9px; font-weight: 800; color: #ff4466; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px; }
+.live-feed-card-thumb {
+    width: 100%; height: 110px; background: #050f1e;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px; position: relative; overflow: hidden;
+}
+.live-feed-card-thumb .lfc-avatar-large {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: #0B1F3A center/cover no-repeat;
+    border: 3px solid rgba(255,30,60,0.55);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 800; color: #ff6688;
+    box-shadow: 0 0 20px rgba(255,30,60,0.45);
+}
+.live-feed-card-badge {
+    position: absolute; top: 8px; left: 8px;
+    background: #ff0040; color: #fff;
+    font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 5px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    animation: liveBadgePulse 1.2s ease-in-out infinite;
+}
+.live-feed-card-viewers {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(0,0,0,0.65); color: rgba(255,255,255,0.9);
+    font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 8px;
+    display: flex; align-items: center; gap: 3px;
+}
 
+.live-feed-card-info {
+    padding: 8px 10px 10px;
+}
+.live-feed-card-name {
+    font-size: 13px; font-weight: 700; color: #e8f4ff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+.live-feed-card-title {
+    font-size: 11px; color: rgba(255,255,255,0.5);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 7px;
+}
+.live-feed-card-tap {
+    font-size: 11px; font-weight: 600; color: #ff6688; letter-spacing: 0.3px;
+}
+
+/* ── Live Join Choice Overlay ── */
+#liveJoinChoice {
+    display: none; position: fixed; inset: 0; z-index: 9100;
+    background: rgba(0,3,15,0.88); align-items: flex-end; justify-content: center;
+    padding: 0; box-sizing: border-box; backdrop-filter: blur(6px);
+}
+#liveJoinChoice.open { display: flex; }
+.ljc-sheet {
+    background: linear-gradient(180deg, #0d1a30, #060f1e);
+    border: 1px solid rgba(255,30,60,0.3); border-bottom: none;
+    border-radius: 20px 20px 0 0; width: 100%; max-width: 520px;
+    padding: 20px 20px calc(24px + env(safe-area-inset-bottom,0px));
+    box-sizing: border-box;
+    animation: sheetSlideUp 0.3s cubic-bezier(0.34,1.2,0.64,1) both;
+}
+@keyframes sheetSlideUp {
+    from { transform: translateY(100%); opacity: 0.5; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
+.ljc-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.ljc-avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: #0B1F3A center/cover no-repeat;
+    border: 2px solid rgba(255,30,60,0.55);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 800; color: #ff6688; flex-shrink: 0;
+}
+.ljc-info { flex: 1; min-width: 0; }
+.ljc-name { font-size: 15px; font-weight: 800; color: #fff; }
+.ljc-meta { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+.ljc-close {
+    background: rgba(255,255,255,0.1); border: none; color: #fff;
+    width: 34px; height: 34px; border-radius: 50%; font-size: 18px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: background 0.15s;
+}
+.ljc-close:hover { background: rgba(255,255,255,0.22); }
+
+.ljc-title-text {
+    font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 14px;
+    font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.ljc-btn {
+    display: flex; align-items: center; gap: 13px;
+    width: 100%; padding: 14px 16px; border-radius: 12px;
+    cursor: pointer; border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.05); margin-bottom: 10px;
+    transition: background 0.15s, border-color 0.15s;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+}
+.ljc-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+.ljc-btn:last-child { margin-bottom: 0; }
+.ljc-btn-icon { font-size: 26px; flex-shrink: 0; }
+.ljc-btn-label { font-size: 14px; font-weight: 700; color: #fff; }
+.ljc-btn-sub   { font-size: 11px; color: rgba(255,255,255,0.45); margin-top: 1px; }
+.ljc-btn.ljc-watch   { border-color: rgba(0,174,239,0.35); }
+.ljc-btn.ljc-watch:hover { background: rgba(0,174,239,0.1); border-color: rgba(0,174,239,0.6); }
+.ljc-btn.ljc-request { border-color: rgba(255,30,60,0.35); }
+.ljc-btn.ljc-request:hover { background: rgba(255,30,60,0.08); border-color: rgba(255,60,80,0.65); }
+
+/* ── Guest box request waiting sheet ── */
+#liveBoxWaiting {
+    display: none; position: fixed; inset: 0; z-index: 9300;
+    background: rgba(0,3,15,0.9); align-items: center; justify-content: center;
+    padding: 20px; box-sizing: border-box; backdrop-filter: blur(8px);
+}
+#liveBoxWaiting.open { display: flex; }
+.lbw-card {
+    background: linear-gradient(180deg, #0d1a30, #060f1e);
+    border: 1px solid rgba(255,30,60,0.3); border-radius: 18px;
+    padding: 28px 22px; text-align: center; max-width: 340px; width: 100%;
+    animation: deleteModalIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.lbw-spinner {
+    width: 40px; height: 40px; border: 3px solid rgba(255,30,60,0.2);
+    border-top-color: #ff0040; border-radius: 50%;
+    animation: spin 0.9s linear infinite; margin: 0 auto 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.lbw-title { font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+.lbw-sub   { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 16px; line-height: 1.6; }
+.lbw-cancel {
+    padding: 9px 22px; border-radius: 10px; font-size: 13px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.7); cursor: pointer;
+}
+
+/* ── Host guest-request banner inside liveStreamViewer ── */
+.lv-request-banner {
+    position: absolute; top: 70px; left: 12px; z-index: 7;
+    background: rgba(0,0,0,0.75); border: 1px solid rgba(0,174,239,0.45);
+    border-radius: 12px; padding: 10px 12px; min-width: 220px; max-width: 280px;
+    display: none;
+}
+.lv-request-banner.visible { display: block; }
+.lv-req-title { font-size: 11px; font-weight: 700; color: #00AEEF; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+.lv-req-item {
+    display: flex; align-items: center; gap: 8px; padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.lv-req-item:last-child { border-bottom: none; }
+.lv-req-name { flex: 1; font-size: 13px; color: #fff; font-weight: 600; }
+.lv-req-accept {
+    background: rgba(57,255,20,0.2); border: 1px solid rgba(57,255,20,0.5);
+    color: #39FF14; font-size: 11px; padding: 3px 9px; border-radius: 6px; cursor: pointer;
+    font-weight: 700;
+}
+.lv-req-deny {
+    background: rgba(255,30,60,0.12); border: 1px solid rgba(255,30,60,0.35);
+    color: #ff5566; font-size: 11px; padding: 3px 9px; border-radius: 6px; cursor: pointer;
+}
+
+/* Request to Join Box button inside viewer */
+.lv-join-box-btn {
+    padding: 9px 16px; border-radius: 10px; font-size: 12px; font-weight: 700;
+    background: rgba(255,30,60,0.18); border: 1px solid rgba(255,30,60,0.5);
+    color: #ff6688; cursor: pointer; flex-shrink: 0;
+    transition: background 0.15s, border-color 0.15s;
+}
+.lv-join-box-btn:hover { background: rgba(255,30,60,0.3); border-color: rgba(255,60,80,0.75); }
+.lv-join-box-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 </style>
+
 
 <style id="palette-overrides">
 /* ═══════════════════════════════════════════════════════════
@@ -5330,7 +5708,68 @@ body.arcade-fs-ios body::after { display:none !important; }
 }
 </style>
 
+<!-- ══════════════════════════════════════════════════════════
+     AUTH GATE OVERLAY
+     Shown instantly on every page load, dismissed only after
+     Firebase resolves the auth state.  Prevents the login
+     screen from flashing for returning (logged-in) users.
+     ══════════════════════════════════════════════════════════ -->
+<style>
+#snx-auth-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #0B1F3A;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    /* Gate fades out instead of snapping away */
+    transition: opacity 0.28s ease, visibility 0.28s ease;
+}
+#snx-auth-gate.resolved {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+.snx-gate-logo {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 35%, #003d99 0%, #071428 100%);
+    border: 2.5px solid rgba(0,174,239,0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    box-shadow: 0 0 36px rgba(0,174,239,0.58), 0 0 0 1px rgba(0,174,239,0.14);
+    animation: blueFlame 3s infinite;
+}
+.snx-gate-spinner {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid rgba(0,174,239,0.18);
+    border-top-color: #00AEEF;
+    animation: spin360 0.75s linear infinite;
+}
+.snx-gate-label {
+    font-size: 12px;
+    color: #3a6a9a;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+</style>
+
 <body>
+
+<!-- Auth gate — rendered before anything else, removed after Firebase resolves -->
+<div id="snx-auth-gate" aria-hidden="true">
+    <div class="snx-gate-logo">🌑</div>
+    <div class="snx-gate-spinner"></div>
+    <div class="snx-gate-label">Loading…</div>
+</div>
 
 <canvas id="bg-canvas"></canvas>
 
@@ -5391,6 +5830,9 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="nav-item" id="navCommunity" onclick="navTo('communityPage')">
             <span class="nav-icon">💙</span> Community Hub
         </button>
+        <button class="nav-item" id="navCommunityRules" onclick="navTo('communityRulesPage')">
+            <span class="nav-icon">📜</span> Community Rules
+        </button>
         <!-- Moderator Panel — only visible to Moderators; toggled in JS after auth -->
         <button class="nav-item nav-item-mod" id="navMod" onclick="navTo('moderatorPage')" style="display:none;">
             <span class="nav-icon">🛡️</span> Moderator Panel
@@ -5416,7 +5858,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 </nav>
 
-<div class="page active" id="login">
+<div class="page" id="login">
     <div class="section-card" style="text-align:center; max-width:400px; margin:0 auto;">
 
         <!-- Logo mark -->
@@ -6983,6 +7425,109 @@ body.arcade-fs-ios body::after { display:none !important; }
 <!-- ═══════════════════════════════════════════════════════════
      ADMIN PANEL PAGE — Founder only
      ═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════
+     COMMUNITY RULES PAGE
+     Accessible to all logged-in users via sidebar.
+     ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="communityRulesPage">
+<h2 class="eclipse-title">📜 Community Rules</h2>
+
+<!-- Safety System Banner -->
+<div class="section-card" style="margin-bottom:16px;border-color:rgba(0,174,239,0.45);background:linear-gradient(135deg,rgba(0,40,80,0.45),rgba(11,31,58,0.92));">
+    <h3 style="margin:0 0 8px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🤖 AI Community Safety System</h3>
+    <p style="font-size:13px;color:#9bbdd8;margin:0 0 10px;line-height:1.7;">Shadow Nexus Social uses a built-in AI-assisted moderation system to help keep the community safe. The AI <strong style="color:#c8e8ff;">assists moderators</strong> — it does not replace them. Every serious action can be reviewed and appealed.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(0,174,239,0.14);border:1px solid rgba(0,174,239,0.35);color:#66ccff;">⚡ Detects rule violations</span>
+        <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(57,255,20,0.10);border:1px solid rgba(57,255,20,0.30);color:#39FF14;">✅ Tracks repeated issues</span>
+        <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(255,185,0,0.10);border:1px solid rgba(255,185,0,0.30);color:#ffd966;">📩 Appeal any action</span>
+    </div>
+</div>
+
+<!-- The Rules -->
+<div class="section-card" style="margin-bottom:16px;">
+    <h3 style="margin:0 0 14px;font-size:13px;color:#fff;text-transform:uppercase;letter-spacing:0.8px;">🚫 What Is Not Allowed</h3>
+    <p style="font-size:12px;color:#6a90b8;margin:0 0 14px;">These rules apply to <strong style="color:#9bbdd8;">posts, stories, messages, live streams, live chat, and guest boxes.</strong></p>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(255,51,85,0.06);border:1px solid rgba(255,51,85,0.20);border-radius:10px;">
+            <span style="font-size:18px;flex-shrink:0;">🚫</span>
+            <div><div style="font-size:13px;font-weight:700;color:#ff8899;margin-bottom:2px;">No Bullying</div><div style="font-size:12px;color:#9bbdd8;line-height:1.6;">Do not target, demean, or persistently harass any individual user on the platform.</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(255,51,85,0.06);border:1px solid rgba(255,51,85,0.20);border-radius:10px;">
+            <span style="font-size:18px;flex-shrink:0;">🚫</span>
+            <div><div style="font-size:13px;font-weight:700;color:#ff8899;margin-bottom:2px;">No Harassment</div><div style="font-size:12px;color:#9bbdd8;line-height:1.6;">Do not send unwanted, intimidating, or repeated aggressive messages to any user.</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(255,51,85,0.06);border:1px solid rgba(255,51,85,0.20);border-radius:10px;">
+            <span style="font-size:18px;flex-shrink:0;">🚫</span>
+            <div><div style="font-size:13px;font-weight:700;color:#ff8899;margin-bottom:2px;">No Threats</div><div style="font-size:12px;color:#9bbdd8;line-height:1.6;">Threats of any kind — including implied or indirect threats — will be escalated immediately for review.</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(255,51,85,0.06);border:1px solid rgba(255,51,85,0.20);border-radius:10px;">
+            <span style="font-size:18px;flex-shrink:0;">🚫</span>
+            <div><div style="font-size:13px;font-weight:700;color:#ff8899;margin-bottom:2px;">No Hate Speech</div><div style="font-size:12px;color:#9bbdd8;line-height:1.6;">Content that discriminates or attacks based on identity, background, or group membership is strictly prohibited.</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(255,51,85,0.06);border:1px solid rgba(255,51,85,0.20);border-radius:10px;">
+            <span style="font-size:18px;flex-shrink:0;">🚫</span>
+            <div><div style="font-size:13px;font-weight:700;color:#ff8899;margin-bottom:2px;">No Spam</div><div style="font-size:12px;color:#9bbdd8;line-height:1.6;">Do not flood chats, posts, or messages with repetitive, unsolicited, or promotional content.</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(255,51,85,0.06);border:1px solid rgba(255,51,85,0.20);border-radius:10px;">
+            <span style="font-size:18px;flex-shrink:0;">🚫</span>
+            <div><div style="font-size:13px;font-weight:700;color:#ff8899;margin-bottom:2px;">No Repeated Disruptive Behavior</div><div style="font-size:12px;color:#9bbdd8;line-height:1.6;">Continued rule-breaking after warnings will result in escalating restrictions.</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Where Rules Apply -->
+<div class="section-card" style="margin-bottom:16px;">
+    <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">📍 These Rules Apply To</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.28);color:#c8e8ff;">📝 Posts</span>
+        <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.28);color:#c8e8ff;">📖 Stories</span>
+        <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.28);color:#c8e8ff;">💬 Messages</span>
+        <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.28);color:#c8e8ff;">🔴 Live Streams</span>
+        <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.28);color:#c8e8ff;">💭 Live Chat</span>
+        <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.28);color:#c8e8ff;">📦 Guest Boxes</span>
+    </div>
+</div>
+
+<!-- Safety Flow -->
+<div class="section-card" style="margin-bottom:16px;border-color:rgba(57,255,20,0.22);">
+    <h3 style="margin:0 0 12px;font-size:13px;color:#39FF14;text-transform:uppercase;letter-spacing:0.8px;">🔄 How the Safety System Works</h3>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:#9bbdd8;line-height:2;">
+        <span style="padding:4px 10px;border-radius:8px;background:rgba(255,51,85,0.12);border:1px solid rgba(255,51,85,0.3);color:#ff8899;">Rule Broken</span>
+        <span style="color:#6a90b8;">→</span>
+        <span style="padding:4px 10px;border-radius:8px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.28);color:#66ccff;">AI Detects</span>
+        <span style="color:#6a90b8;">→</span>
+        <span style="padding:4px 10px;border-radius:8px;background:rgba(255,185,0,0.12);border:1px solid rgba(255,185,0,0.28);color:#ffd966;">Warning Issued</span>
+        <span style="color:#6a90b8;">→</span>
+        <span style="padding:4px 10px;border-radius:8px;background:rgba(255,100,0,0.12);border:1px solid rgba(255,100,0,0.28);color:#ffaa44;">Continued Issue</span>
+        <span style="color:#6a90b8;">→</span>
+        <span style="padding:4px 10px;border-radius:8px;background:rgba(255,51,85,0.14);border:1px solid rgba(255,51,85,0.35);color:#ff5566;">Action Taken</span>
+        <span style="color:#6a90b8;">→</span>
+        <span style="padding:4px 10px;border-radius:8px;background:rgba(57,255,20,0.10);border:1px solid rgba(57,255,20,0.28);color:#39FF14;">User Can Appeal</span>
+        <span style="color:#6a90b8;">→</span>
+        <span style="padding:4px 10px;border-radius:8px;background:rgba(255,185,0,0.12);border:1px solid rgba(255,185,0,0.30);color:#ffe566;">👑 Founder Reviews</span>
+        <span style="color:#6a90b8;">→</span>
+        <span style="padding:4px 10px;border-radius:8px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.28);color:#66ccff;">Accept or Deny</span>
+    </div>
+</div>
+
+<!-- Appeal Info -->
+<div class="section-card" style="border-color:rgba(255,185,0,0.30);background:linear-gradient(135deg,rgba(60,40,0,0.20),rgba(11,31,58,0.92));">
+    <h3 style="margin:0 0 10px;font-size:13px;color:#ffe566;text-transform:uppercase;letter-spacing:0.8px;">📩 Appealing a Moderation Action</h3>
+    <p style="font-size:13px;color:#c8a870;margin:0 0 10px;line-height:1.7;">If you believe a moderation action was made in error, you have the right to appeal. All appeals are reviewed personally by the Founder.</p>
+    <ul style="margin:0;padding-left:18px;font-size:12px;color:#d8c890;line-height:2.2;">
+        <li>Submit your appeal through the Reports section.</li>
+        <li>Explain what happened in your own words.</li>
+        <li>The Founder will review your history and the action taken.</li>
+        <li>You will receive a decision: accepted or denied.</li>
+        <li>If accepted, restrictions will be removed.</li>
+    </ul>
+</div>
+
+</div><!-- end communityRulesPage -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     FOUNDER PANEL PAGE
+     ═══════════════════════════════════════════════════════════ -->
 <div class="page" id="adminPage">
 <h2 class="eclipse-title">🛡️ Founder Control Center</h2>
 
@@ -6996,6 +7541,8 @@ body.arcade-fs-ios body::after { display:none !important; }
     <button class="admin-tab" onclick="switchAdminTab('settings')">⚙️ Settings</button>
     <button class="admin-tab" onclick="switchAdminTab('security')">🔒 Security</button>
     <button class="admin-tab" onclick="switchAdminTab('roles')">👑 Staff Roles</button>
+    <button class="admin-tab" onclick="switchAdminTab('appeals')">📩 Appeals</button>
+    <button class="admin-tab" onclick="switchAdminTab('aisafety')">🤖 AI Safety</button>
 </div>
 
 <!-- ══════════════════════════════════
@@ -7312,6 +7859,156 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 </div>
 
+<!-- ══════════════════════════════════
+     TAB: APPEALS (Founder Appeal Control System)
+══════════════════════════════════ -->
+<div class="admin-tab-content" id="adminTab-appeals">
+
+    <!-- Appeal Stats -->
+    <div class="admin-stats-row" style="margin-bottom:16px;">
+        <div class="admin-stat-card"><div class="admin-stat-num" id="appealStatPending">—</div><div class="admin-stat-label">Pending</div></div>
+        <div class="admin-stat-card"><div class="admin-stat-num" id="appealStatAccepted">—</div><div class="admin-stat-label">Accepted</div></div>
+        <div class="admin-stat-card"><div class="admin-stat-num" id="appealStatDenied">—</div><div class="admin-stat-label">Denied</div></div>
+        <div class="admin-stat-card"><div class="admin-stat-num" id="appealStatTotal">—</div><div class="admin-stat-label">Total</div></div>
+    </div>
+
+    <!-- Appeal Queue -->
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(255,185,0,0.35);background:linear-gradient(135deg,rgba(60,40,0,0.18),rgba(11,31,58,0.92));">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#ffe566;text-transform:uppercase;letter-spacing:0.8px;">👑 Appeal Review Queue</h3>
+        <p style="font-size:12px;color:#9bbdd8;margin:0 0 12px;line-height:1.6;">Review moderation appeals submitted by users. Each record shows user information, the rule violated, the action taken, and the user's reason for appealing.</p>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+            <button class="admin-tab" id="appealTabPending" onclick="adminLoadAppeals('pending',this)" style="font-size:11px;padding:5px 14px;">⏳ Pending</button>
+            <button class="admin-tab" id="appealTabAccepted" onclick="adminLoadAppeals('accepted',this)" style="font-size:11px;padding:5px 14px;">✅ Accepted</button>
+            <button class="admin-tab" id="appealTabDenied" onclick="adminLoadAppeals('denied',this)" style="font-size:11px;padding:5px 14px;">❌ Denied</button>
+            <button class="admin-tab" id="appealTabAll" onclick="adminLoadAppeals('all',this)" style="font-size:11px;padding:5px 14px;">📋 All</button>
+        </div>
+        <div id="adminAppealList"><div class="empty-state" style="padding:20px 0;">Select a filter above to load appeals.</div></div>
+    </div>
+
+    <!-- Appeal Record Reference -->
+    <div class="section-card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">📋 What Each Appeal Record Contains</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:12px;padding:4px 10px;border-radius:8px;background:rgba(0,174,239,0.10);border:1px solid rgba(0,174,239,0.25);color:#c8e8ff;">👤 User Info</span>
+            <span style="font-size:12px;padding:4px 10px;border-radius:8px;background:rgba(0,174,239,0.10);border:1px solid rgba(0,174,239,0.25);color:#c8e8ff;">📜 Rule Violated</span>
+            <span style="font-size:12px;padding:4px 10px;border-radius:8px;background:rgba(0,174,239,0.10);border:1px solid rgba(0,174,239,0.25);color:#c8e8ff;">⚡ Action Taken</span>
+            <span style="font-size:12px;padding:4px 10px;border-radius:8px;background:rgba(0,174,239,0.10);border:1px solid rgba(0,174,239,0.25);color:#c8e8ff;">💬 Appeal Reason</span>
+            <span style="font-size:12px;padding:4px 10px;border-radius:8px;background:rgba(0,174,239,0.10);border:1px solid rgba(0,174,239,0.25);color:#c8e8ff;">👑 Founder Decision</span>
+            <span style="font-size:12px;padding:4px 10px;border-radius:8px;background:rgba(0,174,239,0.10);border:1px solid rgba(0,174,239,0.25);color:#c8e8ff;">📅 Review Date</span>
+            <span style="font-size:12px;padding:4px 10px;border-radius:8px;background:rgba(0,174,239,0.10);border:1px solid rgba(0,174,239,0.25);color:#c8e8ff;">📝 Decision Notes</span>
+        </div>
+    </div>
+
+    <!-- Founder Actions Reference -->
+    <div class="section-card" style="border-color:rgba(255,185,0,0.30);background:linear-gradient(135deg,rgba(60,40,0,0.18),rgba(11,31,58,0.92));">
+        <h3 style="margin:0 0 10px;font-size:13px;color:#ffe566;text-transform:uppercase;letter-spacing:0.8px;">⚡ Founder Appeal Actions</h3>
+        <ul style="margin:0;padding-left:18px;font-size:12px;color:#d8c890;line-height:2.2;">
+            <li><strong style="color:#39FF14;">Accept Appeal</strong> — Remove the restriction and update the record as accepted.</li>
+            <li><strong style="color:#ff5566;">Deny Appeal</strong> — Keep the restriction active and record the denial reason.</li>
+            <li><strong style="color:#66ccff;">Review Moderation History</strong> — View the full history of actions taken on the user before deciding.</li>
+            <li><strong style="color:#ffd966;">Add Decision Notes</strong> — Attach notes to the appeal record explaining the decision.</li>
+        </ul>
+    </div>
+
+</div>
+
+<!-- ══════════════════════════════════
+     TAB: AI SAFETY
+══════════════════════════════════ -->
+<div class="admin-tab-content" id="adminTab-aisafety">
+
+    <!-- ══ AI Safety System Toggle — Founder Only ══ -->
+    <div class="section-card" id="aiModerationControlCard" style="margin-bottom:16px;border-color:rgba(0,174,239,0.55);background:linear-gradient(135deg,rgba(0,30,60,0.55),rgba(11,31,58,0.96));">
+        <h3 style="margin:0 0 14px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🤖 AI Safety System</h3>
+
+        <!-- Live status badge -->
+        <div id="aiModerationStatusBadge" style="display:inline-flex;align-items:center;gap:8px;padding:7px 16px;border-radius:20px;font-size:13px;font-weight:700;margin-bottom:16px;background:rgba(57,255,20,0.12);border:1px solid rgba(57,255,20,0.50);color:#39FF14;transition:all 0.3s;">
+            <span id="aiModerationStatusDot" style="width:10px;height:10px;border-radius:50%;background:#39FF14;display:inline-block;box-shadow:0 0 8px rgba(57,255,20,0.8);"></span>
+            <span id="aiModerationStatusText">🟢 AI Moderation ON</span>
+        </div>
+
+        <!-- Description block — changes when toggled -->
+        <div id="aiModerationStatusDesc" style="font-size:12px;color:#9bbdd8;line-height:1.7;margin-bottom:14px;">
+            The AI is actively monitoring community activity: rule detection, warnings, violation tracking, live safety monitoring, and moderation assistance are all running.
+        </div>
+
+        <!-- What stays available when OFF -->
+        <div id="aiModerationOffNote" style="display:none;padding:10px 14px;border-radius:10px;background:rgba(255,51,85,0.08);border:1px solid rgba(255,51,85,0.28);margin-bottom:14px;">
+            <div style="font-size:12px;font-weight:700;color:#ff8899;margin-bottom:6px;">⚠️ Still available while AI is OFF:</div>
+            <div style="font-size:12px;color:#c8a0a8;line-height:1.9;">
+                ✅ User reports &nbsp;·&nbsp; ✅ Moderator actions &nbsp;·&nbsp; ✅ Admin actions &nbsp;·&nbsp; ✅ Founder controls
+            </div>
+        </div>
+
+        <!-- Toggle button — calls JS handler -->
+        <button id="btnAIToggle" onclick="window.founderToggleAIModeration()" style="padding:10px 24px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#003322,#006644);border:1px solid rgba(57,255,20,0.5);color:#39FF14;box-shadow:0 0 14px rgba(57,255,20,0.25);transition:all 0.2s;">
+            🔴 Disable AI Moderation
+        </button>
+    </div>
+
+    <!-- AI Toggle Change Log -->
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(255,185,0,0.28);">
+        <h3 style="margin:0 0 10px;font-size:13px;color:#ffe566;text-transform:uppercase;letter-spacing:0.8px;">📋 AI Toggle History</h3>
+        <div id="aiToggleLog" style="font-size:12px;color:#9bbdd8;"><div class="empty-state" style="padding:10px 0;">No changes recorded yet.</div></div>
+    </div>
+
+    <!-- Overview -->
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(0,174,239,0.40);background:linear-gradient(135deg,rgba(0,40,80,0.35),rgba(11,31,58,0.92));">
+        <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🤖 AI Community Safety System — Overview</h3>
+        <p style="font-size:13px;color:#9bbdd8;margin:0 0 10px;line-height:1.7;">The AI moderation system monitors community activity in real time and assists moderators by detecting potential rule violations. It <strong style="color:#c8e8ff;">does not replace human judgment</strong> — all serious actions require review and can be appealed.</p>
+    </div>
+
+    <!-- What AI Detects -->
+    <div class="section-card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#ff8899;text-transform:uppercase;letter-spacing:0.8px;">🔍 What the AI Detects</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(255,51,85,0.10);border:1px solid rgba(255,51,85,0.28);color:#ff8899;">👊 Bullying</span>
+            <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(255,51,85,0.10);border:1px solid rgba(255,51,85,0.28);color:#ff8899;">😤 Harassment</span>
+            <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(255,51,85,0.10);border:1px solid rgba(255,51,85,0.28);color:#ff8899;">⚠️ Threats</span>
+            <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(255,51,85,0.10);border:1px solid rgba(255,51,85,0.28);color:#ff8899;">🔥 Hate Speech</span>
+            <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(255,51,85,0.10);border:1px solid rgba(255,51,85,0.28);color:#ff8899;">📢 Spam</span>
+            <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(255,51,85,0.10);border:1px solid rgba(255,51,85,0.28);color:#ff8899;">🔁 Repeated Disruptive Behavior</span>
+        </div>
+    </div>
+
+    <!-- AI Actions -->
+    <div class="section-card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#ffd966;text-transform:uppercase;letter-spacing:0.8px;">⚡ What the AI Can Do</h3>
+        <ul style="margin:0;padding-left:18px;font-size:12px;color:#c8a870;line-height:2.2;">
+            <li>Issue a <strong style="color:#ffd966;">warning</strong> when a potential rule violation is detected.</li>
+            <li><strong style="color:#ffd966;">Track repeated violations</strong> for the same user over time.</li>
+            <li>Remove a user from a <strong style="color:#ffd966;">Live box</strong> if their behavior is disruptive during a live stream.</li>
+            <li><strong style="color:#ffd966;">Restrict chat features</strong> for users with repeated infractions.</li>
+            <li>Flag and <strong style="color:#ffd966;">escalate serious cases</strong> to moderators or the Founder for manual review.</li>
+        </ul>
+    </div>
+
+    <!-- Safety Principles -->
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(57,255,20,0.22);">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#39FF14;text-transform:uppercase;letter-spacing:0.8px;">🛡️ Safety Principles</h3>
+        <ul style="margin:0;padding-left:18px;font-size:12px;color:#9bbdd8;line-height:2.2;">
+            <li>The AI <strong style="color:#c8e8ff;">assists moderators</strong> — it does not operate without human oversight.</li>
+            <li>All significant actions include a <strong style="color:#c8e8ff;">review and appeal option</strong> for the affected user.</li>
+            <li>Escalated cases are always reviewed by a human before permanent action is taken.</li>
+            <li>The Founder has final authority over all moderation decisions and appeals.</li>
+        </ul>
+    </div>
+
+    <!-- AI Safety Stats -->
+    <div class="section-card" style="border-color:rgba(0,174,239,0.28);">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">📊 AI Safety Activity</h3>
+        <div class="admin-stats-row" style="margin-bottom:12px;">
+            <div class="admin-stat-card"><div class="admin-stat-num" id="aiStatWarnings">—</div><div class="admin-stat-label">Warnings Issued</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-num" id="aiStatActions">—</div><div class="admin-stat-label">AI Actions Taken</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-num" id="aiStatEscalated">—</div><div class="admin-stat-label">Escalated Cases</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-num" id="aiStatAppeals">—</div><div class="admin-stat-label">Appeals Filed</div></div>
+        </div>
+        <div id="aiSafetyLog"><div class="empty-state">No AI safety events recorded yet.</div></div>
+        <button onclick="adminLoadAISafetyLog()" style="margin-top:10px;font-size:12px;padding:6px 16px;border-radius:8px;">🔄 Refresh Log</button>
+    </div>
+
+</div>
+
 </div><!-- end adminPage -->
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -7408,6 +8105,28 @@ body.arcade-fs-ios body::after { display:none !important; }
 <div class="mod-panel-card">
     <h3 class="mod-section-title">📋 Moderation Activity Log</h3>
     <div id="modActionLog"><div class="empty-state">No actions recorded yet.</div></div>
+</div>
+
+<!-- ── AI Safety System ── -->
+<div class="mod-panel-card">
+    <h3 class="mod-section-title">🤖 AI Community Safety System</h3>
+    <div style="font-size:13px;color:#9bbdd8;line-height:1.8;">
+        <p style="margin:0 0 10px;">The AI moderation system <strong style="color:#cc88ff;">assists you</strong> by detecting potential rule violations in real time. You remain in control — all significant actions require human review.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(170,80,255,0.12);border:1px solid rgba(170,80,255,0.3);color:#cc88ff;">👊 Bullying</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(170,80,255,0.12);border:1px solid rgba(170,80,255,0.3);color:#cc88ff;">😤 Harassment</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(170,80,255,0.12);border:1px solid rgba(170,80,255,0.3);color:#cc88ff;">⚠️ Threats</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(170,80,255,0.12);border:1px solid rgba(170,80,255,0.3);color:#cc88ff;">🔥 Hate Speech</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(170,80,255,0.12);border:1px solid rgba(170,80,255,0.3);color:#cc88ff;">📢 Spam</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(170,80,255,0.12);border:1px solid rgba(170,80,255,0.3);color:#cc88ff;">🔁 Repeat Disruption</span>
+        </div>
+        <ul style="margin:0;padding-left:18px;font-size:12px;color:#9bbdd8;line-height:2.2;">
+            <li>AI issues <strong style="color:#ffd966;">warnings</strong> on first detection and tracks repeat violations.</li>
+            <li>Can remove a user from a <strong style="color:#ffd966;">Live box</strong> or <strong style="color:#ffd966;">restrict chat</strong> features for continued disruption.</li>
+            <li>Serious cases are <strong style="color:#ffd966;">escalated</strong> to you and the Founder for review.</li>
+            <li>Users can <strong style="color:#39FF14;">appeal</strong> any action — appeals go directly to the Founder.</li>
+        </ul>
+    </div>
 </div>
 
 <!-- ── Community Guidelines ── -->
@@ -8040,7 +8759,9 @@ body.arcade-fs-ios body::after { display:none !important; }
               }
               if (typeof window._showRolePanels === 'function') window._showRolePanels();
           } catch(_) {}
-          // Hide login loading overlay and navigate to feed
+          // Dismiss auth gate + login loading overlay, then navigate to feed
+          const _gate = document.getElementById('snx-auth-gate');
+          if (_gate) _gate.classList.add('resolved');
           _hideLoginLoading();
           navTo('feed');
           initTimelineStream();
@@ -8052,22 +8773,38 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Start push notifications (requests permission if not yet granted)
           window._snxInitPush = initPushNotifications;
           setTimeout(initPushNotifications, 2500);
+
+          // ── Startup Live Check ──
+          // On index.html the user is never actively live.  Reset any stale liveActive:true
+          // story docs so the LIVE badge doesn't ghost on the Feed after a crashed session.
+          setTimeout(async () => {
+              try {
+                  const staleSnap = await getDocs(query(
+                      collection(db, 'stories'),
+                      where('authorUid', '==', user.uid),
+                      where('liveActive', '==', true)
+                  ));
+                  staleSnap.forEach(d => {
+                      updateDoc(doc(db, 'stories', d.id), {
+                          liveActive: false,
+                          endedAt:    serverTimestamp(),
+                      }).catch(() => {});
+                  });
+              } catch(_) { /* best-effort */ }
+          }, 1500);
       } else {
-          // ── Guard: on the very first auth resolution, Firebase may briefly fire
-          //    null while rehydrating the persisted token from localStorage.
-          //    Do NOT show the login screen until we are certain no token exists.
+          // Dismiss the auth gate unconditionally — we now know the auth state.
+          const _gate = document.getElementById('snx-auth-gate');
+          if (_gate) _gate.classList.add('resolved');
+          // Genuine sign-out, expired session, or first load with no saved session.
+          _hideLoginLoading();
           if (_firstCall) {
-              // Give Firebase up to 800 ms to rehydrate from localStorage.
-              // If a cached token exists it will re-fire onAuthStateChanged with a user.
-              // If it doesn't re-fire, show the login screen.
-              _hideLoginLoading();
-              setTimeout(() => {
-                  if (!currentUser) show('login');
-              }, 800);
+              // First resolution with no user → show login immediately (no delay needed;
+              // the auth gate already covered the blank period above).
+              show('login');
               return;
           }
-          // Genuine sign-out (user explicitly logged out or session truly expired)
-          _hideLoginLoading();
+          // Explicit logout path — tear down listeners below.
           currentUser = null; userData = null;
           // ── Tear down EVERY real-time listener so nothing fires against a null user ──
           if (feedUnsubscribe)     { feedUnsubscribe();     feedUnsubscribe     = null; }
@@ -8093,6 +8830,16 @@ body.arcade-fs-ios body::after { display:none !important; }
           window._snxRole = 'member';
           show('login');
       }
+  });
+
+  /* ── Startup: real-time siteSettings listener — keeps _aiModerationEnabled in sync ── */
+  onSnapshot(doc(db, 'siteSettings', 'config'), (snap) => {
+      if (!snap.exists()) return;
+      const cfg = snap.data();
+      const isOn = cfg.aiModerationEnabled !== false;
+      window._aiModerationEnabled = isOn;
+      // Update the UI control if it is currently visible
+      if (typeof _syncAIToggleUI === 'function') _syncAIToggleUI(isOn);
   });
 
   /* ── Social List Modal — friends / followers / following ──────────────
@@ -8322,8 +9069,20 @@ body.arcade-fs-ios body::after { display:none !important; }
   }
 
   /* TIMELINE DYNAMIC TIMELINE STREAM ENGINE WITH MEDIA INTERPRETATION */
-  // TTL_MS kept for cleanup-only purposes — posts no longer expire from the feed display.
-  const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (used only for scheduled cleanup, not for display)
+  const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — posts auto-expire after this
+
+  /* ── Helper: format a timestamp as "2 hours ago" / "July 16 at 5:30 PM" ── */
+  function _postTimeAgo(ts) {
+      if (!ts) return '';
+      const d   = (ts && ts.toDate) ? ts.toDate() : new Date(ts);
+      const diff = Math.floor((Date.now() - d) / 1000);
+      if (diff < 60)   return diff + 's ago';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+      // Older than 24h — shouldn't normally be visible, but format as full date
+      return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+           + ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
 
   function initTimelineStream() {
       // Tear down any existing listener before (re)subscribing with a new limit
@@ -8332,11 +9091,15 @@ body.arcade-fs-ios body::after { display:none !important; }
       const qElements = query(collection(db, "posts"), orderBy("timestamp", "desc"), limit(scrollLimit));
       feedUnsubscribe = onSnapshot(qElements, (snapshot) => {
           const container = document.getElementById("feedPosts");
+          const nowMs = Date.now();
 
-          // All posts in the snapshot are shown — no TTL expiry in the feed display.
-          // Posts are only removed when the owner deletes them or a moderator removes them.
+          // Filter out expired posts (24h TTL) — they may still be in Firestore until
+          // the background cleanup runs, so we skip them here silently.
           const incomingIds = new Set();
           snapshot.forEach(pDoc => {
+              const p = pDoc.data();
+              // Legacy posts (no expiresAt) remain visible indefinitely
+              if (p.expiresAt && p.expiresAt < nowMs) return;
               incomingIds.add(pDoc.id);
           });
 
@@ -8370,8 +9133,8 @@ body.arcade-fs-ios body::after { display:none !important; }
 
               const isLiked = post.likedBy?.includes(currentUser.uid);
               const isOwner = post.uid === currentUser.uid;
-              // Posts are permanent — no expiry label shown
-              const ageLabel = '';
+              // Show "X time ago" beneath the author name
+              const ageLabel = `<span style="font-size:11px;color:#4a7a9a;white-space:nowrap;">${_postTimeAgo(post.createdAt || post.timestamp)}</span>`;
 
               let mediaHTML = '';
               if (post.mediaUrl) {
@@ -8624,6 +9387,36 @@ body.arcade-fs-ios body::after { display:none !important; }
       toastNotification("Post deleted.");
   };
 
+  /* ═══════════════════════════════════════════════════════════════
+     BACKGROUND 24-HOUR POST CLEANUP
+     Silently removes expired posts and their associated data.
+     Runs once on login then every 5 minutes.
+     ═══════════════════════════════════════════════════════════════ */
+  async function _cleanExpiredPosts() {
+      try {
+          const nowMs = Date.now();
+          const snap = await getDocs(
+              query(collection(db, 'posts'), where('expiresAt', '<', nowMs))
+          );
+          const batch = writeBatch(db);
+          let count = 0;
+          snap.forEach(pDoc => {
+              batch.delete(doc(db, 'posts', pDoc.id));
+              count++;
+          });
+          if (count > 0) {
+              await batch.commit();
+              console.log(`[SNX] Cleaned ${count} expired post(s).`);
+          }
+      } catch (err) {
+          console.warn('[SNX] Post cleanup error:', err);
+      }
+  }
+
+  // Run immediately on load, then every 5 minutes
+  _cleanExpiredPosts();
+  setInterval(_cleanExpiredPosts, 5 * 60 * 1000);
+
   // Infinite scroll — rAF-throttled to avoid firing every pixel
   let _feedScrollPending = false;
   window.addEventListener("scroll", () => {
@@ -8761,6 +9554,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       btn.disabled = true; btn.textContent = "Posting…";
       try {
           const now = Date.now();
+          const expiresAt = now + 24 * 60 * 60 * 1000; // auto-delete after 24 hours
           const mediaUrlsRaw = mediaUrl.split(',').map(u => u.trim()).filter(Boolean);
           // Extract tagged usernames from @mentions
           const taggedHandles = [...new Set((text.match(/@([a-zA-Z0-9_]+)/g) || []).map(m => m.slice(1).toLowerCase()))];
@@ -8779,6 +9573,7 @@ body.arcade-fs-ios body::after { display:none !important; }
               mediaUrls: mediaUrlsRaw,
               timestamp: now,
               createdAt: now,
+              expiresAt,
               likes: 0,
               likedBy: [],
               comments: [],
@@ -8920,6 +9715,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
 
       const now = Date.now();
+      const expiresAt = now + 24 * 60 * 60 * 1000; // auto-delete after 24 hours
       // Create the repost as a new post document
       await addDoc(collection(db, 'posts'), {
           uid:            currentUser.uid,
@@ -8931,6 +9727,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           mediaUrl:       orig.mediaUrl || '',
           timestamp:      now,
           createdAt:      now,
+          expiresAt,
           likes:          0,
           likedBy:        [],
           comments:       [],
@@ -11532,9 +12329,9 @@ body.arcade-fs-ios body::after { display:none !important; }
       return true;
   }
   window.switchAdminTab = function(tab) {
-      document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
-      const tabEl = document.querySelector(`.admin-tab[onclick*="'${tab}'"]`);
+      document.querySelectorAll('#adminTabBar .admin-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#adminPage .admin-tab-content').forEach(c => c.classList.remove('active'));
+      const tabEl = document.querySelector(`#adminTabBar .admin-tab[onclick*="'${tab}'"]`);
       const contentEl = document.getElementById(`adminTab-${tab}`);
       if (tabEl) tabEl.classList.add('active');
       if (contentEl) contentEl.classList.add('active');
@@ -11545,7 +12342,258 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (tab==='reports')  adminLoadReports('user');
       if (tab==='settings') adminLoadSettings();
       if (tab==='roles')    roleAssignSearch();
+      if (tab==='appeals')  adminLoadAppeals('pending');
+      if (tab==='aisafety') adminLoadAISafetyLog();
   };
+
+  /* ── Appeal Control System (Founder only) ── */
+  window.adminLoadAppeals = async function(filter, btnEl) {
+      if (!founderOnly()) return;
+      const listEl = document.getElementById('adminAppealList');
+      if (!listEl) return;
+      // Highlight filter button
+      if (btnEl) {
+          document.querySelectorAll('#adminTab-appeals .admin-tab').forEach(b => b.classList.remove('active'));
+          btnEl.classList.add('active');
+      }
+      listEl.innerHTML = '<div class="empty-state" style="padding:20px 0;">Loading appeals…</div>';
+      try {
+          let q;
+          if (filter === 'all') {
+              q = query(collection(db, 'reports'), where('type','==','appeal'), orderBy('createdAt','desc'), limit(50));
+          } else {
+              q = query(collection(db, 'reports'), where('type','==','appeal'), where('appealStatus','==',filter), orderBy('createdAt','desc'), limit(50));
+          }
+          const snap = await getDocs(q);
+          // Update stat counters
+          const allSnap = await getDocs(query(collection(db, 'reports'), where('type','==','appeal')));
+          let pending=0, accepted=0, denied=0;
+          allSnap.docs.forEach(d => {
+              const s = d.data().appealStatus;
+              if (s === 'pending' || !s) pending++;
+              else if (s === 'accepted') accepted++;
+              else if (s === 'denied') denied++;
+          });
+          const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+          setEl('appealStatPending',  pending);
+          setEl('appealStatAccepted', accepted);
+          setEl('appealStatDenied',   denied);
+          setEl('appealStatTotal',    allSnap.size);
+          if (snap.empty) { listEl.innerHTML = '<div class="empty-state" style="padding:20px 0;">No appeals found.</div>'; return; }
+          listEl.innerHTML = snap.docs.map(doc => {
+              const d = doc.data();
+              const ts = d.createdAt?.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+              const status = d.appealStatus || 'pending';
+              const statusColor = status==='accepted'?'#39FF14':status==='denied'?'#ff5566':'#ffd966';
+              return `<div style="padding:12px 14px;border:1px solid rgba(255,185,0,0.22);border-radius:10px;margin-bottom:10px;background:rgba(0,0,0,0.18);">
+                  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+                      <span style="font-size:13px;font-weight:700;color:#fff;">${d.submitterName||d.submitterUid||'Unknown User'}</span>
+                      <span style="font-size:11px;padding:2px 8px;border-radius:12px;background:rgba(255,185,0,0.12);color:${statusColor};border:1px solid ${statusColor}55;">${status.toUpperCase()}</span>
+                  </div>
+                  <div style="font-size:12px;color:#9bbdd8;margin-bottom:4px;line-height:1.6;"><strong style="color:#c8e8ff;">Appeal Reason:</strong> ${d.body||'—'}</div>
+                  <div style="font-size:11px;color:#6a90b8;">Target: ${d.target||'—'} &nbsp;|&nbsp; Submitted: ${ts}</div>
+                  ${d.founderNotes ? `<div style="font-size:11px;color:#ffd966;margin-top:4px;">📝 Notes: ${d.founderNotes}</div>` : ''}
+                  <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+                      ${status==='pending'?`
+                      <button onclick="window.adminResolveAppeal('${doc.id}','accepted')" style="font-size:11px;padding:4px 12px;border-radius:8px;background:rgba(57,255,20,0.15);border:1px solid rgba(57,255,20,0.4);color:#39FF14;">✅ Accept</button>
+                      <button onclick="window.adminResolveAppeal('${doc.id}','denied')" style="font-size:11px;padding:4px 12px;border-radius:8px;background:rgba(255,51,85,0.15);border:1px solid rgba(255,51,85,0.4);color:#ff5566;">❌ Deny</button>
+                      ` : ''}
+                      <button onclick="window.adminViewAppealHistory('${d.submitterUid||''}')" style="font-size:11px;padding:4px 12px;border-radius:8px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.3);color:#66ccff;">📋 Mod History</button>
+                  </div>
+              </div>`;
+          }).join('');
+      } catch(e) {
+          listEl.innerHTML = `<div class="empty-state" style="padding:20px 0;color:#ff5566;">Error loading appeals: ${e.message}</div>`;
+      }
+  };
+
+  window.adminResolveAppeal = async function(docId, decision) {
+      if (!founderOnly()) return;
+      const notes = prompt(`Add a decision note for this appeal (optional):`);
+      try {
+          await updateDoc(doc(db, 'reports', docId), {
+              appealStatus: decision,
+              founderNotes: notes || '',
+              resolvedAt: serverTimestamp(),
+              resolvedBy: userData.uid
+          });
+          toastNotification(decision === 'accepted' ? '✅ Appeal accepted.' : '❌ Appeal denied.');
+          adminLoadAppeals(decision);
+      } catch(e) {
+          toastNotification('⛔ Failed to update appeal: ' + e.message);
+      }
+  };
+
+  window.adminViewAppealHistory = function(uid) {
+      if (!uid) { toastNotification('No user ID on this appeal.'); return; }
+      switchAdminTab('security');
+      toastNotification('📋 Showing security log — search for user actions there.');
+  };
+
+  /* ── AI Safety Log (Founder only) ── */
+  window.adminLoadAISafetyLog = async function() {
+      if (!founderOnly()) return;
+      // Refresh the AI toggle state and history log whenever this tab opens
+      try {
+          const cfgSnap = await getDoc(doc(db, 'siteSettings', 'config'));
+          if (cfgSnap.exists()) _syncAIToggleUI(cfgSnap.data().aiModerationEnabled !== false);
+      } catch(_) {}
+      _loadAIToggleLog();
+      const logEl = document.getElementById('aiSafetyLog');
+      if (!logEl) return;
+      logEl.innerHTML = '<div class="empty-state">Loading AI safety events…</div>';
+      try {
+          const snap = await getDocs(query(collection(db, 'aiModerationLog'), orderBy('createdAt','desc'), limit(60)));
+          const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+          // Counters from the log
+          let warnings=0, actions=0, escalated=0, appeals=0;
+          snap.docs.forEach(d => {
+              const t = d.data().type;
+              if (t==='warning') warnings++;
+              else if (t==='action') actions++;
+              else if (t==='escalated') escalated++;
+              else if (t==='appeal') appeals++;
+          });
+          setEl('aiStatWarnings',  warnings);
+          setEl('aiStatActions',   actions);
+          setEl('aiStatEscalated', escalated);
+          setEl('aiStatAppeals',   appeals);
+          if (snap.empty) { logEl.innerHTML = '<div class="empty-state">No AI safety events recorded yet.</div>'; return; }
+          logEl.innerHTML = snap.docs.map(doc => {
+              const d = doc.data();
+              const ts = d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString() : '—';
+              const typeColor = d.type==='warning'?'#ffd966':d.type==='action'?'#ff8899':d.type==='escalated'?'#ff5566':'#66ccff';
+              return `<div style="padding:8px 12px;border-left:3px solid ${typeColor};background:rgba(0,0,0,0.18);border-radius:0 8px 8px 0;margin-bottom:6px;">
+                  <div style="font-size:12px;font-weight:700;color:${typeColor};text-transform:uppercase;letter-spacing:0.5px;">${d.type||'event'}</div>
+                  <div style="font-size:12px;color:#9bbdd8;margin-top:2px;">${d.description||d.reason||'—'}</div>
+                  <div style="font-size:11px;color:#6a90b8;margin-top:2px;">User: ${d.username||d.uid||'—'} &nbsp;|&nbsp; ${ts}</div>
+              </div>`;
+          }).join('');
+      } catch(e) {
+          logEl.innerHTML = `<div class="empty-state" style="color:#ff5566;">Error: ${e.message}</div>`;
+      }
+  };
+
+  /* ── AI Moderation Toggle (Founder only) ── */
+
+  // Runtime gate: other parts of the app read window._aiModerationEnabled before firing AI actions.
+  window._aiModerationEnabled = true; // default ON until Firestore says otherwise
+
+  /* Sync the UI control to a boolean value */
+  function _syncAIToggleUI(isEnabled) {
+      window._aiModerationEnabled = isEnabled;
+      const badge   = document.getElementById('aiModerationStatusBadge');
+      const dot     = document.getElementById('aiModerationStatusDot');
+      const text    = document.getElementById('aiModerationStatusText');
+      const desc    = document.getElementById('aiModerationStatusDesc');
+      const offNote = document.getElementById('aiModerationOffNote');
+      const btn     = document.getElementById('btnAIToggle');
+      if (!badge) return;
+      if (isEnabled) {
+          badge.style.background = 'rgba(57,255,20,0.12)';
+          badge.style.borderColor = 'rgba(57,255,20,0.50)';
+          badge.style.color = '#39FF14';
+          dot.style.background = '#39FF14';
+          dot.style.boxShadow = '0 0 8px rgba(57,255,20,0.8)';
+          text.textContent = '🟢 AI Moderation ON';
+          desc.textContent = 'The AI is actively monitoring community activity: rule detection, warnings, violation tracking, live safety monitoring, and moderation assistance are all running.';
+          offNote.style.display = 'none';
+          btn.textContent = '🔴 Disable AI Moderation';
+          btn.style.background = 'linear-gradient(135deg,#003322,#006644)';
+          btn.style.borderColor = 'rgba(57,255,20,0.5)';
+          btn.style.color = '#39FF14';
+          btn.style.boxShadow = '0 0 14px rgba(57,255,20,0.25)';
+      } else {
+          badge.style.background = 'rgba(255,51,85,0.12)';
+          badge.style.borderColor = 'rgba(255,51,85,0.50)';
+          badge.style.color = '#ff5566';
+          dot.style.background = '#ff5566';
+          dot.style.boxShadow = '0 0 8px rgba(255,51,85,0.8)';
+          text.textContent = '🔴 AI Moderation OFF';
+          desc.textContent = 'Automatic AI rule detection, warnings, and AI-driven actions are currently stopped. Manual moderation tools remain fully operational.';
+          offNote.style.display = 'block';
+          btn.textContent = '🟢 Enable AI Moderation';
+          btn.style.background = 'linear-gradient(135deg,#220000,#660022)';
+          btn.style.borderColor = 'rgba(255,51,85,0.5)';
+          btn.style.color = '#ff8899';
+          btn.style.boxShadow = '0 0 14px rgba(255,51,85,0.25)';
+      }
+  }
+
+  /* Load the AI toggle history log */
+  async function _loadAIToggleLog() {
+      const logEl = document.getElementById('aiToggleLog');
+      if (!logEl) return;
+      try {
+          const snap = await getDocs(query(collection(db, 'aiToggleLog'), orderBy('ts', 'desc'), limit(30)));
+          if (snap.empty) { logEl.innerHTML = '<div class="empty-state" style="padding:10px 0;">No changes recorded yet.</div>'; return; }
+          logEl.innerHTML = snap.docs.map(d => {
+              const r = d.data();
+              const tsStr = r.ts ? new Date(r.ts).toLocaleString() : '—';
+              const prevLabel = r.previousStatus ? '🟢 ON' : '🔴 OFF';
+              const newLabel  = r.newStatus      ? '🟢 ON' : '🔴 OFF';
+              const color = r.newStatus ? '#39FF14' : '#ff5566';
+              return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px;border-left:3px solid ${color};background:rgba(0,0,0,0.18);border-radius:0 8px 8px 0;margin-bottom:6px;">
+                  <span style="font-size:12px;font-weight:700;color:${color};">${newLabel}</span>
+                  <span style="font-size:11px;color:#6a90b8;">was ${prevLabel}</span>
+                  <span style="font-size:11px;color:#c8e8ff;margin-left:auto;">by ${r.changedByName||'Founder'}</span>
+                  <span style="font-size:11px;color:#6a90b8;width:100%;">${tsStr}</span>
+              </div>`;
+          }).join('');
+      } catch(_) {}
+  }
+
+  /* Main toggle handler — Founder only, with confirmation when disabling */
+  window.founderToggleAIModeration = async function() {
+      if (!founderOnly()) return;
+      const currentlyOn = window._aiModerationEnabled !== false;
+      if (currentlyOn) {
+          // Show confirmation before disabling
+          const modal = document.createElement('div');
+          modal.id = '_aiConfirmModal';
+          modal.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.78);';
+          modal.innerHTML = `
+              <div style="background:#0d2444;border:1px solid rgba(255,51,85,0.55);border-radius:16px;padding:28px 24px;max-width:360px;width:calc(100% - 40px);box-shadow:0 0 40px rgba(255,51,85,0.3);">
+                  <div style="font-size:22px;margin-bottom:10px;">⚠️</div>
+                  <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:10px;">Disable AI Moderation?</div>
+                  <div style="font-size:13px;color:#c8a0a8;line-height:1.7;margin-bottom:22px;">Automatic rule detection will stop. Manual moderation, user reports, moderator actions, and Founder controls remain fully available.</div>
+                  <div style="display:flex;gap:10px;">
+                      <button id="_aiConfirmYes" style="flex:1;padding:10px;border-radius:10px;background:linear-gradient(135deg,#440011,#880022);border:1px solid rgba(255,51,85,0.6);color:#ff8899;font-size:13px;font-weight:700;cursor:pointer;">✅ Disable AI</button>
+                      <button id="_aiConfirmNo"  style="flex:1;padding:10px;border-radius:10px;background:rgba(0,40,80,0.6);border:1px solid rgba(0,174,239,0.4);color:#66ccff;font-size:13px;font-weight:700;cursor:pointer;">❌ Cancel</button>
+                  </div>
+              </div>`;
+          document.body.appendChild(modal);
+          document.getElementById('_aiConfirmNo').onclick  = () => modal.remove();
+          document.getElementById('_aiConfirmYes').onclick = async () => {
+              modal.remove();
+              await _applyAIToggle(false, currentlyOn);
+          };
+      } else {
+          await _applyAIToggle(true, currentlyOn);
+      }
+  };
+
+  async function _applyAIToggle(newState, previousState) {
+      try {
+          // Persist to Firestore siteSettings
+          await setDoc(doc(db, 'siteSettings', 'config'), { aiModerationEnabled: newState }, { merge: true });
+          // Write a toggle log entry
+          await addDoc(collection(db, 'aiToggleLog'), {
+              changedByUid:  currentUser.uid,
+              changedByName: userData.displayName || 'Founder',
+              previousStatus: previousState,
+              newStatus:      newState,
+              ts: Date.now()
+          });
+          // Write to the main audit log
+          await adminAuditLog('AI_MODERATION_TOGGLE', `AI moderation set to ${newState ? 'ON' : 'OFF'} (was ${previousState ? 'ON' : 'OFF'})`);
+          _syncAIToggleUI(newState);
+          _loadAIToggleLog();
+          toastNotification(newState ? '🟢 AI Moderation enabled.' : '🔴 AI Moderation disabled.');
+      } catch(e) {
+          toastNotification('⛔ Failed to update AI setting: ' + e.message);
+      }
+  }
 
   /* ── Role Assignment (Founder only) ── */
   let _roleSearchTimer = null;
@@ -11840,6 +12888,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           _cb('toggleStormRooms','stormRoomsEnabled'); _cb('togglePosts','postsEnabled');
           const n=document.getElementById('siteSettingAppName'); if(n&&cfg.appName)n.value=cfg.appName;
           const r=document.getElementById('siteSettingRulesUrl'); if(r&&cfg.rulesUrl)r.value=cfg.rulesUrl;
+          // Sync AI moderation toggle state
+          _syncAIToggleUI(cfg.aiModerationEnabled !== false);
       }catch(_){}
   };
   window.adminExportUsers = async function() {
@@ -12059,10 +13109,13 @@ function navTo(pageId) {
         notificationsPage:'navNotifs', settingsPage:'navSettings',
         stormRoomsPage:'navStorm', adminPage:'navAdmin',
         moderatorPage:'navMod', administratorPage:'navAdminOfficer',
-        communityPage:'navCommunity', supportRoomsPage:'navSupport'
+        communityPage:'navCommunity', supportRoomsPage:'navSupport',
+        communityRulesPage:'navCommunityRules'
     };
     const navEl = document.getElementById(map[pageId]);
     if (navEl) navEl.classList.add('active-nav');
+    // Re-attach story strip listener each time the feed is opened
+    if (pageId === 'feed' && typeof initStoryStrip === 'function') initStoryStrip();
     // Render friends page data on navigation
     if (pageId === 'friendsPage' && typeof renderFriendsPage === 'function') renderFriendsPage();
     // Render admin panel on navigation (re-fetches latest data each time)
@@ -18323,17 +19376,27 @@ let _storyUnsub = null;
 
 function initStoryStrip() {
     if (!_db()) return;
-    const { db, collection, query, where, orderBy, onSnapshot } = _db();
+    const { db, collection, query, where, orderBy, onSnapshot, getDocs } = _db();
     const now = new Date();
     const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     if (_storyUnsub) _storyUnsub();
+
+    // Try ordered query first; fall back to unordered if the composite index is missing
     _storyUnsub = onSnapshot(
         query(collection(db, 'stories'),
               where('expiresAt', '>', cutoff),
               orderBy('expiresAt', 'asc')),
         snap => renderStoryStrip(snap),
-        () => {}
+        () => {
+            // Composite index missing — fall back to simple query without ordering
+            if (_storyUnsub) _storyUnsub();
+            _storyUnsub = onSnapshot(
+                query(collection(db, 'stories'), where('expiresAt', '>', cutoff)),
+                snap => renderStoryStrip(snap),
+                () => {}
+            );
+        }
     );
 }
 
@@ -18420,7 +19483,7 @@ function _buildLiveCircle(story) {
     const div = document.createElement('div');
     div.className = 'story-item';
     div.setAttribute('data-uid', story.authorUid);
-    div.onclick = () => { window.location.href = 'live.html?room=' + encodeURIComponent(story.id); };
+    div.onclick = () => openLiveStreamViewer(story);
 
     const name = story.authorName || 'User';
     const avatar = story.authorAvatar || '';
@@ -18439,7 +19502,13 @@ function canViewStory(data) {
     if (!me) return false;
     if (data.authorUid === me.uid) return true;
     if (data.privacy === 'private') return data.authorUid === me.uid;
+    if (data.privacy === 'followers') {
+        // Viewer can see if they follow the author (author is in viewer's following list)
+        const following = (_ud().following || []);
+        return following.includes(data.authorUid);
+    }
     if (data.privacy === 'friends') {
+        // Viewer can see if they are mutual friends with the author
         const friends = (_ud().friends || []);
         return friends.includes(data.authorUid);
     }
@@ -18620,11 +19689,15 @@ window.submitStory = async function() {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
+    // Hide progress bar before write attempt
+    const progWrap = document.getElementById('storyUploadProgress');
+    if (progWrap) progWrap.style.display = 'none';
+
     try {
         await addDoc(collection(db, 'stories'), {
             authorUid    : me.uid,
-            authorName   : ud.displayName || me.displayName || 'User',
-            authorAvatar : ud.avatar || ud.avatarUrl || '',
+            authorName   : ud.displayName || ud.username || me.displayName || 'User',
+            authorAvatar : ud.avatarUrl || ud.avatar || me.photoURL || '',
             text,
             mediaUrl,
             mediaType,
@@ -18639,13 +19712,16 @@ window.submitStory = async function() {
             isLive       : false,
             liveActive   : false,
         });
-        _toast('✅ Story posted successfully!');
+        // Re-enable button so the modal can be used again
+        if (btn) btn.disabled = false;
+        _toast('✅ Story posted! It will appear in the Stories row momentarily.');
         closeStoryCreator();
-        // Immediately re-render the story strip so the new circle appears without a refresh
+        // Re-initialise the live listener so the strip updates immediately
         try { initStoryStrip(); } catch(_) {}
     } catch(err) {
-        _toast('❌ Database save failed: ' + (err.message || err));
-        if (btn) btn.disabled=false;
+        _toast('❌ Could not save Story: ' + (err.message || err) + ' — please try again.');
+        if (btn) btn.disabled = false;
+        if (progWrap) progWrap.style.display = 'none';
     }
 };
 
@@ -18984,6 +20060,335 @@ window.svToggleReplies = async function() {
     } catch(_) {}
 };
 
+/* ════════════════════════════════════════════════════
+   GO LIVE — Setup & Preview
+   ════════════════════════════════════════════════════ */
+window.openGoLive = async function() {
+    closeStoryChooser();
+    if (!_me()) { _toast('Sign in to go live.'); return; }
+
+    // Request camera + mic permissions
+    const modal = document.getElementById('storyLiveModal');
+    modal.classList.add('open');
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: SNX_STORY.liveFacing },
+            audio: true
+        });
+        SNX_STORY.liveStream = stream;
+        const preview = document.getElementById('livePreviewVideo');
+        if (preview) { preview.srcObject = stream; }
+        // Reset UI state
+        SNX_STORY.liveMicOn = true;
+        SNX_STORY.liveCamOn = true;
+        _syncLiveCtrlBtns();
+    } catch(err) {
+        _toast('Camera/mic permission required: ' + (err.message || err));
+    }
+};
+
+window.closeGoLive = function() {
+    document.getElementById('storyLiveModal').classList.remove('open');
+    _stopLiveStream();
+};
+
+function _stopLiveStream() {
+    if (SNX_STORY.liveStream) {
+        SNX_STORY.liveStream.getTracks().forEach(t => t.stop());
+        SNX_STORY.liveStream = null;
+    }
+    const preview = document.getElementById('livePreviewVideo');
+    if (preview) { preview.srcObject = null; }
+}
+
+window.liveFlipCamera = async function() {
+    SNX_STORY.liveFacing = SNX_STORY.liveFacing === 'user' ? 'environment' : 'user';
+    if (SNX_STORY.liveStream) {
+        SNX_STORY.liveStream.getVideoTracks().forEach(t => t.stop());
+    }
+    try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: SNX_STORY.liveFacing },
+            audio: SNX_STORY.liveMicOn
+        });
+        const preview = document.getElementById('livePreviewVideo');
+        if (preview) preview.srcObject = newStream;
+        // Replace video track in existing stream
+        if (SNX_STORY.liveStream) {
+            const oldAudio = SNX_STORY.liveStream.getAudioTracks();
+            SNX_STORY.liveStream = newStream;
+            if (oldAudio.length) SNX_STORY.liveStream.addTrack(oldAudio[0]);
+        } else {
+            SNX_STORY.liveStream = newStream;
+        }
+    } catch(_) { _toast('Could not flip camera.'); }
+};
+
+window.liveToggleMic = function() {
+    SNX_STORY.liveMicOn = !SNX_STORY.liveMicOn;
+    if (SNX_STORY.liveStream) {
+        SNX_STORY.liveStream.getAudioTracks().forEach(t => { t.enabled = SNX_STORY.liveMicOn; });
+    }
+    _syncLiveCtrlBtns();
+};
+
+window.liveToggleCam = function() {
+    SNX_STORY.liveCamOn = !SNX_STORY.liveCamOn;
+    if (SNX_STORY.liveStream) {
+        SNX_STORY.liveStream.getVideoTracks().forEach(t => { t.enabled = SNX_STORY.liveCamOn; });
+    }
+    _syncLiveCtrlBtns();
+};
+
+function _syncLiveCtrlBtns() {
+    const mic = document.getElementById('liveBtnToggleMic');
+    const cam = document.getElementById('liveBtnToggleCam');
+    if (mic) {
+        mic.textContent = SNX_STORY.liveMicOn ? '🎙 Mic: On' : '🔇 Mic: Off';
+        mic.classList.toggle('mic-off', !SNX_STORY.liveMicOn);
+    }
+    if (cam) {
+        cam.textContent = SNX_STORY.liveCamOn ? '📷 Camera: On' : '📷 Camera: Off';
+        cam.classList.toggle('cam-off', !SNX_STORY.liveCamOn);
+    }
+}
+
+window.startLiveStream = async function() {
+    const me = _me();
+    if (!me) { _toast('Sign in to go live.'); return; }
+    if (!SNX_STORY.liveStream) { _toast('Camera not ready.'); return; }
+
+    const btn = document.getElementById('liveStartBtn');
+    if (btn) btn.disabled = true;
+
+    const title   = (document.getElementById('liveTitleInput').value || '').trim();
+    const privacy = document.getElementById('livePrivacySelect').value || 'everyone';
+    const ud = _ud();
+
+    try {
+        const { db, collection, addDoc, serverTimestamp } = _db();
+        const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000); // 4h max live
+        const ref = await addDoc(collection(db, 'stories'), {
+            authorUid    : me.uid,
+            authorName   : ud.displayName || ud.username || me.displayName || 'User',
+            authorAvatar : ud.avatarUrl || ud.avatar || me.photoURL || '',
+            text         : title,
+            mediaUrl     : '',
+            mediaType    : '',
+            privacy,
+            isLive       : true,
+            liveActive   : true,
+            roomId       : '',   // filled in after we know ref.id
+            viewerUids   : [],
+            viewerCount  : 0,
+            reactions    : {},
+            chat         : [],
+            guests       : [],
+            repliesOn    : true,
+            createdAt    : serverTimestamp(),
+            expiresAt,
+        });
+        const docId = ref.id;
+        SNX_STORY.liveDocId = docId;
+
+        // Write roomId = doc id (used by guests when redirected to live.html)
+        try {
+            const { doc: docFn, updateDoc } = _db();
+            await updateDoc(docFn(db, 'stories', docId), { roomId: docId });
+        } catch(_) {}
+
+        // Stop setup stream — live.html will re-acquire
+        _stopLiveStream();
+        document.getElementById('storyLiveModal').classList.remove('open');
+
+        // Redirect host to full WebRTC room
+        window.location.href = `live.html?room=${encodeURIComponent(docId)}&host=1`;
+    } catch(err) {
+        _toast('Failed to start live: ' + (err.message || err));
+        if (btn) btn.disabled = false;
+    }
+};
+
+/* ════════════════════════════════════════════════════
+   LIVE STREAM VIEWER — Host & Watchers
+   ════════════════════════════════════════════════════ */
+function _liveEnterFullscreen() {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (req) req.call(el).catch(() => {});
+}
+function _liveExitFullscreen() {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+    if (exit && (document.fullscreenElement || document.webkitFullscreenElement)) {
+        exit.call(document).catch(() => {});
+    }
+}
+
+function _openHostLiveViewer() {
+    const me = _me();
+    const ud = _ud();
+    const viewer = document.getElementById('liveStreamViewer');
+    viewer.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    _liveEnterFullscreen();
+    const hostVid = document.getElementById('liveStreamVideo');
+    if (hostVid && SNX_STORY.liveStream) hostVid.srcObject = SNX_STORY.liveStream;
+    document.getElementById('lvHostName').textContent = (ud.displayName || me.displayName || 'You') + ' (Host)';
+    document.getElementById('lvEndBtn').style.display = 'inline-flex';
+    _subscribeToLiveDoc(SNX_STORY.liveDocId);
+}
+
+window.openLiveStreamViewer = function(story) {
+    // Viewer (not host) watching a live
+    const viewer = document.getElementById('liveStreamViewer');
+    viewer.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    _liveEnterFullscreen();
+    SNX_STORY.liveDocId = story.id;
+    document.getElementById('lvHostName').textContent = (story.authorName || 'User') + ' is LIVE';
+    document.getElementById('lvEndBtn').style.display = 'none';
+    // Track viewer count
+    const me = _me();
+    if (me) {
+        try {
+            const { db, doc, updateDoc, arrayUnion, increment } = _db();
+            updateDoc(doc(db, 'stories', story.id), {
+                viewerUids: arrayUnion(me.uid),
+                viewerCount: increment(1),
+            });
+        } catch(_) {}
+    }
+    _subscribeToLiveDoc(story.id);
+};
+
+function _subscribeToLiveDoc(docId) {
+    if (SNX_STORY.liveUnsub) SNX_STORY.liveUnsub();
+    const { db, doc, onSnapshot } = _db();
+    SNX_STORY.liveUnsub = onSnapshot(doc(db, 'stories', docId), snap => {
+        if (!snap.exists() || !snap.data().liveActive) {
+            // Live ended — unsubscribe immediately so no double-fire
+            if (SNX_STORY.liveUnsub) { SNX_STORY.liveUnsub(); SNX_STORY.liveUnsub = null; }
+            _showLiveEndedBanner();
+            return;
+        }
+        // Update viewer count
+        document.getElementById('lvViewerCount').textContent = '👁 ' + (snap.data().viewerCount || 0);
+        // Render chat
+        _renderLiveChat(snap.data().chat || []);
+    });
+}
+
+function _showLiveEndedBanner() {
+    // Show a clear "This Live has ended" overlay before closing
+    const viewer = document.getElementById('liveStreamViewer');
+    if (!viewer || !viewer.classList.contains('open')) {
+        // Viewer already closed — just clean up
+        closeLiveStreamViewer();
+        return;
+    }
+    // Inject banner into the viewer overlay
+    let banner = document.getElementById('liveEndedBanner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'liveEndedBanner';
+        banner.style.cssText = [
+            'position:absolute', 'inset:0', 'z-index:200',
+            'display:flex', 'flex-direction:column', 'align-items:center', 'justify-content:center',
+            'background:rgba(5,15,35,0.92)', 'color:#fff', 'text-align:center', 'padding:32px',
+        ].join(';');
+        banner.innerHTML = `
+            <div style="font-size:48px;margin-bottom:16px;">📺</div>
+            <div style="font-size:22px;font-weight:800;margin-bottom:8px;">This Live has ended.</div>
+            <div style="font-size:14px;color:#8ab8d8;margin-bottom:28px;">The host has stopped their live stream.</div>
+            <button onclick="closeLiveStreamViewer()"
+                style="background:#00AEEF;color:#000;font-weight:700;border:none;border-radius:10px;padding:12px 28px;font-size:15px;cursor:pointer;">
+                Return to Feed
+            </button>`;
+        viewer.appendChild(banner);
+    }
+    banner.style.display = 'flex';
+    // Auto-close after 4 seconds
+    setTimeout(() => closeLiveStreamViewer(), 4000);
+}
+
+function _renderLiveChat(msgs) {
+    const wrap = document.getElementById('lvChatWrap');
+    if (!wrap) return;
+    const latest = msgs.slice(-30);
+    wrap.innerHTML = latest.map(m =>
+        `<div class="lv-chat-msg"><span class="lv-chat-author">${_esc(m.name||'?')}:</span><span class="lv-chat-text">${_esc(m.text)}</span></div>`
+    ).join('');
+    wrap.scrollTop = wrap.scrollHeight;
+}
+
+window.lvSendChat = async function() {
+    const me = _me();
+    if (!me || !SNX_STORY.liveDocId) return;
+    const input = document.getElementById('lvMsgInput');
+    const text = (input && input.value || '').trim();
+    if (!text) return;
+    input.value = '';
+    const ud = _ud();
+    const name = ud.displayName || me.displayName || 'User';
+    try {
+        const { db, doc, updateDoc, arrayUnion } = _db();
+        await updateDoc(doc(db, 'stories', SNX_STORY.liveDocId), {
+            chat: arrayUnion({ name, text, ts: Date.now() })
+        });
+    } catch(_) {}
+};
+
+window.lvSendReaction = async function() {
+    const me = _me();
+    if (!me || !SNX_STORY.liveDocId) return;
+    const emojis = ['🔥','❤️','⚡','😍','👏','🎉','💯','🌑'];
+    const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+    // Float it locally
+    const el = document.createElement('div');
+    el.className = 'lv-float-emoji';
+    el.textContent = emoji;
+    el.style.bottom = (70 + Math.random()*40) + 'px';
+    el.style.right  = (10 + Math.random()*40) + 'px';
+    const reactFloat = document.getElementById('lvReactFloat');
+    if (reactFloat) { reactFloat.appendChild(el); setTimeout(()=>el.remove(), 2100); }
+    // Write to Firestore
+    try {
+        const { db, doc, updateDoc } = _db();
+        await updateDoc(doc(db, 'stories', SNX_STORY.liveDocId), {
+            [`reactions.${me.uid}`]: emoji,
+        });
+    } catch(_) {}
+};
+
+window.endLiveStream = async function() {
+    if (!SNX_STORY.liveDocId) return;
+    if (!confirm('End your live stream?')) return;
+    const docId = SNX_STORY.liveDocId;
+    try {
+        const { db, doc, updateDoc, deleteDoc, serverTimestamp } = _db();
+        // Mark liveActive:false — removes Feed bubble and notifies all viewers instantly
+        await updateDoc(doc(db, 'stories', docId), { liveActive: false, endedAt: serverTimestamp() });
+        // Delete the liveRooms doc so live.html viewers and guests get notified
+        deleteDoc(doc(db, 'liveRooms', docId)).catch(() => {});
+    } catch(_) {}
+    _stopLiveStream();
+    closeLiveStreamViewer();
+    SNX_STORY.liveDocId = null;
+    _toast('✅ Live stream ended.');
+};
+
+window.closeLiveStreamViewer = function() {
+    if (SNX_STORY.liveUnsub) { SNX_STORY.liveUnsub(); SNX_STORY.liveUnsub = null; }
+    // Remove any "Live has ended" banner so it doesn't linger on next open
+    const banner = document.getElementById('liveEndedBanner');
+    if (banner) banner.remove();
+    document.getElementById('liveStreamViewer').classList.remove('open');
+    document.body.style.overflow = '';
+    _liveExitFullscreen();
+    const vid = document.getElementById('liveStreamVideo');
+    if (vid) { vid.pause(); vid.srcObject = null; }
+};
 
 /* ════════════════════════════════════════════════════
    STORY EXPIRY — 24h auto-cleanup (client-side sweep)
@@ -19009,6 +20414,8 @@ async function _sweepExpiredStories() {
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
         if (document.getElementById('storyViewerModal').classList.contains('open')) { closeStoryViewer(); return; }
+        if (document.getElementById('liveStreamViewer').classList.contains('open')) { closeLiveStreamViewer(); return; }
+        if (document.getElementById('storyLiveModal').classList.contains('open')) { closeGoLive(); return; }
         if (document.getElementById('storyCreatorModal').classList.contains('open')) { closeStoryCreator(); return; }
         if (document.getElementById('storyChooserModal').classList.contains('open')) { closeStoryChooser(); return; }
     }
@@ -19026,82 +20433,388 @@ window._snxOnAuthReady(function() {
     initStoryStrip();
     initLiveFeedCards();
     setTimeout(_sweepExpiredStories, 3000);
+
+    // ── "Live ended" confirmation — shown after returning from live.html ──
+    // live.js navigates back with ?liveEnded=1 so the host sees the toast
+    // on the Feed without any reload or login disruption.
+    if (new URLSearchParams(location.search).has('liveEnded')) {
+        // Clean the URL immediately so a manual refresh won't re-show it
+        history.replaceState(null, '', location.pathname);
+        // Small delay so the Feed has settled before the toast appears
+        setTimeout(() => _toast('✅ Your Live has ended.'), 600);
+    }
 });
 
 })(); // end IIFE
 </script>
 
-<!-- ── Live Feed Cards — public streams discovered from Feed ── -->
+<!-- ═══════════════════════════════════════════════════════════
+     LIVE FEED CARDS + GUEST BOX SYSTEM
+     Public live discovery, join choice, request-to-join-box flow,
+     host approval panel, box request listener.
+     ═══════════════════════════════════════════════════════════ -->
 <script>
 (function() {
 'use strict';
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function _db()   { return window._snxFirestore || null; }
-function _auth() { return window._snxCurrentUser || null; }
-function _ud()   { return window._snxUserData   || {}; }
 
-let _unsub = null;
+/* ── Shared helpers ── */
+function $id(id) { return document.getElementById(id); }
+function _esc2(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _fbDB2() { return window._snxFirestore || null; }
+function _fbAuth2() { return window._snxCurrentUser || null; }
+function _fbUD2() { return window._snxUserData || {}; }
+function _initials2(name) { return (name||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
+function _avatarStyle2(url) { return url ? `background-image:url('${_esc2(url)}');background-size:cover;background-position:center;` : ''; }
 
+/* State */
+let _liveFeedUnsub   = null;
+let _activeLives     = [];   // array of story data objects
+let _ljcStory        = null; // story chosen in join-choice sheet
+let _boxReqUnsub     = null; // listener: host watching box requests on current live
+let _boxWaitUnsub    = null; // listener: guest waiting for host decision
+let _boxReqDocId     = null; // Firestore doc id of the pending box request (guest side)
+let _isHostViewer    = false;
+let _hostLiveDocId   = null; // track current host live for request listener
+
+/* ════════════════════════════════════════════════════
+   LIVE FEED CARDS — listen to active lives
+   ════════════════════════════════════════════════════ */
 function initLiveFeedCards() {
-    const mods = _db();
+    const mods = _fbDB2();
     if (!mods) return;
     const { db, collection, query, where, onSnapshot } = mods;
-    if (_unsub) _unsub();
-    _unsub = onSnapshot(
+    if (_liveFeedUnsub) _liveFeedUnsub();
+    _liveFeedUnsub = onSnapshot(
         query(collection(db, 'stories'), where('liveActive', '==', true)),
-        snap => _renderCards(snap),
+        snap => _renderLiveFeedCards(snap),
         () => {}
     );
 }
 window.initLiveFeedCards = initLiveFeedCards;
 
-function _canView(data) {
+function _renderLiveFeedCards(snap) {
+    _activeLives = [];
+    snap.forEach(d => {
+        const data = { id: d.id, ...d.data() };
+        if (_canViewLive(data)) _activeLives.push(data);
+    });
+
+    const section = $id('liveFeedSection');
+    const strip   = $id('liveFeedStrip');
+    if (!section || !strip) return;
+
+    // Always clear the strip first so ended lives are removed immediately
+    strip.innerHTML = '';
+
+    if (_activeLives.length === 0) {
+        section.classList.remove('has-lives');
+        return;
+    }
+    section.classList.add('has-lives');
+
+    _activeLives.forEach(live => strip.appendChild(_buildLiveFeedCard(live)));
+}
+
+function _canViewLive(data) {
     const p = data.privacy || 'everyone';
     if (p === 'everyone') return true;
-    const me = _auth(); if (!me) return false;
+    const me = _fbAuth2();
+    if (!me) return false;
     if (data.authorUid === me.uid) return true;
-    const ud = _ud();
-    if (p === 'friends') return (ud.friends  || []).includes(data.authorUid);
-    if (p === 'family')  return (ud.family   || []).includes(data.authorUid);
+    const ud = _fbUD2();
+    if (p === 'friends') return (ud.friends || []).includes(data.authorUid);
+    if (p === 'family')  return (ud.family  || []).includes(data.authorUid);
     return false;
 }
 
-function _renderCards(snap) {
-    const section = document.getElementById('liveFeedSection');
-    const strip   = document.getElementById('liveFeedStrip');
-    if (!section || !strip) return;
-    strip.innerHTML = '';
-    const lives = [];
-    snap.forEach(d => { const data = { id: d.id, ...d.data() }; if (_canView(data)) lives.push(data); });
-    if (!lives.length) { section.classList.remove('has-lives'); return; }
-    section.classList.add('has-lives');
-    lives.forEach(live => strip.appendChild(_buildCard(live)));
-}
-
-function _buildCard(live) {
+function _buildLiveFeedCard(live) {
     const card = document.createElement('div');
     card.className = 'live-feed-card';
+    card.dataset.liveId = live.id;
+
     const name    = live.authorName   || 'User';
     const avatar  = live.authorAvatar || '';
-    const title   = live.text         || 'Live Stream';
+    const title   = live.text         || '';
     const viewers = live.viewerCount  || 0;
-    const initials = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-    const avHTML = avatar
-        ? `<div class="lfc-avatar-large" style="background-image:url('${esc(avatar)}');background-size:cover;background-position:center;"></div>`
-        : `<div class="lfc-avatar-large">${esc(initials)}</div>`;
+
+    const avatarHTML = avatar
+        ? `<div class="lfc-avatar-large" style="${_avatarStyle2(avatar)}"></div>`
+        : `<div class="lfc-avatar-large">${_initials2(name)}</div>`;
+
     card.innerHTML = `
         <div class="live-feed-card-thumb">
-            ${avHTML}
+            ${avatarHTML}
             <span class="live-feed-card-badge">● LIVE</span>
             <span class="live-feed-card-viewers">👁 ${viewers}</span>
         </div>
         <div class="live-feed-card-info">
-            <div class="live-feed-card-name">${esc(name)}</div>
-            <div class="live-feed-card-title">${esc(title)}</div>
-            <div class="live-feed-card-tap">Tap to Watch →</div>
+            <div class="live-feed-card-name">${_esc2(name)}</div>
+            <div class="live-feed-card-title">${_esc2(title) || 'Live Stream'}</div>
+            <div class="live-feed-card-tap">Tap to Join →</div>
         </div>`;
-    card.onclick = () => { window.location.href = 'live.html?room=' + encodeURIComponent(live.id); };
+
+    card.onclick = () => openLiveJoinChoice(live);
     return card;
+}
+
+/* ════════════════════════════════════════════════════
+   LIVE JOIN CHOICE SHEET
+   ════════════════════════════════════════════════════ */
+function openLiveJoinChoice(story) {
+    _ljcStory = story;
+    const name    = story.authorName   || 'User';
+    const avatar  = story.authorAvatar || '';
+    const viewers = story.viewerCount  || 0;
+
+    const av = $id('ljcAvatar');
+    if (av) {
+        av.style.cssText = _avatarStyle2(avatar) || '';
+        av.textContent   = avatar ? '' : _initials2(name);
+    }
+    const nm = $id('ljcName');   if (nm) nm.textContent  = name;
+    const mt = $id('ljcMeta');   if (mt) mt.textContent  = `Live · ${viewers} viewer${viewers !== 1 ? 's' : ''}`;
+    const tt = $id('ljcTitleText'); if (tt) tt.textContent = story.text || '';
+
+    $id('liveJoinChoice').classList.add('open');
+}
+window.openLiveJoinChoice = openLiveJoinChoice;
+
+function closeLiveJoinChoice() {
+    $id('liveJoinChoice').classList.remove('open');
+    _ljcStory = null;
+}
+window.closeLiveJoinChoice = closeLiveJoinChoice;
+
+/* User chose "Watch Live" */
+function ljcWatchLive() {
+    if (!_ljcStory) return;
+    const story = _ljcStory;
+    closeLiveJoinChoice();
+    _isHostViewer = false;
+    window.openLiveStreamViewer(story);
+    // Show the "Request to Join Box" button for viewers
+    setTimeout(() => {
+        const btn = $id('lvJoinBoxBtn');
+        if (btn) btn.style.display = '';
+    }, 300);
+}
+window.ljcWatchLive = ljcWatchLive;
+
+/* User chose "Request to Join Box" */
+function ljcRequestBox() {
+    if (!_ljcStory) return;
+    const story = _ljcStory;
+    closeLiveJoinChoice();
+    // Open viewer first (so they can watch while waiting)
+    _isHostViewer = false;
+    window.openLiveStreamViewer(story);
+    // Immediately submit the request
+    setTimeout(() => lvRequestBox(), 300);
+}
+window.ljcRequestBox = ljcRequestBox;
+
+/* ════════════════════════════════════════════════════
+   VIEWER: Request to join a box
+   ════════════════════════════════════════════════════ */
+window.lvRequestBox = async function() {
+    const me = _fbAuth2();
+    if (!me) { _snxToast('Sign in to request a box.'); return; }
+
+    const viewer = $id('liveStreamViewer');
+    const liveDocId = viewer && viewer.dataset.liveDocId;
+    if (!liveDocId) { _snxToast('Live not found.'); return; }
+
+    const mods = _fbDB2();
+    if (!mods) return;
+    const { db, doc, setDoc, onSnapshot: onSnap, deleteDoc, serverTimestamp } = mods;
+
+    const ud   = _fbUD2();
+    const name = ud.displayName || me.displayName || 'User';
+
+    // Disable button
+    const btn = $id('lvJoinBoxBtn');
+    if (btn) btn.disabled = true;
+
+    try {
+        const reqRef = doc(db, 'stories', liveDocId, 'boxRequests', me.uid);
+        await setDoc(reqRef, {
+            uid:         me.uid,
+            displayName: name,
+            avatarUrl:   ud.avatarUrl || '',
+            status:      'pending',
+            requestedAt: serverTimestamp()
+        });
+        _boxReqDocId = me.uid;
+
+        // Show waiting screen
+        $id('liveBoxWaiting').classList.add('open');
+
+        // Listen for host decision
+        if (_boxWaitUnsub) _boxWaitUnsub();
+        _boxWaitUnsub = onSnap(reqRef, snap => {
+            if (!snap.exists()) {
+                _boxWaitUnsub && _boxWaitUnsub();
+                $id('liveBoxWaiting').classList.remove('open');
+                if (btn) btn.disabled = false;
+                return;
+            }
+            const st = snap.data().status;
+            if (st === 'accepted') {
+                _boxWaitUnsub && _boxWaitUnsub();
+                $id('liveBoxWaiting').classList.remove('open');
+                // Redirect to full WebRTC room in live.html
+                const roomId = snap.data().roomId || liveDocId;
+                window.location.href = `live.html?room=${roomId}`;
+            } else if (st === 'declined') {
+                _boxWaitUnsub && _boxWaitUnsub();
+                $id('liveBoxWaiting').classList.remove('open');
+                if (btn) btn.disabled = false;
+                _snxToast('Host declined your box request.');
+                deleteDoc(reqRef).catch(() => {});
+            }
+        });
+    } catch(err) {
+        _snxToast('Could not send request.');
+        if (btn) btn.disabled = false;
+    }
+};
+
+window.lvCancelBoxRequest = async function() {
+    if (_boxWaitUnsub) { _boxWaitUnsub(); _boxWaitUnsub = null; }
+    $id('liveBoxWaiting').classList.remove('open');
+    const me = _fbAuth2();
+    const viewer = $id('liveStreamViewer');
+    const liveDocId = viewer && viewer.dataset.liveDocId;
+    if (me && liveDocId && _boxReqDocId) {
+        try {
+            const mods = _fbDB2();
+            if (mods) {
+                const { db, doc, deleteDoc } = mods;
+                await deleteDoc(doc(db, 'stories', liveDocId, 'boxRequests', me.uid));
+            }
+        } catch(_) {}
+    }
+    _boxReqDocId = null;
+    const btn = $id('lvJoinBoxBtn');
+    if (btn) btn.disabled = false;
+};
+
+/* ════════════════════════════════════════════════════
+   HOST: listen for box requests on their live
+   ════════════════════════════════════════════════════ */
+function _listenForBoxRequests(liveDocId) {
+    const mods = _fbDB2();
+    if (!mods || !liveDocId) return;
+    const { db, collection, query, where, onSnapshot: onSnap } = mods;
+    if (_boxReqUnsub) _boxReqUnsub();
+    _hostLiveDocId = liveDocId;
+
+    _boxReqUnsub = onSnap(
+        query(collection(db, 'stories', liveDocId, 'boxRequests'), where('status', '==', 'pending')),
+        snap => {
+            const list = $id('lvRequestList');
+            const banner = $id('lvRequestBanner');
+            if (!list || !banner) return;
+
+            list.innerHTML = '';
+            const pending = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            if (pending.length === 0) {
+                banner.classList.remove('visible');
+                return;
+            }
+            banner.classList.add('visible');
+
+            pending.forEach(req => {
+                const row = document.createElement('div');
+                row.className = 'lv-req-item';
+                row.dataset.uid = req.uid;
+                row.innerHTML = `
+                    <span class="lv-req-name">${_esc2(req.displayName)}</span>
+                    <button class="lv-req-accept" onclick="lvHostAcceptBox('${_esc2(req.uid)}','${_esc2(req.displayName)}')">✓ Accept</button>
+                    <button class="lv-req-deny"   onclick="lvHostDeclineBox('${_esc2(req.uid)}')">✕</button>`;
+                list.appendChild(row);
+            });
+        },
+        () => {}
+    );
+}
+
+window.lvHostAcceptBox = async function(uid, displayName) {
+    const mods = _fbDB2();
+    if (!mods || !_hostLiveDocId) return;
+    const { db, doc, updateDoc } = mods;
+    // Generate / use the live's roomId (stored in the story doc)
+    try {
+        // Mark request accepted and attach the roomId so guest can redirect
+        const storyDoc = doc(db, 'stories', _hostLiveDocId);
+        const reqRef   = doc(db, 'stories', _hostLiveDocId, 'boxRequests', uid);
+        // Get current roomId from story
+        const { getDoc } = mods;
+        const snap = await getDoc(storyDoc);
+        const roomId = snap.exists() ? (snap.data().roomId || _hostLiveDocId) : _hostLiveDocId;
+        await updateDoc(reqRef, { status: 'accepted', roomId });
+        _snxToast(`${displayName} accepted! Opening their box…`);
+    } catch(err) {
+        _snxToast('Could not accept request.');
+    }
+};
+
+window.lvHostDeclineBox = async function(uid) {
+    const mods = _fbDB2();
+    if (!mods || !_hostLiveDocId) return;
+    const { db, doc, updateDoc } = mods;
+    try {
+        await updateDoc(doc(db, 'stories', _hostLiveDocId, 'boxRequests', uid), { status: 'declined' });
+    } catch(_) {}
+};
+
+/* ════════════════════════════════════════════════════
+   PATCH openLiveStreamViewer to store liveDocId on DOM
+   and enable host request listener
+   ════════════════════════════════════════════════════ */
+const _origOpenLSV = window.openLiveStreamViewer;
+window.openLiveStreamViewer = function(story) {
+    if (_origOpenLSV) _origOpenLSV(story);
+    const viewer = $id('liveStreamViewer');
+    if (viewer) viewer.dataset.liveDocId = story.id;
+
+    // Viewers see "Join Box" button; hosts see end button (already handled)
+    const joinBoxBtn = $id('lvJoinBoxBtn');
+    if (joinBoxBtn) joinBoxBtn.style.display = '';
+
+    // Reset request banner
+    const banner = $id('lvRequestBanner');
+    if (banner) banner.classList.remove('visible');
+};
+
+/* ════════════════════════════════════════════════════
+   PATCH closeLiveStreamViewer to clean up listeners
+   ════════════════════════════════════════════════════ */
+const _origCloseLSV = window.closeLiveStreamViewer;
+window.closeLiveStreamViewer = function() {
+    if (_origCloseLSV) _origCloseLSV();
+    if (_boxReqUnsub)  { _boxReqUnsub();  _boxReqUnsub  = null; }
+    if (_boxWaitUnsub) { _boxWaitUnsub(); _boxWaitUnsub = null; }
+    _isHostViewer  = false;
+    _hostLiveDocId = null;
+};
+
+/* ════════════════════════════════════════════════════
+   HELPER — toast alias
+   ════════════════════════════════════════════════════ */
+function _snxToast(msg) {
+    if (typeof window._toast === 'function') { window._toast(msg); return; }
+    const t = document.getElementById('notification-toast') || document.getElementById('live-toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.style.display = 'block';
+    t.classList.add('toast-visible');
+    clearTimeout(t._snxTimer);
+    t._snxTimer = setTimeout(() => {
+        t.classList.remove('toast-visible');
+        setTimeout(() => { t.style.display = ''; }, 300);
+    }, 3500);
 }
 
 })();
@@ -19294,7 +21007,7 @@ function _buildCard(live) {
                 <div class="sco-label">Post Story</div>
                 <div class="sco-desc">Photo, video, text, music & more</div>
             </div>
-            <div class="story-chooser-option live-option" onclick="closeStoryChooser(); if(!_me()){_toast('Sign in to go live.');return;} window.location.href='live.html?room=new&host=1';">
+            <div class="story-chooser-option live-option" onclick="openGoLive()">
                 <div class="sco-icon">🔴</div>
                 <div class="sco-label">Go Live</div>
                 <div class="sco-desc">Start a live stream for your followers</div>
@@ -19344,7 +21057,8 @@ function _buildCard(live) {
             <span class="story-option-label">🔒 Privacy:</span>
             <select class="story-privacy-select" id="storyPrivacySelect">
                 <option value="everyone">🌍 Everyone</option>
-                <option value="friends">👥 Friends Only</option>
+                <option value="followers">👥 Followers Only</option>
+                <option value="friends">✅ Friends Only</option>
                 <option value="family">❤️ Family Only</option>
                 <option value="private">🔒 Private (Only Me)</option>
             </select>
@@ -19423,6 +21137,122 @@ function _buildCard(live) {
     </div>
 </div>
 
+<!-- Go Live Setup Modal -->
+<div id="storyLiveModal">
+    <div class="live-modal-inner">
+        <div class="live-modal-header">
+            <span class="live-modal-title">🔴 Go Live</span>
+            <button class="live-modal-close" onclick="closeGoLive()">✕</button>
+        </div>
+
+        <!-- Camera preview -->
+        <div class="live-preview-wrap">
+            <video id="livePreviewVideo" autoplay muted playsinline></video>
+            <span class="live-preview-badge" id="livePreviewBadge">● LIVE</span>
+        </div>
+
+        <!-- Controls -->
+        <div class="live-controls-row">
+            <button class="live-ctrl-btn" id="liveBtnFlipCam" onclick="liveFlipCamera()">🔄 Flip Camera</button>
+            <button class="live-ctrl-btn" id="liveBtnToggleMic" onclick="liveToggleMic()">🎙 Mic: On</button>
+            <button class="live-ctrl-btn" id="liveBtnToggleCam" onclick="liveToggleCam()">📷 Camera: On</button>
+        </div>
+
+        <!-- Live title -->
+        <input class="live-title-input" id="liveTitleInput" placeholder="Live title… (optional)" maxlength="80">
+
+        <!-- Privacy -->
+        <select class="live-privacy-select" id="livePrivacySelect">
+            <option value="everyone">🌍 Everyone can watch</option>
+            <option value="friends">👥 Friends Only</option>
+            <option value="family">❤️ Family Only</option>
+        </select>
+
+        <!-- Start streaming -->
+        <button class="live-start-btn" id="liveStartBtn" onclick="startLiveStream()">🔴 Start Live Stream</button>
+    </div>
+</div>
+
+<!-- Active Live Stream Viewer -->
+<div id="liveStreamViewer">
+    <div class="lv-video-wrap">
+        <video id="liveStreamVideo" autoplay playsinline></video>
+        <div class="lv-overlay"></div>
+
+        <!-- Header bar -->
+        <div class="lv-header">
+            <span class="lv-live-badge">● LIVE</span>
+            <span class="lv-host-name" id="lvHostName"></span>
+            <span class="lv-viewer-count" id="lvViewerCount">👁 0</span>
+            <button class="lv-close-btn" onclick="closeLiveStreamViewer()">✕</button>
+        </div>
+
+        <!-- Host: pending box join requests banner -->
+        <div class="lv-request-banner" id="lvRequestBanner">
+            <div class="lv-req-title">📩 Box Requests</div>
+            <div id="lvRequestList"></div>
+        </div>
+
+        <!-- Guest video boxes -->
+        <div class="lv-guests-row" id="lvGuestsRow"></div>
+
+        <!-- Floating chat messages -->
+        <div class="lv-chat-wrap" id="lvChatWrap"></div>
+
+        <!-- Floating reactions -->
+        <div class="lv-react-float" id="lvReactFloat"></div>
+
+        <!-- Footer -->
+        <div class="lv-footer">
+            <input class="lv-msg-input" id="lvMsgInput" placeholder="Say something…" onkeydown="if(event.key==='Enter')lvSendChat()">
+            <button class="lv-react-trigger-btn" onclick="lvSendReaction()">🔥</button>
+            <!-- Viewer: request to join a box (hidden for host) -->
+            <button class="lv-join-box-btn" id="lvJoinBoxBtn" onclick="lvRequestBox()" style="display:none;">🎥 Join Box</button>
+            <button class="lv-end-btn" id="lvEndBtn" onclick="endLiveStream()" style="display:none;">End</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Live Join Choice Sheet (Watch or Request Box) ── -->
+<div id="liveJoinChoice">
+    <div class="ljc-sheet">
+        <div class="ljc-header">
+            <div class="ljc-avatar" id="ljcAvatar"></div>
+            <div class="ljc-info">
+                <div class="ljc-name" id="ljcName"></div>
+                <div class="ljc-meta" id="ljcMeta">Live · 0 viewers</div>
+            </div>
+            <button class="ljc-close" onclick="closeLiveJoinChoice()">✕</button>
+        </div>
+        <div class="ljc-title-text" id="ljcTitleText"></div>
+
+        <button class="ljc-btn ljc-watch" onclick="ljcWatchLive()">
+            <span class="ljc-btn-icon">👀</span>
+            <div>
+                <div class="ljc-btn-label">Watch Live</div>
+                <div class="ljc-btn-sub">Join as a viewer — no camera needed</div>
+            </div>
+        </button>
+
+        <button class="ljc-btn ljc-request" onclick="ljcRequestBox()">
+            <span class="ljc-btn-icon">🎥</span>
+            <div>
+                <div class="ljc-btn-label">Request to Join Box</div>
+                <div class="ljc-btn-sub">Ask the host to appear on camera</div>
+            </div>
+        </button>
+    </div>
+</div>
+
+<!-- ── Guest Box Request Waiting Screen ── -->
+<div id="liveBoxWaiting">
+    <div class="lbw-card">
+        <div class="lbw-spinner"></div>
+        <div class="lbw-title">Waiting for approval…</div>
+        <div class="lbw-sub">The host will accept or decline your request to join a box.</div>
+        <button class="lbw-cancel" onclick="lvCancelBoxRequest()">Cancel</button>
+    </div>
+</div>
 
 </body>
 </html>
