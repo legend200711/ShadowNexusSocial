@@ -830,36 +830,39 @@ async function startAsHost(code) {
   $("roomTitle").textContent = `🔴 Live`;
   hideAll();
 
-  // ── Check 3 & 5: Acquire the local stream and show a clear error if it fails ──
+  // ── Acquire camera+mic — show error and bail if it fails ──
   try {
     await acquireLocalStream();
   } catch (e) {
-    // acquireLocalStream() already called toast() with the error message.
-    // Show the error in the host box and stop here — don't show a black screen.
     const msg = getMediaErrorMessage(e);
-    toast("❌ Cannot start live: " + msg);
+    toast("❌ Unable to start Live. Please try again.");
+    // Navigate back so the user isn't left on a black screen
+    setTimeout(() => {
+      if (window.history.length > 1) window.history.back();
+      else window.location.href = "index.html";
+    }, 2500);
     return;
   }
 
-  // ── Check 3: Attach the stream to the host video box immediately ──
+  // ── Attach stream to host box immediately ──
   const hostSlot = assignSlot(currentUser.uid, myDisplayName + " (you)", localStream, true);
-  // Force the video element to play after stream attachment
   if (hostSlot) {
     const vid = hostSlot.querySelector("video");
-    if (vid && localStream) {
-      vid.srcObject = localStream;
-      vid.play().catch(() => {});
-    }
+    if (vid && localStream) { vid.srcObject = localStream; vid.play().catch(() => {}); }
   }
 
   showCtrlBar();
   _showHostRequestControls();
   listenForJoinRequests();
-  setupRTDB();
   startHostStreamGuard();
   markPresenceLive(roomId);
-  // Auto-start the broadcast immediately — no extra "Go Live" tap needed
-  await handleGoLive();
+
+  // ── Write Firestore room + activate feed bubble THEN set up listeners ──
+  const ok = await handleGoLive();
+  if (!ok) return; // handleGoLive returned false → already showed error
+
+  // Set up RTDB presence and chat AFTER the room doc exists
+  setupRTDB();
 }
 
 // Show host-only request controls (settings bar + ctrl-bar button)
@@ -899,11 +902,12 @@ function _syncRequestsOpenUI() {
 // ─────────────────────────────────────────────────────────────────
 // Start the broadcast — called automatically when host enters live.html
 // ─────────────────────────────────────────────────────────────────
+// Returns true on success, false on failure (caller should abort startup).
 async function handleGoLive() {
-  if (!isHost) return;
-  if (liveActive) return;          // already live — no double-start
+  if (!isHost) return false;
+  if (liveActive) return true;          // already live — no double-start
 
-  // ── Check 4: If stream is missing or tracks ended, re-acquire and re-attach ──
+  // ── If stream lost between startAsHost and here, re-acquire ──
   if (!localStream || localStream.getVideoTracks().every(t => t.readyState === "ended")) {
     try {
       await acquireLocalStream();
@@ -913,46 +917,63 @@ async function handleGoLive() {
         if (vid && localStream) { vid.srcObject = localStream; vid.play().catch(() => {}); }
       }
     } catch (e) {
-      toast("❌ Camera unavailable: " + getMediaErrorMessage(e));
-      return;
+      toast("❌ Unable to start Live. Please try again.");
+      setTimeout(() => {
+        if (window.history.length > 1) window.history.back();
+        else window.location.href = "index.html";
+      }, 2500);
+      return false;
     }
   }
+
+  try {
+    // ── 1. Write WebRTC room doc so guests can signal ──
+    await setDoc(doc(db, "liveRooms", roomId), {
+      host:             currentUser.uid,
+      hostName:         myDisplayName,
+      hostPhotoURL:     myPhotoURL || "",
+      roomId,
+      live:             true,
+      locked:           false,
+      requestsOpen:     true,
+      requestAllowMode: "everyone",
+      createdAt:        serverTimestamp(),
+      viewerCount:      0
+    });
+
+    // ── 2. Ensure stories feed-bubble doc is live (use setDoc merge so it
+    //       works whether the doc was created by index.html or is brand-new) ──
+    await setDoc(doc(db, "stories", roomId), {
+      liveActive   : true,
+      isLive       : true,
+      authorUid    : currentUser.uid,
+      authorName   : myDisplayName,
+      authorAvatar : myPhotoURL || "",
+      roomId,
+    }, { merge: true });
+
+  } catch (err) {
+    toast("❌ Unable to start Live. Please try again.");
+    liveActive = false;
+    setTimeout(() => {
+      if (window.history.length > 1) window.history.back();
+      else window.location.href = "index.html";
+    }, 2500);
+    return false;
+  }
+
+  // ── 3. Flip local state and show live UI ──
   liveActive = true;
   $("btnGoLive").style.display  = "none";
   $("btnEndLive").style.display = "";
   $("live-badge").classList.add("visible");
   $("viewer-count").style.display = "flex";
 
-  // Write WebRTC room metadata so guests can signal
-  await setDoc(doc(db, "liveRooms", roomId), {
-    host:             currentUser.uid,
-    hostName:         myDisplayName,
-    hostPhotoURL:     myPhotoURL || "",
-    roomId,
-    live:             true,
-    locked:           false,
-    requestsOpen:     true,
-    requestAllowMode: "everyone",
-    createdAt:        serverTimestamp(),
-    viewerCount:      0
-  });
-
-  // Ensure the stories doc (feed bubble) reflects the live as active.
-  // index.html:startLiveStream() already created it with liveActive:true,
-  // but we patch the avatar + name here in case they loaded after the doc
-  // was written, and we confirm liveActive:true so the bubble always shows.
-  try {
-    await updateDoc(doc(db, "stories", roomId), {
-      liveActive   : true,
-      authorName   : myDisplayName,
-      authorAvatar : myPhotoURL || "",
-    });
-  } catch (_) { /* doc may not exist for manually-created rooms — ignore */ }
-
-  listenViewerCount();
-  // Start recording the host's local stream
+  // ── 4. Start recording the host's stream ──
   _startRecording();
+
   toast("🔴 You are Live! Your followers can see you on their Feed.");
+  return true;
 }
 
 function handleEndLive() {

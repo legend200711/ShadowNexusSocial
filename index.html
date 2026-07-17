@@ -9131,14 +9131,21 @@ body.arcade-fs-ios body::after { display:none !important; }
                       where('authorUid', '==', user.uid),
                       where('liveActive', '==', true)
                   ));
+                  const now = Date.now();
                   staleSnap.forEach(d => {
+                      const data = d.data();
+                      // Only kill docs older than 30 s — a fresh doc is the just-started live
+                      const createdMs = data.createdAt?.toMillis
+                          ? data.createdAt.toMillis()
+                          : (data.createdAt?.seconds ? data.createdAt.seconds * 1000 : 0);
+                      if (createdMs && (now - createdMs) < 30000) return;
                       updateDoc(doc(db, 'stories', d.id), {
                           liveActive: false,
                           endedAt:    serverTimestamp(),
                       }).catch(() => {});
                   });
               } catch(_) { /* best-effort */ }
-          }, 1500);
+          }, 8000);
       } else {
           // Dismiss the auth gate unconditionally — we now know the auth state.
           const _gate = document.getElementById('snx-auth-gate');
@@ -20607,18 +20614,18 @@ window.startCountdownAndGoLive = function() {
 
     let count = 3;
     function showTick() {
-        // Restart CSS pop animation for each number
-        numEl.style.animation = 'none';
-        numEl.textContent     = count;
-        void numEl.offsetWidth; // reflow to restart animation
-        numEl.style.animation = '';
-
         if (count === 0) {
+            // Countdown finished — hide overlay and launch
             overlay.classList.remove('visible');
             if (btn) btn.disabled = false;
             window.startLiveStream();
             return;
         }
+        // Restart CSS pop animation for each number
+        numEl.style.animation = 'none';
+        numEl.textContent     = count;
+        void numEl.offsetWidth; // reflow to restart animation
+        numEl.style.animation = '';
         count--;
         _liveCountdownTimer = setTimeout(showTick, 1000);
     }
