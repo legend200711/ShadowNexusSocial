@@ -25,7 +25,7 @@ import {
 import {
   getDatabase, ref as rtRef, set as rtSet, push as rtPush,
   onValue, off, remove as rtRemove, onDisconnect,
-  increment as rtIncrement
+  increment as rtIncrement, update as rtUpdate
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import { getStorage, ref as stRef, uploadBytes, getDownloadURL }
   from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
@@ -64,6 +64,7 @@ let _iceReady   = false;
 
 async function loadIceServers() {
   if (_iceReady) return;
+  _iceReady = true; // set before await so concurrent callers don't double-fetch
   try {
     const uid = auth.currentUser?.uid || "anon";
     const res = await fetch(`${TURN_ENDPOINT}?uid=${encodeURIComponent(uid)}`);
@@ -71,12 +72,15 @@ async function loadIceServers() {
       const data = await res.json();
       if (Array.isArray(data.iceServers) && data.iceServers.length) {
         ICE_SERVERS = data.iceServers;
+        // Schedule credential refresh 1 min before they expire (TTL from worker)
+        const ttl = (data.ttl || 3600) - 60;
+        setTimeout(() => { _iceReady = false; }, ttl * 1000);
       }
     }
   } catch (_) {
-    // network error — STUN_ONLY fallback stays in place
+    // network error — STUN_ONLY fallback stays in place; allow retry next call
+    _iceReady = false;
   }
-  _iceReady = true;
 }
 const QUALITY = {
   HIGH:   { width: 1280, height: 720,  frameRate: 30, bitrate: 1_500_000 },
@@ -629,10 +633,11 @@ async function createViewerPeer(viewerUid, displayName) {
 async function incrementViewerCount() {
   if (!roomId) return;
   try {
-    const r = rtRef(rtdb, `liveRooms/${roomId}/viewerCount`);
-    await rtSet(r, rtIncrement(1));
-    // Decrement on disconnect
-    onDisconnect(r).set(rtIncrement(-1));
+    // Bug 3 fix: rtIncrement is a server transform — must go through update(), not set().
+    // set() serialises the transform object as a plain value, corrupting the counter.
+    const roomRef = rtRef(rtdb, `liveRooms/${roomId}`);
+    await rtUpdate(roomRef, { viewerCount: rtIncrement(1) });
+    onDisconnect(roomRef).update({ viewerCount: rtIncrement(-1) });
   } catch (_) {}
 }
 
@@ -654,10 +659,14 @@ function startPresence() {
 function listenRoomDoc() {
   if (!roomId) return;
   roomDocUnsub = onSnapshot(doc(db, "stories", roomId), snap => {
-    if (!snap.exists() || snap.data().liveActive === false) {
+    if (!snap.exists()) {
+      if (!isHost) showLiveEnded();
+      return; // doc deleted — no data() to read
+    }
+    const data = snap.data();
+    if (data.liveActive === false) {
       if (!isHost) showLiveEnded();
     }
-    const data = snap.data() || {};
     // Sync viewer count from Firestore too (fallback)
     if (isHost) $("viewerNum").textContent = data.viewerCount || 0;
   });
@@ -813,6 +822,8 @@ async function createHostPeer(guestUid, displayName) {
 ───────────────────────────────────────────────── */
 async function joinAsGuest() {
   if (!roomId || !me) return;
+  // Tear down any previous guest peer cleanly before re-entering
+  if (peers[me.uid]) { try { peers[me.uid].close(); } catch (_) {} delete peers[me.uid]; }
   showOverlay("waitingOverlay");
 
   // Wait for host to write the offer
@@ -1164,9 +1175,7 @@ function flyReaction(emoji) {
 async function deleteMessage(msgId) {
   if (!roomId || !chatRtRef) return;
   try {
-    const msgRef = rtRef(rtdb, `liveRooms/${roomId}/chat/${msgId}`);
-    await rtSet(rtRef(rtdb, `liveRooms/${roomId}/chat/${msgId}/deleted`), true);
-    await rtSet(rtRef(rtdb, `liveRooms/${roomId}/chat/${msgId}/text`), "");
+    await rtUpdate(rtRef(rtdb, `liveRooms/${roomId}/chat/${msgId}`), { deleted: true, text: "" });
   } catch (_) {}
 }
 
@@ -1370,9 +1379,15 @@ async function replayPost() {
   $btn.disabled = true;
   $("postSpinner").classList.add("show");
   try {
-    const storRef = stRef(storage, `replays/${me.uid}/${roomId}.webm`);
-    await uploadBytes(storRef, replayBlob);
-    const url = await getDownloadURL(storRef);
+    // Upload to Cloudflare R2 (same worker used for all media in this project)
+    const WORKER = "https://yellow-term-11e6.nthntjrn.workers.dev";
+    const form   = new FormData();
+    form.append("file", new File([replayBlob], `replay-${roomId}.webm`, { type: "video/webm" }));
+    form.append("uid", me.uid);
+    const res = await fetch(WORKER, { method: "POST", body: form });
+    if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+    const { url } = await res.json();
+
     const name   = userData.displayName || me.displayName || "User";
     const avatar = userData.avatarUrl || me.photoURL || "";
     await addDoc(collection(db, "posts"), {
@@ -1445,14 +1460,11 @@ function closePeer(uid) {
    Live audio gain (optional quality)
 ───────────────────────────────────────────────── */
 function setupLiveAudio() {
-  try {
-    if (!localStream) return;
-    const ctx = new AudioContext();
-    const src = ctx.createMediaStreamSource(localStream);
-    const gain = ctx.createGain();
-    gain.gain.value = 1.2;
-    src.connect(gain).connect(ctx.destination);
-  } catch (_) {}
+  // Intentionally does NOT connect to ctx.destination — doing so would
+  // feed the mic back into the speaker and cause an audible feedback loop.
+  // The gain node is only used to boost the track going into the peer connection,
+  // which already receives the raw MediaStream tracks directly.
+  // This function is a no-op stub kept for future audio processing hooks.
 }
 
 /* ─────────────────────────────────────────────────
