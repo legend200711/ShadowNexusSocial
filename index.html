@@ -6158,6 +6158,9 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="nav-item" id="navProfile" onclick="viewMyProfile()">
             <span class="nav-icon">👤</span> Profile
         </button>
+        <button class="nav-item" id="navLive" onclick="openGoLive()">
+            <span class="nav-icon">🔴</span> Go Live
+        </button>
         <button class="nav-item" id="navSettings" onclick="navTo('settingsPage')">
             <span class="nav-icon">⚙️</span> Settings
         </button>
@@ -6269,7 +6272,17 @@ body.arcade-fs-ios body::after { display:none !important; }
             <span>📖 Legend Stories</span>
         </div>
         <div class="story-strip" id="storyStrip">
-            <!-- Story circles injected by JS -->
+            <!-- Static: Add Story button -->
+            <div class="story-add-btn" onclick="snxShareStory(event)" title="Share a Story">
+                <div class="story-add-circle">＋</div>
+                <span class="story-add-label">Your Story</span>
+            </div>
+            <!-- Static: Go Live button -->
+            <div class="story-golive-btn" onclick="openGoLive()" title="Go Live">
+                <div class="story-golive-circle">🔴</div>
+                <span class="story-golive-label">Go Live</span>
+            </div>
+            <!-- Dynamic story circles injected by renderStoryStrip() -->
         </div>
     </div>
 
@@ -19730,25 +19743,27 @@ let _storyUnsub = null;
 
 function initStoryStrip() {
     if (!_db()) return;
-    const { db, collection, query, where, orderBy, onSnapshot, getDocs } = _db();
+    const { db, collection, query, where, orderBy, onSnapshot } = _db();
+    // Use current time: active stories have expiresAt > now (not yet expired)
     const now = new Date();
-    const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     if (_storyUnsub) _storyUnsub();
 
     // Try ordered query first; fall back to unordered if the composite index is missing
     _storyUnsub = onSnapshot(
         query(collection(db, 'stories'),
-              where('expiresAt', '>', cutoff),
+              where('expiresAt', '>', now),
               orderBy('expiresAt', 'asc')),
         snap => renderStoryStrip(snap),
-        () => {
+        err => {
             // Composite index missing — fall back to simple query without ordering
+            console.warn('[Stories] Ordered query failed (composite index may be missing). ' +
+                'Create it at: https://console.firebase.google.com/project/_/firestore/indexes', err);
             if (_storyUnsub) _storyUnsub();
             _storyUnsub = onSnapshot(
-                query(collection(db, 'stories'), where('expiresAt', '>', cutoff)),
+                query(collection(db, 'stories'), where('expiresAt', '>', now)),
                 snap => renderStoryStrip(snap),
-                () => {}
+                err2 => console.error('[Stories] Story strip query failed:', err2)
             );
         }
     );
@@ -19788,19 +19803,33 @@ function renderStoryStrip(snap) {
     const strip = document.getElementById('storyStrip');
     if (!strip) return;
 
-    // Keep the static Add Story & Go Live buttons
-    // (they are not .story-item so the line below won't touch them)
-
-    // Remove old dynamic circles
+    // Remove old dynamic circles — static .story-add-btn and .story-golive-btn are preserved
     strip.querySelectorAll('.story-item').forEach(el => el.remove());
+
+    // Show/hide the static "Your Story" button: hide it when the user already has
+    // an active story (their story bubble replaces it in the strip).
+    const addBtn = strip.querySelector('.story-add-btn');
+    if (addBtn) {
+        const hasOwnStory = myUid && byUid.has(myUid);
+        addBtn.style.display = hasOwnStory ? 'none' : '';
+    }
 
     // Build queue for viewer
     SNX_STORY.queue = [];
 
+    // Insert story circles BEFORE the static action buttons so they appear
+    // at the left of the strip. The static buttons stay anchored at the end.
+    const goLiveBtn = strip.querySelector('.story-golive-btn');
+    function _insertCircle(el) {
+        // Insert before the Go Live button so order is: own story → others → Go Live
+        if (goLiveBtn) strip.insertBefore(el, goLiveBtn);
+        else strip.appendChild(el);
+    }
+
     // Live items first
     liveEntries.forEach(live => {
         SNX_STORY.queue.push({ uid: live.authorUid, stories: [live], isLive: true });
-        strip.appendChild(_buildLiveCircle(live));
+        _insertCircle(_buildLiveCircle(live));
     });
 
     // Regular story circles
@@ -19809,7 +19838,7 @@ function renderStoryStrip(snap) {
         if (liveEntries.some(l => l.authorUid === uid)) return;
         const allSeen = stories.every(s => seen.has(s.id));
         SNX_STORY.queue.push({ uid, stories });
-        strip.appendChild(_buildStoryCircle(stories[0], allSeen, stories.length));
+        _insertCircle(_buildStoryCircle(stories[0], allSeen, stories.length));
     });
 }
 
@@ -19932,10 +19961,11 @@ window.closeStoryCreator = function() {
 };
 
 function _resetCreator() {
-    SNX_STORY.mediaFile = null;
-    SNX_STORY.mediaUrl  = '';
-    SNX_STORY.mediaType = '';
-    SNX_STORY.extras    = {};
+    SNX_STORY.mediaFile    = null;
+    SNX_STORY.mediaUrl     = '';
+    SNX_STORY.mediaType    = '';
+    SNX_STORY.extras       = {};
+    SNX_STORY.locationData = null;
     const zi = document.getElementById('storyMediaZoneIcon');
     const zl = document.getElementById('storyMediaZoneLabel');
     const pi = document.getElementById('storyMediaPreviewImg');
@@ -20069,8 +20099,9 @@ window.submitStory = async function() {
     // Save to Firestore
     const { db, collection, addDoc, serverTimestamp } = _db();
     const ud = _ud();
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    // Use a plain JS Date — Firestore SDK v10 stores it as a Timestamp,
+    // and the onSnapshot range query (expiresAt > now) matches it correctly.
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     // Hide progress bar before write attempt
     const progWrap = document.getElementById('storyUploadProgress');
@@ -20097,10 +20128,10 @@ window.submitStory = async function() {
         });
         // Re-enable button so the modal can be used again
         if (btn) btn.disabled = false;
-        _toast('✅ Story posted! It will appear in the Stories row momentarily.');
+        _toast('✅ Story posted! It will appear in the Stories row.');
         closeStoryCreator();
-        // Re-initialise the live listener so the strip updates immediately
-        try { initStoryStrip(); } catch(_) {}
+        // The onSnapshot listener in initStoryStrip() fires automatically when
+        // the new document is written — no need to re-call initStoryStrip().
     } catch(err) {
         _toast('❌ Could not save Story: ' + (err.message || err) + ' — please try again.');
         if (btn) btn.disabled = false;
@@ -20910,13 +20941,22 @@ async function _sweepExpiredStories() {
     try {
         const { db, collection, query, where, getDocs, deleteDoc, doc } = _db();
         const now = new Date();
+        // Only sweep the current user's own expired stories — each user is
+        // responsible for their own documents (Firestore rules only allow delete
+        // on own docs).  The onSnapshot query already filters by expiresAt > now
+        // so expired docs simply never appear in the strip.
         const snap = await getDocs(query(
             collection(db, 'stories'),
             where('authorUid', '==', me.uid),
             where('expiresAt', '<', now)
         ));
-        snap.forEach(d => deleteDoc(doc(db, 'stories', d.id)).catch(()=>{}));
-    } catch(_) {}
+        const deletes = [];
+        snap.forEach(d => deletes.push(deleteDoc(doc(db, 'stories', d.id)).catch(() => {})));
+        await Promise.all(deletes);
+        if (deletes.length > 0) console.log('[Stories] Swept', deletes.length, 'expired story/ies.');
+    } catch(err) {
+        console.warn('[Stories] Sweep error:', err);
+    }
 }
 
 /* ════════════════════════════════════════════════════

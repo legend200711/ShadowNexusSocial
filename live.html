@@ -42,8 +42,7 @@ html, body {
   overflow: hidden;
   /* prevent iOS bounce from showing white */
   position: fixed;
-  /* touch-action: manipulation — do NOT use 'none' here; it blocks all taps on iOS/Android */
-  touch-action: manipulation;
+  touch-action: none;
 }
 
 /* ── Video grid — fills entire viewport ── */
@@ -157,22 +156,20 @@ html, body {
 /* ── Top HUD bar ── */
 #topbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  height: 52px;
   background: linear-gradient(rgba(0,0,0,0.72), transparent);
   display: flex; align-items: center; gap: 10px;
   padding: 0 14px;
   pointer-events: auto;
-  touch-action: manipulation;
   /* safe-area for notch phones */
   padding-top: env(safe-area-inset-top, 0px);
   height: calc(52px + env(safe-area-inset-top, 0px));
 }
 #topbar .back-btn {
   background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.2);
-  color: #fff; font-size: 22px; cursor: pointer;
-  padding: 8px 16px; min-width: 44px; min-height: 44px;
+  color: #fff; font-size: 22px; cursor: pointer; padding: 4px 10px;
   border-radius: 8px; transition: background 0.15s;
   touch-action: manipulation; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
 }
 #topbar .back-btn:hover { background: rgba(255,255,255,0.15); }
 #topbar .room-title {
@@ -225,8 +222,6 @@ html, body {
   transition: background 0.15s, box-shadow 0.15s;
   touch-action: manipulation; position: relative;
   flex-shrink: 0;
-  -webkit-tap-highlight-color: transparent;
-  min-width: 44px; min-height: 44px;
 }
 .ctrl-btn:hover  { background: rgba(255,255,255,0.22); }
 .ctrl-btn.active { background: rgba(255,51,85,0.3); color: #ff5566; box-shadow: var(--red-glow); }
@@ -248,18 +243,14 @@ html, body {
   top: calc(14px + env(safe-area-inset-top, 0px));
   right: 14px; z-index: 210;
   display: none;
-  height: 38px; border-radius: 20px;
-  padding: 0 14px 0 10px;
-  gap: 5px;
+  width: 38px; height: 38px; border-radius: 50%;
   background: rgba(180,0,30,0.55); border: 1px solid rgba(255,30,60,0.55);
-  color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
+  color: #fff; font-size: 18px; cursor: pointer;
   align-items: center; justify-content: center;
   touch-action: manipulation;
   backdrop-filter: blur(8px);
   transition: background 0.15s;
-  white-space: nowrap;
 }
-#btnExitLive .exit-icon { font-size: 16px; line-height: 1; }
 #btnExitLive.visible { display: flex; }
 #btnExitLive:hover { background: rgba(255,30,60,0.75); }
 
@@ -658,7 +649,6 @@ html, body {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 16px; padding: 24px;
-  touch-action: manipulation;
 }
 #join-overlay.hidden,
 #waiting-overlay.hidden,
@@ -674,8 +664,6 @@ html, body {
   cursor: pointer; box-shadow: var(--blue-glow-sm);
   transition: background 0.15s, box-shadow 0.15s;
   touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  min-height: 44px;
 }
 .btn-primary:hover { background: var(--neon-cyan); box-shadow: var(--blue-glow-md); }
 .btn-secondary {
@@ -684,8 +672,6 @@ html, body {
   padding: 11px 28px; font-size: 14px; font-weight: 700;
   cursor: pointer; transition: background 0.15s;
   touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  min-height: 44px;
 }
 .btn-secondary:hover { background: rgba(0,174,239,0.18); }
 
@@ -1012,85 +998,6 @@ html, body {
 }
 .elc-btn-cancel:hover { background: rgba(255,255,255,0.12); }
 
-/* ── Replay Modal (shown to host after Live ends) ── */
-#replayModal {
-  display: none; position: fixed; inset: 0; z-index: 950;
-  background: rgba(0,0,0,0.88); backdrop-filter: blur(10px);
-  align-items: center; justify-content: center; padding: 20px;
-  box-sizing: border-box;
-}
-#replayModal.open { display: flex; }
-.replay-inner {
-  background: #0a0d16; border: 1px solid rgba(0,174,239,0.35);
-  border-radius: 20px; padding: 32px 24px; max-width: 340px; width: 100%;
-  display: flex; flex-direction: column; gap: 14px; align-items: center;
-  text-align: center;
-  box-shadow: 0 0 60px rgba(0,100,200,0.25);
-  animation: elcIn 0.25s cubic-bezier(0.34,1.56,0.64,1) both;
-}
-.replay-icon  { font-size: 52px; }
-.replay-title { font-size: 18px; font-weight: 800; color: #fff; }
-.replay-sub   { font-size: 13px; color: rgba(255,255,255,0.5); line-height: 1.55; }
-.replay-duration {
-  font-size: 12px; color: var(--neon-blue);
-  background: rgba(0,174,239,0.1); border: 1px solid rgba(0,174,239,0.2);
-  border-radius: 20px; padding: 4px 14px; display: none;
-}
-.replay-duration.visible { display: inline-block; }
-.replay-btns  { display: flex; flex-direction: column; gap: 10px; width: 100%; }
-.replay-btn {
-  border: none; border-radius: 12px; padding: 14px 12px;
-  font-size: 14px; font-weight: 700; cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
-  touch-action: manipulation; width: 100%;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-}
-.replay-btn:active { transform: scale(0.97); }
-.replay-btn.save    { background: linear-gradient(135deg,#005fa3,#00AEEF); color: #fff; }
-.replay-btn.post    { background: linear-gradient(135deg,#1a4d00,#39FF14); color: #000; }
-.replay-btn.discard { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.6); font-size: 13px; }
-.replay-btn:hover   { opacity: 0.88; }
-.replay-btn.disabled { opacity: 0.45; pointer-events: none; }
-.replay-spinner {
-  width: 20px; height: 20px; border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: #fff;
-  animation: spin 0.7s linear infinite;
-  display: none;
-}
-.replay-spinner.visible { display: inline-block; }
-
-/* ── Leave Live Confirm Overlay (replaces browser confirm()) ── */
-#leaveConfirm {
-  display: none; position: fixed; inset: 0; z-index: 920;
-  background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
-  align-items: center; justify-content: center; padding: 20px;
-  box-sizing: border-box;
-}
-#leaveConfirm.open { display: flex; }
-.leave-inner {
-  background: #0a0d16; border: 1px solid rgba(0,174,239,0.35);
-  border-radius: 18px; padding: 28px 24px; max-width: 300px; width: 100%;
-  text-align: center;
-  animation: elcIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both;
-}
-.leave-icon  { font-size: 40px; margin-bottom: 10px; }
-.leave-title { font-size: 17px; font-weight: 800; color: #fff; margin-bottom: 6px; }
-.leave-sub   { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 22px; line-height: 1.5; }
-.leave-btns  { display: flex; gap: 10px; }
-.leave-btn-yes {
-  flex: 1; background: rgba(255,51,85,0.2); border: 1px solid rgba(255,51,85,0.45);
-  border-radius: 12px; color: #ff5566; font-size: 14px; font-weight: 700;
-  padding: 12px; cursor: pointer; transition: background 0.15s;
-}
-.leave-btn-yes:hover { background: rgba(255,51,85,0.35); }
-.leave-btn-no {
-  flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 12px; color: rgba(255,255,255,0.65);
-  font-size: 13px; padding: 12px; cursor: pointer; transition: background 0.15s;
-}
-.leave-btn-no:hover { background: rgba(255,255,255,0.12); }
-
 /* ════════════════════════════════════════════════
    PEOPLE / GUESTS PANEL  (3rd side-tab)
 ════════════════════════════════════════════════ */
@@ -1230,220 +1137,6 @@ html, body {
   border: 1px solid rgba(0,174,239,0.22); color: #fff;
   border-radius: 8px; padding: 4px 8px; font-size: 12px; outline: none;
 }
-
-/* ── Report Live button (viewers/guests) ── */
-#btn-report-live {
-  position: fixed;
-  top: calc(14px + env(safe-area-inset-top, 0px));
-  left: 60px; z-index: 210;
-  display: none;
-  height: 34px; border-radius: 20px;
-  padding: 0 12px 0 10px;
-  gap: 5px;
-  background: rgba(255,160,0,0.18); border: 1px solid rgba(255,160,0,0.4);
-  color: #ffcc44; font-size: 12px; font-weight: 700; cursor: pointer;
-  align-items: center; justify-content: center;
-  touch-action: manipulation; backdrop-filter: blur(8px);
-  transition: background 0.15s; white-space: nowrap;
-}
-#btn-report-live.visible { display: flex; }
-#btn-report-live:hover { background: rgba(255,160,0,0.32); }
-
-/* ── Mod History button (host/moderator) ── */
-#btn-mod-logs {
-  position: fixed;
-  top: calc(14px + env(safe-area-inset-top, 0px));
-  left: 60px; z-index: 210;
-  display: none;
-  height: 34px; border-radius: 20px;
-  padding: 0 12px 0 10px;
-  gap: 5px;
-  background: rgba(0,174,239,0.14); border: 1px solid rgba(0,174,239,0.35);
-  color: var(--neon-blue); font-size: 12px; font-weight: 700; cursor: pointer;
-  align-items: center; justify-content: center;
-  touch-action: manipulation; backdrop-filter: blur(8px);
-  transition: background 0.15s; white-space: nowrap;
-}
-#btn-mod-logs.visible { display: flex; }
-#btn-mod-logs:hover { background: rgba(0,174,239,0.26); }
-
-/* ── msg-action-btn warn variant (report button) ── */
-.msg-action-btn.warn { color: #ffaa33; }
-.msg-action-btn.warn:hover { background: rgba(255,170,51,0.14); color: #ffcc44; }
-
-/* ── Report Live modal ── */
-#report-live-modal {
-  display: none; position: fixed; inset: 0; z-index: 950;
-  background: rgba(0,0,0,0.78); backdrop-filter: blur(8px);
-  align-items: center; justify-content: center; padding: 20px;
-}
-#report-live-modal.visible { display: flex; }
-.rpt-inner {
-  background: #0a0d16; border: 1px solid rgba(255,160,0,0.35);
-  border-radius: 18px; padding: 26px 22px; max-width: 380px; width: 100%;
-  display: flex; flex-direction: column; gap: 14px;
-  animation: elcIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both;
-  max-height: 90vh; overflow-y: auto;
-}
-.rpt-title {
-  font-size: 17px; font-weight: 800; color: #fff; text-align: center;
-}
-.rpt-section-label {
-  font-size: 11px; font-weight: 700; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;
-}
-.rpt-field {
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(0,174,239,0.22);
-  color: #fff; border-radius: 8px; padding: 7px 11px; font-size: 13px;
-  width: 100%; outline: none;
-}
-.rpt-field:focus { border-color: var(--neon-blue); }
-.rpt-reasons {
-  display: flex; flex-wrap: wrap; gap: 7px;
-}
-.rpt-reason-btn {
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
-  color: var(--text-secondary); border-radius: 20px;
-  padding: 5px 12px; font-size: 12px; cursor: pointer;
-  transition: background 0.14s, border-color 0.14s, color 0.14s;
-  touch-action: manipulation;
-}
-.rpt-reason-btn:hover { background: rgba(255,160,0,0.14); border-color: rgba(255,160,0,0.4); color: #ffcc44; }
-.rpt-reason-btn.selected { background: rgba(255,160,0,0.18); border-color: #ffcc44; color: #ffcc44; font-weight: 700; }
-#rpt-notes {
-  min-height: 72px; resize: vertical;
-}
-.rpt-submit-row {
-  display: flex; gap: 10px;
-}
-.rpt-btn-submit {
-  flex: 1; background: rgba(255,160,0,0.22); border: 1px solid rgba(255,160,0,0.5);
-  color: #ffcc44; border-radius: 12px; padding: 12px; font-size: 14px; font-weight: 800;
-  cursor: pointer; transition: background 0.15s;
-}
-.rpt-btn-submit:hover { background: rgba(255,160,0,0.38); }
-.rpt-btn-cancel {
-  flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
-  color: rgba(255,255,255,0.55); border-radius: 12px; padding: 12px;
-  font-size: 13px; cursor: pointer; transition: background 0.15s;
-}
-.rpt-btn-cancel:hover { background: rgba(255,255,255,0.12); }
-#rpt-submit-feedback {
-  display: none; text-align: center; font-size: 13px; color: var(--neon-green);
-  font-weight: 700;
-}
-#rpt-submit-feedback.visible { display: block; }
-
-/* ── Mod Logs modal ── */
-#mod-logs-modal {
-  display: none; position: fixed; inset: 0; z-index: 950;
-  background: rgba(0,0,0,0.78); backdrop-filter: blur(8px);
-  align-items: center; justify-content: center; padding: 20px;
-}
-#mod-logs-modal.visible { display: flex; }
-.mod-logs-inner {
-  background: #0a0d16; border: 1px solid rgba(0,174,239,0.35);
-  border-radius: 18px; padding: 22px; max-width: 420px; width: 100%;
-  display: flex; flex-direction: column; gap: 12px;
-  max-height: 85vh;
-  animation: elcIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both;
-}
-.mod-logs-header {
-  display: flex; align-items: center; justify-content: space-between;
-}
-.mod-logs-title { font-size: 16px; font-weight: 800; color: #fff; }
-.mod-logs-close {
-  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14);
-  color: rgba(255,255,255,0.55); border-radius: 8px; padding: 4px 10px;
-  font-size: 13px; cursor: pointer;
-}
-#mod-logs-list {
-  overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
-  scrollbar-width: thin; scrollbar-color: rgba(0,174,239,0.2) transparent;
-}
-.mod-log-row {
-  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 10px; padding: 10px 12px;
-  display: flex; flex-direction: column; gap: 3px;
-}
-.mod-log-meta {
-  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
-}
-.mod-log-badge {
-  font-size: 10px; font-weight: 800; border-radius: 6px; padding: 1px 6px;
-  text-transform: uppercase; letter-spacing: 0.04em;
-}
-.mod-log-badge.system { background: rgba(255,51,85,0.2); color: #ff8899; }
-.mod-log-badge.user   { background: rgba(255,204,68,0.18); color: #ffcc44; }
-.mod-log-action { font-size: 12px; color: #fff; font-weight: 700; text-transform: capitalize; }
-.mod-log-time   { font-size: 11px; color: var(--text-muted); margin-left: auto; }
-.mod-log-detail { font-size: 12px; color: var(--text-secondary); }
-.mod-log-reason { font-size: 11px; color: var(--text-muted); font-style: italic; }
-
-/* ── AutoMod Warning Banner ── */
-#automod-warn-banner {
-  display: none;
-  position: fixed;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 800;
-  max-width: 420px;
-  width: calc(100% - 32px);
-  background: rgba(10, 6, 2, 0.94);
-  border: 1.5px solid rgba(255, 170, 30, 0.72);
-  border-radius: 14px;
-  padding: 14px 16px 14px 14px;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 4px 28px rgba(255, 140, 0, 0.22);
-  animation: warnSlideUp 0.28s cubic-bezier(0.34,1.56,0.64,1) both;
-}
-#automod-warn-banner.visible { display: flex; align-items: flex-start; gap: 11px; }
-@keyframes warnSlideUp {
-  from { opacity: 0; transform: translateX(-50%) translateY(18px) scale(0.96); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0)     scale(1);   }
-}
-#automod-warn-icon {
-  font-size: 22px; flex-shrink: 0; margin-top: 1px;
-}
-#automod-warn-body {
-  flex: 1; display: flex; flex-direction: column; gap: 4px;
-}
-#automod-warn-title {
-  font-size: 12px; font-weight: 800; color: #ffcc44;
-  text-transform: uppercase; letter-spacing: 0.06em;
-}
-#automod-warn-text {
-  font-size: 13px; color: rgba(255,255,255,0.92); line-height: 1.45;
-}
-#automod-warn-close {
-  background: none; border: none; color: rgba(255,255,255,0.4);
-  font-size: 18px; cursor: pointer; padding: 0 0 0 4px;
-  flex-shrink: 0; align-self: flex-start; line-height: 1;
-  transition: color 0.15s; touch-action: manipulation;
-}
-#automod-warn-close:hover { color: rgba(255,255,255,0.8); }
-
-/* ── Mod History button — automod badge dot ── */
-#btn-mod-logs { position: relative; }
-.mod-logs-badge-dot {
-  position: absolute;
-  top: -5px; right: -6px;
-  min-width: 17px; height: 17px;
-  border-radius: 9px;
-  background: #ff3355;
-  color: #fff;
-  font-size: 10px; font-weight: 800;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0 4px;
-  pointer-events: none;
-  box-shadow: 0 0 6px rgba(255,51,85,0.6);
-  animation: badgePop 0.22s cubic-bezier(0.34,1.56,0.64,1) both;
-}
-@keyframes badgePop {
-  from { transform: scale(0); }
-  to   { transform: scale(1); }
-}
 </style>
 </head>
 <body>
@@ -1462,32 +1155,14 @@ html, body {
   </div>
 </div>
 
-<!-- ── Exit Live button (always-accessible, visible while in a live) ── -->
-<button id="btnExitLive" aria-label="Exit Live">
-  <span class="exit-icon">✕</span> Exit Live
-</button>
-
-<!-- ── Report Live button (viewers/guests — shown once live starts) ── -->
-<button id="btn-report-live" aria-label="Report Live">🚩 Report Live</button>
-
-<!-- ── Mod History button (host/moderators — shown once live starts) ── -->
-<button id="btn-mod-logs" aria-label="Moderation History">🛡 Mod History</button>
+<!-- ── Exit Live button (always-accessible red X) ── -->
+<button id="btnExitLive" aria-label="Exit Live">✕</button>
 
 <!-- ── Request to Join button (shown to viewers who haven't requested yet) ── -->
 <button id="request-join-btn" aria-label="Request to join Live">➕ Request to Join</button>
 
 <!-- ── Reconnecting banner ── -->
 <div id="reconnect-banner">⚡ Connection lost. Reconnecting…</div>
-
-<!-- ── AI Safety Warning Banner (shown to the violating user) ── -->
-<div id="automod-warn-banner" role="alert" aria-live="assertive">
-  <div id="automod-warn-icon">🤖</div>
-  <div id="automod-warn-body">
-    <div id="automod-warn-title">⚠️ AI Safety Warning</div>
-    <div id="automod-warn-text">Your message or behavior may violate Shadow Nexus Social community rules. Continued violations may result in restrictions. You can appeal any action taken.</div>
-  </div>
-  <button id="automod-warn-close" aria-label="Dismiss warning" onclick="window._dismissAutoModWarning?.()">✕</button>
-</div>
 
 <!-- ── Bottom control bar (injected into DOM, placed by JS) ── -->
 <div id="ctrl-bar">
@@ -1497,7 +1172,7 @@ html, body {
   <button class="ctrl-btn" id="btnCam" title="Camera On/Off" aria-label="Toggle camera">
     📷<span class="ctrl-tooltip">Camera</span>
   </button>
-  <button class="ctrl-btn go-live-btn" id="btnGoLive" style="display:none;">🔴 Go Live</button>
+  <button class="ctrl-btn go-live-btn" id="btnGoLive">🔴 Go Live</button>
   <button class="ctrl-btn end-live-btn" id="btnEndLive" style="display:none;">⏹ End</button>
   <button class="ctrl-btn" id="btnFlip" title="Flip camera" aria-label="Flip camera" style="display:none;">🔄<span class="ctrl-tooltip">Flip</span></button>
   <button class="ctrl-btn" id="btnLock" title="Lock room" aria-label="Lock room">
@@ -1647,10 +1322,13 @@ html, body {
 
 <!-- ── Overlays ── -->
 
-<!-- Lobby overlay (hidden — host flow goes directly to live, viewer flow uses join-overlay) -->
-<div id="lobby-overlay" class="hidden">
-  <button class="btn-secondary" id="btnHostRoom" style="display:none;"></button>
-  <button class="btn-secondary" id="btnBackHome" style="display:none;"></button>
+<!-- Lobby: host or guest entry point -->
+<div id="lobby-overlay">
+  <div class="overlay-icon">🔴</div>
+  <div class="overlay-title" id="lobbyTitle">Shadow Nexus Live</div>
+  <div class="overlay-sub" id="lobbySub">Go live and let your followers join instantly.</div>
+  <button class="btn-primary" id="btnHostRoom">🎥 Start Live as Host</button>
+  <button class="btn-secondary" id="btnBackHome" style="color:var(--text-muted);border-color:transparent;">← Back to Feed</button>
 </div>
 
 <!-- Join: connecting to a room (deep-link) -->
@@ -1706,114 +1384,11 @@ html, body {
   <div class="elc-inner">
     <div class="elc-icon">🛑</div>
     <div class="elc-title">End your Live stream?</div>
-    <div class="elc-sub">This will stop the stream, disconnect all guests, and return you to the Feed.</div>
+    <div class="elc-sub">This will stop the stream, remove all guests, and return you to the Feed.</div>
     <div class="elc-btns">
       <button class="elc-btn-end" id="elcBtnEnd">✅ End Live</button>
       <button class="elc-btn-cancel" id="elcBtnCancel">❌ Cancel</button>
     </div>
-  </div>
-</div>
-
-<!-- ── Replay Modal (host sees this after ending Live) ── -->
-<div id="replayModal">
-  <div class="replay-inner">
-    <div class="replay-icon">🎬</div>
-    <div class="replay-title">Your Live has ended.</div>
-    <div class="replay-sub">What would you like to do with the recording?</div>
-    <div class="replay-duration" id="replayDuration"></div>
-    <div class="replay-btns">
-      <button class="replay-btn save" id="replayBtnSave">
-        <span>▶️</span>
-        <span>Save Replay</span>
-        <span class="replay-spinner" id="replaySaveSpinner"></span>
-      </button>
-      <button class="replay-btn post" id="replayBtnPost">
-        <span>📢</span>
-        <span>Post Replay to Feed</span>
-        <span class="replay-spinner" id="replayPostSpinner"></span>
-      </button>
-      <button class="replay-btn discard" id="replayBtnDiscard">🗑️ Discard &amp; Return to Feed</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Leave Live Confirm Overlay (viewer / guest exit) ── -->
-<div id="leaveConfirm">
-  <div class="leave-inner">
-    <div class="leave-icon">👋</div>
-    <div class="leave-title">Leave the Live?</div>
-    <div class="leave-sub">You will stop watching and return to the Feed.</div>
-    <div class="leave-btns">
-      <button class="leave-btn-yes" id="leaveBtnYes">Leave</button>
-      <button class="leave-btn-no"  id="leaveBtnNo">Stay</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Report Live Modal ── -->
-<div id="report-live-modal" role="dialog" aria-modal="true" aria-label="Report Live">
-  <div class="rpt-inner">
-    <div class="rpt-title">🚩 Report Live</div>
-
-    <div>
-      <div class="rpt-section-label">Who are you reporting?</div>
-      <select id="rpt-target-type" class="rpt-field">
-        <option value="host">Host</option>
-        <option value="guest">Guest</option>
-        <option value="viewer">Viewer</option>
-        <option value="message">Chat message</option>
-        <option value="behavior">Live behavior</option>
-      </select>
-    </div>
-
-    <div>
-      <div class="rpt-section-label">Name (optional)</div>
-      <input id="rpt-target-name" class="rpt-field" type="text" placeholder="Display name of the person…" maxlength="80" autocomplete="off">
-    </div>
-
-    <!-- Hidden fields set by JS when reporting a specific message -->
-    <input id="rpt-target-uid" type="hidden">
-    <div id="rpt-msg-row" style="display:none;">
-      <div class="rpt-section-label">Message ID</div>
-      <input id="rpt-msg-id" class="rpt-field" type="text" readonly>
-    </div>
-
-    <div>
-      <div class="rpt-section-label">Reason</div>
-      <div class="rpt-reasons">
-        <button class="rpt-reason-btn" data-reason="harassment" onclick="document.querySelectorAll('.rpt-reason-btn').forEach(b=>b.classList.remove('selected'));this.classList.add('selected')">Harassment</button>
-        <button class="rpt-reason-btn" data-reason="threats" onclick="document.querySelectorAll('.rpt-reason-btn').forEach(b=>b.classList.remove('selected'));this.classList.add('selected')">Threats</button>
-        <button class="rpt-reason-btn" data-reason="hate_speech" onclick="document.querySelectorAll('.rpt-reason-btn').forEach(b=>b.classList.remove('selected'));this.classList.add('selected')">Hate speech</button>
-        <button class="rpt-reason-btn" data-reason="spam" onclick="document.querySelectorAll('.rpt-reason-btn').forEach(b=>b.classList.remove('selected'));this.classList.add('selected')">Spam</button>
-        <button class="rpt-reason-btn" data-reason="nudity" onclick="document.querySelectorAll('.rpt-reason-btn').forEach(b=>b.classList.remove('selected'));this.classList.add('selected')">Nudity / sexual content</button>
-        <button class="rpt-reason-btn" data-reason="violence" onclick="document.querySelectorAll('.rpt-reason-btn').forEach(b=>b.classList.remove('selected'));this.classList.add('selected')">Violence</button>
-        <button class="rpt-reason-btn" data-reason="misinformation" onclick="document.querySelectorAll('.rpt-reason-btn').forEach(b=>b.classList.remove('selected'));this.classList.add('selected')">Misinformation</button>
-        <button class="rpt-reason-btn" data-reason="other" onclick="document.querySelectorAll('.rpt-reason-btn').forEach(b=>b.classList.remove('selected'));this.classList.add('selected')">Other</button>
-      </div>
-    </div>
-
-    <div>
-      <div class="rpt-section-label">Additional notes (optional)</div>
-      <textarea id="rpt-notes" class="rpt-field" placeholder="Describe what happened…" maxlength="500"></textarea>
-    </div>
-
-    <div id="rpt-submit-feedback"></div>
-
-    <div class="rpt-submit-row">
-      <button class="rpt-btn-submit" onclick="submitReport()">Submit Report</button>
-      <button class="rpt-btn-cancel" onclick="closeReportModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Moderation History Modal (host / moderators) ── -->
-<div id="mod-logs-modal" role="dialog" aria-modal="true" aria-label="Moderation History">
-  <div class="mod-logs-inner">
-    <div class="mod-logs-header">
-      <div class="mod-logs-title">🛡 Moderation History</div>
-      <button class="mod-logs-close" onclick="closeModLogs()">✕ Close</button>
-    </div>
-    <div id="mod-logs-list"></div>
   </div>
 </div>
 
