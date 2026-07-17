@@ -3353,8 +3353,8 @@ img, video { max-width: 100%; height: auto; }
     animation: goLiveRingPulse 2.2s ease-in-out infinite;
 }
 @keyframes goLiveRingPulse {
-    0%,100% { border-color: rgba(255,30,60,0.65); box-shadow: 0 0 0 0 rgba(255,30,60,0); }
-    50%     { border-color: rgba(255,60,80,1);     box-shadow: 0 0 0 4px rgba(255,30,60,0); }
+    0%,100% { border-color: rgba(255,30,60,0.65); box-shadow: 0 0 0 0 rgba(255,30,60,0.5); }
+    50%     { border-color: rgba(255,60,80,1);     box-shadow: 0 0 0 5px rgba(255,30,60,0); }
 }
 .story-golive-btn:active .story-golive-circle { transform: scale(0.92); background: rgba(255,30,60,0.22); }
 .story-golive-label { font-size: 10px; color: #ff4466; text-align: center; font-weight: 700; }
@@ -5966,10 +5966,15 @@ body.arcade-fs-ios body::after { display:none !important; }
             <span>📖 Legend Stories</span>
         </div>
         <div class="story-strip" id="storyStrip">
-            <!-- Single button → opens chooser with Post Story & Go Live options -->
-            <div class="story-add-btn" id="storyAddBtn" onclick="openStoryChooser()" title="Share Story / Go Live">
+            <!-- Add Story — direct to story creator -->
+            <div class="story-add-btn" id="storyAddBtn" onclick="openStoryCreator()" title="Post a Story">
                 <div class="story-add-circle">➕</div>
                 <span class="story-add-label">Add</span>
+            </div>
+            <!-- Go Live — direct to camera preview -->
+            <div class="story-golive-btn" id="goLiveBtn" onclick="openGoLive()" title="Go Live">
+                <div class="story-golive-circle">🔴</div>
+                <span class="story-golive-label">Go Live</span>
             </div>
             <!-- Story circles injected by JS -->
         </div>
@@ -19483,8 +19488,8 @@ function renderStoryStrip(snap) {
     const strip = document.getElementById('storyStrip');
     if (!strip) return;
 
-    // Keep the "Share Story" button
-    const addBtn = document.getElementById('storyAddBtn');
+    // Keep the static Add Story & Go Live buttons
+    // (they are not .story-item so the line below won't touch them)
 
     // Remove old dynamic circles
     strip.querySelectorAll('.story-item').forEach(el => el.remove());
@@ -19588,7 +19593,6 @@ window.closeStoryChooser = function() {
    STORY CREATOR MODAL
    ════════════════════════════════════════════════════ */
 window.openStoryCreator = function() {
-    closeStoryChooser();
     _resetCreator();
     document.getElementById('storyCreatorModal').classList.add('open');
 };
@@ -20113,7 +20117,6 @@ window.svToggleReplies = async function() {
    GO LIVE — Setup & Preview
    ════════════════════════════════════════════════════ */
 window.openGoLive = async function() {
-    closeStoryChooser();
     if (!_me()) { _toast('Sign in to go live.'); return; }
 
     // Request camera + mic permissions
