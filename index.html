@@ -3694,47 +3694,32 @@ img, video { max-width: 100%; height: auto; }
 /* ── Go Live Modal ── */
 #storyLiveModal {
     display: none; position: fixed; inset: 0; z-index: 9400;
-    background: rgba(0,3,15,0.92); align-items: center; justify-content: center;
-    padding: 16px; box-sizing: border-box; backdrop-filter: blur(6px);
+    background: #000; align-items: stretch; justify-content: stretch;
+    box-sizing: border-box;
     touch-action: manipulation;
 }
 #storyLiveModal.open { display: flex; }
 .live-modal-inner {
-    background: linear-gradient(180deg, #0d1a30 0%, #071020 100%);
-    border: 1px solid rgba(255,30,60,0.35);
-    border-radius: 18px; width: 100%; max-width: 480px;
-    max-height: 90vh; overflow-y: auto; padding: 22px 20px 26px;
+    background: #000;
+    width: 100%; height: 100%;
     box-sizing: border-box; position: relative;
-    animation: deleteModalIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both;
-    -webkit-overflow-scrolling: touch;
-    box-shadow: 0 0 50px rgba(255,30,60,0.2);
+    display: flex; flex-direction: column;
     touch-action: manipulation;
     pointer-events: auto;
+    overflow: hidden;
 }
-.live-modal-header {
-    display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
-}
-.live-modal-title { font-size: 16px; font-weight: 800; color: #ff4466; text-shadow: 0 0 12px rgba(255,40,70,0.5); }
-.live-modal-close {
-    background: none; border: none; color: #4a6a8a; font-size: 22px; cursor: pointer;
-    padding: 6px 10px; min-width: 44px; min-height: 44px;
-    border-radius: 6px; transition: color 0.15s; line-height: 1;
-    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-    display: flex; align-items: center; justify-content: center;
-}
-.live-modal-close:hover { color: #c8e8ff; }
 
-/* Camera preview */
+/* Camera preview — fills entire modal */
 .live-preview-wrap {
-    width: 100%; background: #000; border-radius: 14px; overflow: hidden;
-    aspect-ratio: 9/16; max-height: 340px; position: relative; margin-bottom: 14px;
-    border: 1px solid rgba(255,30,60,0.25);
+    position: absolute; inset: 0;
+    background: #000; overflow: hidden;
 }
 #livePreviewVideo {
     width: 100%; height: 100%; object-fit: cover; background: #000; display: block;
 }
 .live-preview-badge {
-    position: absolute; top: 10px; left: 12px; background: #ff0040; color: #fff;
+    position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); left: 14px;
+    background: #ff0040; color: #fff;
     font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px;
     text-transform: uppercase; letter-spacing: 0.5px; display: none;
     animation: liveBadgePulse 1.2s ease-in-out infinite;
@@ -3742,55 +3727,118 @@ img, video { max-width: 100%; height: auto; }
 @keyframes liveBadgePulse { 0%,100%{opacity:1}50%{opacity:0.55} }
 .live-preview-badge.visible { display: inline-block; }
 
+/* HUD overlaid on top of the preview */
+.live-preview-hud {
+    position: relative; z-index: 10;
+    display: flex; flex-direction: column;
+    height: 100%;
+    pointer-events: none;
+}
+
+/* Top row — close ✕ */
+.live-hud-top {
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 14px 0;
+    pointer-events: auto;
+}
+.live-modal-close {
+    background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.2);
+    color: #fff; font-size: 20px; cursor: pointer;
+    width: 44px; height: 44px; border-radius: 50%;
+    transition: background 0.15s; line-height: 1;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.live-modal-close:hover { background: rgba(255,255,255,0.2); }
+
+/* Spacer — pushes controls to the bottom */
+.live-hud-spacer { flex: 1; }
+
+/* Bottom action area */
+.live-hud-bottom {
+    padding: 16px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(transparent, rgba(0,0,0,0.82) 40%);
+    pointer-events: auto;
+    display: flex; flex-direction: column; gap: 12px; align-items: center;
+}
+
+/* Mic status */
+#liveMicStatus {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: rgba(255,255,255,0.8);
+}
+
 /* Live controls row */
-.live-controls-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.live-controls-row {
+    display: flex; gap: 12px; justify-content: center; flex-wrap: nowrap;
+}
 .live-ctrl-btn {
-    padding: 8px 14px; border-radius: 10px; font-size: 12px; cursor: pointer;
-    background: rgba(0,20,55,0.7); border: 1px solid rgba(255,30,60,0.3); color: #ff6688;
+    padding: 10px 18px; border-radius: 24px; font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.28); color: #fff;
     transition: background 0.15s, border-color 0.15s; flex-shrink: 0;
     touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-    min-height: 40px;
+    min-height: 44px; backdrop-filter: blur(8px);
 }
-.live-ctrl-btn:hover { background: rgba(120,0,30,0.3); border-color: rgba(255,60,80,0.7); }
-.live-ctrl-btn.cam-off  { border-color: rgba(255,170,0,0.4); color: #ffcc66; }
-.live-ctrl-btn.mic-off  { border-color: rgba(255,170,0,0.4); color: #ffcc66; }
+.live-ctrl-btn:hover { background: rgba(255,255,255,0.18); }
+.live-ctrl-btn.mic-off  { border-color: rgba(255,80,80,0.7); color: #ff8899; }
 
-.live-title-input {
-    width: 100%; padding: 10px 12px; background: rgba(0,10,30,0.85);
-    border: 1px solid rgba(255,30,60,0.3); color: #fff; border-radius: 10px;
-    font-size: 13px; font-family: inherit; box-sizing: border-box; margin-bottom: 10px;
-}
-.live-title-input:focus { outline: none; border-color: rgba(255,60,80,0.65); box-shadow: 0 0 10px rgba(255,30,60,0.2); }
-.live-title-input::placeholder { color: rgba(200,100,120,0.4); }
-.live-privacy-select {
-    width: 100%; padding: 8px 10px; background: rgba(0,10,30,0.85);
-    border: 1px solid rgba(255,30,60,0.3); color: #c8e0f8; border-radius: 8px;
-    font-size: 12px; font-family: inherit; margin-bottom: 14px; box-sizing: border-box;
-}
-
-/* Start live button */
+/* Go Live button */
 .live-start-btn {
-    width: 100%; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 700;
-    background: linear-gradient(135deg, #880010, #cc0030);
-    border: 1px solid rgba(255,30,60,0.7); color: #fff;
-    box-shadow: 0 0 22px rgba(255,30,60,0.45); cursor: pointer;
+    width: 100%; max-width: 320px;
+    padding: 16px; border-radius: 30px; font-size: 16px; font-weight: 800;
+    background: #ff0030;
+    border: none; color: #fff;
+    box-shadow: 0 0 28px rgba(255,0,48,0.6); cursor: pointer;
     transition: background 0.2s, box-shadow 0.2s;
     touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-    min-height: 50px;
+    min-height: 54px; letter-spacing: 0.3px;
+    animation: goLiveBtnPulse 2s ease-in-out infinite;
 }
-.live-start-btn:hover { background: linear-gradient(135deg, #aa0015, #ee0040); box-shadow: 0 0 30px rgba(255,30,60,0.6); }
-.live-start-btn:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+@keyframes goLiveBtnPulse {
+    0%,100% { box-shadow: 0 0 28px rgba(255,0,48,0.6); }
+    50%     { box-shadow: 0 0 44px rgba(255,0,48,0.9); }
+}
+.live-start-btn:hover { background: #cc0025; }
+.live-start-btn:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; animation: none; }
 
-/* Cancel/back button inside Go Live modal */
+/* Cancel link */
 .live-cancel-btn {
-    width: 100%; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 600;
-    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
-    color: rgba(200,220,240,0.7); cursor: pointer;
-    transition: background 0.15s, color 0.15s; margin-top: 8px;
+    background: none; border: none;
+    color: rgba(255,255,255,0.65); font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s; margin-top: 2px;
     touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-    min-height: 46px;
+    min-height: 36px; padding: 4px 20px;
 }
-.live-cancel-btn:hover { background: rgba(255,255,255,0.09); color: #c8e8ff; }
+.live-cancel-btn:hover { color: #fff; }
+
+/* ── Countdown overlay (shown after tapping Go Live) ── */
+#liveCountdownOverlay {
+    display: none; position: fixed; inset: 0; z-index: 9500;
+    background: rgba(0,0,0,0.72); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+    flex-direction: column; gap: 12px;
+    touch-action: none; pointer-events: all;
+}
+#liveCountdownOverlay.visible { display: flex; }
+#liveCountdownNum {
+    font-size: clamp(100px, 30vw, 180px);
+    font-weight: 900; color: #fff;
+    text-shadow: 0 0 60px rgba(255,0,48,0.9), 0 0 120px rgba(255,0,48,0.4);
+    line-height: 1;
+    animation: countPop 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+    will-change: transform, opacity;
+}
+@keyframes countPop {
+    from { opacity: 0; transform: scale(1.6); }
+    to   { opacity: 1; transform: scale(1); }
+}
+.live-countdown-label {
+    font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.7);
+    text-transform: uppercase; letter-spacing: 2px;
+}
 
 /* Active live stream viewer */
 #liveStreamViewer {
@@ -20174,6 +20222,8 @@ window.openGoLive = async function() {
 };
 
 window.closeGoLive = function() {
+    // Cancel any active countdown
+    _cancelLiveCountdown();
     document.getElementById('storyLiveModal').classList.remove('open');
     _stopLiveStream();
     // Hide preview badge
@@ -20224,30 +20274,58 @@ window.liveToggleMic = function() {
     _syncLiveCtrlBtns();
 };
 
-window.liveToggleCam = function() {
-    SNX_STORY.liveCamOn = !SNX_STORY.liveCamOn;
-    if (SNX_STORY.liveStream) {
-        SNX_STORY.liveStream.getVideoTracks().forEach(t => { t.enabled = SNX_STORY.liveCamOn; });
-    }
-    _syncLiveCtrlBtns();
-};
-
 function _syncLiveCtrlBtns() {
     const mic = document.getElementById('liveBtnToggleMic');
-    const cam = document.getElementById('liveBtnToggleCam');
     if (mic) {
-        mic.textContent = SNX_STORY.liveMicOn ? '🎙 Mic: On' : '🔇 Mic: Off';
+        mic.textContent = SNX_STORY.liveMicOn ? '🎙 Mute' : '🔇 Unmute';
         mic.classList.toggle('mic-off', !SNX_STORY.liveMicOn);
-    }
-    if (cam) {
-        cam.textContent = SNX_STORY.liveCamOn ? '📷 Camera: On' : '📷 Camera: Off';
-        cam.classList.toggle('cam-off', !SNX_STORY.liveCamOn);
     }
     // Update mic status indicator
     const dot  = document.getElementById('liveMicStatusDot');
     const txt  = document.getElementById('liveMicStatusText');
     if (dot) dot.style.background = SNX_STORY.liveMicOn ? '#39FF14' : '#ff3355';
     if (txt) txt.textContent = SNX_STORY.liveMicOn ? 'Microphone: On' : 'Microphone: Muted';
+}
+
+// ── 3-2-1 Countdown then launch live ──
+let _liveCountdownTimer = null;
+
+window.startCountdownAndGoLive = function() {
+    const btn = document.getElementById('liveStartBtn');
+    if (btn) btn.disabled = true;
+
+    const overlay = document.getElementById('liveCountdownOverlay');
+    const numEl   = document.getElementById('liveCountdownNum');
+    if (!overlay || !numEl) { window.startLiveStream(); return; }
+
+    let count = 3;
+    function showTick() {
+        // Restart CSS pop animation for each number
+        numEl.style.animation = 'none';
+        numEl.textContent     = count;
+        void numEl.offsetWidth; // reflow to restart animation
+        numEl.style.animation = '';
+
+        if (count === 0) {
+            overlay.classList.remove('visible');
+            if (btn) btn.disabled = false;
+            window.startLiveStream();
+            return;
+        }
+        count--;
+        _liveCountdownTimer = setTimeout(showTick, 1000);
+    }
+
+    overlay.classList.add('visible');
+    showTick();
+};
+
+function _cancelLiveCountdown() {
+    if (_liveCountdownTimer) { clearTimeout(_liveCountdownTimer); _liveCountdownTimer = null; }
+    const overlay = document.getElementById('liveCountdownOverlay');
+    if (overlay) overlay.classList.remove('visible');
+    const btn = document.getElementById('liveStartBtn');
+    if (btn) btn.disabled = false;
 }
 
 window.startLiveStream = async function() {
@@ -21254,49 +21332,60 @@ function _snxToast(msg) {
     </div>
 </div>
 
-<!-- Go Live Setup Modal -->
+<!-- Go Live Setup Modal — fullscreen camera preview -->
 <div id="storyLiveModal">
     <div class="live-modal-inner">
-        <div class="live-modal-header">
-            <span class="live-modal-title">🔴 Camera Preview</span>
-            <button class="live-modal-close" onclick="closeGoLive()">✕</button>
-        </div>
 
-        <!-- Camera preview -->
+        <!-- Fullscreen camera preview (fills background) -->
         <div class="live-preview-wrap">
             <video id="livePreviewVideo" autoplay muted playsinline></video>
             <span class="live-preview-badge" id="livePreviewBadge">● PREVIEW</span>
         </div>
 
-        <!-- Mic status indicator -->
-        <div id="liveMicStatus" style="font-size:12px;color:#b8d4f0;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
-            <span id="liveMicStatusDot" style="width:8px;height:8px;border-radius:50%;background:#39FF14;display:inline-block;flex-shrink:0;"></span>
-            <span id="liveMicStatusText">Microphone: On</span>
+        <!-- HUD overlaid on the preview -->
+        <div class="live-preview-hud">
+
+            <!-- Top: close button -->
+            <div class="live-hud-top">
+                <button class="live-modal-close" onclick="closeGoLive()" aria-label="Cancel">✕</button>
+            </div>
+
+            <div class="live-hud-spacer"></div>
+
+            <!-- Bottom: mic status + controls + Go Live + Cancel -->
+            <div class="live-hud-bottom">
+
+                <!-- Mic status -->
+                <div id="liveMicStatus">
+                    <span id="liveMicStatusDot" style="width:8px;height:8px;border-radius:50%;background:#39FF14;display:inline-block;flex-shrink:0;"></span>
+                    <span id="liveMicStatusText">Microphone: On</span>
+                </div>
+
+                <!-- Controls: Switch Camera + Mute/Unmute only -->
+                <div class="live-controls-row">
+                    <button class="live-ctrl-btn" id="liveBtnFlipCam" onclick="liveFlipCamera()">🔄 Switch Camera</button>
+                    <button class="live-ctrl-btn" id="liveBtnToggleMic" onclick="liveToggleMic()">🎙 Mute</button>
+                </div>
+
+                <!-- Hidden fields kept for JS compatibility -->
+                <input type="hidden" id="liveTitleInput" value="">
+                <input type="hidden" id="livePrivacySelect" value="everyone">
+
+                <!-- Go Live button -->
+                <button class="live-start-btn" id="liveStartBtn" onclick="startCountdownAndGoLive()">🔴 Go Live</button>
+
+                <!-- Cancel -->
+                <button class="live-cancel-btn" onclick="closeGoLive()">✕ Cancel</button>
+
+            </div>
         </div>
-
-        <!-- Controls -->
-        <div class="live-controls-row">
-            <button class="live-ctrl-btn" id="liveBtnFlipCam" onclick="liveFlipCamera()">🔄 Flip Camera</button>
-            <button class="live-ctrl-btn" id="liveBtnToggleMic" onclick="liveToggleMic()">🎙 Mic: On</button>
-            <button class="live-ctrl-btn" id="liveBtnToggleCam" onclick="liveToggleCam()">📷 Camera: On</button>
-        </div>
-
-        <!-- Live title -->
-        <input class="live-title-input" id="liveTitleInput" placeholder="Live title… (optional)" maxlength="80">
-
-        <!-- Audience -->
-        <select class="live-privacy-select" id="livePrivacySelect">
-            <option value="everyone">🌍 Everyone can watch</option>
-            <option value="friends">👥 Friends Only</option>
-            <option value="family">❤️ Family Only</option>
-        </select>
-
-        <!-- Start Live — prominent, always visible -->
-        <button class="live-start-btn" id="liveStartBtn" onclick="startLiveStream()">🔴 Start Live</button>
-
-        <!-- Cancel -->
-        <button class="live-cancel-btn" onclick="closeGoLive()">✕ Cancel</button>
     </div>
+</div>
+
+<!-- 3-2-1 Countdown Overlay -->
+<div id="liveCountdownOverlay">
+    <div id="liveCountdownNum">3</div>
+    <div class="live-countdown-label">Get ready…</div>
 </div>
 
 <!-- Active Live Stream Viewer -->
