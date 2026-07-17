@@ -3258,6 +3258,12 @@ img, video { max-width: 100%; height: auto; }
    LEGEND STORIES SYSTEM
    ══════════════════════════════════════════════════════════════ */
 
+/* ── Story loading skeleton pulse ── */
+@keyframes storySkeletonPulse {
+    0%,100% { opacity: 0.35; }
+    50%     { opacity: 0.75; }
+}
+
 /* ── Story strip container ── */
 .story-strip-section {
     margin-bottom: 14px;
@@ -5968,6 +5974,21 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="story-add-btn" id="storyAddBtn" onclick="openStoryChooser()" title="Share a Story">
                 <div class="story-add-circle">📖</div>
                 <span class="story-add-label">Share Story</span>
+            </div>
+            <!-- Loading skeleton shown while Firestore listener boots up -->
+            <div id="storyStripLoading" style="display:flex;align-items:center;gap:12px;padding:4px 0;">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;">
+                    <div style="width:64px;height:64px;border-radius:50%;background:rgba(0,174,239,0.12);animation:storySkeletonPulse 1.4s ease-in-out infinite;"></div>
+                    <div style="width:40px;height:8px;border-radius:4px;background:rgba(0,174,239,0.1);animation:storySkeletonPulse 1.4s ease-in-out 0.2s infinite;"></div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;">
+                    <div style="width:64px;height:64px;border-radius:50%;background:rgba(0,174,239,0.12);animation:storySkeletonPulse 1.4s ease-in-out 0.35s infinite;"></div>
+                    <div style="width:40px;height:8px;border-radius:4px;background:rgba(0,174,239,0.1);animation:storySkeletonPulse 1.4s ease-in-out 0.55s infinite;"></div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;">
+                    <div style="width:64px;height:64px;border-radius:50%;background:rgba(0,174,239,0.12);animation:storySkeletonPulse 1.4s ease-in-out 0.5s infinite;"></div>
+                    <div style="width:40px;height:8px;border-radius:4px;background:rgba(0,174,239,0.1);animation:storySkeletonPulse 1.4s ease-in-out 0.7s infinite;"></div>
+                </div>
             </div>
             <!-- Story circles injected by JS -->
         </div>
@@ -19437,47 +19458,95 @@ function _initials(name) {
    STORY STRIP — render circles from Firestore
    ════════════════════════════════════════════════════ */
 let _storyUnsub = null;
+let _storyInitPending = false; // guard against redundant re-inits
 
 function initStoryStrip() {
-    if (!_db()) return;
-    const { db, collection, query, where, orderBy, onSnapshot, getDocs } = _db();
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    if (!_db()) {
+        // Firebase not ready yet — keep skeleton visible and retry once it is
+        if (_storyInitPending) return;
+        _storyInitPending = true;
+        const _retryTimer = setInterval(() => {
+            if (_db()) {
+                clearInterval(_retryTimer);
+                _storyInitPending = false;
+                initStoryStrip();
+            }
+        }, 300);
+        return;
+    }
+    _storyInitPending = false;
+    const { db, collection, query, where, orderBy, onSnapshot } = _db();
+    // Use Firestore Timestamps for the cutoff so comparisons are consistent
+    const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
 
-    if (_storyUnsub) _storyUnsub();
+    // Tear down any previous listener before creating a new one
+    if (_storyUnsub) { _storyUnsub(); _storyUnsub = null; }
 
-    // Try ordered query first; fall back to unordered if the composite index is missing
+    // Show loading skeleton
+    const loadEl = document.getElementById('storyStripLoading');
+    if (loadEl) loadEl.style.display = 'flex';
+
+    function _onSnap(snap) {
+        // Hide loading skeleton on first data arrival
+        const loadEl = document.getElementById('storyStripLoading');
+        if (loadEl) loadEl.style.display = 'none';
+        renderStoryStrip(snap);
+    }
+
+    function _onErr(err) {
+        // Composite index missing or permission error — fall back to unordered query
+        if (_storyUnsub) { _storyUnsub(); _storyUnsub = null; }
+        const cutoffDate = new Date(cutoffMs);
+        _storyUnsub = onSnapshot(
+            query(collection(db, 'stories'), where('expiresAt', '>', cutoffDate)),
+            _onSnap,
+            (err2) => {
+                // Final fallback failed — hide skeleton and show a subtle retry
+                const l = document.getElementById('storyStripLoading');
+                if (l) l.style.display = 'none';
+                // Retry once after 5 s in case it was a transient network hiccup
+                setTimeout(() => {
+                    if (!_storyUnsub) initStoryStrip();
+                }, 5000);
+            }
+        );
+    }
+
+    // Try query with composite ordering (requires Firestore index); fall back on error
+    const cutoffDate = new Date(cutoffMs);
     _storyUnsub = onSnapshot(
         query(collection(db, 'stories'),
-              where('expiresAt', '>', cutoff),
-              orderBy('expiresAt', 'asc')),
-        snap => renderStoryStrip(snap),
-        () => {
-            // Composite index missing — fall back to simple query without ordering
-            if (_storyUnsub) _storyUnsub();
-            _storyUnsub = onSnapshot(
-                query(collection(db, 'stories'), where('expiresAt', '>', cutoff)),
-                snap => renderStoryStrip(snap),
-                () => {}
-            );
-        }
+              where('expiresAt', '>', cutoffDate),
+              orderBy('expiresAt', 'asc'),
+              orderBy('createdAt', 'desc')),
+        _onSnap,
+        _onErr
     );
 }
 
 function renderStoryStrip(snap) {
     const me = _me();
     const seen = _seenSet();
-    // Group by author uid
+
+    // Collect all valid docs, sorted newest-first by createdAt
+    const allDocs = [];
+    snap.forEach(d => allDocs.push({ id: d.id, ...d.data() }));
+    allDocs.sort((a, b) => {
+        const ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : 0;
+        const tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : 0;
+        return tb - ta; // newest first
+    });
+
+    // Group by author uid (preserves newest-first order within each group)
     const byUid = new Map();
-    snap.forEach(d => {
-        const data = { id: d.id, ...d.data() };
-        // Privacy filter
+    allDocs.forEach(data => {
+        // Privacy filter — always show 'everyone' stories to all signed-in users
         if (!canViewStory(data)) return;
         if (!byUid.has(data.authorUid)) byUid.set(data.authorUid, []);
         byUid.get(data.authorUid).push(data);
     });
 
-    // Sort: own stories first, then unseen, then seen
+    // Sort groups: own stories first, then unseen, then seen; within tier preserve newest-first
     const myUid = me ? me.uid : null;
     const entries = [...byUid.entries()].sort(([a], [b]) => {
         if (a === myUid) return -1;
@@ -19487,21 +19556,17 @@ function renderStoryStrip(snap) {
         return aAllSeen - bAllSeen;
     });
 
-    // Also collect live stories
+    // Collect live stories (newest first among live)
     const liveEntries = [];
-    snap.forEach(d => {
-        const data = { id: d.id, ...d.data() };
+    allDocs.forEach(data => {
         if (data.isLive && data.liveActive && canViewStory(data)) liveEntries.push(data);
     });
 
-    // Build strip HTML
+    // Build strip
     const strip = document.getElementById('storyStrip');
     if (!strip) return;
 
-    // Keep the "Share Story" button
-    const addBtn = document.getElementById('storyAddBtn');
-
-    // Remove old dynamic circles
+    // Remove old dynamic circles (keep "Share Story" btn + loading skeleton)
     strip.querySelectorAll('.story-item').forEach(el => el.remove());
 
     // Build queue for viewer
@@ -19515,7 +19580,7 @@ function renderStoryStrip(snap) {
 
     // Regular story circles
     entries.forEach(([uid, stories]) => {
-        // Skip if uid already in live section
+        // Skip if uid already shown in live section
         if (liveEntries.some(l => l.authorUid === uid)) return;
         const allSeen = stories.every(s => seen.has(s.id));
         SNX_STORY.queue.push({ uid, stories });
@@ -19750,8 +19815,9 @@ window.submitStory = async function() {
     // Save to Firestore
     const { db, collection, addDoc, serverTimestamp } = _db();
     const ud = _ud();
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    // Use serverTimestamp for createdAt; store expiresAt as a JS Date
+    // (consistent with the cutoff filter in initStoryStrip)
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     // Hide progress bar before write attempt
     const progWrap = document.getElementById('storyUploadProgress');
@@ -19778,10 +19844,11 @@ window.submitStory = async function() {
         });
         // Re-enable button so the modal can be used again
         if (btn) btn.disabled = false;
-        _toast('✅ Story posted! It will appear in the Stories row momentarily.');
+        _toast('✅ Story posted! It will appear in the Stories row.');
         closeStoryCreator();
-        // Re-initialise the live listener so the strip updates immediately
-        try { initStoryStrip(); } catch(_) {}
+        // The real-time onSnapshot listener will pick up the new doc automatically;
+        // no need to call initStoryStrip() again — doing so would briefly tear down
+        // the listener and introduce a gap where the strip is empty.
     } catch(err) {
         _toast('❌ Could not save Story: ' + (err.message || err) + ' — please try again.');
         if (btn) btn.disabled = false;
@@ -19857,15 +19924,39 @@ function _svLoad() {
     const txt  = document.getElementById('svTextOnly');
     const cap  = document.getElementById('svCaption');
     img.style.display = 'none';
+    img.onerror = null;
     vid.style.display = 'none'; vid.pause(); vid.src='';
+    vid.onerror = null;
     txt.style.display = 'none';
 
     let duration = 5000;
 
     if (story.mediaUrl && story.mediaType === 'image') {
+        img.onerror = () => {
+            // Image failed to load — fall back to text or a placeholder
+            img.style.display = 'none';
+            if (story.text) {
+                txt.textContent = story.text;
+                txt.style.display = 'flex';
+            } else {
+                txt.textContent = '🖼 Image unavailable';
+                txt.style.display = 'flex';
+            }
+        };
         img.src = story.mediaUrl;
         img.style.display = 'block';
     } else if (story.mediaUrl && story.mediaType === 'video') {
+        vid.onerror = () => {
+            // Video failed to load — fall back to text or a placeholder
+            vid.style.display = 'none';
+            if (story.text) {
+                txt.textContent = story.text;
+                txt.style.display = 'flex';
+            } else {
+                txt.textContent = '🎥 Video unavailable';
+                txt.style.display = 'flex';
+            }
+        };
         vid.src = story.mediaUrl;
         vid.style.display = 'block';
         vid.play().catch(()=>{});
@@ -20494,7 +20585,11 @@ document.getElementById('storyChooserModal').addEventListener('click', function(
    INIT — wire up on auth ready
    ════════════════════════════════════════════════════ */
 window._snxOnAuthReady(function() {
-    initStoryStrip();
+    // Guard: navTo('feed') also calls initStoryStrip on first login — wait one
+    // microtask so the navTo call runs first, then only init if no listener exists.
+    setTimeout(function() {
+        if (!_storyUnsub) initStoryStrip();
+    }, 0);
     initLiveFeedCards();
     initGoingLiveBanner();
     setTimeout(_sweepExpiredStories, 3000);

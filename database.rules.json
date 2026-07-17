@@ -1,0 +1,37 @@
+{
+  "rules": {
+    // ── Live rooms ─────────────────────────────────────────────────────────────
+    // Path: /liveRooms/{roomId}/...
+    //   viewerCount — incremented by viewers on join
+    //   viewers/{uid} — presence entries (name, joinedAt, onDisconnect cleanup)
+    //   chat/{msgId}  — live chat messages
+    "liveRooms": {
+      "$roomId": {
+        // Any authenticated user can read the whole room node
+        ".read": "auth != null",
+
+        "viewerCount": {
+          // Any authenticated user can update the viewer counter
+          ".write": "auth != null"
+        },
+
+        "viewers": {
+          "$uid": {
+            // A user can only write their own presence entry
+            ".write": "auth != null && auth.uid === $uid",
+            ".read":  "auth != null"
+          }
+        },
+
+        "chat": {
+          // Any authenticated user can read chat
+          ".read": "auth != null",
+          "$msgId": {
+            // Any authenticated user can write a chat message or soft-delete it
+            ".write": "auth != null"
+          }
+        }
+      }
+    }
+  }
+}

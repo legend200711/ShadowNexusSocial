@@ -77,8 +77,9 @@ async function loadIceServers() {
         setTimeout(() => { _iceReady = false; }, ttl * 1000);
       }
     }
-  } catch (_) {
+  } catch (err) {
     // network error — STUN_ONLY fallback stays in place; allow retry next call
+    console.warn("[ICE] TURN worker unreachable — using STUN-only:", err.message);
     _iceReady = false;
   }
 }
@@ -96,6 +97,8 @@ let userData     = {};     // Firestore /users/{uid} doc
 let roomId       = null;   // Firestore doc id of the live
 let isHost       = false;
 let liveActive   = false;
+let _appInited   = false;  // guard: init() must only run once
+let _goingLive   = false;  // guard: goLive() in-flight
 let localStream  = null;
 let micEnabled   = true;
 let camEnabled   = true;
@@ -157,6 +160,10 @@ function isMobile() { return window.innerWidth <= 700; }
 onAuthStateChanged(auth, async user => {
   me = user;
   if (!me) { window.location.href = "index.html"; return; }
+  // Only initialise once — token refreshes and focus events re-fire this
+  // callback but must never re-run init() while the live view is active.
+  if (_appInited) return;
+  _appInited = true;
   // Load user data
   try {
     const snap = await getDoc(doc(db, "users", me.uid));
@@ -175,6 +182,7 @@ function init() {
   isHost = params.get("host") === "1";
   const requestBox = params.get("requestBox") === "1";
 
+  // Wire buttons and chat exactly once; init() is now guaranteed to run once.
   wireButtons();
   wireChat();
 
@@ -246,7 +254,8 @@ function stopSetupPreview() {
    Host: start live
 ───────────────────────────────────────────────── */
 async function goLive() {
-  if (!me) return;
+  if (!me || _goingLive || liveActive) return;
+  _goingLive = true;
   const btn = $("btnGoLive");
   btn.disabled = true;
   btn.textContent = "Starting…";
@@ -287,13 +296,18 @@ async function goLive() {
     setupStream = null;
     $("setupVideo").srcObject = null;
 
-    if (!localStream || !localStream.getVideoTracks().length) {
-      throw new Error("Camera stream is empty — please allow camera access and try again.");
+    if (!localStream || !localStream.active) {
+      throw new Error("Camera stream is no longer active — please refresh and try again.");
+    }
+    if (!localStream.getVideoTracks().length) {
+      throw new Error("Camera stream has no video track — please allow camera access and try again.");
     }
 
     hideAllOverlays();
     startLive();
   } catch (err) {
+    // Roll back the in-flight flag so the button can be retried
+    _goingLive = false;
     toast("Failed to start live: " + (err.message || err));
     btn.disabled = false;
     btn.textContent = "🔴 Start Live Stream";
@@ -304,9 +318,10 @@ async function goLive() {
    Start live stage (host only)
 ───────────────────────────────────────────────── */
 function startLive() {
-  liveActive = true;
-  liveStart  = Date.now();
-  isHost     = true;
+  liveActive  = true;
+  _goingLive  = false; // clear in-flight flag — we are now live
+  liveStart   = Date.now();
+  isHost      = true;
 
   // Host box
   buildHostBox();
@@ -403,7 +418,9 @@ async function joinAsViewer() {
       // Display incoming host tracks
       pc.ontrack = e => {
         const hostUid = sigData.hostUid || "host";
-        let box = $("videoGrid").querySelector(`[data-uid="${hostUid}"]`);
+        // Prefer exact UID match; fall back to any host-box already in the grid
+        let box = $("videoGrid").querySelector(`[data-uid="${hostUid}"]`)
+               || $("videoGrid").querySelector(".host-box");
         if (!box) {
           box = makeBox(hostUid, data.authorName || "Host", true);
           $("videoGrid").insertBefore(box, $("videoGrid").firstChild);
@@ -426,7 +443,7 @@ async function joinAsViewer() {
             collection(db, "stories", roomId, "ice_viewer_to_host", me.uid, "candidates"),
             ev.candidate.toJSON()
           );
-        } catch (_) {}
+        } catch (err) { console.warn("[ICE] viewer→host candidate write failed:", err.message); }
       };
 
       // Listen for host ICE candidates — buffer until local desc is set
@@ -473,7 +490,10 @@ function buildHostBox() {
 
   const box = makeBox(me.uid, userData.displayName || me.displayName || "You", true);
   const vid = box.querySelector("video");
-  if (localStream) vid.srcObject = localStream;
+  if (localStream) {
+    vid.srcObject = localStream;
+    vid.play().catch(() => {});
+  }
   vid.muted = true;
   grid.appendChild(box);
   updateGridClass();
@@ -622,7 +642,7 @@ async function createViewerPeer(viewerUid, displayName) {
         collection(db, "stories", roomId, "ice_host_to_viewer", viewerUid, "candidates"),
         e.candidate.toJSON()
       );
-    } catch (_) {}
+    } catch (err) { console.warn("[ICE] host→viewer candidate write failed:", err.message); }
   };
 
   pc.onconnectionstatechange = () => {
@@ -818,7 +838,7 @@ async function createHostPeer(guestUid, displayName) {
     if (!e.candidate || !roomId) return;
     try {
       await addDoc(collection(db, "stories", roomId, "ice_host_to_guest", guestUid, "candidates"), e.candidate.toJSON());
-    } catch (_) {}
+    } catch (err) { console.warn("[ICE] host→guest candidate write failed:", err.message); }
   };
 
   // Receive guest's tracks — attach stream before calling play()
@@ -921,13 +941,15 @@ async function joinAsGuest() {
       if (!e.candidate || !roomId) return;
       try {
         await addDoc(collection(db, "stories", roomId, "ice_guest_to_host", me.uid, "candidates"), e.candidate.toJSON());
-      } catch (_) {}
+      } catch (err) { console.warn("[ICE] guest→host candidate write failed:", err.message); }
     };
 
     // Receive host's tracks
     pc.ontrack = e => {
       const hostUid = data.hostUid || "host";
-      let box = $("videoGrid").querySelector(`[data-uid="${hostUid}"]`);
+      // Prefer exact UID match; fall back to any host-box already in the grid
+      let box = $("videoGrid").querySelector(`[data-uid="${hostUid}"]`)
+             || $("videoGrid").querySelector(".host-box");
       if (!box) {
         box = makeBox(hostUid, "Host", true);
         $("videoGrid").insertBefore(box, $("videoGrid").firstChild);
@@ -999,6 +1021,7 @@ function buildGuestLocalBox() {
 let _recon = {};
 function handlePCState(pc, uid) {
   const state = pc.connectionState;
+  console.log(`[WebRTC] ${uid} → ${state}`);
   if (state === "connected") {
     $("reconnectBanner").classList.remove("show");
     const box = $("videoGrid").querySelector(`[data-uid="${uid}"]`);
