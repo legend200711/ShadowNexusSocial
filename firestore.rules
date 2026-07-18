@@ -4,23 +4,10 @@ rules_version = '2';
 // Shadow Nexus Social — Firestore Security Rules
 //
 // Collections used by this app:
-//   /users/{uid}                                      — user profiles + online status
-//   /stories/{storyId}                                — stories
-//   /posts/{postId}                                   — feed posts
-//   /chats/{channelId}                                — direct messages (1-to-1)
-//   /conversations/{convId}                           — conversation metadata
+//   /users/{uid}                                      — user profiles
+//   /stories/{storyId}                                — posts
+//   /posts/{postId}                                   — posts
 //   /siteSettings/{doc}                               — site config (maintenance mode, feature flags)
-//   /botConfig/{doc}                                  — Shadow Chat Bot config + sub-collections
-//   /botHistory/{docId}                               — Shadow Chat Bot event log
-//   /aiModerationLog/{docId}                          — AI safety scan log
-//   /aiToggleLog/{docId}                              — AI/bot toggle audit trail
-//   /reports/{docId}                                  — user reports + appeals
-//   /auditLog/{docId}                                 — platform-wide audit log
-//   /announcements/{docId}                            — site announcements
-//   /arcadeScores/{docId}                             — arcade game scores
-//   /arcadeStats/{docId}                              — arcade aggregate stats
-//   /arcadeMatches/{docId}                            — arcade match history
-//   /arcadeInvites/{docId}                            — arcade game challenge invites
 //
 
 service cloud.firestore {
@@ -41,103 +28,39 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'founder';
     }
 
-    // isParticipant: used for reads/updates where the document already exists
-    function isParticipant() {
-      return isSignedIn()
-        && request.auth.uid in resource.data.participants;
-    }
-
-    // isParticipantIncoming: used when the document may not exist yet (create)
-    function isParticipantIncoming() {
-      return isSignedIn()
-        && request.auth.uid in request.resource.data.participants;
-    }
-
     // ── Users ─────────────────────────────────────────────────────────────────
 
     match /users/{uid} {
-      // Any signed-in user can read any profile (needed for DMs, notifications, online strip)
+      // Anyone signed in can read any profile (needed for notifications, guest info)
       allow read: if isSignedIn();
-      // Only the account owner can write their own profile (including online/offline status)
+      // Only the account owner can write their own profile
       allow write: if isOwner(uid);
-      // Founder can update any user doc (role assignments, badge management)
-      allow update: if isFounder();
-    }
-
-    // ── Direct Messages (chats) ───────────────────────────────────────────────
-    // A chat document ID is always uid1_uid2 (sorted).
-    // Only the two participants can read or write their conversation.
-    // setDoc with merge:true on a non-existent document is a CREATE, so we allow
-    // both isParticipantIncoming (new doc) and isParticipant (existing doc) for writes.
-
-    match /chats/{channelId} {
-      allow read:   if isSignedIn() && isParticipant();
-      allow create: if isSignedIn() && isParticipantIncoming();
-      // update covers setDoc(...,{merge:true}) on an existing doc AND updateDoc calls
-      allow update: if isSignedIn() && (isParticipant() || isParticipantIncoming());
-      allow delete: if isSignedIn() && isParticipant();
-    }
-
-    // ── Conversations metadata ────────────────────────────────────────────────
-
-    match /conversations/{convId} {
-      allow read:   if isSignedIn() && isParticipant();
-      allow create: if isSignedIn() && isParticipantIncoming();
-      allow update: if isSignedIn() && (isParticipant() || isParticipantIncoming());
-      allow delete: if isSignedIn() && isParticipant();
     }
 
     // ── Stories ───────────────────────────────────────────────────────────────
 
     match /stories/{storyId} {
-      allow read:   if isSignedIn();
+      // Any signed-in user can read a story
+      allow read: if isSignedIn();
+      // Anyone signed in can create
       allow create: if isSignedIn();
+      // Any signed-in user can update
       allow update: if isSignedIn();
-      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      // Only the author can delete
+      allow delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
     }
 
     // ── Posts ─────────────────────────────────────────────────────────────────
-    //
-    // Post documents use field "uid" (not "authorUid") for the owner UID.
-    //
-    // • read    — any signed-in user (feed/timeline)
-    // • create  — any signed-in user (new posts / reposts / bot posts)
-    // • update  — any signed-in user; needed for:
-    //               • likes      (runTransaction updates likedBy + likes count)
-    //               • comments   (arrayUnion on comments[])
-    //               • repostCount increments by any user
-    //             The app-level code already enforces ownership for destructive
-    //             operations (delete buttons only shown to the owner).
-    // • delete  — post owner only (resource.data.uid == auth.uid),
-    //             OR a founder/moderator who can moderate content.
-    //             EXCEPTION: Shadow Bot posts (uid == 'shadow-chat-bot' or isBot == true)
-    //             may only be deleted by the Founder — not by moderators, not by
-    //             the post "owner" (the bot UID is never an authenticated account).
 
     match /posts/{postId} {
-      allow read:   if isSignedIn();
+      allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn() && (
-        // Shadow Bot posts — Founder only
-        (
-          (resource.data.uid == 'shadow-chat-bot' || resource.data.isBot == true) &&
-          isFounder()
-        ) ||
-        // Regular posts — owner, founder, or moderator
-        (
-          resource.data.uid != 'shadow-chat-bot' &&
-          resource.data.isBot != true &&
-          (
-            resource.data.uid == request.auth.uid ||
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'founder' ||
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'moderator'
-          )
-        )
-      );
+      allow update, delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
     }
 
     // ── Site settings (maintenance mode, feature flags) ───────────────────────
+    // Anyone signed in may read (needed for maintenance check on load).
+    // Only the Founder may write.
 
     match /siteSettings/{docId} {
       allow read: if isSignedIn();
@@ -145,6 +68,8 @@ service cloud.firestore {
     }
 
     // ── AI Moderation Log ─────────────────────────────────────────────────────
+    // Any signed-in user can create log entries (written by the client AI engine).
+    // Only the Founder can read or delete entries.
 
     match /aiModerationLog/{docId} {
       allow create: if isSignedIn();
@@ -153,6 +78,8 @@ service cloud.firestore {
     }
 
     // ── Reports ───────────────────────────────────────────────────────────────
+    // Any signed-in user can file a report (human or AI).
+    // Founder / staff can read and update.
 
     match /reports/{docId} {
       allow create: if isSignedIn();
@@ -161,7 +88,6 @@ service cloud.firestore {
     }
 
     // ── Audit Log ─────────────────────────────────────────────────────────────
-
     match /auditLog/{docId} {
       allow create: if isSignedIn();
       allow read: if isFounder();
@@ -169,89 +95,16 @@ service cloud.firestore {
     }
 
     // ── AI Toggle Log ─────────────────────────────────────────────────────────
-
     match /aiToggleLog/{docId} {
-      allow create: if isSignedIn();
+      allow create: if isFounder();
       allow read: if isFounder();
       allow update, delete: if false;
     }
 
     // ── Announcements ─────────────────────────────────────────────────────────
-
     match /announcements/{docId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isFounder();
-    }
-
-    // ── Shadow Chat Bot — config & history ────────────────────────────────────
-    // botConfig: Founder-only writes; all signed-in users can read (needed to
-    //            check bot on/off state client-side).
-    // botHistory: append-only create by signed-in clients;
-    //             read/update/delete by Founder only (dashboard management).
-
-    match /botConfig/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isFounder();
-    }
-
-    // All sub-documents of botConfig (including welcomeMessages/items/*)
-    match /botConfig/{docId}/{sub=**} {
-      allow read: if isSignedIn();
-      allow write: if isFounder();
-    }
-
-    match /botHistory/{docId} {
-      allow create: if isSignedIn();
-      allow read:   if isFounder();
-      allow update: if isFounder();
-      allow delete: if isFounder();
-    }
-
-    // ── Arcade ────────────────────────────────────────────────────────────────
-    // arcadeScores: each doc is owned by one user — only that user can write their score.
-    // arcadeStats: aggregate stats owned by the user.
-    // arcadeMatches: match records — any participant can create, founder can delete.
-
-    match /arcadeScores/{docId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn()
-        && request.resource.data.uid == request.auth.uid;
-      allow delete: if isFounder();
-    }
-
-    match /arcadeStats/{docId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn()
-        && request.resource.data.uid == request.auth.uid;
-      allow delete: if isFounder();
-    }
-
-    match /arcadeMatches/{docId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isFounder();
-    }
-
-    // ── Arcade Invites ────────────────────────────────────────────────────────
-    // Challenge invites sent between players.
-    // • create — any signed-in user (sender creates the invite doc)
-    // • read   — any signed-in user; the live listener queries by toUid so only
-    //            the recipient ever sees their own invites in practice, but the
-    //            rule itself can't enforce a query-level filter — auth is enough.
-    // • update — any signed-in user (accept / decline / remind — status changes)
-    // • delete — founder only (cleanup); invite docs are superseded by status
-    //            changes so hard deletes are rare and admin-only.
-
-    match /arcadeInvites/{docId} {
-      allow read:   if isSignedIn();
-      allow create: if isSignedIn()
-        && request.resource.data.fromUid == request.auth.uid;
-      allow update: if isSignedIn()
-        && (
-          resource.data.toUid   == request.auth.uid ||
-          resource.data.fromUid == request.auth.uid
-        );
-      allow delete: if isFounder();
     }
 
   }
