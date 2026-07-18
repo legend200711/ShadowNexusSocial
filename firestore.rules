@@ -99,7 +99,12 @@ service cloud.firestore {
         && (request.auth.uid in resource.data.participants || isFounder());
     }
 
-    // ── Site settings (maintenance mode, feature flags) ───────────────────────
+    // ── Site settings (maintenance mode, feature flags, page visibility) ──────
+    // Documents under this collection:
+    //   config          — maintenance mode, AI moderation, feature flags
+    //   pageVisibility  — per-page nav visibility controls (Founder-managed)
+    //   navChangeLog    — log of page visibility changes (Founder-managed)
+    //
     // Read is allowed without authentication so the startup siteSettings listener
     // (which fires before onAuthStateChanged resolves) does not throw
     // permission-denied on every page load.
@@ -108,6 +113,12 @@ service cloud.firestore {
     match /siteSettings/{docId} {
       allow read: if true;          // public-safe: only contains non-sensitive config
       allow write: if isFounder();
+
+      // Subcollections (navChangeLog/items written by Founder JS)
+      match /{subcollection}/{subDocId} {
+        allow read: if isFounder();
+        allow write: if isFounder();
+      }
     }
 
     // ── AI Moderation Log ─────────────────────────────────────────────────────

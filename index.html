@@ -317,7 +317,7 @@ body::after {
     position: fixed;
     top: 0;
     left: 0;
-    width: 260px;
+    width: min(260px, 85vw);
     height: 100%;
     background: linear-gradient(180deg, #071428 0%, #0B1F3A 50%, #071020 100%);
     transform: translateX(-100%);
@@ -2696,8 +2696,8 @@ img.post-media-preview::before {
     .storm-room-header { flex-wrap: wrap; gap: 8px; }
 }
 /* ════════════════════════════════════════════
-   SUPPORT ROOMS — calm, warm, healing chat spaces
-   Distinct from Storm Rooms — soft palette, safe vibe
+   SUPPORT ROOMS — calm, healing chat spaces
+   Uses the site's existing dark-blue theme
    ════════════════════════════════════════════ */
 
 /* Background canvas for support rooms */
@@ -2715,23 +2715,23 @@ img.post-media-preview::before {
 }
 .support-lobby h2 {
     text-align: center; font-size: 26px; font-weight: 900;
-    color: #c8a8ff;
-    text-shadow: 0 0 16px rgba(180,120,255,0.7), 0 0 36px rgba(140,80,220,0.45);
+    color: #00AEEF;
+    text-shadow: 0 0 16px rgba(0,174,239,0.7), 0 0 36px rgba(0,100,180,0.45);
     margin: 0 0 6px;
     letter-spacing: 0.5px;
 }
 .support-sub {
-    text-align: center; color: #7a6a8a; font-size: 13px; margin: 0 0 8px;
+    text-align: center; color: #6a90b8; font-size: 13px; margin: 0 0 8px;
 }
 .support-card {
-    background: rgba(18, 8, 34, 0.85);
-    border: 1px solid rgba(180,120,255,0.28);
+    background: rgba(11, 31, 58, 0.92);
+    border: 1px solid rgba(0,174,239,0.22);
     border-radius: 16px; padding: 22px;
     backdrop-filter: blur(10px);
-    box-shadow: 0 0 28px rgba(140,80,220,0.12), inset 0 0 20px rgba(0,0,0,0.3);
+    box-shadow: 0 0 28px rgba(0,100,180,0.1), inset 0 0 20px rgba(0,0,0,0.2);
 }
 .support-card h3 {
-    margin: 0 0 14px; font-size: 14px; color: #c8a8ff;
+    margin: 0 0 14px; font-size: 14px; color: #00AEEF;
     text-transform: uppercase; letter-spacing: 0.8px;
 }
 
@@ -2740,93 +2740,94 @@ img.post-media-preview::before {
 .support-room-btn {
     display: flex; align-items: center; gap: 14px;
     width: 100%; padding: 14px 16px;
-    background: rgba(30, 12, 60, 0.7);
-    border: 1px solid rgba(180,120,255,0.25);
+    background: rgba(0, 20, 55, 0.7);
+    border: 1px solid rgba(0,174,239,0.2);
     border-radius: 12px; cursor: pointer;
     transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
     text-align: left; font-family: inherit;
 }
 .support-room-btn:hover {
-    background: rgba(60,20,100,0.55);
-    border-color: rgba(200,150,255,0.6);
-    box-shadow: 0 0 16px rgba(160,100,255,0.2);
+    background: rgba(0, 40, 90, 0.55);
+    border-color: rgba(0,174,239,0.55);
+    box-shadow: 0 0 16px rgba(0,174,239,0.15);
 }
 .support-room-btn .srb-icon { font-size: 26px; flex-shrink: 0; }
 .support-room-btn .srb-info { flex: 1; min-width: 0; }
-.support-room-btn .srb-name { font-size: 14px; font-weight: 700; color: #e0d0ff; margin-bottom: 2px; }
-.support-room-btn .srb-desc { font-size: 11px; color: #7a6a8a; }
-.support-room-btn .srb-arrow { font-size: 14px; color: #c8a8ff; flex-shrink: 0; }
+.support-room-btn .srb-name { font-size: 14px; font-weight: 700; color: #b8d4f0; margin-bottom: 2px; }
+.support-room-btn .srb-desc { font-size: 11px; color: #6a90b8; }
+.support-room-btn .srb-arrow { font-size: 14px; color: #00AEEF; flex-shrink: 0; }
 .support-room-btn .srb-count {
-    font-size: 11px; color: #a8ffdc; font-weight: 700;
-    background: rgba(80,255,180,0.1); border: 1px solid rgba(80,255,180,0.2);
+    font-size: 11px; color: #39FF14; font-weight: 700;
+    background: rgba(57,255,20,0.1); border: 1px solid rgba(57,255,20,0.25);
     padding: 2px 8px; border-radius: 10px; flex-shrink: 0;
 }
 
 /* Display name input */
 .support-input {
-    width: 100%; padding: 10px 14px; background: rgba(10,4,22,0.75);
-    border: 1px solid rgba(180,120,255,0.3); color: #e8d8ff;
+    width: 100%; padding: 10px 14px; background: rgba(7, 20, 40, 0.8);
+    border: 1px solid rgba(0,174,239,0.28); color: #b8d4f0;
     border-radius: 10px; font-size: 14px; box-sizing: border-box;
     outline: none; transition: border-color 0.2s; font-family: inherit;
     margin-bottom: 12px;
 }
-.support-input:focus { border-color: #c8a8ff; box-shadow: 0 0 8px rgba(180,120,255,0.22); }
-.support-input::placeholder { color: rgba(160,120,220,0.38); }
+.support-input:focus { border-color: #00AEEF; box-shadow: 0 0 8px rgba(0,174,239,0.22); }
+.support-input::placeholder { color: rgba(100,160,200,0.38); }
 
 /* Room wrap (active chat) */
 .support-room-wrap {
     display: none; flex-direction: column;
-    height: calc(100vh - 120px); min-height: 400px;
+    height: calc(100vh - 120px); min-height: 300px;
     position: relative; z-index: 2;
     max-width: 700px; margin: 0 auto;
+    box-sizing: border-box;
 }
 .support-room-wrap.active { display: flex; }
 
 /* Header bar */
 .support-room-header {
     display: flex; align-items: center; justify-content: space-between;
-    background: rgba(12,5,26,0.92); border: 1px solid rgba(180,120,255,0.22);
+    background: rgba(7, 20, 40, 0.95); border: 1px solid rgba(0,174,239,0.22);
     border-radius: 14px 14px 0 0; padding: 12px 18px; flex-shrink: 0;
     backdrop-filter: blur(8px);
 }
 .support-room-title {
-    font-size: 15px; font-weight: bold; color: #c8a8ff;
-    text-shadow: 0 0 8px rgba(180,120,255,0.5);
+    font-size: 15px; font-weight: bold; color: #00AEEF;
+    text-shadow: 0 0 8px rgba(0,174,239,0.5);
 }
-.support-room-meta { font-size: 12px; color: #5a4a6a; margin-top: 2px; }
+.support-room-meta { font-size: 12px; color: #4a7a9a; margin-top: 2px; }
 .support-online-badge {
-    background: rgba(80,255,180,0.1); border: 1px solid rgba(80,255,180,0.25);
-    color: #a8ffd8; font-size: 11px; font-weight: bold; padding: 3px 10px;
+    background: rgba(57,255,20,0.1); border: 1px solid rgba(57,255,20,0.25);
+    color: #39FF14; font-size: 11px; font-weight: bold; padding: 3px 10px;
     border-radius: 20px; white-space: nowrap; flex-shrink: 0;
 }
 .support-leave-btn {
-    background: rgba(255,100,150,0.1); border: 1px solid rgba(255,100,150,0.28);
-    color: #ff99bb; font-size: 12px; font-weight: bold; padding: 4px 12px;
+    background: rgba(255,51,80,0.1); border: 1px solid rgba(255,51,80,0.28);
+    color: #ff6680; font-size: 12px; font-weight: bold; padding: 4px 12px;
     border-radius: 20px; cursor: pointer; margin-left: 10px; transition: background 0.15s;
     flex-shrink: 0; font-family: inherit;
 }
-.support-leave-btn:hover { background: rgba(255,100,150,0.22); }
+.support-leave-btn:hover { background: rgba(255,51,80,0.22); }
 
 /* Safety notice bar */
 .support-safety-bar {
-    background: rgba(20,8,40,0.9); border-left: 3px solid rgba(180,120,255,0.5);
-    border-right: 1px solid rgba(180,120,255,0.15);
-    padding: 8px 16px; font-size: 11px; color: #8a70aa;
+    background: rgba(7, 20, 40, 0.9); border-left: 3px solid rgba(0,174,239,0.45);
+    border-right: 1px solid rgba(0,174,239,0.12);
+    padding: 8px 16px; font-size: 11px; color: #6a90b8;
     display: flex; align-items: center; gap: 8px; flex-shrink: 0;
 }
 
 /* Messages area */
 .support-messages {
     flex: 1; overflow-y: auto; padding: 14px 16px;
-    background: rgba(8,3,18,0.75); backdrop-filter: blur(6px);
-    border-left: 1px solid rgba(180,120,255,0.12);
-    border-right: 1px solid rgba(180,120,255,0.12);
+    background: rgba(5, 12, 28, 0.8); backdrop-filter: blur(6px);
+    border-left: 1px solid rgba(0,174,239,0.1);
+    border-right: 1px solid rgba(0,174,239,0.1);
     display: flex; flex-direction: column; gap: 8px;
     scroll-behavior: smooth;
 }
 .support-messages::-webkit-scrollbar { width: 4px; }
 .support-messages::-webkit-scrollbar-track { background: transparent; }
-.support-messages::-webkit-scrollbar-thumb { background: rgba(180,120,255,0.18); border-radius: 4px; }
+.support-messages::-webkit-scrollbar-thumb { background: rgba(0,174,239,0.18); border-radius: 4px; }
 
 /* Message bubbles */
 .support-msg {
@@ -2839,8 +2840,8 @@ img.post-media-preview::before {
 }
 .support-msg.mine { align-items: flex-end; }
 .support-msg.theirs { align-items: flex-start; }
-.support-msg-name { font-size: 10px; color: #c8a8ff; margin-bottom: 1px; padding: 0 4px; }
-.support-msg.mine .support-msg-name { color: #a8ffd8; }
+.support-msg-name { font-size: 10px; color: #00AEEF; margin-bottom: 1px; padding: 0 4px; }
+.support-msg.mine .support-msg-name { color: #39FF14; }
 .support-msg-system .support-msg-name { display: none; }
 
 .support-bubble {
@@ -2848,39 +2849,39 @@ img.post-media-preview::before {
     font-size: 13.5px; line-height: 1.55; word-break: break-word; position: relative;
 }
 .support-msg.mine .support-bubble {
-    background: linear-gradient(135deg, #2d0a5a 0%, #4a1580 100%);
-    border: 1px solid rgba(180,120,255,0.45); border-bottom-right-radius: 4px;
-    color: #f0e0ff;
+    background: linear-gradient(135deg, #003388 0%, #0055cc 100%);
+    border: 1px solid rgba(0,174,239,0.45); border-bottom-right-radius: 4px;
+    color: #e8f4ff;
 }
 .support-msg.theirs .support-bubble {
-    background: rgba(20,8,40,0.88); border: 1px solid rgba(180,120,255,0.18);
-    border-bottom-left-radius: 4px; color: #d8c8f0;
+    background: rgba(11, 31, 58, 0.9); border: 1px solid rgba(0,174,239,0.18);
+    border-bottom-left-radius: 4px; color: #b8d4f0;
 }
 .support-msg.support-msg-system .support-bubble {
-    background: rgba(0,0,0,0.2); border: 1px solid rgba(180,120,255,0.1);
-    color: #5a4a6a; font-size: 11px; font-style: italic; text-align: center;
+    background: rgba(0,0,0,0.2); border: 1px solid rgba(0,174,239,0.1);
+    color: #4a7a9a; font-size: 11px; font-style: italic; text-align: center;
     border-radius: 20px; padding: 4px 14px; max-width: 90%;
     align-self: center;
 }
-.support-msg-ts { font-size: 9px; color: #3a2a4a; padding: 0 4px; }
+.support-msg-ts { font-size: 9px; color: #2a4a6a; padding: 0 4px; }
 
 /* Support reactions */
 .support-reactions {
     display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; padding: 0 2px;
 }
 .support-react-chip {
-    background: rgba(20,8,40,0.7); border: 1px solid rgba(180,120,255,0.18);
+    background: rgba(0, 20, 50, 0.7); border: 1px solid rgba(0,174,239,0.18);
     border-radius: 10px; padding: 1px 7px; font-size: 13px; cursor: pointer;
-    transition: background 0.12s; display: flex; align-items: center; gap: 3px; color: #8a6aaa;
+    transition: background 0.12s; display: flex; align-items: center; gap: 3px; color: #6a90b8;
 }
-.support-react-chip:hover { background: rgba(60,20,100,0.55); }
-.support-react-chip span.count { font-size: 10px; color: #6a5a8a; }
-.support-react-chip.mine-react { border-color: rgba(200,150,255,0.5); background: rgba(60,20,110,0.5); }
+.support-react-chip:hover { background: rgba(0, 40, 90, 0.55); }
+.support-react-chip span.count { font-size: 10px; color: #4a7a9a; }
+.support-react-chip.mine-react { border-color: rgba(0,174,239,0.5); background: rgba(0,50,120,0.5); }
 
 /* Reaction hover bar on bubble */
 .support-react-bar {
     position: absolute; bottom: 100%; left: 0; margin-bottom: 4px;
-    background: rgba(14,6,30,0.96); border: 1px solid rgba(180,120,255,0.28);
+    background: rgba(5, 15, 35, 0.96); border: 1px solid rgba(0,174,239,0.28);
     border-radius: 30px; padding: 4px 8px; display: none;
     gap: 4px; z-index: 50; box-shadow: 0 4px 18px rgba(0,0,0,0.5);
 }
@@ -2903,17 +2904,17 @@ img.post-media-preview::before {
 
 /* Input footer */
 .support-footer {
-    background: rgba(12,5,26,0.92); border: 1px solid rgba(180,120,255,0.22);
+    background: rgba(7, 20, 40, 0.95); border: 1px solid rgba(0,174,239,0.22);
     border-top: none; border-radius: 0 0 14px 14px;
     padding: 8px 10px; display: flex; gap: 6px; align-items: flex-end;
     backdrop-filter: blur(8px); flex-shrink: 0; position: relative;
 }
 .support-footer-input-wrap {
     flex: 1; display: flex; align-items: center; background: #ffffff;
-    border: 1px solid rgba(180,120,255,0.38); border-radius: 22px;
+    border: 1px solid rgba(0,174,239,0.35); border-radius: 22px;
     padding: 2px 6px 2px 14px; transition: border-color 0.15s; min-height: 40px;
 }
-.support-footer-input-wrap:focus-within { border-color: rgba(200,150,255,0.75); }
+.support-footer-input-wrap:focus-within { border-color: rgba(0,174,239,0.75); }
 #supportMsgInput {
     flex: 1; background: transparent; border: none; color: #111;
     font-size: 13px; padding: 7px 4px; outline: none; resize: none;
@@ -2922,14 +2923,14 @@ img.post-media-preview::before {
 }
 #supportMsgInput::placeholder { color: rgba(80,80,80,0.5); }
 .support-icon-btn {
-    background: none; border: none; color: #6a4a8a; font-size: 18px; cursor: pointer;
+    background: none; border: none; color: #4a7a9a; font-size: 18px; cursor: pointer;
     padding: 4px 5px; border-radius: 6px; line-height: 1; flex-shrink: 0;
     transition: color 0.15s, background 0.15s;
 }
-.support-icon-btn:hover { color: #c8a8ff; background: rgba(180,120,255,0.1); }
+.support-icon-btn:hover { color: #00AEEF; background: rgba(0,174,239,0.1); }
 .support-send-btn {
-    background: linear-gradient(135deg, #3a0870 0%, #6020b0 100%);
-    border: 1px solid #c8a8ff; color: #f0e0ff; font-weight: bold;
+    background: linear-gradient(135deg, #003388 0%, #0055cc 100%);
+    border: 1px solid #00AEEF; color: #e8f4ff; font-weight: bold;
     padding: 0; width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
     font-size: 16px; flex-shrink: 0; transition: opacity 0.15s, transform 0.1s;
     display: flex; align-items: center; justify-content: center;
@@ -2939,7 +2940,7 @@ img.post-media-preview::before {
 /* Emoji picker for support rooms */
 .support-emoji-picker {
     position: absolute; bottom: 58px; left: 10px;
-    background: #0e0620; border: 1px solid rgba(180,120,255,0.28);
+    background: #071428; border: 1px solid rgba(0,174,239,0.28);
     border-radius: 12px; padding: 10px; width: 280px; max-height: 200px;
     overflow-y: auto; display: none; z-index: 600;
     box-shadow: 0 8px 32px rgba(0,0,0,0.7);
@@ -2949,10 +2950,27 @@ img.post-media-preview::before {
 
 /* Responsive */
 @media (max-width: 768px) {
-    .support-room-wrap { height: calc(100vh - 80px); }
-    .support-bubble { max-width: 84%; }
+    .support-room-wrap { height: calc(100vh - 68px); }
+    .support-bubble { max-width: 86%; }
     .support-emoji-picker { width: calc(100vw - 32px); left: 0; right: 0; }
-    .support-room-header { flex-wrap: wrap; gap: 8px; }
+    .support-room-header { flex-wrap: wrap; gap: 6px; padding: 10px 12px; }
+    .support-room-title { font-size: 13px; }
+    .support-room-meta  { font-size: 11px; }
+    .support-online-badge { font-size: 10px; padding: 2px 8px; }
+    .support-leave-btn  { font-size: 11px; padding: 4px 10px; }
+    .support-safety-bar { font-size: 10px; padding: 6px 12px; }
+    .support-lobby { padding: 0 2px; }
+}
+@media (max-width: 420px) {
+    .support-room-wrap { height: calc(100vh - 68px); }
+    .support-bubble { max-width: 92%; font-size: 13px; }
+    .support-room-header { padding: 8px 10px; }
+    .support-footer { padding: 6px 8px; }
+    .support-send-btn { width: 36px; height: 36px; font-size: 14px; }
+    .support-card { padding: 14px; }
+    .support-room-btn { padding: 10px 12px; gap: 10px; }
+    .support-room-btn .srb-icon { font-size: 22px; }
+    .support-room-btn .srb-name { font-size: 13px; }
 }
 </style>
 
@@ -3060,13 +3078,20 @@ img, video { max-width: 100%; height: auto; }
     .settings-row select { width: 100%; min-width: unset; }
     /* Notification toast smaller on phones */
     #notification-toast { right: 12px; bottom: 16px; padding: 10px 14px; font-size: 12px; }
+    /* Nav sidebar: tighter items on very small screens */
+    .sidebar-brand { padding: 16px 14px 12px; }
+    .sidebar-brand-name { font-size: 10px; letter-spacing: 1px; }
+    .sidebar-nav { padding: 8px 6px 0; }
+    .nav-item { padding: 9px 10px; font-size: 13px; gap: 10px; }
+    .nav-item .nav-icon { font-size: 16px; width: 20px; }
 }
 
 /* ─── Safe-area insets for iPhone notch/home bar ─── */
 @supports (padding: env(safe-area-inset-bottom)) {
-    .chat-footer  { padding-bottom: calc(8px  + env(safe-area-inset-bottom)); }
-    .ipc-footer   { padding-bottom: calc(8px  + env(safe-area-inset-bottom)); }
-    .storm-footer { padding-bottom: calc(8px  + env(safe-area-inset-bottom)); }
+    .chat-footer    { padding-bottom: calc(8px  + env(safe-area-inset-bottom)); }
+    .ipc-footer     { padding-bottom: calc(8px  + env(safe-area-inset-bottom)); }
+    .storm-footer   { padding-bottom: calc(8px  + env(safe-area-inset-bottom)); }
+    .support-footer { padding-bottom: calc(8px  + env(safe-area-inset-bottom)); }
     .sidebar-footer { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
 }
 
@@ -3102,10 +3127,32 @@ img, video { max-width: 100%; height: auto; }
     font-size: 11px; color: #6a9aaa;
 }
 
-/* nav admin glow */
+/* nav admin glow (Founder Quick Panel) */
 .nav-item-admin { color: #ffcc44 !important; }
 .nav-item-admin:hover { background: rgba(255,200,50,0.1) !important; color: #ffe566 !important; box-shadow: inset 2px 0 0 rgba(255,200,50,0.6) !important; }
 .nav-item-admin.active-nav { color: #ffe566 !important; box-shadow: inset 3px 0 0 #ffcc44, inset 0 0 14px rgba(255,200,50,0.07) !important; }
+
+/* ── Founder Control nav button — distinctive cyan-gold pulse ── */
+.nav-item-founder-ctrl {
+    color: #00ffee !important;
+    border-left: 2px solid transparent;
+    background: linear-gradient(90deg, rgba(0,220,230,0.06) 0%, transparent 100%);
+}
+.nav-item-founder-ctrl:hover {
+    background: rgba(0,220,230,0.14) !important;
+    color: #00ffff !important;
+    box-shadow: inset 3px 0 0 rgba(0,220,230,0.85), 0 0 14px rgba(0,220,230,0.18) !important;
+}
+.nav-item-founder-ctrl.active-nav {
+    background: rgba(0,200,220,0.16) !important;
+    color: #00ffee !important;
+    box-shadow: inset 3px 0 0 #00ffee, inset 0 0 18px rgba(0,220,230,0.12) !important;
+    animation: founderCtrlPulse 2.5s ease-in-out infinite;
+}
+@keyframes founderCtrlPulse {
+    0%,100% { box-shadow: inset 3px 0 0 #00ffee, inset 0 0 18px rgba(0,220,230,0.12), 0 0 0 0 rgba(0,220,230,0.3); }
+    50%     { box-shadow: inset 3px 0 0 #00ffee, inset 0 0 18px rgba(0,220,230,0.22), 0 0 10px rgba(0,220,230,0.2); }
+}
 
 /* User role select in admin */
 .admin-role-select {
@@ -3632,9 +3679,14 @@ input:focus, textarea:focus, select:focus {
 .admin-user-avatar { background: #071428; border: 2px solid rgba(0,174,239,0.38); color: #00AEEF; }
 .admin-user-name   { color: #ffffff; }
 .admin-user-handle { color: #6a90b8; }
+/* Founder Quick Panel nav override (palette-overrides block) */
 .nav-item-admin    { color: #ffe566 !important; }
 .nav-item-admin:hover { background: rgba(255,200,50,0.10) !important; color: #ffe566 !important; box-shadow: inset 2px 0 0 rgba(255,200,50,0.62) !important; }
 .nav-item-admin.active-nav { color: #ffe566 !important; box-shadow: inset 3px 0 0 #ffcc44, inset 0 0 14px rgba(255,200,50,0.08) !important; }
+/* Founder Control nav override (palette-overrides block) */
+.nav-item-founder-ctrl { color: #00ffee !important; }
+.nav-item-founder-ctrl:hover { background: rgba(0,220,230,0.14) !important; color: #00ffff !important; box-shadow: inset 3px 0 0 rgba(0,220,230,0.85), 0 0 14px rgba(0,220,230,0.18) !important; }
+.nav-item-founder-ctrl.active-nav { background: rgba(0,200,220,0.16) !important; color: #00ffee !important; box-shadow: inset 3px 0 0 #00ffee, inset 0 0 18px rgba(0,220,230,0.12) !important; }
 
 /* ── Storm Rooms ── */
 .storm-lobby h2    { color: #00AEEF; text-shadow: 0 0 18px rgba(0,174,239,0.82), 0 0 42px rgba(0,119,255,0.52); }
@@ -5770,9 +5822,9 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="nav-item nav-item-adm" id="navAdminOfficer" onclick="navTo('administratorPage')" style="display:none;">
             <span class="nav-icon">⚙️</span> Administrator Panel
         </button>
-        <!-- Founder Panel — only visible to the Founder; toggled in JS after auth -->
-        <button class="nav-item nav-item-admin" id="navAdmin" onclick="navTo('adminPage')" style="display:none;">
-            <span class="nav-icon">👑</span> Founder Panel
+        <!-- Founder Control — only visible to the Founder; toggled in JS after auth -->
+        <button class="nav-item nav-item-founder-ctrl" id="navAdmin" onclick="navTo('adminPage')" style="display:none;">
+            <span class="nav-icon">🛸</span> Founder Control
         </button>
     </div>
 
@@ -6542,7 +6594,7 @@ body.arcade-fs-ios body::after { display:none !important; }
             </div>
 
             <div class="msg-inbox-list" id="inboxChannelsList">
-                <div class="msg-inbox-empty">No DMs yet.<br>Tap someone's profile → 💬 Message</div>
+                <div class="msg-inbox-loading" id="inboxLoadingState" style="padding:18px 14px;font-size:13px;color:#3a6a8a;text-align:center;">⏳ Loading conversations…</div>
             </div>
         </div>
 
@@ -6913,39 +6965,6 @@ body.arcade-fs-ios body::after { display:none !important; }
         </div>
 
         <!-- Role panel shortcuts — shown dynamically by _showRolePanels() -->
-        <div class="settings-section" id="adminPanelSettingsSection" style="display:none;">
-            <h4>👑 Founder Controls</h4>
-            <div class="settings-row" style="border-bottom:none;">
-                <div class="settings-label">Founder Panel<small>Full platform management</small></div>
-                <button onclick="navTo('adminPage')" style="padding:7px 16px;font-size:12px;border-radius:10px;background:linear-gradient(135deg,#1a0a00,#664400);border-color:rgba(255,200,50,0.6);color:#ffe566;box-shadow:0 0 12px rgba(255,185,0,0.3);">👑 Open Panel</button>
-            </div>
-
-            <!-- ── MAINTENANCE MODE CONTROL ── -->
-            <div class="settings-row maint-control-row" style="flex-direction:column;align-items:flex-start;gap:10px;padding-top:14px;">
-                <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-                    <div class="settings-label" style="margin:0;">
-                        ⚡ Maintenance Mode
-                        <small>Redirect non-founders to the maintenance page</small>
-                    </div>
-                    <div id="maintStatusBadge" class="maint-status-badge maint-status-online">
-                        <span class="maint-status-dot"></span>
-                        <span class="maint-status-text">Online</span>
-                    </div>
-                </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <button id="btnEnableMaint"
-                            onclick="snxSetMaintenance(true)"
-                            class="maint-btn maint-btn-enable">
-                        🔴 Enable Maintenance
-                    </button>
-                    <button id="btnDisableMaint"
-                            onclick="snxSetMaintenance(false)"
-                            class="maint-btn maint-btn-disable">
-                        🟢 Disable Maintenance
-                    </button>
-                </div>
-            </div>
-        </div>
         <div class="settings-section" id="adminOfficerSettingsSection" style="display:none;">
             <h4>🔰 Administrator Controls</h4>
             <div class="settings-row" style="border-bottom:none;">
@@ -7105,9 +7124,9 @@ body.arcade-fs-ios body::after { display:none !important; }
 
         <!-- Display name -->
         <div class="support-card">
-            <h3>💜 Your Name in This Space</h3>
+            <h3>💙 Your Name in This Space</h3>
             <input class="support-input" id="supportDisplayName" placeholder="Choose a gentle name (e.g. Moonpetal, Quiet Storm)…" maxlength="24">
-            <p style="font-size:11px;color:#5a4a6a;margin:0;">You're anonymous. No one here knows your real identity.</p>
+            <p style="font-size:11px;color:#4a7a9a;margin:0;">You're anonymous. No one here knows your real identity.</p>
         </div>
 
         <!-- Room list -->
@@ -7172,17 +7191,17 @@ body.arcade-fs-ios body::after { display:none !important; }
         </div>
 
         <!-- Ground rules -->
-        <div class="support-card" style="border-color:rgba(80,255,180,0.18);">
-            <h3 style="color:#a8ffd8;">🤝 Room Rules</h3>
-            <ul style="margin:0;padding:0 0 0 16px;font-size:12px;color:#6a5a8a;line-height:1.9;">
+        <div class="support-card" style="border-color:rgba(57,255,20,0.18);">
+            <h3 style="color:#39FF14;">🤝 Room Rules</h3>
+            <ul style="margin:0;padding:0 0 0 16px;font-size:12px;color:#6a90b8;line-height:1.9;">
                 <li>Be kind · No bullying or triggering language</li>
                 <li>You are not alone — someone here cares</li>
                 <li>Don't give medical / professional advice</li>
                 <li>If you're in crisis please contact a helpline</li>
                 <li>Respect everyone's pace and feelings</li>
             </ul>
-            <div style="margin-top:12px;font-size:11px;color:#5a4a6a;">
-                🆘 Crisis? <strong style="color:#ff99bb;">Text HOME to 741741</strong> (Crisis Text Line) or call <strong style="color:#ff99bb;">988</strong> (Suicide &amp; Crisis Lifeline)
+            <div style="margin-top:12px;font-size:11px;color:#4a7a9a;">
+                🆘 Crisis? <strong style="color:#ff6680;">Text HOME to 741741</strong> (Crisis Text Line) or call <strong style="color:#ff6680;">988</strong> (Suicide &amp; Crisis Lifeline)
             </div>
         </div>
 
@@ -7205,7 +7224,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
         <!-- Crisis bar -->
         <div class="support-safety-bar">
-            🛡️ This is a safe space. Be gentle with each other. · Crisis? Call <strong style="color:#ff99bb;">988</strong> · Text HOME to <strong style="color:#ff99bb;">741741</strong>
+            🛡️ This is a safe space. Be gentle with each other. · Crisis? Call <strong style="color:#ff6680;">988</strong> · Text HOME to <strong style="color:#ff6680;">741741</strong>
         </div>
 
         <!-- Messages -->
@@ -7469,10 +7488,12 @@ body.arcade-fs-ios body::after { display:none !important; }
 </div><!-- end communityRulesPage -->
 
 <!-- ═══════════════════════════════════════════════════════════
-     FOUNDER PANEL PAGE
+     FOUNDER CONTROL — Emergency dashboard for Shadow Nexus Social
+     Access: Founder account ONLY (role:'founder' in Firestore)
+     Security: navTo() blocks non-founders; nav button hidden by CSS
      ═══════════════════════════════════════════════════════════ -->
 <div class="page" id="adminPage">
-<h2 class="eclipse-title">🛡️ Founder Control Center</h2>
+<h2 class="eclipse-title">🛸 Founder Control</h2>
 
 <!-- ── Admin Tab Nav ── -->
 <div class="admin-tab-bar" id="adminTabBar">
@@ -7487,6 +7508,8 @@ body.arcade-fs-ios body::after { display:none !important; }
     <button class="admin-tab" onclick="switchAdminTab('appeals')">📩 Appeals</button>
     <button class="admin-tab" onclick="switchAdminTab('aisafety')">🤖 AI Safety</button>
     <button class="admin-tab" onclick="switchAdminTab('shadowbot')">🤖 Shadow Bot</button>
+    <button class="admin-tab" onclick="switchAdminTab('pages')">👁 Pages</button>
+    <button class="admin-tab" onclick="switchAdminTab('emergency')">🚨 Emergency</button>
 </div>
 
 <!-- ══════════════════════════════════
@@ -7519,9 +7542,13 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="settings-label">Storm Rooms<small>Enable live chat rooms</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="toggleStormRooms" class="notif-toggle-cb" checked onchange="adminToggleFeature('stormRoomsEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
-        <div class="settings-row" style="border-bottom:none;">
+        <div class="settings-row">
             <div class="settings-label">Posts<small>Allow new posts</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="togglePosts" class="notif-toggle-cb" checked onchange="adminToggleFeature('postsEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row" style="border-bottom:none;">
+            <div class="settings-label">Messages Tab<small>Show/hide the Messages nav button &amp; inbox page</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="toggleMessagesTab" class="notif-toggle-cb" checked onchange="snxSetMessagesTab(this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
     </div>
 
@@ -8167,6 +8194,186 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 </div><!-- end adminTab-shadowbot -->
 
+<!-- ══════════════════════════════════
+     TAB: PAGE VISIBILITY CONTROLS
+══════════════════════════════════ -->
+<div class="admin-tab-content" id="adminTab-pages">
+
+    <!-- Info banner -->
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(0,174,239,0.45);background:linear-gradient(135deg,rgba(0,40,80,0.35),rgba(11,31,58,0.92));">
+        <h3 style="margin:0 0 8px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">👁 Page Visibility Controls</h3>
+        <p style="font-size:12px;color:#9bbdd8;margin:0;line-height:1.7;">Hide navigation buttons and temporarily disable pages for all regular users. The Founder always keeps access. Changes are applied site-wide in real time via Firestore — no code edits required.</p>
+    </div>
+
+    <!-- Nav Page Visibility toggles -->
+    <div class="section-card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🔘 Navigation Pages</h3>
+        <p style="font-size:12px;color:#6a90b8;margin:0 0 14px;">Toggle the nav button AND redirect any user currently on that page to the Home feed.</p>
+
+        <div class="settings-row">
+            <div class="settings-label">🔍 Search<small>Search page &amp; nav button</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="pvSearch" class="notif-toggle-cb" checked onchange="snxSetPageVisible('search',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">🔔 Notifications<small>Notifications page &amp; nav button</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="pvNotifs" class="notif-toggle-cb" checked onchange="snxSetPageVisible('notifs',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">🕹️ Arcade<small>Arcade hub &amp; nav button</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="pvArcade" class="notif-toggle-cb" checked onchange="snxSetPageVisible('arcade',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">⚡ Storm Rooms<small>Storm Rooms page &amp; nav button</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="pvStorm" class="notif-toggle-cb" checked onchange="snxSetPageVisible('storm',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">🫂 Support Rooms<small>Support Rooms page &amp; nav button</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="pvSupport" class="notif-toggle-cb" checked onchange="snxSetPageVisible('support',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">💙 Community Hub<small>Community Hub page &amp; nav button</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="pvCommunity" class="notif-toggle-cb" checked onchange="snxSetPageVisible('community',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row" style="border-bottom:none;">
+            <div class="settings-label">📜 Community Rules<small>Community Rules page &amp; nav button</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="pvRules" class="notif-toggle-cb" checked onchange="snxSetPageVisible('rules',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+    </div>
+
+    <!-- Disabled Page Maintenance Banner Controls -->
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(255,170,50,0.35);">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#ffcc44;text-transform:uppercase;letter-spacing:0.8px;">🔧 Disable Broken Pages</h3>
+        <p style="font-size:12px;color:#9bbdd8;margin:0 0 14px;line-height:1.7;">When a page is disabled, users who try to visit it see a "Page temporarily unavailable" banner and are redirected to Home. The nav button is hidden. You can restore the page here once fixed.</p>
+
+        <div id="pvDisabledPagesList">
+            <div id="pvDisabledPagesGrid" style="display:flex;flex-direction:column;gap:8px;"></div>
+            <div id="pvDisabledPagesEmpty" style="font-size:12px;color:#3a5a7a;padding:10px 0;display:none;">✅ No pages are currently disabled.</div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select id="pvDisablePageSelect" style="flex:1;margin:0;min-width:160px;font-size:12px;padding:7px 10px;">
+                <option value="">— Select page to disable —</option>
+                <option value="searchPage">🔍 Search</option>
+                <option value="notificationsPage">🔔 Notifications</option>
+                <option value="arcadeHub">🕹️ Arcade</option>
+                <option value="stormRoomsPage">⚡ Storm Rooms</option>
+                <option value="supportRoomsPage">🫂 Support Rooms</option>
+                <option value="communityPage">💙 Community Hub</option>
+                <option value="communityRulesPage">📜 Community Rules</option>
+                <option value="settingsPage">⚙️ Settings</option>
+                <option value="feed">🏠 Home Feed</option>
+            </select>
+            <button onclick="snxDisablePage()" style="flex-shrink:0;font-size:12px;padding:7px 16px;border-radius:8px;background:rgba(255,100,0,0.12);border-color:rgba(255,130,0,0.5);color:#ffaa44;">🔧 Disable Page</button>
+        </div>
+    </div>
+
+    <!-- Page Visibility Change Log -->
+    <div class="section-card">
+        <h3 style="margin:0 0 10px;font-size:13px;color:#6a90b8;text-transform:uppercase;letter-spacing:0.8px;">📋 Visibility Change Log</h3>
+        <div id="pvChangeLog"><div class="empty-state">No visibility changes recorded yet.</div></div>
+        <button onclick="pvLoadChangeLog()" style="margin-top:10px;font-size:12px;padding:6px 16px;border-radius:8px;">🔄 Refresh Log</button>
+    </div>
+
+</div><!-- end adminTab-pages -->
+
+<!-- ══════════════════════════════════
+     TAB: EMERGENCY CONTROLS
+══════════════════════════════════ -->
+<div class="admin-tab-content" id="adminTab-emergency">
+
+    <!-- Warning banner -->
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(255,51,51,0.55);background:linear-gradient(135deg,rgba(80,5,5,0.45),rgba(11,31,58,0.92));">
+        <h3 style="margin:0 0 8px;font-size:13px;color:#ff5566;text-transform:uppercase;letter-spacing:0.8px;">🚨 Emergency Dashboard</h3>
+        <p style="font-size:12px;color:#c8a0a8;margin:0;line-height:1.7;">Use these controls when something is broken or needs immediate action. All switches are applied site-wide in real time. <strong style="color:#ff8899;">No code deployment required.</strong></p>
+    </div>
+
+    <!-- ── Quick Status Overview ── -->
+    <div class="section-card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🟢 Live System Status</h3>
+        <div id="emergencyStatusGrid" style="display:flex;flex-wrap:wrap;gap:8px;">
+            <!-- Populated by JS -->
+        </div>
+        <button onclick="emergencyRefreshStatus()" style="margin-top:10px;font-size:12px;padding:6px 16px;border-radius:8px;">🔄 Refresh Status</button>
+    </div>
+
+    <!-- ── Master Kill Switches ── -->
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(255,100,0,0.4);">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#ffaa44;text-transform:uppercase;letter-spacing:0.8px;">⚡ Feature Kill Switches</h3>
+        <p style="font-size:12px;color:#9bbdd8;margin:0 0 14px;line-height:1.6;">Instantly enable or disable major site features without touching code.</p>
+
+        <div class="settings-row">
+            <div class="settings-label">🏠 Home Feed<small>Allow users to post &amp; view feed</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esFeed" class="notif-toggle-cb" checked onchange="emergencyToggle('postsEnabled',this.checked,'Feed')"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">💬 Messaging<small>Show Messages tab &amp; inbox</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esMessages" class="notif-toggle-cb" checked onchange="snxSetMessagesTab(this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">⚡ Storm Rooms<small>Enable live chat rooms</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esStorm" class="notif-toggle-cb" checked onchange="emergencyToggle('stormRoomsEnabled',this.checked,'Storm Rooms')"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">🕹️ Arcade<small>Enable arcade &amp; game challenges</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esArcade" class="notif-toggle-cb" checked onchange="emergencyToggle('arcadeEnabled',this.checked,'Arcade')"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">👤 New Registrations<small>Allow new account creation</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esRegistration" class="notif-toggle-cb" checked onchange="emergencyToggle('registrationEnabled',this.checked,'Registration')"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">🤖 AI Moderation<small>AI safety &amp; moderation system</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esAI" class="notif-toggle-cb" checked onchange="window.founderToggleAIModeration()"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row" style="border-bottom:none;">
+            <div class="settings-label">🤖 Shadow Bot<small>Bot posts &amp; welcome messages</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esBot" class="notif-toggle-cb" checked onchange="emergencyToggle('shadowBotEnabled',this.checked,'Shadow Bot')"><span class="notif-toggle-slider"></span></label>
+        </div>
+    </div>
+
+    <!-- ── Welcome Popup Control ── -->
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(0,174,239,0.35);">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎉 Welcome Pop-up Control</h3>
+        <div class="settings-row">
+            <div class="settings-label">Show Welcome Pop-up<small>Display greeting pop-up to all visitors</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esWelcomePopup" class="notif-toggle-cb" checked onchange="emergencyToggle('welcomePopupEnabled',this.checked,'Welcome Pop-up')"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row" style="border-bottom:none;">
+            <div class="settings-label">Force Pop-up Refresh<small>Reset "seen" cache — all users will see it again on next visit</small></div>
+            <button onclick="emergencyForceWelcomeReset()" style="font-size:12px;padding:6px 14px;border-radius:8px;border-color:rgba(0,174,239,0.45);color:#00AEEF;">🔄 Force Reset</button>
+        </div>
+    </div>
+
+    <!-- ── Maintenance Mode ── -->
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(255,60,60,0.4);">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#ff5566;text-transform:uppercase;letter-spacing:0.8px;">🔧 Maintenance Mode</h3>
+        <p style="font-size:12px;color:#9bbdd8;margin:0 0 12px;line-height:1.6;">Redirects all non-Founder users to the maintenance page. You always keep access.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div id="emergencyMaintBadge" class="maint-status-badge maint-status-online">
+                <span class="maint-status-dot"></span>
+                <span class="maint-status-text">Online</span>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button onclick="snxSetMaintenance(true)"  class="maint-btn maint-btn-enable">🔴 Enable Maintenance</button>
+                <button onclick="snxSetMaintenance(false)" class="maint-btn maint-btn-disable">🟢 Disable Maintenance</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── System Announcement Quick-Fire ── -->
+    <div class="section-card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#ff9900;text-transform:uppercase;letter-spacing:0.8px;">📢 Quick System Announcement</h3>
+        <p style="font-size:12px;color:#9bbdd8;margin:0 0 12px;line-height:1.6;">Send an urgent alert to every member instantly without leaving this tab.</p>
+        <select id="emergencyAnnounceType" style="margin-bottom:10px;">
+            <option value="emergency">🚨 Emergency Alert</option>
+            <option value="maintenance">🔧 Maintenance Notice</option>
+            <option value="announcement">📢 General Announcement</option>
+        </select>
+        <textarea id="emergencyAnnounceText" rows="3" placeholder="Type your urgent message…" style="resize:vertical;margin-bottom:10px;"></textarea>
+        <button onclick="emergencySendAnnouncement()" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#660000,#cc0000);border-color:rgba(255,51,51,0.7);color:#fff;font-size:14px;font-weight:700;box-shadow:0 0 14px rgba(255,30,30,0.3);">🚨 Send Emergency Announcement</button>
+    </div>
+
+</div><!-- end adminTab-emergency -->
+
 <!-- ── Edit Message Modal ── -->
 <div id="scbEditModal">
   <div class="scb-edit-card">
@@ -8181,6 +8388,8 @@ body.arcade-fs-ios body::after { display:none !important; }
       <button onclick="scbEditModalSave()" style="font-size:12px;padding:6px 16px;border-radius:9px;background:linear-gradient(135deg,#003d99,#0066cc);border-color:rgba(0,174,239,0.65);color:#fff;font-weight:700;">💾 Save Edit</button>
     </div>
   </div>
+</div>
+
 </div>
 
 </div>
@@ -9108,6 +9317,11 @@ body.arcade-fs-ios body::after { display:none !important; }
               window.location.replace('maintenance.html');
           }
       }
+
+      // Messages tab visibility (live — hides/shows nav button for all users)
+      const _msgEnabled = cfg.messagesTabEnabled !== false;
+      window._snxMessagesTabEnabled = _msgEnabled;
+      _syncMessagesTabUI(_msgEnabled);
   });
 
   /* ── Firebase connection loss detection + auto-reconnect ──────────────
@@ -12190,16 +12404,27 @@ body.arcade-fs-ios body::after { display:none !important; }
   // Guard: tear down any existing listener before creating a new one so we
   // never accumulate duplicate inbox snapshots.
   function initInboxMonitor() {
+      // Guard: don't start if auth isn't resolved yet
+      if (!currentUser) return null;
       if (inboxUnsubscribe) { inboxUnsubscribe(); inboxUnsubscribe = null; }
+
+      // Show loading state immediately
+      const _inboxBoxPre = document.getElementById("inboxChannelsList");
+      if (_inboxBoxPre) {
+          _inboxBoxPre.innerHTML = '<div id="inboxLoadingState" style="padding:18px 14px;font-size:13px;color:#3a6a8a;text-align:center;">⏳ Loading conversations…</div>';
+      }
+
       const q = query(
           collection(db, "chats"),
           where("participants", "array-contains", currentUser.uid)
       );
       const unsub = onSnapshot(q, async (snap) => {
           const inboxBox = document.getElementById("inboxChannelsList");
-          // Inbox snapshot received — clear any prior error state
+          // Inbox snapshot received — clear any prior error/loading state
           const _inboxErr = document.getElementById('inboxConnError');
           if (_inboxErr) _inboxErr.remove();
+          const _inboxLoad = document.getElementById('inboxLoadingState');
+          if (_inboxLoad) _inboxLoad.remove();
           let totalUnreadCount = 0;
 
           const convPromises = [];
@@ -12225,7 +12450,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           inboxBox.innerHTML = '';
 
           if (!convs.length) {
-              inboxBox.innerHTML = '<div class="msg-inbox-empty">No conversations yet.<br>Go to someone\'s profile and tap 💬 Message!</div>';
+              inboxBox.innerHTML = '<div class="msg-inbox-empty" style="padding:18px 14px;font-size:13px;color:#3a6a8a;text-align:center;">💬 No conversations yet.<br>Go to someone\'s profile and tap 💬 Message!</div>';
           } else {
               convs.forEach(c => {
                   totalUnreadCount += c.unreadCount;
@@ -12260,6 +12485,20 @@ body.arcade-fs-ios body::after { display:none !important; }
               });
           }
 
+          // Show connected status briefly in header (clears after 2s)
+          const _hdrStatus = document.getElementById('msgHeaderOnlineCount');
+          if (_hdrStatus && !_hdrStatus.dataset.connShown) {
+              _hdrStatus.dataset.connShown = '1';
+              const _prevText = _hdrStatus.textContent;
+              _hdrStatus.style.color = '#39FF14';
+              _hdrStatus.textContent = '● Connected';
+              setTimeout(() => {
+                  _hdrStatus.textContent = _prevText;
+                  _hdrStatus.style.color = '';
+                  delete _hdrStatus.dataset.connShown;
+              }, 2000);
+          }
+
           const badgeCount = totalUnreadCount > 99 ? '99+' : String(totalUnreadCount);
           const badge = document.getElementById("sidebarMsgBadge");
           const topBadge = document.getElementById("msgTopbarBadge");
@@ -12278,17 +12517,42 @@ body.arcade-fs-ios body::after { display:none !important; }
               const errEl = document.createElement('div');
               errEl.id = 'inboxConnError';
               errEl.style.cssText = 'padding:10px 14px;font-size:12px;color:#3a6a8a;text-align:center;';
-              errEl.innerHTML = `🔴 Inbox disconnected — <button onclick="if(typeof initInboxMonitor==='function'){inboxUnsubscribe&&inboxUnsubscribe();inboxUnsubscribe=initInboxMonitor();}" style="background:none;border:none;color:#00AEEF;cursor:pointer;font-size:12px;text-decoration:underline;">retry</button>`;
+              errEl.innerHTML = `🔴 Inbox disconnected — <button onclick="window._snxRestartInbox()" style="background:none;border:none;color:#00AEEF;cursor:pointer;font-size:12px;text-decoration:underline;">retry</button>`;
               inboxBox.prepend(errEl);
           }
           // Auto-retry after 8 s
           setTimeout(() => {
-              if (inboxUnsubscribe) { inboxUnsubscribe(); inboxUnsubscribe = null; }
-              inboxUnsubscribe = initInboxMonitor();
+              if (!currentUser) return; // signed out — don't retry
+              window._snxRestartInbox();
           }, 8000);
       });
       return unsub; // stored by caller for teardown on sign-out
   }
+
+  // Expose inbox restart to global scope so inline onclick and navTo can reach it
+  window._snxRestartInbox = function() {
+      if (!currentUser) return;
+      inboxUnsubscribe = initInboxMonitor();
+  };
+  // Expose for navTo
+  window._snxInitInboxIfNeeded = function() {
+      if (!currentUser) return;
+      // If the listener was torn down (e.g. network error) restart it
+      if (!inboxUnsubscribe) {
+          inboxUnsubscribe = initInboxMonitor();
+      } else {
+          // Listener already running — just show a loading flash so the user
+          // knows the page is live (the existing snapshot will re-fire shortly)
+          const ib = document.getElementById('inboxChannelsList');
+          if (ib && !ib.querySelector('.conv-item')) {
+              ib.innerHTML = '<div id="inboxLoadingState" style="padding:18px 14px;font-size:13px;color:#3a6a8a;text-align:center;">⏳ Loading conversations…</div>';
+              // Force a fresh listener so the loading state resolves
+              inboxUnsubscribe();
+              inboxUnsubscribe = null;
+              inboxUnsubscribe = initInboxMonitor();
+          }
+      }
+  };
   /* ═══════════════════════════════════════════════════════════
      PROFILE CHAT MODAL ENGINE
      Powers the #ipcModal overlay on profile pages.
@@ -12389,6 +12653,11 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   // ── Expose "open in full DMs" ──
   window.ipcModalExpandToInbox = function() {
+      // If the Messages tab is hidden, silently keep the user in the modal instead of expanding
+      if (window._snxMessagesTabEnabled === false && window._snxRole !== 'founder') {
+          if (typeof toastNotification === 'function') toastNotification('📭 Full inbox is temporarily unavailable.');
+          return;
+      }
       const uid = _m_tgtUid;
       window.ipcModalClose(); // restores body scroll + tears down listeners
       if (uid && typeof window.establishDirectMessageChannel === 'function') {
@@ -12952,7 +13221,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   /* ── Admin Announcement — handled by the full version further below ── */
 
-  // ═══ ADMIN PANEL — FULL FOUNDER CONTROL CENTER ═══
+  // ═══ ADMIN PANEL — FOUNDER CONTROL ═══
 
   async function adminAuditLog(action, details) {
       try { await addDoc(collection(db,'auditLog'),{ action, details, adminUid:currentUser.uid, adminName:userData.displayName, ts:Date.now() }); } catch(_) {}
@@ -12973,10 +13242,12 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (tab==='announce') adminLoadAnnouncementHistory();
       if (tab==='content')  adminLoadPosts('recent');
       if (tab==='reports')  adminLoadReports('user');
-      if (tab==='settings') adminLoadSettings();
-      if (tab==='roles')    roleAssignSearch();
-      if (tab==='appeals')  adminLoadAppeals('pending');
-      if (tab==='aisafety') adminLoadAISafetyLog();
+      if (tab==='settings')    adminLoadSettings();
+      if (tab==='roles')       roleAssignSearch();
+      if (tab==='appeals')     adminLoadAppeals('pending');
+      if (tab==='aisafety')    adminLoadAISafetyLog();
+      if (tab==='pages')       pvLoadTabData();
+      if (tab==='emergency')   emergencyLoadTabData();
   };
 
   /* ── Appeal Control System (Founder only) ── */
@@ -13725,6 +13996,40 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (btn) { btn.disabled = false; btn.textContent = enable ? '🔴 Enable Maintenance' : '🟢 Disable Maintenance'; }
       }
   };
+
+  /* ── snxSetMessagesTab — Founder-only toggle for the Messages tab ── */
+  function _syncMessagesTabUI(enabled) {
+      // Nav button visibility (Founder always sees it)
+      const navBtn = document.getElementById('navMessages');
+      if (navBtn) navBtn.style.display = (enabled || window._snxRole === 'founder') ? '' : 'none';
+      // Sync both toggle checkboxes
+      const cb1 = document.getElementById('toggleMessagesTab');
+      const cb2 = document.getElementById('settingsToggleMessagesTab');
+      if (cb1) cb1.checked = enabled;
+      if (cb2) cb2.checked = enabled;
+      // If a non-founder is currently on the messages page and it just got hidden, redirect to feed
+      if (!enabled && window._snxRole !== 'founder') {
+          const activePage = document.querySelector('.page.active');
+          if (activePage && activePage.id === 'messagesInbox') {
+              if (typeof navTo === 'function') navTo('feed');
+          }
+      }
+  }
+  window._syncMessagesTabUI = _syncMessagesTabUI;
+
+  window.snxSetMessagesTab = async function(enabled) {
+      if (!founderOnly()) return;
+      try {
+          await setDoc(doc(db, 'siteSettings', 'config'), { messagesTabEnabled: enabled }, { merge: true });
+          await adminAuditLog('MESSAGES_TAB', enabled ? 'ENABLED' : 'DISABLED');
+          toastNotification(enabled ? '💬 Messages tab ENABLED' : '🔇 Messages tab HIDDEN');
+      } catch(e) {
+          toastNotification('Error: ' + e.message);
+          // Revert checkbox on failure
+          _syncMessagesTabUI(!enabled);
+      }
+  };
+
   window.adminSaveSetting = async function(key,val) {
       if(!founderOnly())return;
       await setDoc(doc(db,'siteSettings','config'),{[key]:val},{merge:true});
@@ -13741,6 +14046,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           const r=document.getElementById('siteSettingRulesUrl'); if(r&&cfg.rulesUrl)r.value=cfg.rulesUrl;
           // Sync AI moderation toggle state
           _syncAIToggleUI(cfg.aiModerationEnabled !== false);
+          // Sync Messages tab toggle state
+          _syncMessagesTabUI(cfg.messagesTabEnabled !== false);
       }catch(_){}
   };
   window.adminExportUsers = async function() {
@@ -13751,6 +14058,324 @@ body.arcade-fs-ios body::after { display:none !important; }
       const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
       const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='shadow-nexus-users.csv'; a.click();
       await adminAuditLog('EXPORT_USERS','Exported user list as CSV');
+  };
+
+  /* ════════════════════════════════════════════════════════════════════
+     PAGE VISIBILITY CONTROLS — Founder Only
+     Stores visibility state in Firestore: siteSettings/pageVisibility
+     Applied site-wide in real time via the existing onSnapshot listener.
+  ════════════════════════════════════════════════════════════════════ */
+
+  // Map of toggle-id → { navId, pageId, label }
+  const _PV_MAP = {
+      search:    { navId: 'navSearch',        pageId: 'searchPage',         label: 'Search' },
+      notifs:    { navId: 'navNotifs',         pageId: 'notificationsPage',  label: 'Notifications' },
+      arcade:    { navId: 'navArcade',         pageId: 'arcadeHub',          label: 'Arcade' },
+      storm:     { navId: 'navStorm',          pageId: 'stormRoomsPage',     label: 'Storm Rooms' },
+      support:   { navId: 'navSupport',        pageId: 'supportRoomsPage',   label: 'Support Rooms' },
+      community: { navId: 'navCommunity',      pageId: 'communityPage',      label: 'Community Hub' },
+      rules:     { navId: 'navCommunityRules', pageId: 'communityRulesPage', label: 'Community Rules' },
+  };
+
+  // Apply page visibility from a Firestore config object
+  function _applyPageVisibility(vis) {
+      if (!vis) return;
+      const isFounder = window._snxRole === 'founder';
+      // Keep window._snxPageVisibility in sync so existing navTo guard also benefits
+      if (!window._snxPageVisibility) window._snxPageVisibility = {};
+      Object.entries(_PV_MAP).forEach(([key, cfg]) => {
+          const visible = vis[key] !== false; // default ON
+          const navBtn = document.getElementById(cfg.navId);
+          // Sync control-panel toggle if open
+          const cb = document.getElementById('pv' + key.charAt(0).toUpperCase() + key.slice(1));
+          if (cb) cb.checked = visible;
+          // Hide nav button for non-founders when page is hidden
+          if (navBtn && !isFounder) {
+              navBtn.style.display = visible ? '' : 'none';
+          }
+          // If non-founder is currently on a hidden page, redirect them to feed
+          if (!visible && !isFounder) {
+              const activePage = document.querySelector('.page.active');
+              if (activePage && activePage.id === cfg.pageId) {
+                  if (typeof navTo === 'function') navTo('feed');
+              }
+          }
+      });
+      // Apply disabled pages list
+      const disabled = vis.disabledPages || [];
+      // Store disabled pages on window so navTo can block access
+      window._snxDisabledPages = disabled;
+      _applyDisabledPages(disabled);
+  }
+  window._applyPageVisibility = _applyPageVisibility;
+
+  // Show a "page temporarily unavailable" overlay when the user tries to open a disabled page
+  function _applyDisabledPages(disabledArr) {
+      const isFounder = window._snxRole === 'founder';
+      if (isFounder) return; // Founder always has full access
+      disabledArr.forEach(pageId => {
+          const pageEl = document.getElementById(pageId);
+          if (!pageEl) return;
+          // Inject a banner at the top of the page if not already there
+          if (!pageEl.querySelector('.snx-page-disabled-banner')) {
+              const banner = document.createElement('div');
+              banner.className = 'snx-page-disabled-banner';
+              banner.style.cssText = 'padding:24px;text-align:center;background:rgba(60,10,10,0.7);border:1px solid rgba(255,60,60,0.4);border-radius:12px;margin:20px 0;color:#ff9999;font-size:14px;font-weight:600;';
+              banner.innerHTML = '🔧 This page is temporarily unavailable while we apply some fixes.<br><span style="font-size:12px;color:#9bbdd8;font-weight:400;margin-top:6px;display:block;">Please check back soon — the Founder will restore it shortly.</span>';
+              pageEl.insertBefore(banner, pageEl.firstChild);
+          }
+      });
+  }
+
+  // Called when the pages tab opens
+  window.pvLoadTabData = async function() {
+      if (!founderOnly()) return;
+      try {
+          const snap = await getDoc(doc(db, 'siteSettings', 'pageVisibility'));
+          const vis = snap.exists() ? snap.data() : {};
+          // Sync all checkboxes
+          Object.keys(_PV_MAP).forEach(key => {
+              const cb = document.getElementById('pv' + key.charAt(0).toUpperCase() + key.slice(1));
+              if (cb) cb.checked = vis[key] !== false;
+          });
+          // Render disabled pages list
+          _pvRenderDisabledList(vis.disabledPages || []);
+      } catch(e) {
+          toastNotification('Error loading page visibility: ' + e.message);
+      }
+      pvLoadChangeLog();
+  };
+
+  // Toggle a page's nav visibility (hide/show nav button + redirect users if hidden)
+  window.snxSetPageVisible = async function(key, visible) {
+      if (!founderOnly()) return;
+      const cfg = _PV_MAP[key];
+      if (!cfg) return;
+      try {
+          await setDoc(doc(db, 'siteSettings', 'pageVisibility'), { [key]: visible }, { merge: true });
+          // Log the change
+          await addDoc(collection(db, 'siteSettings', 'navChangeLog'), {
+              action: visible ? 'SHOW_PAGE' : 'HIDE_PAGE',
+              page: cfg.label,
+              key,
+              adminUid: currentUser.uid,
+              adminName: userData.displayName,
+              ts: Date.now()
+          }).catch(() => {});
+          await adminAuditLog(visible ? 'SHOW_PAGE' : 'HIDE_PAGE', cfg.label);
+          toastNotification(visible ? `👁 ${cfg.label} page shown.` : `🙈 ${cfg.label} page hidden.`);
+          // Apply immediately
+          _applyPageVisibility({ [key]: visible });
+      } catch(e) {
+          toastNotification('Error: ' + e.message);
+          // Revert checkbox
+          const cb = document.getElementById('pv' + key.charAt(0).toUpperCase() + key.slice(1));
+          if (cb) cb.checked = !visible;
+      }
+  };
+
+  // Disable a broken page (adds to disabledPages array, hides its nav button)
+  window.snxDisablePage = async function() {
+      if (!founderOnly()) return;
+      const sel = document.getElementById('pvDisablePageSelect');
+      const pageId = sel ? sel.value : '';
+      if (!pageId) { toastNotification('Select a page to disable.'); return; }
+      try {
+          const snap = await getDoc(doc(db, 'siteSettings', 'pageVisibility'));
+          const current = snap.exists() ? (snap.data().disabledPages || []) : [];
+          if (current.includes(pageId)) { toastNotification('Page is already disabled.'); return; }
+          const updated = [...current, pageId];
+          await setDoc(doc(db, 'siteSettings', 'pageVisibility'), { disabledPages: updated }, { merge: true });
+          await adminAuditLog('DISABLE_PAGE', pageId);
+          toastNotification(`🔧 Page disabled: ${pageId}`);
+          _pvRenderDisabledList(updated);
+          if (sel) sel.value = '';
+      } catch(e) {
+          toastNotification('Error: ' + e.message);
+      }
+  };
+
+  // Re-enable a previously disabled page
+  window.snxRestorePage = async function(pageId) {
+      if (!founderOnly()) return;
+      try {
+          const snap = await getDoc(doc(db, 'siteSettings', 'pageVisibility'));
+          const current = snap.exists() ? (snap.data().disabledPages || []) : [];
+          const updated = current.filter(p => p !== pageId);
+          await setDoc(doc(db, 'siteSettings', 'pageVisibility'), { disabledPages: updated }, { merge: true });
+          await adminAuditLog('RESTORE_PAGE', pageId);
+          toastNotification(`✅ Page restored: ${pageId}`);
+          _pvRenderDisabledList(updated);
+          // Remove any "unavailable" banners from the restored page
+          const pageEl = document.getElementById(pageId);
+          if (pageEl) {
+              const banner = pageEl.querySelector('.snx-page-disabled-banner');
+              if (banner) banner.remove();
+          }
+      } catch(e) {
+          toastNotification('Error: ' + e.message);
+      }
+  };
+
+  // Render the disabled pages list in the control panel
+  function _pvRenderDisabledList(disabledArr) {
+      const grid  = document.getElementById('pvDisabledPagesGrid');
+      const empty = document.getElementById('pvDisabledPagesEmpty');
+      if (!grid) return;
+      if (!disabledArr.length) {
+          grid.innerHTML = '';
+          if (empty) empty.style.display = 'block';
+          return;
+      }
+      if (empty) empty.style.display = 'none';
+      grid.innerHTML = disabledArr.map(pageId => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:rgba(80,20,0,0.25);border:1px solid rgba(255,130,0,0.35);border-radius:8px;">
+              <span style="font-size:13px;color:#ffaa66;">🔧 <strong>${pageId}</strong></span>
+              <button onclick="snxRestorePage('${pageId}')" style="font-size:11px;padding:4px 12px;border-radius:8px;background:rgba(0,150,60,0.15);border-color:rgba(0,255,100,0.4);color:#39FF14;">✅ Restore</button>
+          </div>
+      `).join('');
+  }
+
+  // Load the page visibility change log
+  window.pvLoadChangeLog = async function() {
+      if (!founderOnly()) return;
+      const logEl = document.getElementById('pvChangeLog');
+      if (!logEl) return;
+      logEl.innerHTML = '<div class="empty-state">Loading…</div>';
+      try {
+          // Fetch recent audit log and filter client-side (avoids composite index requirement)
+          const snap = await getDocs(query(collection(db, 'auditLog'), orderBy('ts','desc'), limit(100)));
+          const _pvActions = new Set(['SHOW_PAGE','HIDE_PAGE','DISABLE_PAGE','RESTORE_PAGE','NUCLEAR_ACTION']);
+          const filtered = snap.docs.filter(d => _pvActions.has(d.data().action));
+          if (!filtered.length) { logEl.innerHTML = '<div class="empty-state">No visibility changes recorded yet.</div>'; return; }
+          logEl.innerHTML = filtered.map(d => {
+              const a = d.data();
+              const dt = new Date(a.ts).toLocaleString();
+              const color = a.action.startsWith('HIDE') || a.action.startsWith('DISABLE') || a.action === 'NUCLEAR_ACTION' ? '#ff9999' : '#66ffaa';
+              return `<div style="padding:7px 12px;border-bottom:1px solid rgba(0,60,120,0.18);font-size:12px;color:#9bbdd8;">
+                  <span style="color:${color};font-weight:700;">${a.action}</span>
+                  <span style="color:#c8e8ff;margin-left:6px;">${a.details || ''}</span>
+                  <span style="float:right;color:#3a5a7a;font-size:11px;">${dt}</span>
+              </div>`;
+          }).join('');
+      } catch(e) {
+          logEl.innerHTML = `<div class="empty-state" style="color:#ff5566;">Error: ${e.message}</div>`;
+      }
+  };
+
+  // Listen for pageVisibility changes in Firestore and apply immediately
+  onSnapshot(doc(db, 'siteSettings', 'pageVisibility'), (snap) => {
+      if (!snap.exists()) return;
+      _applyPageVisibility(snap.data());
+  });
+
+  /* ════════════════════════════════════════════════════════════════════
+     EMERGENCY CONTROLS — Founder Only
+  ════════════════════════════════════════════════════════════════════ */
+
+  // Called when the emergency tab opens
+  window.emergencyLoadTabData = async function() {
+      if (!founderOnly()) return;
+      emergencyRefreshStatus();
+  };
+
+  // Refresh live status grid from Firestore
+  window.emergencyRefreshStatus = async function() {
+      if (!founderOnly()) return;
+      const grid = document.getElementById('emergencyStatusGrid');
+      if (!grid) return;
+      grid.innerHTML = '<span style="font-size:12px;color:#6a90b8;">Loading…</span>';
+      try {
+          const snap = await getDoc(doc(db, 'siteSettings', 'config'));
+          const cfg = snap.exists() ? snap.data() : {};
+          const items = [
+              { label: 'Maintenance',   on: cfg.maintenanceMode === true,    onColor: '#ff5566', offColor: '#39FF14', onIcon: '🔴', offIcon: '🟢' },
+              { label: 'Registration',  on: cfg.registrationEnabled !== false, onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
+              { label: 'Posts',         on: cfg.postsEnabled !== false,        onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
+              { label: 'Storm Rooms',   on: cfg.stormRoomsEnabled !== false,   onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
+              { label: 'Arcade',        on: cfg.arcadeEnabled !== false,       onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
+              { label: 'AI Moderation', on: cfg.aiModerationEnabled !== false, onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
+              { label: 'Shadow Bot',    on: cfg.shadowBotEnabled !== false,    onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
+              { label: 'Messages',      on: cfg.messagesTabEnabled !== false,  onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
+              { label: 'Welcome Pop-up',on: cfg.welcomePopupEnabled !== false, onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
+          ];
+          grid.innerHTML = items.map(i => {
+              const color = i.on ? i.onColor : i.offColor;
+              const icon  = i.on ? i.offIcon : i.onIcon; // show current state, not toggle direction
+              return `<span style="font-size:12px;padding:5px 12px;border-radius:20px;border:1px solid ${color}55;background:${color}11;color:${color};font-weight:600;">${icon} ${i.label}</span>`;
+          }).join('');
+          // Sync kill-switch checkboxes
+          const _set = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
+          _set('esFeed',         cfg.postsEnabled !== false);
+          _set('esMessages',     cfg.messagesTabEnabled !== false);
+          _set('esStorm',        cfg.stormRoomsEnabled !== false);
+          _set('esArcade',       cfg.arcadeEnabled !== false);
+          _set('esRegistration', cfg.registrationEnabled !== false);
+          _set('esAI',           cfg.aiModerationEnabled !== false);
+          _set('esBot',          cfg.shadowBotEnabled !== false);
+          _set('esWelcomePopup', cfg.welcomePopupEnabled !== false);
+          // Sync maintenance badge
+          const emBadge = document.getElementById('emergencyMaintBadge');
+          if (emBadge) {
+              emBadge.className = 'maint-status-badge ' + (cfg.maintenanceMode ? 'maint-status-maint' : 'maint-status-online');
+              const t = emBadge.querySelector('.maint-status-text');
+              if (t) t.textContent = cfg.maintenanceMode ? 'Maintenance' : 'Online';
+          }
+      } catch(e) {
+          if (grid) grid.innerHTML = `<span style="color:#ff5566;font-size:12px;">Error loading status: ${e.message}</span>`;
+      }
+  };
+
+  // Generic kill switch (saves to siteSettings/config)
+  window.emergencyToggle = async function(key, val, label) {
+      if (!founderOnly()) return;
+      try {
+          await setDoc(doc(db, 'siteSettings', 'config'), { [key]: val }, { merge: true });
+          await adminAuditLog('EMERGENCY_TOGGLE', `${label}: ${val ? 'ON' : 'OFF'}`);
+          toastNotification(`${val ? '✅' : '⛔'} ${label} ${val ? 'enabled' : 'disabled'}`);
+          emergencyRefreshStatus();
+      } catch(e) {
+          toastNotification('Error: ' + e.message);
+      }
+  };
+
+  // Force reset welcome popup "seen" cache by bumping a version counter in Firestore
+  window.emergencyForceWelcomeReset = async function() {
+      if (!founderOnly()) return;
+      if (!confirm('This will make the welcome pop-up show again for ALL users on their next visit. Continue?')) return;
+      try {
+          const newVersion = Date.now();
+          await setDoc(doc(db, 'siteSettings', 'config'), { welcomePopupVersion: newVersion }, { merge: true });
+          await adminAuditLog('FORCE_WELCOME_RESET', `version=${newVersion}`);
+          toastNotification('🔄 Welcome pop-up cache reset — all users will see it again.');
+      } catch(e) {
+          toastNotification('Error: ' + e.message);
+      }
+  };
+
+  // Send an emergency system announcement (reuses the existing announcement system)
+  window.emergencySendAnnouncement = async function() {
+      if (!founderOnly()) return;
+      const typeEl = document.getElementById('emergencyAnnounceType');
+      const textEl = document.getElementById('emergencyAnnounceText');
+      const type = typeEl ? typeEl.value : 'emergency';
+      const text = textEl ? textEl.value.trim() : '';
+      if (!text) { toastNotification('Please type an announcement message first.'); return; }
+      try {
+          await addDoc(collection(db, 'announcements'), {
+              type,
+              message: text,
+              sentBy: userData.uid,
+              sentByName: userData.displayName,
+              createdAt: serverTimestamp(),
+              ts: Date.now()
+          });
+          await adminAuditLog('EMERGENCY_ANNOUNCEMENT', `[${type.toUpperCase()}] ${text.slice(0, 80)}`);
+          toastNotification('🚨 Emergency announcement sent!');
+          if (textEl) textEl.value = '';
+      } catch(e) {
+          toastNotification('Error sending announcement: ' + e.message);
+      }
   };
 
   /* ── Profile Family & Friends section loaders (need module-scope db/Firestore) ── */
@@ -14348,13 +14973,66 @@ function show(p) {
 }
 
 /* ── Navigate + highlight active nav item + close menu on mobile ── */
+// Helper: show the "page unavailable" screen with a custom message
+function _snxShowUnavailablePage(message) {
+    // Re-use the feed page so the nav bar stays visible; inject a temporary banner
+    show('feed');
+    const existing = document.getElementById('_snxUnavailableBanner');
+    if (existing) existing.remove();
+    const banner = document.createElement('div');
+    banner.id = '_snxUnavailableBanner';
+    banner.style.cssText = [
+        'position:fixed;inset:0;z-index:4000;display:flex;flex-direction:column;',
+        'align-items:center;justify-content:center;padding:32px 24px;',
+        'background:rgba(0,4,14,0.93);backdrop-filter:blur(8px);',
+        'text-align:center;'
+    ].join('');
+    banner.innerHTML = `
+        <div style="font-size:48px;margin-bottom:16px;">🔧</div>
+        <div style="font-size:18px;font-weight:700;color:#d8eeff;margin-bottom:12px;">Feature Temporarily Unavailable</div>
+        <div style="font-size:14px;color:#9bbdd8;max-width:360px;line-height:1.7;margin-bottom:24px;">${message}</div>
+        <button onclick="document.getElementById('_snxUnavailableBanner').remove();navTo('feed');"
+            style="padding:10px 28px;border-radius:20px;background:linear-gradient(135deg,#003d99,#0066cc);
+            border:1px solid rgba(0,174,239,0.6);color:#fff;font-size:14px;font-weight:600;cursor:pointer;">
+            ← Back to Home
+        </button>
+    `;
+    document.body.appendChild(banner);
+}
+
 function navTo(pageId) {
-    // ── Access control: Founder Panel is restricted to role='founder' ──
+    // ── Access control: Founder-only pages ──
     if (pageId === 'adminPage' && window._snxRole !== 'founder') {
         if (typeof toastNotification === 'function') toastNotification('⛔ Access Denied — Founder access only.');
         show('feed');
         return;
     }
+
+    // ── Messages tab guard — hidden by Founder; non-founders cannot navigate to inbox ──
+    if (pageId === 'messagesInbox' && window._snxMessagesTabEnabled === false && window._snxRole !== 'founder') {
+        _snxShowUnavailablePage('The Messages inbox is temporarily unavailable while we work on improvements. You can still message users from their profiles. 💬');
+        return;
+    }
+
+    // ── Page visibility guard — Founder bypasses; normal users blocked if page is hidden ──
+    if (window._snxRole !== 'founder') {
+        // Legacy page visibility object check
+        const _pv  = window._snxPageVisibility || {};
+        const _cfg = _pv[pageId];
+        if (_cfg && _cfg.enabled === false) {
+            const _msg = (_cfg.message || '').trim() ||
+                'This feature is temporarily unavailable while we work on improvements. We\'ll be back soon! 🔧';
+            _snxShowUnavailablePage(_msg);
+            return;
+        }
+        // Founder Control disabled-pages check
+        const _disabled = window._snxDisabledPages || [];
+        if (_disabled.includes(pageId)) {
+            _snxShowUnavailablePage('This page is temporarily unavailable while the Founder applies some fixes. Please check back soon! 🔧');
+            return;
+        }
+    }
+
     show(pageId);
     // Update active nav highlight
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active-nav'));
@@ -14388,6 +15066,10 @@ function navTo(pageId) {
     }
     // Init community hub on first visit
     if (pageId === 'communityPage') commInitPage();
+    // Reconnect inbox listener when opening the Messages page
+    if (pageId === 'messagesInbox' && typeof window._snxInitInboxIfNeeded === 'function') {
+        window._snxInitInboxIfNeeded();
+    }
     // Auto-close sidebar on mobile after navigation
     closeSidebar();
 }
@@ -15653,18 +16335,16 @@ window._showRolePanels = function() {
     const isFndr  = role === 'founder';
 
     // Sidebar nav buttons
-    const navMod  = document.getElementById('navMod');
-    const navAdm  = document.getElementById('navAdminOfficer');
-    const navFndr = document.getElementById('navAdmin');
-    if (navMod)  navMod.style.display  = isMod   ? 'flex' : 'none';
-    if (navAdm)  navAdm.style.display  = isAdm   ? 'flex' : 'none';
-    if (navFndr) navFndr.style.display = isFndr  ? 'flex' : 'none';
+    const navMod        = document.getElementById('navMod');
+    const navAdm        = document.getElementById('navAdminOfficer');
+    const navFndr       = document.getElementById('navAdmin');
+    if (navMod)  navMod.style.display  = isMod  ? 'flex' : 'none';
+    if (navAdm)  navAdm.style.display  = isAdm  ? 'flex' : 'none';
+    if (navFndr) navFndr.style.display = isFndr ? 'flex' : 'none';
 
     // Settings page shortcuts
-    const secFndr = document.getElementById('adminPanelSettingsSection');
     const secAdm  = document.getElementById('adminOfficerSettingsSection');
     const secMod  = document.getElementById('modSettingsSection');
-    if (secFndr) secFndr.style.display = isFndr  ? 'block' : 'none';
     if (secAdm)  secAdm.style.display  = isAdm   ? 'block' : 'none';
     if (secMod)  secMod.style.display  = isMod   ? 'block' : 'none';
 };
@@ -17134,21 +17814,13 @@ function _supportStartCanvas() {
         opacity: 0.04 + Math.random() * 0.06,
         dx: (Math.random() - 0.5) * 0.4,
         dy: -0.1 - Math.random() * 0.2,
-        hue: Math.random() < 0.5 ? '180,100,255' : '120,200,255',
+        hue: Math.random() < 0.5 ? '0,174,239' : '57,255,20',
     }));
 
     function _drawFrame() {
         ctx.clearRect(0, 0, cv.width, cv.height);
 
-        // Soft deep-purple background wash
-        const bg = ctx.createLinearGradient(0, 0, 0, cv.height);
-        bg.addColorStop(0,   'rgba(10,4,22,0.7)');
-        bg.addColorStop(0.6, 'rgba(16,6,32,0.5)');
-        bg.addColorStop(1,   'rgba(6,2,14,0.75)');
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, cv.width, cv.height);
-
-        // Gentle floating light orbs
+        // Gentle floating light orbs (no background wash — use site body bg)
         orbs.forEach(o => {
             const g = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r);
             g.addColorStop(0,   `rgba(${o.hue},${o.opacity})`);
@@ -18151,6 +18823,18 @@ function _localBest(gameId, val) {
    ARCADE HUB — open / close / tabs
    ───────────────────────────────────────────── */
 window.openArcadeHub = function() {
+  // Page visibility guard — Founder bypasses; normal users blocked if Arcade is hidden
+  if (window._snxRole !== 'founder') {
+      const _pv = window._snxPageVisibility || {};
+      const _cfg = _pv['__arcade'];
+      if (_cfg && _cfg.enabled === false) {
+          const _msg = (_cfg.message || '').trim() ||
+              'This feature is temporarily unavailable while we work on improvements. We\'ll be back soon! 🔧';
+          if (typeof _snxShowUnavailablePage === 'function') _snxShowUnavailablePage(_msg);
+          else if (typeof toastNotification === 'function') toastNotification('🔧 ' + _msg);
+          return;
+      }
+  }
   const modal = document.getElementById('arcadeHubModal');
   if (!modal) return;
   modal.classList.add('open');
