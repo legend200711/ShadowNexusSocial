@@ -9639,12 +9639,11 @@ body.arcade-fs-ios body::after { display:none !important; }
                   }
                   const badgeNames = (u.badges||[]).filter(b => b !== 'Founder' || u.role === 'founder').join(', ');
                   av.title = 'Message ' + u.displayName + (badgeNames ? ' · ' + badgeNames : '');
-                  // Clicking the avatar always opens a DM — reliable on both mobile & desktop
+                  // Clicking the avatar opens the profile chat modal (inbox is temporarily disabled)
                   av.addEventListener('click', (e) => {
                       e.stopPropagation();
-                      if (typeof establishDirectMessageChannel === 'function') {
-                          navTo('messagesInbox');
-                          establishDirectMessageChannel(u.uid);
+                      if (typeof window.ipcOpen === 'function') {
+                          window.ipcOpen(u.uid);
                       }
                   });
 
