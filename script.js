@@ -74,27 +74,6 @@
 })();
 
 /* ═══════════════════════════════════════════════
-   3. UPDATE AVAILABLE TOAST
-   ═══════════════════════════════════════════════ */
-function showUpdateToast(worker) {
-  const toast = document.getElementById('pwa-update-toast');
-  if (!toast) return;
-
-  toast.classList.add('visible');
-
-  const btn = toast.querySelector('.update-btn');
-  if (btn) {
-    btn.addEventListener('click', () => {
-      toast.classList.remove('visible');
-      worker.postMessage({ type: 'SKIP_WAITING' });
-    }, { once: true });
-  }
-
-  // Auto-dismiss after 12 seconds
-  setTimeout(() => toast.classList.remove('visible'), 12000);
-}
-
-/* ═══════════════════════════════════════════════
    4. PWA INSTALL BANNER
    ═══════════════════════════════════════════════ */
 let _deferredInstallPrompt = null;
