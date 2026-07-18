@@ -9126,8 +9126,10 @@ body.arcade-fs-ios body::after { display:none !important; }
                   window._snxRole = userData.role || 'member';
               }
               applyAestheticMatrix(userData.aesthetic || 'cyber');
-              // Sync nav panel buttons by role
+              // Sync nav panel buttons by role, then re-apply page visibility
+              // so hidden tabs reflect the correct state for this user's role.
               if (typeof window._showRolePanels === 'function') window._showRolePanels();
+              if (typeof window._snxReapplyNavVisibility === 'function') window._snxReapplyNavVisibility();
               const ps  = userData.privacySettings || {};
               const sel = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
               sel('privSeeProfile',   ps.seeProfile);
@@ -9215,6 +9217,12 @@ body.arcade-fs-ios body::after { display:none !important; }
               }
               if (typeof window._showRolePanels === 'function') window._showRolePanels();
           } catch(_) {}
+          // Re-apply nav visibility now that window._snxRole is confirmed.
+          // Firestore onSnapshot listeners may have fired before auth resolved
+          // (role was unknown), so this replays the cached settings correctly.
+          if (typeof window._snxReapplyNavVisibility === 'function') {
+              window._snxReapplyNavVisibility();
+          }
           // Dismiss auth gate + login loading overlay, then navigate to feed
           const _gate = document.getElementById('snx-auth-gate');
           if (_gate) _gate.classList.add('resolved');
@@ -9319,8 +9327,10 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
 
       // Messages tab visibility (live — hides/shows nav button for all users)
+      // Cache the raw value so _snxReapplyNavVisibility() can replay it after role resolves.
       const _msgEnabled = cfg.messagesTabEnabled !== false;
       window._snxMessagesTabEnabled = _msgEnabled;
+      window._snxCfgMessagesTabEnabled = _msgEnabled; // persisted cache
       _syncMessagesTabUI(_msgEnabled);
   });
 
@@ -9359,6 +9369,27 @@ body.arcade-fs-ios body::after { display:none !important; }
     window.addEventListener('online',  _onNetworkRestored);
     window.addEventListener('offline', _onNetworkLost);
   })();
+
+  /* ── Re-apply all nav visibility settings after role is confirmed ──────────────
+     Both the siteSettings/config onSnapshot and the siteSettings/pageVisibility
+     onSnapshot fire before onAuthStateChanged resolves, so window._snxRole may be
+     undefined when they first run.  This function replays both using the cached
+     snapshots after the role is known, ensuring non-founders see the correct
+     hidden/visible state without a page reload.
+     Called from onAuthStateChanged after _snxRole is confirmed. ── */
+  window._snxReapplyNavVisibility = function() {
+      // Re-apply Messages tab state (saved from siteSettings/config onSnapshot)
+      const _msgEnabled = window._snxCfgMessagesTabEnabled;
+      if (typeof _msgEnabled === 'boolean') {
+          window._snxMessagesTabEnabled = _msgEnabled;
+          if (typeof _syncMessagesTabUI === 'function') _syncMessagesTabUI(_msgEnabled);
+      }
+      // Re-apply per-page visibility (saved from siteSettings/pageVisibility onSnapshot)
+      const _visData = window._snxPageVisibilityData;
+      if (_visData && typeof _applyPageVisibility === 'function') {
+          _applyPageVisibility(_visData);
+      }
+  };
 
   /* ── Sync maintenance status badge + toggle in Founder Controls ── */
   function _syncMaintUI(isOn) {
@@ -14023,6 +14054,10 @@ body.arcade-fs-ios body::after { display:none !important; }
           await setDoc(doc(db, 'siteSettings', 'config'), { messagesTabEnabled: enabled }, { merge: true });
           await adminAuditLog('MESSAGES_TAB', enabled ? 'ENABLED' : 'DISABLED');
           toastNotification(enabled ? '💬 Messages tab ENABLED' : '🔇 Messages tab HIDDEN');
+          // Update cache and apply immediately (onSnapshot will also confirm this shortly after)
+          window._snxMessagesTabEnabled = enabled;
+          window._snxCfgMessagesTabEnabled = enabled;
+          _syncMessagesTabUI(enabled);
       } catch(e) {
           toastNotification('Error: ' + e.message);
           // Revert checkbox on failure
@@ -14164,8 +14199,11 @@ body.arcade-fs-ios body::after { display:none !important; }
           }).catch(() => {});
           await adminAuditLog(visible ? 'SHOW_PAGE' : 'HIDE_PAGE', cfg.label);
           toastNotification(visible ? `👁 ${cfg.label} page shown.` : `🙈 ${cfg.label} page hidden.`);
-          // Apply immediately
-          _applyPageVisibility({ [key]: visible });
+          // Apply immediately by merging the change into the cached snapshot so that
+          // other keys retain their current state (avoids resetting them to defaults).
+          const _merged = Object.assign({}, window._snxPageVisibilityData || {}, { [key]: visible });
+          window._snxPageVisibilityData = _merged;
+          _applyPageVisibility(_merged);
       } catch(e) {
           toastNotification('Error: ' + e.message);
           // Revert checkbox
@@ -14263,10 +14301,13 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
   };
 
-  // Listen for pageVisibility changes in Firestore and apply immediately
+  // Listen for pageVisibility changes in Firestore and apply immediately.
+  // Always cache the raw snapshot so _snxReapplyNavVisibility() can replay it
+  // after auth resolves and window._snxRole is confirmed.
   onSnapshot(doc(db, 'siteSettings', 'pageVisibility'), (snap) => {
-      if (!snap.exists()) return;
-      _applyPageVisibility(snap.data());
+      const visData = snap.exists() ? snap.data() : {};
+      window._snxPageVisibilityData = visData; // persistent cache
+      _applyPageVisibility(visData);
   });
 
   /* ════════════════════════════════════════════════════════════════════
