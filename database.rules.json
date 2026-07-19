@@ -1,91 +1,33 @@
 {
   "rules": {
-    // ── Live rooms ─────────────────────────────────────────────────────────────
-    // Path: /liveRooms/{roomId}/...
-    //   Any signed-in user can read the whole room.
-    //   Writes are scoped per child so individual users cannot corrupt each other's data.
     "liveRooms": {
       "$roomId": {
-        ".read": "auth != null",
-
-        // Host-only root fields — locked to the host uid stored in host.uid
-        "host":      { ".write": "auth != null" },
-        "startedAt": { ".write": "auth != null" },
-        "messages":  { ".write": "auth != null" },
-        "likes":     { ".write": "auth != null" },
-
-        // Viewer count — any authenticated user may increment/decrement
-        // onDisconnect handlers also need write access here
-        "viewerCount": { ".write": "auth != null" },
-
-        // Per-viewer presence — each user owns only their own slot
-        "viewers": {
-          "$uid": {
-            ".read":  "auth != null",
-            ".write": "auth != null && auth.uid === $uid"
-          }
-        }
+        ".read":  "auth != null",
+        ".write": "auth != null"
       }
     },
-
-    // ── Storm Rooms ─────────────────────────────────────────────────────────────
-    // Path: /stormRooms/{roomId}/...
-    //   presence/{key}  — online user presence (anonymous, no auth required)
-    //   messages/{msgId} — chat messages
+    "liveConnections": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
     "stormRooms": {
       "$roomId": {
-        // Anyone can read storm rooms — they're public/code-gated
-        ".read": true,
-
-        "presence": {
-          "$key": {
-            ".write": true,
-            ".validate": "newData.hasChildren(['name','joined'])"
-          }
-        },
-
-        "typing": {
-          "$key": {
-            ".write": true,
-            ".validate": "newData.hasChildren(['name','ts'])"
-          }
-        },
-
-        "messages": {
-          "$msgId": {
-            ".write": true,
-            ".validate": "newData.hasChildren(['text','ts','name','type']) || newData.hasChildren(['type','text','ts','name'])"
-          }
-        }
+        ".read":  "auth != null",
+        ".write": "auth != null"
       }
     },
-
-    // ── Support Rooms ───────────────────────────────────────────────────────────
     "supportRooms": {
       "$roomId": {
-        // Publicly readable so lobby counts work without sign-in
-        ".read": true,
-
-        "presence": {
-          "$key": {
-            ".write": true,
-            ".validate": "newData.hasChildren(['name','joined'])"
-          }
-        },
-
-        "typing": {
-          "$key": {
-            ".write": true,
-            ".validate": "newData.hasChildren(['name','ts'])"
-          }
-        },
-
-        "messages": {
-          "$msgId": {
-            ".write": true,
-            ".validate": "newData.hasChildren(['text','ts','name','type']) || newData.hasChildren(['type','text','ts','name'])"
-          }
-        }
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "userLive": {
+      "$uid": {
+        ".read":  "auth != null",
+        ".write": "auth != null && auth.uid == $uid"
       }
     }
   }

@@ -32,14 +32,14 @@
 <meta property="og:title"       content="Shadow Nexus Social">
 <meta property="og:description" content="Connect, post, message, and share. No judgment. Stay legendary. 🌑🔥">
 <meta property="og:type"        content="website">
-<meta property="og:url"         content="https://legend200711.github.io/ShadowNexusSocial/">
-<meta property="og:image"       content="https://legend200711.github.io/ShadowNexusSocial/icon-512.png">
+<meta property="og:url"         content="https://legend200711.github.io/TEST/">
+<meta property="og:image"       content="https://legend200711.github.io/TEST/icon-512.png">
 
 <!-- ── Twitter Card ── -->
 <meta name="twitter:card"        content="summary">
 <meta name="twitter:title"       content="Shadow Nexus Social">
 <meta name="twitter:description" content="Connect, post, message, and share. No judgment. Stay legendary.">
-<meta name="twitter:image"       content="https://legend200711.github.io/ShadowNexusSocial/icon-512.png">
+<meta name="twitter:image"       content="https://legend200711.github.io/TEST/icon-512.png">
 
 <!-- ── Shared stylesheet ── -->
 <link rel="stylesheet" href="style.css">
@@ -404,6 +404,25 @@ body::after {
     box-shadow: inset 2px 0 0 rgba(0,200,255,0.5);
 }
 .nav-item:active { background: rgba(0,110,255,0.18); }
+/* ── Go Live — single canonical creator button ── */
+.nav-item-go-live {
+    color: #ff5566;
+    background: rgba(255,30,60,0.07);
+    border-left: 3px solid rgba(255,50,80,0.60);
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    animation: navGoLivePulse 2.4s ease-in-out infinite;
+}
+.nav-item-go-live:hover {
+    background: rgba(255,30,60,0.15) !important;
+    color: #ff2244 !important;
+    box-shadow: inset 3px 0 0 #ff3344, 0 0 12px rgba(255,30,60,0.18) !important;
+}
+.nav-item-go-live:active { background: rgba(255,30,60,0.22) !important; }
+@keyframes navGoLivePulse {
+    0%,100% { box-shadow: inset 3px 0 0 rgba(255,50,80,0.60); }
+    50%      { box-shadow: inset 3px 0 0 rgba(255,50,80,1), 0 0 10px rgba(255,30,60,0.25); }
+}
 .nav-item.active-nav {
     background: rgba(0,130,255,0.13);
     color: #00eeff;
@@ -507,6 +526,153 @@ input:focus, textarea:focus, select:focus {
 }
 
 .users-strip { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; margin-bottom: 15px; scrollbar-width: none; }
+
+/* ── Feed Live Banner ── */
+.feed-live-dot-pulse {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #ff3344; flex-shrink: 0;
+    box-shadow: 0 0 0 0 rgba(255,51,68,0.7);
+    animation: feedLivePulse 1.4s ease-in-out infinite;
+    display: inline-block;
+}
+@keyframes feedLivePulse {
+    0%   { box-shadow: 0 0 0 0   rgba(255,51,68,0.7); }
+    70%  { box-shadow: 0 0 0 7px rgba(255,51,68,0);   }
+    100% { box-shadow: 0 0 0 0   rgba(255,51,68,0);   }
+}
+.feed-live-card {
+    flex-shrink: 0;
+    width: 160px;
+    background: rgba(10,16,38,0.94);
+    border: 1px solid rgba(255,40,70,0.38);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    transition: border-color .2s, box-shadow .2s, transform .15s;
+    box-shadow: 0 2px 16px rgba(255,30,60,0.1);
+    animation: feedCardIn .25s ease-out both;
+    position: relative;
+}
+.feed-live-card:hover {
+    border-color: rgba(255,40,70,0.75);
+    box-shadow: 0 4px 28px rgba(255,30,60,0.28);
+    transform: translateY(-2px);
+}
+.feed-live-card:active { transform: scale(0.97); }
+@keyframes feedCardIn {
+    from { opacity:0; transform: translateY(6px) scale(0.97); }
+    to   { opacity:1; transform: translateY(0)   scale(1);    }
+}
+.flc-thumb {
+    width: 100%; height: 90px;
+    background: #070d1a;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+.flc-thumb-img {
+    width: 100%; height: 100%; object-fit: cover;
+}
+.flc-thumb-initial {
+    font-size: 34px; font-weight: 800; color: rgba(0,174,239,0.75);
+    text-shadow: 0 0 20px rgba(0,174,239,0.55);
+    user-select: none;
+}
+.flc-live-pill {
+    position: absolute; top: 7px; left: 7px;
+    background: #ff2244; color: #fff;
+    font-size: 9px; font-weight: 800; letter-spacing: 1px;
+    padding: 2px 7px; border-radius: 6px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 4px;
+    box-shadow: 0 0 10px rgba(255,30,60,0.6);
+}
+.flc-live-pill::before {
+    content: '';
+    width: 5px; height: 5px; border-radius: 50%; background: #fff;
+    animation: feedLivePulse 1.2s ease-in-out infinite;
+    display: inline-block;
+}
+.flc-viewers {
+    position: absolute; bottom: 6px; right: 7px;
+    background: rgba(0,0,0,0.62);
+    color: rgba(255,255,255,0.85);
+    font-size: 10px; padding: 2px 6px; border-radius: 10px;
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; gap: 3px;
+}
+.flc-body {
+    padding: 8px 10px 10px;
+    flex: 1; display: flex; flex-direction: column; gap: 3px;
+}
+.flc-name {
+    font-size: 12px; font-weight: 700; color: #e0f0ff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.flc-title {
+    font-size: 11px; color: #4a7a9a;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    line-height: 1.3;
+}
+.flc-join-btn {
+    margin-top: 7px;
+    width: 100%;
+    background: linear-gradient(135deg, #cc1133, #ff2244);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 6px 0;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: filter .15s;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.flc-join-btn:hover { filter: brightness(1.14); }
+
+/* ── Feed Live Post Card (in main feed scroll) ── */
+.snx-feed-live-card {
+    background: linear-gradient(135deg, rgba(120,0,30,0.18), rgba(10,16,38,0.96));
+    border: 1px solid rgba(255,40,70,0.45);
+    border-radius: 14px;
+    padding: 16px 18px 14px;
+    box-shadow: 0 2px 20px rgba(255,30,60,0.12);
+    animation: postSlideIn 0.22s ease-out both;
+}
+.snx-flc-avatar {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: rgba(0,40,100,0.7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 800; color: #00AEEF;
+    flex-shrink: 0; cursor: pointer;
+    background-size: cover; background-position: center;
+    transition: box-shadow .2s;
+}
+.snx-flc-avatar.is-live {
+    box-shadow: 0 0 0 3px #ff2244, 0 0 0 5px rgba(255,34,68,0.35);
+    animation: avatarLivePulse 1.4s ease-in-out infinite;
+}
+.snx-live-dot-anim {
+    width: 7px; height: 7px; border-radius: 50%; background: #ff3344; flex-shrink: 0;
+    animation: feedLivePulse 1.2s ease-in-out infinite; display: inline-block;
+}
+.snx-flc-watch-btn {
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #cc1133, #ff2244);
+    color: #fff; font-size: 14px; font-weight: 800;
+    border-radius: 12px; padding: 12px 18px;
+    text-decoration: none; gap: 8px;
+    letter-spacing: 0.3px;
+    box-shadow: 0 2px 14px rgba(255,30,60,0.35);
+    transition: filter .15s, transform .12s;
+}
+.snx-flc-watch-btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.snx-flc-watch-btn:active { transform: scale(0.97); }
+
 .users-strip::-webkit-scrollbar { display: none; }
 .user-chip {
     background: rgba(0,15,40,0.85);
@@ -651,6 +817,11 @@ input:focus, textarea:focus, select:focus {
 .profile-mood-text { font-size: 12px; color: #00ff88; margin-bottom: 4px; text-shadow: 0 0 8px rgba(0,255,136,0.4); }
 /* Online status badge on profile */
 .profile-online-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#00ff88; margin-bottom:6px; }
+.profile-live-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:12px; background:rgba(255,30,60,0.12); border:1px solid rgba(255,30,60,0.60); color:#ff3344; font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; cursor:pointer; text-decoration:none; margin-bottom:6px; animation:snxLiveBadge 2s ease-in-out infinite; }
+.profile-live-badge:hover { background:rgba(255,30,60,0.24); text-decoration:none; }
+.profile-live-badge-dot { width:7px; height:7px; border-radius:50%; background:#ff3344; flex-shrink:0; animation:snxLiveDot 1s ease-in-out infinite; }
+@keyframes snxLiveBadge { 0%,100%{box-shadow:0 0 5px rgba(255,30,60,0.25);} 50%{box-shadow:0 0 14px rgba(255,30,60,0.60);} }
+@keyframes snxLiveDot   { 0%,100%{opacity:1;} 50%{opacity:0.25;} }
 .profile-online-dot { width:8px; height:8px; border-radius:50%; background:#00ff88; box-shadow:0 0 6px rgba(0,255,136,0.8); animation:greenPulse 2s infinite; flex-shrink:0; }
 .profile-joined-text { font-size:11px; color:#3a5a7a; margin-bottom:8px; }
 /* Character counter for post composer */
@@ -4127,6 +4298,11 @@ input:focus, textarea:focus, select:focus {
     color: #031000 !important;
     box-shadow: 0 0 10px rgba(57,255,20,0.70) !important;
 }
+/* Go Live button — always red, overrides theme nav colour */
+.nav-item.nav-item-go-live { color: #ff5566 !important; animation: navGoLivePulse 2.4s ease-in-out infinite !important; }
+.nav-item.nav-item-go-live .nav-icon { color: #ff3344 !important; filter: drop-shadow(0 0 5px rgba(255,30,60,0.70)) !important; }
+.nav-item.nav-item-go-live:hover { background: rgba(255,30,60,0.15) !important; color: #ff2244 !important; }
+.nav-item.nav-item-go-live:hover .nav-icon { filter: drop-shadow(0 0 8px rgba(255,30,60,0.90)) !important; }
 
 /* ──────────────────────────────────────────
    4. MESSAGE BUBBLES
@@ -4393,6 +4569,85 @@ body::after {
 .snx-wall-save-text { font-size: 13px; color: #8ab0cc; line-height: 1.3; }
 .snx-wall-save-label:has(input:checked) .snx-wall-save-text { color: #c8e8ff; }
 
+/* ── Photo post destination options panel ── */
+.snx-photo-post-options {
+    margin-top: 10px;
+    padding: 10px 12px 6px;
+    border: 1px solid rgba(0,174,239,0.28);
+    border-radius: 12px;
+    background: rgba(0,20,55,0.38);
+}
+.snx-photo-post-options-title {
+    font-size: 11px; font-weight: 700; color: #5ab8d8;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    margin-bottom: 8px;
+}
+.snx-photo-post-options .snx-wall-save-label { margin-top: 0; }
+
+/* ── Profile Wall post social bar (likes / comments / share) ── */
+.snx-pwall-social-bar {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 10px; padding-top: 8px;
+    border-top: 1px solid rgba(0,80,180,0.18);
+    flex-wrap: wrap;
+}
+.snx-pwall-social-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: none; border: 1px solid rgba(0,120,220,0.22);
+    color: #6a90b8; font-size: 12px; padding: 4px 10px;
+    border-radius: 20px; cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    touch-action: manipulation;
+}
+.snx-pwall-social-btn:hover { border-color: rgba(0,174,239,0.55); color: #c8e8ff; background: rgba(0,174,239,0.07); }
+.snx-pwall-social-btn.liked { border-color: rgba(255,80,120,0.55); color: #ff6090; background: rgba(255,80,120,0.07); }
+.snx-pwall-social-btn.share-btn { border-color: rgba(57,255,20,0.25); color: #5aee3a; }
+.snx-pwall-social-btn.share-btn:hover { border-color: rgba(57,255,20,0.55); background: rgba(57,255,20,0.07); }
+
+/* ── Wall post inline comment section ── */
+.snx-pwall-comments {
+    margin-top: 8px; padding-top: 8px;
+    border-top: 1px solid rgba(0,80,180,0.15);
+    display: none;
+}
+.snx-pwall-comments.open { display: block; }
+.snx-pwall-comment-list { max-height: 200px; overflow-y: auto; margin-bottom: 8px; }
+.snx-pwall-comment-item {
+    display: flex; gap: 8px; align-items: flex-start;
+    padding: 5px 0; border-bottom: 1px solid rgba(0,60,140,0.12);
+}
+.snx-pwall-comment-item:last-child { border-bottom: none; }
+.snx-pwall-comment-avatar {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    background: #071428 center/cover no-repeat;
+    border: 1.5px solid rgba(0,160,255,0.35);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: bold; color: #00AEEF; overflow: hidden;
+}
+.snx-pwall-comment-body { flex: 1; min-width: 0; }
+.snx-pwall-comment-author { font-size: 11px; font-weight: 700; color: #00aaff; margin-bottom: 1px; }
+.snx-pwall-comment-text { font-size: 13px; color: #c8e0ff; word-break: break-word; line-height: 1.4; }
+.snx-pwall-comment-ts { font-size: 10px; color: #3a5a7a; margin-top: 2px; }
+.snx-pwall-comment-del { background:none;border:none;color:#ff5577;font-size:11px;cursor:pointer;padding:0 2px;margin-left:4px;opacity:0.7;transition:opacity .15s; }
+.snx-pwall-comment-del:hover { opacity:1; }
+.snx-pwall-comment-input-row {
+    display: flex; gap: 6px; align-items: center;
+}
+.snx-pwall-comment-input {
+    flex: 1; background: rgba(7,20,40,0.8); border: 1px solid rgba(0,120,220,0.3);
+    border-radius: 20px; padding: 6px 14px; color: #c8e8ff; font-size: 13px;
+    outline: none; transition: border-color 0.15s;
+}
+.snx-pwall-comment-input:focus { border-color: rgba(0,174,239,0.6); }
+.snx-pwall-comment-send {
+    background: rgba(0,100,220,0.2); border: 1px solid rgba(0,174,239,0.4);
+    color: #00AEEF; font-size: 12px; font-weight: 700;
+    padding: 6px 14px; border-radius: 20px; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s; flex-shrink: 0;
+    touch-action: manipulation;
+}
+.snx-pwall-comment-send:hover { background: rgba(0,120,240,0.3); border-color: #00AEEF; }
+
 /* ── Profile Wall post card ── */
 .snx-pwall-post {
     border: 1px solid rgba(0,80,180,0.22);
@@ -4458,89 +4713,6 @@ body::after {
 
 /* Visitor wall card spacing */
 #visitorWallCard { margin-top: 12px; }
-
-/* ── Photo post destination panel ── */
-.snx-photo-post-opts {
-    margin-top: 10px; padding: 10px 12px 8px;
-    border: 1px solid rgba(0,174,239,0.28);
-    border-radius: 11px; background: rgba(0,15,40,0.5);
-}
-.snx-photo-post-opts-title {
-    font-size: 11px; font-weight: 700; color: #3a8aaa;
-    text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px;
-}
-.snx-photo-post-opts-hint {
-    font-size: 11px; color: #4a8aaa; margin-top: 7px; min-height: 14px;
-    padding: 0 2px; transition: color 0.15s;
-}
-/* Green variant for album checkbox tick */
-.snx-wall-save-check--green {
-    border-color: rgba(57,255,20,0.45);
-}
-.snx-wall-save-label:has(input:checked) .snx-wall-save-check--green {
-    background: rgba(57,255,20,0.15);
-    border-color: #39ff14;
-}
-.snx-wall-save-label:has(input:checked) .snx-wall-save-check--green::after {
-    content: '✓'; color: #39ff14; font-size: 12px; font-weight: 800;
-    position: absolute;
-}
-
-/* ── Profile Wall social action bar ── */
-.snx-pwall-social-bar {
-    display: flex; align-items: center; gap: 6px;
-    margin-top: 10px; flex-wrap: wrap;
-}
-.snx-pwall-social-btn {
-    background: none;
-    border: 1px solid rgba(0,120,200,0.25);
-    color: #5a88aa; font-size: 12px; padding: 4px 11px;
-    border-radius: 10px; cursor: pointer;
-    transition: border-color 0.15s, color 0.15s, background 0.15s;
-    display: inline-flex; align-items: center; gap: 4px;
-}
-.snx-pwall-social-btn:hover {
-    border-color: rgba(0,174,239,0.5); color: #a0d8f0;
-    background: rgba(0,80,160,0.1);
-}
-.snx-pwall-like-btn.liked { color: #ff6090; border-color: rgba(255,80,130,0.4); }
-.snx-pwall-like-btn.liked:hover { background: rgba(255,60,100,0.08); }
-
-/* ── Profile Wall comments ── */
-.snx-pwall-comments-section {
-    margin-top: 10px; padding: 8px 10px;
-    border: 1px solid rgba(0,80,160,0.18);
-    border-radius: 10px; background: rgba(0,10,30,0.3);
-}
-.snx-pwall-comments-list { margin-bottom: 8px; }
-.snx-pwall-comment {
-    display: flex; gap: 6px; align-items: baseline;
-    padding: 5px 0; border-bottom: 1px solid rgba(0,60,120,0.12);
-    font-size: 12px; flex-wrap: wrap;
-}
-.snx-pwall-comment:last-child { border-bottom: none; }
-.snx-pwall-comment-author {
-    color: #55a8d8; font-weight: 700; flex-shrink: 0;
-}
-.snx-pwall-comment-text { color: #b0cce0; flex: 1; word-break: break-word; }
-.snx-pwall-comment-ts { color: #3a5a7a; font-size: 10px; white-space: nowrap; }
-.snx-pwall-comment-input-row {
-    display: flex; gap: 6px; align-items: center;
-}
-.snx-pwall-comment-input {
-    flex: 1; background: rgba(0,15,40,0.6);
-    border: 1px solid rgba(0,100,180,0.3); border-radius: 8px;
-    color: #c0ddf0; font-size: 12px; padding: 5px 10px;
-    outline: none; transition: border-color 0.15s;
-}
-.snx-pwall-comment-input:focus { border-color: rgba(0,174,239,0.55); }
-.snx-pwall-comment-send {
-    background: rgba(0,80,160,0.3); border: 1px solid rgba(0,174,239,0.35);
-    color: #70c8ee; font-size: 11px; padding: 5px 12px; border-radius: 8px;
-    cursor: pointer; transition: background 0.15s, color 0.15s;
-    white-space: nowrap;
-}
-.snx-pwall-comment-send:hover { background: rgba(0,120,220,0.35); color: #c0e8ff; }
 
 /* ═══════════════════════════════════════════════════════════
    SHADOW NEXUS ARCADE — Built-In Retro Arcade System
@@ -5133,27 +5305,214 @@ body.arcade-fs-ios body::after { display:none !important; }
 /* "Add Story" button + all story bubbles share this base */
 .story-bubble {
     display: flex; flex-direction: column; align-items: center; gap: 5px;
-    flex-shrink: 0; cursor: pointer; width: 64px;
+    flex-shrink: 0; cursor: pointer; width: 70px; position: relative;
 }
 .story-ring {
-    width: 58px; height: 58px; border-radius: 50%; padding: 2.5px;
-    background: linear-gradient(135deg, #00AEEF, #7c5cd8, #ff3399);
-    box-sizing: border-box; flex-shrink: 0;
-    transition: transform 0.15s, box-shadow 0.15s;
+    width: 70px; height: 70px; border-radius: 50%; padding: 3px;
+    box-sizing: border-box; flex-shrink: 0; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    /* default: blue glow for active stories */
+    border: 3px solid #00aaff;
+    box-shadow: 0 0 10px #00aaff, 0 0 20px #0088ff;
 }
-.story-ring:hover { transform: scale(1.08); box-shadow: 0 0 14px rgba(0,174,239,0.55); }
+.story-ring:hover { transform: scale(1.08); }
+
+/* Blue — active / seen story */
+.story-ring-blue {
+    border: 3px solid #00aaff;
+    box-shadow: 0 0 10px #00aaff, 0 0 20px #0088ff;
+}
+/* Red — unseen / new story */
+.story-ring-red {
+    border: 3px solid #ff0033;
+    box-shadow: 0 0 10px #ff0033, 0 0 20px #ff3366;
+}
+/* Green — online user with no new story */
+.story-ring-green {
+    border: 3px solid #00ff66;
+    box-shadow: 0 0 10px #00ff66, 0 0 20px #00cc55;
+}
+/* Seen state — dim, no glow */
 .story-ring-seen {
-    background: rgba(0,80,150,0.35) !important;
-    border: 2.5px solid rgba(0,80,150,0.4);
-    padding: 0;
+    border: 3px solid rgba(0,80,150,0.4) !important;
+    box-shadow: none !important;
 }
+/* Live story ring — red pulsing glow */
+.story-ring-live {
+    border: 3px solid #ff2244 !important;
+    box-shadow: 0 0 10px #ff2244, 0 0 20px #ff3366 !important;
+    animation: liveRingPulse 1.4s ease-in-out infinite !important;
+}
+@keyframes liveRingPulse {
+    0%,100% { box-shadow: 0 0 10px #ff2244, 0 0 20px #ff3366; }
+    50%     { box-shadow: 0 0 18px #ff2244, 0 0 36px #ff3366, 0 0 6px #ff2244; }
+}
+/* Online dot — small green pip at bottom-right of bubble */
+.story-online-dot {
+    position: absolute; bottom: 2px; right: 2px;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #00ff66;
+    box-shadow: 0 0 6px #00ff66, 0 0 12px #00cc55;
+    border: 2px solid #070f20;
+    pointer-events: none;
+    z-index: 2;
+}
+.story-live-badge {
+    position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
+    background: #ff2244; color: #fff; font-size: 8px; font-weight: 800;
+    letter-spacing: 0.8px; padding: 1px 5px; border-radius: 4px;
+    text-transform: uppercase; white-space: nowrap;
+    box-shadow: 0 0 8px rgba(255,34,68,0.65);
+    pointer-events: none;
+}
+.story-bubble { position: relative; }
+/* Profile avatar live ring — red pulsing border overlay */
+.p-avatar.is-live {
+    border-color: rgba(255,30,60,0.85) !important;
+    box-shadow: 0 0 0 3px rgba(255,30,60,0.6), 0 0 22px rgba(255,30,60,0.45) !important;
+    animation: avatarLivePulse 1.4s ease-in-out infinite !important;
+}
+@keyframes avatarLivePulse {
+    0%,100% { box-shadow: 0 0 0 3px rgba(255,30,60,0.55), 0 0 18px rgba(255,30,60,0.35); }
+    50%     { box-shadow: 0 0 0 5px rgba(255,30,60,0.80), 0 0 32px rgba(255,30,60,0.60); }
+}
+/* ── Live Hub Page ── */
+.live-hub-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
+}
+.live-hub-title {
+    font-size: 22px; font-weight: 800; color: #fff;
+    display: flex; align-items: center; gap: 10px;
+}
+.live-hub-live-count {
+    font-size: 12px; font-weight: 700; padding: 3px 10px;
+    background: rgba(255,30,60,0.18); border: 1px solid rgba(255,30,60,0.55);
+    color: #ff5566; border-radius: 20px; letter-spacing: 0.5px;
+}
+.live-hub-empty {
+    text-align: center; padding: 60px 20px; color: #3a5a7a;
+}
+.live-hub-empty-icon { font-size: 52px; margin-bottom: 14px; }
+.live-hub-empty-text { font-size: 14px; line-height: 1.6; }
+.live-hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+.live-hub-card {
+    background: rgba(10, 16, 38, 0.95);
+    border: 1px solid rgba(255,40,70,0.35);
+    border-radius: 16px; overflow: hidden;
+    cursor: pointer; text-decoration: none; display: flex; flex-direction: column;
+    transition: border-color .2s, box-shadow .2s, transform .15s, opacity .25s;
+    box-shadow: 0 2px 18px rgba(255,30,60,0.08);
+    animation: lhcIn .28s ease-out both;
+}
+.live-hub-card:hover {
+    border-color: rgba(255,40,70,0.7);
+    box-shadow: 0 0 0 1px rgba(255,40,70,0.4), 0 4px 32px rgba(255,30,60,0.25);
+    transform: translateY(-2px);
+}
+.live-hub-card:active { transform: scale(0.97); }
+.live-hub-card.lhc-removing {
+    animation: lhcOut .28s ease-in forwards;
+    pointer-events: none;
+}
+@keyframes lhcIn {
+    from { opacity:0; transform: translateY(10px) scale(0.96); }
+    to   { opacity:1; transform: translateY(0) scale(1); }
+}
+@keyframes lhcOut {
+    from { opacity:1; transform: scale(1); }
+    to   { opacity:0; transform: scale(0.92); }
+}
+/* Category chip on live card */
+.lhc-category {
+    display: inline-flex; align-items: center;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.4px;
+    padding: 2px 8px; border-radius: 20px; margin-top: 4px;
+    background: rgba(0,174,239,0.14); border: 1px solid rgba(0,174,239,0.30);
+    color: #66ccff; width: fit-content;
+}
+.lhc-thumb {
+    width: 100%; height: 110px;
+    background: #060c1a; display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+}
+.lhc-avatar-large {
+    width: 60px; height: 60px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(0,40,100,0.7) center/cover no-repeat;
+    border: 3px solid rgba(255,30,60,0.7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 800; color: #00AEEF;
+    box-shadow: 0 0 0 4px rgba(255,30,60,0.25), 0 0 18px rgba(255,30,60,0.4);
+    animation: avatarLivePulse 1.4s ease-in-out infinite;
+}
+.lhc-live-pill {
+    position: absolute; top: 8px; left: 8px;
+    background: #ff2244; color: #fff;
+    font-size: 9px; font-weight: 800; letter-spacing: 1.2px;
+    padding: 2px 8px; border-radius: 6px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 4px;
+    box-shadow: 0 0 10px rgba(255,30,60,0.6);
+}
+.lhc-live-pill::before {
+    content: ''; width: 5px; height: 5px; border-radius: 50%;
+    background: #fff; animation: feedLivePulse 1.2s ease-in-out infinite;
+    display: inline-block;
+}
+.lhc-viewers {
+    position: absolute; bottom: 7px; right: 8px;
+    background: rgba(0,0,0,0.65); color: rgba(255,255,255,0.88);
+    font-size: 10px; padding: 2px 7px; border-radius: 10px;
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; gap: 3px;
+}
+.lhc-elapsed {
+    position: absolute; bottom: 7px; left: 8px;
+    background: rgba(0,0,0,0.65); color: rgba(255,255,255,0.6);
+    font-size: 10px; padding: 2px 7px; border-radius: 10px;
+    backdrop-filter: blur(4px);
+}
+.lhc-body {
+    padding: 12px 14px 14px; flex: 1; display: flex; flex-direction: column; gap: 4px;
+}
+.lhc-name {
+    font-size: 14px; font-weight: 800; color: #e8f4ff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lhc-handle {
+    font-size: 11px; color: #4a7a9a;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lhc-title {
+    font-size: 12px; color: #8ab0cc; line-height: 1.4; margin-top: 2px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.lhc-watch-btn {
+    margin-top: 10px; width: 100%;
+    background: linear-gradient(135deg, #cc1133, #ff2244);
+    border: none; border-radius: 10px; color: #fff;
+    font-size: 13px; font-weight: 800; padding: 9px 0;
+    cursor: pointer; letter-spacing: 0.4px;
+    transition: filter .15s, transform .12s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.lhc-watch-btn:hover { filter: brightness(1.14); }
+.lhc-watch-btn:active { transform: scale(0.96); }
+
 .story-ring-inner {
-    width: 100%; height: 100%; border-radius: 50%;
+    width: 60px; height: 60px; border-radius: 50%;
     background: #070f20 center/cover no-repeat;
     display: flex; align-items: center; justify-content: center;
     font-size: 13px; font-weight: 700; color: #00AEEF;
     overflow: hidden;
     border: 2px solid #070f20;
+    flex-shrink: 0;
 }
 .story-add-ring {
     background: none !important;
@@ -5562,6 +5921,14 @@ body.arcade-fs-ios body::after { display:none !important; }
             <span class="nav-icon">🕹️</span> Arcade
             <span class="nav-badge" id="sidebarArcadeBadge"></span>
         </button>
+        <button class="nav-item" id="navLiveHub" onclick="navTo('liveHubPage')" style="color:#ff4455;border-left:3px solid rgba(255,50,80,0.55);">
+            <span class="nav-icon">🔴</span> Live Hub
+            <span id="navLiveHubCount" class="nav-badge" style="display:none;background:#ff3344;"></span>
+        </button>
+        <button class="nav-item nav-item-go-live" id="navLive" onclick="goLiveOrWatch()">
+            <span class="nav-icon">🔴</span> Go Live
+            <span id="navLiveDot" class="nav-badge" style="display:none;background:#ff3344;"></span>
+        </button>
         <button class="nav-item" id="navStorm" onclick="navTo('stormRoomsPage')">
             <span class="nav-icon">⚡</span> Storm Rooms
         </button>
@@ -5669,6 +6036,20 @@ body.arcade-fs-ios body::after { display:none !important; }
         </div>
     </div>
 
+    <!-- ── LIVE NOW banner — real-time live rooms popup strip ── -->
+    <div id="feedLiveBanner" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px;">
+            <span style="font-size:11px;font-weight:700;color:#ff4455;letter-spacing:1.2px;text-transform:uppercase;display:flex;align-items:center;gap:7px;">
+                <span class="feed-live-dot-pulse"></span> LIVE NOW
+                <span id="feedLiveCount" style="background:rgba(255,40,70,0.15);border:1px solid rgba(255,40,70,0.45);color:#ff6677;font-size:10px;padding:1px 7px;border-radius:20px;"></span>
+            </span>
+            <a href="live.html" style="font-size:11px;color:#3a6a9a;text-decoration:none;padding:3px 10px;border:1px solid rgba(0,174,239,0.22);border-radius:12px;transition:color .15s,border-color .15s;" onmouseover="this.style.color='#00aeef';this.style.borderColor='rgba(0,174,239,0.55)'" onmouseout="this.style.color='#3a6a9a';this.style.borderColor='rgba(0,174,239,0.22)'">See all →</a>
+        </div>
+        <div id="feedLiveCards" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+            <!-- Cards injected by JS -->
+        </div>
+    </div>
+
     <!-- Active-now strip — only shown when other members exist -->
     <div id="activeUsersStripWrap">
         <h4 style="color:#3a6a9a; font-size:11px; font-weight:700; margin:0 0 8px; letter-spacing:1px; text-transform:uppercase;">🟢 Online Now</h4>
@@ -5705,27 +6086,28 @@ body.arcade-fs-ios body::after { display:none !important; }
         <!-- Hidden: stores the final uploaded URL -->
         <input type="hidden" id="postMediaUrl" value="">
 
-        <!-- Photo post destination options (only shown when a photo/video is attached) -->
-        <div class="snx-photo-post-opts" id="snxPhotoPostOpts" style="display:none;">
-            <div class="snx-photo-post-opts-title">📍 Where should this photo appear?</div>
-            <label class="snx-wall-save-label" id="snxChkAlbumLabel">
-                <input type="checkbox" id="chkSaveToAlbum" onchange="_snxUpdatePhotoHint()">
-                <span class="snx-wall-save-check snx-wall-save-check--green"></span>
+        <!-- Photo post destination options — only visible when media is attached -->
+        <div class="snx-photo-post-options" id="photoPostOptions" style="display:none;">
+            <div class="snx-photo-post-options-title">📷 Photo Destination</div>
+            <!-- Save to Photo Album -->
+            <label class="snx-wall-save-label" id="albumSaveLabel">
+                <input type="checkbox" id="chkSaveToAlbum">
+                <span class="snx-wall-save-check"></span>
                 <span class="snx-wall-save-text">📸 Save to My Photo Album</span>
             </label>
+            <!-- Post to Profile Wall -->
             <label class="snx-wall-save-label" id="wallSaveLabel" style="margin-top:6px;">
-                <input type="checkbox" id="chkSaveToWall" onchange="_snxUpdatePhotoHint()">
+                <input type="checkbox" id="chkSaveToWall">
                 <span class="snx-wall-save-check"></span>
                 <span class="snx-wall-save-text">📌 Post to My Profile Wall</span>
             </label>
-            <div class="snx-photo-post-opts-hint" id="snxPhotoDestHint"></div>
         </div>
 
-        <!-- Wall-only toggle shown when no photo is attached -->
-        <label class="snx-wall-save-label" id="wallSaveLabelStandalone">
+        <!-- Save to Profile Wall toggle — shown for text-only posts -->
+        <label class="snx-wall-save-label" id="wallSaveLabelText" style="margin-top:10px;">
             <input type="checkbox" id="chkSaveToWallText">
             <span class="snx-wall-save-check"></span>
-            <span class="snx-wall-save-text">📌 Post to My Profile Wall</span>
+            <span class="snx-wall-save-text">📌 Save this post to my Profile Wall</span>
         </label>
 
         <button id="btnBroadcast" style="margin-top:10px; width:100%; border-radius:10px; padding:11px; background:linear-gradient(135deg,#003d99,#0077dd); border-color:rgba(0,174,239,0.65); color:#fff; font-size:14px; box-shadow:0 0 20px rgba(0,174,239,0.40);">⚡ Post to the Eclipse</button>
@@ -5759,6 +6141,10 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <div id="profileOnlineBadge" style="display:none;" class="profile-online-badge">
                     <div class="profile-online-dot"></div> Online now
                 </div>
+                <!-- LIVE NOW badge — shown when the user is currently streaming -->
+                <a id="profileLiveBadge" href="live.html" class="profile-live-badge" style="display:none;" target="_blank" rel="noopener">
+                    <span class="profile-live-badge-dot"></span> LIVE NOW
+                </a>
                 <div class="profile-joined-text" id="profileJoinedText"></div>
 
                 <!-- Stats -->
@@ -5779,6 +6165,10 @@ body.arcade-fs-ios body::after { display:none !important; }
                         <div class="stat-num" id="cntFriends">0</div>
                         <div class="stat-label">Friends</div>
                     </div>
+                    <div class="profile-stat" onclick="window.switchProfileTab&&window.switchProfileTab('album')" title="View Photo Album">
+                        <div class="stat-num" id="cntPhotos">0</div>
+                        <div class="stat-label">Photos</div>
+                    </div>
                 </div>
 
                 <!-- Action buttons -->
@@ -5786,6 +6176,8 @@ body.arcade-fs-ios body::after { display:none !important; }
                     <button id="btnFollowAction">+ Follow</button>
                     <button id="btnMessageAction">💬 Message</button>
                     <button id="btnEditProfile" style="display:none;" onclick="openEditProfileModal()">✏️ Edit Profile</button>
+                    <!-- Watch Live — shown on OTHER user's profile when they are streaming -->
+                    <a id="btnWatchLive" href="live.html" target="_blank" rel="noopener" style="display:none;background:linear-gradient(135deg,#880020,#dd1133);border:1px solid rgba(255,34,68,0.7);color:#fff;font-weight:800;letter-spacing:0.5px;box-shadow:0 0 16px rgba(255,30,60,0.45);padding:7px 16px;border-radius:20px;font-size:13px;text-decoration:none;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:#fff;display:inline-block;animation:snxLiveDot 1s ease-in-out infinite;flex-shrink:0;"></span>Watch Live</a>
                 </div>
 
                 <div class="badge-container" id="profileBadges"></div>
@@ -7040,48 +7432,6 @@ body.arcade-fs-ios body::after { display:none !important; }
 </div>
 
 <!-- ══════════════════════════════════
-     6. MENTAL HEALTH SUPPORT ROOMS
-══════════════════════════════════ -->
-<div class="section-card" style="margin-bottom:16px;">
-    <div class="comm-section-title">🫂 Support Rooms</div>
-    <p style="font-size:12px;color:#4a7a9a;margin:0 0 12px;">Moderated safe spaces. No judgment, only support.</p>
-    <div class="comm-rooms-list">
-        <div class="comm-room-item" onclick="supportEnterRoom('night-owls','🌙 Night Owls')">
-            <div class="comm-room-icon">🌙</div>
-            <div class="comm-room-info">
-                <div class="comm-room-name">Night Owls — Anxiety Support</div>
-                <div class="comm-room-desc">Anonymous · For those who struggle at night</div>
-            </div>
-            <div class="comm-room-count">Join →</div>
-        </div>
-        <div class="comm-room-item" onclick="supportEnterRoom('morning-light','🌅 Morning Light')">
-            <div class="comm-room-icon">🌅</div>
-            <div class="comm-room-info">
-                <div class="comm-room-name">Morning Light — Depression</div>
-                <div class="comm-room-desc">Anonymous · Start the day together</div>
-            </div>
-            <div class="comm-room-count">Join →</div>
-        </div>
-        <div class="comm-room-item" onclick="supportEnterRoom('venting-lounge','🌊 Venting Lounge')">
-            <div class="comm-room-icon">🌊</div>
-            <div class="comm-room-info">
-                <div class="comm-room-name">Venting Lounge</div>
-                <div class="comm-room-desc">Anonymous · Say what's on your mind</div>
-            </div>
-            <div class="comm-room-count">Join →</div>
-        </div>
-        <div class="comm-room-item" onclick="supportEnterRoom('healing-circle','🌿 Healing Circle')">
-            <div class="comm-room-icon">🌿</div>
-            <div class="comm-room-info">
-                <div class="comm-room-name">Healing Circle</div>
-                <div class="comm-room-desc">Anonymous · Trauma &amp; recovery support</div>
-            </div>
-            <div class="comm-room-count">Join →</div>
-        </div>
-    </div>
-</div>
-
-<!-- ══════════════════════════════════
      7. ANONYMOUS SUPPORT POSTS
 ══════════════════════════════════ -->
 <div class="section-card">
@@ -7139,7 +7489,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 <!-- The Rules -->
 <div class="section-card" style="margin-bottom:16px;">
     <h3 style="margin:0 0 14px;font-size:13px;color:#fff;text-transform:uppercase;letter-spacing:0.8px;">🚫 What Is Not Allowed</h3>
-    <p style="font-size:12px;color:#6a90b8;margin:0 0 14px;">These rules apply to <strong style="color:#9bbdd8;">posts, stories, and messages.</strong></p>
+    <p style="font-size:12px;color:#6a90b8;margin:0 0 14px;">These rules apply to <strong style="color:#9bbdd8;">posts, stories, messages, and live streams.</strong></p>
     <div style="display:flex;flex-direction:column;gap:10px;">
         <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(255,51,85,0.06);border:1px solid rgba(255,51,85,0.20);border-radius:10px;">
             <span style="font-size:18px;flex-shrink:0;">🚫</span>
@@ -7175,6 +7525,7 @@ body.arcade-fs-ios body::after { display:none !important; }
         <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.28);color:#c8e8ff;">📝 Posts</span>
         <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.28);color:#c8e8ff;">📖 Stories</span>
         <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.28);color:#c8e8ff;">💬 Messages</span>
+        <span style="font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(255,51,85,0.12);border:1px solid rgba(255,51,85,0.35);color:#ff8899;">🔴 Live Streams</span>
     </div>
 </div>
 
@@ -7237,6 +7588,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     <button class="admin-tab" onclick="switchAdminTab('appeals')">📩 Appeals</button>
     <button class="admin-tab" onclick="switchAdminTab('aisafety')">🤖 AI Safety</button>
     <button class="admin-tab" onclick="switchAdminTab('shadowbot')">🤖 Shadow Bot</button>
+    <button class="admin-tab" onclick="switchAdminTab('liverooms')">🔴 Live Rooms</button>
     <button class="admin-tab" onclick="switchAdminTab('pages')">👁 Pages &amp; Controls</button>
 </div>
 
@@ -7946,6 +8298,23 @@ body.arcade-fs-ios body::after { display:none !important; }
 </div><!-- end adminTab-shadowbot -->
 
 <!-- ══════════════════════════════════
+     TAB: LIVE ROOMS (Founder only)
+══════════════════════════════════ -->
+<div class="admin-tab-content" id="adminTab-liverooms">
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(255,34,68,0.35);background:linear-gradient(135deg,rgba(40,0,0,0.35),rgba(11,31,58,0.92));">
+        <h3 style="margin:0 0 8px;font-size:13px;color:#ff4455;text-transform:uppercase;letter-spacing:0.8px;">🔴 Live Room Manager</h3>
+        <p style="font-size:12px;color:#9bbdd8;margin:0 0 12px;line-height:1.6;">View all active live rooms. End any stream instantly or delete stale rooms. Changes take effect in real time.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button onclick="window.adminLoadLiveRooms()" style="padding:8px 16px;border-radius:8px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.4);color:#00AEEF;font-size:12px;font-weight:700;cursor:pointer;">↺ Refresh</button>
+            <button onclick="window.adminPurgeEndedRooms()" style="padding:8px 16px;border-radius:8px;background:rgba(255,34,68,0.10);border:1px solid rgba(255,34,68,0.35);color:#ff6677;font-size:12px;font-weight:700;cursor:pointer;">🗑 Delete All Ended Rooms</button>
+        </div>
+    </div>
+    <div id="adminLiveRoomsList" style="display:flex;flex-direction:column;gap:10px;">
+        <div style="color:#4a6a8a;font-size:13px;text-align:center;padding:20px 0;">Click Refresh to load live rooms.</div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
      TAB: PAGE VISIBILITY CONTROLS
 ══════════════════════════════════ -->
 <div class="admin-tab-content" id="adminTab-pages">
@@ -8422,6 +8791,35 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 </div><!-- end administratorPage -->
 
+<!-- ══════════════════════════════════════════════════════════
+     LIVE HUB PAGE — shows all currently active live streams
+     ══════════════════════════════════════════════════════════ -->
+<div class="page" id="liveHubPage">
+
+  <div class="live-hub-header">
+    <div class="live-hub-title">
+      🔴 Live Hub
+      <span class="live-hub-live-count" id="liveHubCount" style="display:none;">0 LIVE</span>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  <div id="liveHubLoading" style="text-align:center;padding:40px 0;color:#3a5a7a;font-size:13px;">
+    <div style="width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,30,60,0.25);border-top-color:#ff2244;animation:spin 0.7s linear infinite;margin:0 auto 12px;"></div>
+    Loading live streams…
+  </div>
+
+  <!-- Empty state (no one is live) -->
+  <div id="liveHubEmpty" class="live-hub-empty" style="display:none;">
+    <div class="live-hub-empty-icon">📡</div>
+    <div class="live-hub-empty-text">No one is live right now.<br>Be the first to go live!</div>
+  </div>
+
+  <!-- Live cards grid -->
+  <div class="live-hub-grid" id="liveHubGrid"></div>
+
+</div><!-- end liveHubPage -->
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, browserLocalPersistence, setPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -8452,7 +8850,8 @@ body.arcade-fs-ios body::after { display:none !important; }
     messaging = getMessaging(app);
   } catch(_) { /* browser may not support SW messaging */ }
 
-  // ── Expose Firestore helpers to non-module scripts ──
+  // ── Expose app instance + Firestore helpers to non-module scripts ──
+  window._snxApp        = app;
   window._snxDb         = db;
   window._snxDoc        = doc;
   window._snxGetDoc     = getDoc;
@@ -8666,6 +9065,377 @@ body.arcade-fs-ios body::after { display:none !important; }
           toastNotification("Incorrect email or password. Please try again.");
       }
   };
+
+  /* ── Go Live or Watch ── */
+  window.goLiveOrWatch = async function() {
+      // Close sidebar
+      const sidebar = document.getElementById('side');
+      const overlay = document.getElementById('sidebarOverlay');
+      if (sidebar)  sidebar.classList.remove('active');
+      if (overlay)  overlay.classList.remove('visible');
+
+      if (!currentUser) {
+          window.location.href = 'live.html';
+          return;
+      }
+
+      // If the current user is already live, go back to their creator stage
+      // (NOT #watch= which would put them in viewer mode in their own stream).
+      try {
+          const snap = await getDoc(doc(db, 'users', currentUser.uid));
+          if (snap.exists()) {
+              const d = snap.data();
+              if (d.isLive && d.liveRoomId) {
+                  window.location.href = 'live.html';
+                  return;
+              }
+          }
+      } catch (_) {}
+
+      // Not currently live — go to the setup / Go Live screen
+      localStorage.setItem('snx_live_intent', 'golive');
+      window.location.href = 'live.html';
+  };
+
+  /* ═══════════════════════════════════════════════
+     LIVE HUB PAGE
+     Real-time page listing every active stream.
+     Cards include: avatar, username, LIVE badge,
+     title, viewer count, elapsed time, Watch button.
+   ═══════════════════════════════════════════════ */
+  (function initLiveHub() {
+    const grid      = document.getElementById('liveHubGrid');
+    const emptyEl   = document.getElementById('liveHubEmpty');
+    const loadingEl = document.getElementById('liveHubLoading');
+    const countEl   = document.getElementById('liveHubCount');
+    const navBadge  = document.getElementById('navLiveHubCount');
+    if (!grid) return;
+
+    const STALE_MS = 4 * 60 * 60 * 1000; // 4 hours — auto-purge abandoned streams
+
+    function _esc(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function _elapsed(ts) {
+      if (!ts) return '';
+      const ms = Date.now() - (ts.toMillis ? ts.toMillis() : ts);
+      if (ms < 0) return '';
+      const s = Math.floor(ms / 1000);
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+      return h > 0 ? `${h}h ${m}m` : (m > 0 ? `${m}m` : '<1m');
+    }
+
+    function _buildHubCard(room) {
+      const name     = _esc(room.hostName || room.hostUsername || 'Creator');
+      const handle   = room.hostUsername ? _esc('@' + room.hostUsername) : '';
+      const title    = _esc(room.title || 'Shadow Nexus LIVE');
+      const category = room.category ? _esc(room.category) : '';
+      const viewers  = room.viewers || 0;
+      const roomId   = _esc(room.roomId || '');
+      const avatar   = room.hostAvatar || '';
+      const initial  = (room.hostName || room.hostUsername || '?')[0].toUpperCase();
+      const watchUrl = 'live.html#watch=' + roomId;
+      const tsRaw    = room.createdAt ? (room.createdAt.toMillis ? room.createdAt.toMillis() : room.createdAt) : '';
+
+      const card = document.createElement('a');
+      card.className   = 'live-hub-card';
+      card.href        = watchUrl;
+      card.target      = '_blank';
+      card.rel         = 'noopener';
+      card.dataset.rid = room.roomId;
+      card.dataset.hid = room.hostId || '';
+      card.setAttribute('aria-label', `Watch ${name} live`);
+
+      const avatarStyle = avatar ? `background-image:url('${_esc(avatar)}');` : '';
+
+      card.innerHTML = `
+        <div class="lhc-thumb">
+          <div class="lhc-avatar-large" style="${avatarStyle}">${avatar ? '' : initial}</div>
+          <div class="lhc-live-pill">LIVE</div>
+          <div class="lhc-viewers" id="lhv-${roomId}">👁 ${viewers}</div>
+          <div class="lhc-elapsed" data-createdat="${tsRaw}">${_elapsed(room.createdAt)}</div>
+        </div>
+        <div class="lhc-body">
+          <div class="lhc-name">${name}</div>
+          ${handle   ? `<div class="lhc-handle">${handle}</div>` : ''}
+          <div class="lhc-title">${title}</div>
+          ${category ? `<div class="lhc-category">🏷 ${category}</div>` : ''}
+          <button class="lhc-watch-btn"
+            onclick="event.preventDefault();event.stopPropagation();window.open('${watchUrl}','_blank')">
+            ▶ Watch Live
+          </button>
+        </div>`;
+
+      card.addEventListener('click', e => {
+        if (e.target.closest('.lhc-watch-btn')) return;
+        window.open(watchUrl, '_blank');
+        e.preventDefault();
+      });
+      return card;
+    }
+
+    // Animate a card out, then remove it from DOM
+    function _removeCard(card) {
+      if (card.classList.contains('lhc-removing')) return;
+      card.classList.add('lhc-removing');
+      setTimeout(() => card.remove(), 300);
+    }
+
+    let _hubUnsub    = null;
+    let _elapsedTimer = null;
+
+    function _tickElapsed() {
+      grid.querySelectorAll('.lhc-elapsed[data-createdat]').forEach(el => {
+        const ts = parseInt(el.dataset.createdat, 10);
+        if (!ts) return;
+        const s = Math.floor((Date.now() - ts) / 1000);
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+        el.textContent = h > 0 ? `${h}h ${m}m` : (m > 0 ? `${m}m` : '<1m');
+      });
+    }
+
+    // Auto-purge Firestore docs for streams started > STALE_MS ago
+    async function _purgeStale(rooms) {
+      const cutoff = Date.now() - STALE_MS;
+      for (const r of rooms) {
+        const ts = r.createdAt?.toMillis ? r.createdAt.toMillis() : (r.createdAt || 0);
+        if (ts && ts < cutoff) {
+          // r.id is the Firestore doc key (uid in new schema, roomId in legacy schema)
+          // also try deleting by roomId field in case it differs from the key
+          try { await deleteDoc(doc(db, 'liveRooms', r.id)); } catch(_) {}
+          if (r.roomId && r.roomId !== r.id) {
+            try { await deleteDoc(doc(db, 'liveRooms', r.roomId)); } catch(_) {}
+          }
+          if (r.hostId && r.hostId !== r.id) {
+            try { await deleteDoc(doc(db, 'liveRooms', r.hostId)); } catch(_) {}
+          }
+        }
+      }
+    }
+
+    function _renderHubRooms(rawDocs) {
+      // 1. Filter: only status=live or isLive=true, skip broken records
+      const valid = rawDocs.filter(r =>
+        (r.status === 'live' || r.isLive === true) &&
+        r.roomId && r.hostId
+      );
+
+      // 2. Deduplicate: one card per hostId (keep most recent)
+      const byHost = new Map();
+      valid.forEach(r => {
+        const existing = byHost.get(r.hostId);
+        const ts = r.createdAt?.toMillis ? r.createdAt.toMillis() : (r.createdAt || 0);
+        const exTs = existing
+          ? (existing.createdAt?.toMillis ? existing.createdAt.toMillis() : (existing.createdAt || 0))
+          : -1;
+        if (!existing || ts > exTs) byHost.set(r.hostId, r);
+      });
+
+      const rooms = [...byHost.values()].sort((a, b) => (b.viewers || 0) - (a.viewers || 0));
+
+      if (loadingEl) loadingEl.style.display = 'none';
+      const cnt = rooms.length;
+
+      if (countEl) { countEl.textContent = cnt + ' LIVE'; countEl.style.display = cnt > 0 ? '' : 'none'; }
+      if (navBadge) { navBadge.textContent = cnt; navBadge.style.display = cnt > 0 ? 'inline-flex' : 'none'; }
+
+      if (!cnt) {
+        if (emptyEl) emptyEl.style.display = '';
+        grid.querySelectorAll('.live-hub-card').forEach(c => _removeCard(c));
+        if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
+        // Purge stale docs from rawDocs
+        _purgeStale(rawDocs);
+        return;
+      }
+
+      if (emptyEl) emptyEl.style.display = 'none';
+
+      // Remove cards no longer in live set (with exit animation)
+      const liveRoomIds = new Set(rooms.map(r => r.roomId));
+      grid.querySelectorAll('.live-hub-card').forEach(c => {
+        if (!liveRoomIds.has(c.dataset.rid)) _removeCard(c);
+      });
+
+      // Add new cards / update existing
+      rooms.forEach((room, idx) => {
+        let card = grid.querySelector(`.live-hub-card[data-rid="${_esc(room.roomId)}"]`);
+        if (!card) {
+          card = _buildHubCard(room);
+          const existing = grid.querySelectorAll('.live-hub-card:not(.lhc-removing)');
+          if (idx < existing.length) grid.insertBefore(card, existing[idx]);
+          else grid.appendChild(card);
+        } else {
+          // Update viewer count in-place
+          const vEl = document.getElementById(`lhv-${_esc(room.roomId)}`);
+          if (vEl) vEl.textContent = '👁 ' + (room.viewers || 0);
+        }
+      });
+
+      if (!_elapsedTimer) _elapsedTimer = setInterval(_tickElapsed, 30000);
+      _purgeStale(rawDocs);
+    }
+
+    onAuthStateChanged(auth, user => {
+      if (!user || _hubUnsub) return;
+
+      function _attach(useSimple) {
+        try {
+          const q = useSimple
+            ? query(collection(db, 'liveRooms'), where('isLive', '==', true))
+            : query(collection(db, 'liveRooms'), where('status', '==', 'live'), orderBy('createdAt', 'desc'));
+
+          _hubUnsub = onSnapshot(q, snap => {
+            const rooms = [];
+            snap.forEach(d => {
+              const r = d.data();
+              r.id     = d.id;                     // Firestore doc key (uid in new schema)
+              r.roomId = r.roomId || d.id;          // fallback for legacy roomId-keyed docs
+              rooms.push(r);
+            });
+            _renderHubRooms(rooms);
+          }, err => {
+            if (!useSimple) {
+              console.warn('[LiveHub] index not ready, using fallback:', err.message);
+              _hubUnsub = null;
+              _attach(true);
+            } else {
+              if (loadingEl) loadingEl.style.display = 'none';
+              if (emptyEl)   emptyEl.style.display   = '';
+            }
+          });
+        } catch(e) {
+          console.warn('[LiveHub] watcher error:', e.message);
+          if (loadingEl) loadingEl.style.display = 'none';
+          if (emptyEl)   emptyEl.style.display   = '';
+        }
+      }
+
+      _attach(false);
+    });
+  })();
+
+  /* ═══════════════════════════════════════════════
+     FEED LIVE BANNER
+     Shows active live rooms as clickable cards at the
+     top of the feed — tap to join instantly, no login.
+   ═══════════════════════════════════════════════ */
+  (function initFeedLiveBanner() {
+    const banner    = document.getElementById('feedLiveBanner');
+    const cardsEl   = document.getElementById('feedLiveCards');
+    const countEl   = document.getElementById('feedLiveCount');
+    if (!banner || !cardsEl) return;
+
+    function escL(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function buildCard(room) {
+      const name    = escL(room.hostName || room.hostUsername || 'Creator');
+      const title   = escL(room.title   || 'Shadow Nexus LIVE');
+      const viewers = room.viewers || 0;
+      const roomId  = escL(room.roomId  || '');
+      const avatar  = room.hostAvatar   || '';
+      const initial = (room.hostName || room.hostUsername || '?')[0].toUpperCase();
+
+      const thumbHtml = avatar
+        ? `<img class="flc-thumb-img" src="${escL(avatar)}" alt="${name}" loading="lazy">`
+        : `<div class="flc-thumb-initial">${initial}</div>`;
+
+      const card = document.createElement('a');
+      card.className       = 'feed-live-card';
+      card.href            = 'live.html#watch=' + roomId;
+      card.dataset.rid     = room.roomId;
+      card.setAttribute('aria-label', `Watch ${name} live`);
+
+      card.innerHTML = `
+        <div class="flc-thumb">
+          ${thumbHtml}
+          <div class="flc-live-pill">LIVE</div>
+          <div class="flc-viewers">👁 ${viewers}</div>
+        </div>
+        <div class="flc-body">
+          <div class="flc-name">${name}</div>
+          <div class="flc-title">${title}</div>
+          <button class="flc-join-btn">▶ JOIN LIVE</button>
+        </div>
+      `;
+
+      // Clicking anywhere on card navigates — button click does same
+      card.querySelector('.flc-join-btn').addEventListener('click', e => {
+        e.preventDefault();
+        window.location.href = 'live.html#watch=' + roomId;
+      });
+      card.addEventListener('click', e => {
+        if (e.target.closest('.flc-join-btn')) return;
+        window.location.href = 'live.html#watch=' + roomId;
+      });
+
+      return card;
+    }
+
+    // Start the real-time watcher once the user is authenticated.
+    // Tries status+createdAt compound query first; falls back to isLive==true
+    // if the composite index hasn't been built yet.
+    let _liveUnsub = null;
+
+    function _renderBannerRooms(rooms) {
+      rooms.sort((a, b) => (b.viewers || 0) - (a.viewers || 0));
+      if (!rooms.length) {
+        banner.style.display = 'none';
+        return;
+      }
+      banner.style.display = '';
+      if (countEl) countEl.textContent = rooms.length;
+      const liveIds = new Set(rooms.map(r => r.roomId));
+      cardsEl.querySelectorAll('.feed-live-card').forEach(c => {
+        if (!liveIds.has(c.dataset.rid)) c.remove();
+      });
+      rooms.forEach((room, idx) => {
+        let card = cardsEl.querySelector(`[data-rid="${escL(room.roomId)}"]`);
+        if (!card) {
+          card = buildCard(room);
+          const existing = cardsEl.querySelectorAll('.feed-live-card');
+          if (idx < existing.length) cardsEl.insertBefore(card, existing[idx]);
+          else                       cardsEl.appendChild(card);
+        } else {
+          const vEl = card.querySelector('.flc-viewers');
+          if (vEl) vEl.textContent = '👁 ' + (room.viewers || 0);
+        }
+      });
+    }
+
+    function _attachBannerQuery(useSimple) {
+      try {
+        const q = useSimple
+          ? query(collection(db, 'liveRooms'), where('isLive', '==', true))
+          : query(collection(db, 'liveRooms'), where('status', '==', 'live'), orderBy('createdAt', 'desc'));
+
+        _liveUnsub = onSnapshot(q, snap => {
+          const rooms = [];
+          snap.forEach(d => { const r = d.data(); r.roomId = r.roomId || d.id; rooms.push(r); });
+          _renderBannerRooms(rooms);
+        }, err => {
+          if (!useSimple) {
+            console.warn('[FeedLive] compound query failed, using fallback:', err.message);
+            _liveUnsub = null;
+            _attachBannerQuery(true);
+          } else {
+            banner.style.display = 'none';
+          }
+        });
+      } catch(e) {
+        console.warn('[FeedLive] watcher failed:', e.message);
+        banner.style.display = 'none';
+      }
+    }
+
+    onAuthStateChanged(auth, user => {
+      if (!user)     return;   // not signed in — hide banner
+      if (_liveUnsub) return;  // already running
+      _attachBannerQuery(false);
+    });
+  })();
 
   window.handleLogout = async () => {
       if (currentUser) {
@@ -8922,6 +9692,16 @@ body.arcade-fs-ios body::after { display:none !important; }
               // ── Friend request badge ──
               updateFriendBadges((userData.friendRequestsReceived || []).length);
 
+              // ── Live nav dot — lights up red when you are streaming ──
+              const _liveDot = document.getElementById('navLiveDot');
+              if (_liveDot) {
+                  if (userData.isLive) {
+                      _liveDot.style.display = 'inline-flex';
+                  } else {
+                      _liveDot.style.display = 'none';
+                  }
+              }
+
               // ── Push queue → OS notifications ──
               const _queue = (userData.pushQueue || []).filter(n => n.id && !_seenPushIds.has(n.id));
               if (!_queue.length) return;
@@ -8951,8 +9731,9 @@ body.arcade-fs-ios body::after { display:none !important; }
                               badge:    'favicon-32x32.png',
                               tag:      `snx-${n.id}`,
                               renotify: true,
-                              vibrate:  [200, 100, 200],
-                              data:     { url: n.url || '/', type: n.type || '', fromUid: n.fromUid || '' }
+                              vibrate:  n.type === 'live' ? [100, 50, 100, 50, 100] : [200, 100, 200],
+                              requireInteraction: n.type === 'live',
+                              data:     { url: n.url || '/', type: n.type || '', fromUid: n.fromUid || '', roomId: n.roomId || '' }
                           });
                       } catch(_) {
                           try { new Notification(n.title || '🔔 Shadow Nexus', { body: n.body || '', icon: 'icon-192.png' }); } catch(_) {}
@@ -8975,6 +9756,21 @@ body.arcade-fs-ios body::after { display:none !important; }
                           _t.addEventListener('click', _handler);
                           // Remove the handler when the toast hides
                           setTimeout(() => { _t.removeEventListener('click', _handler); _t.style.cursor = ''; }, 3500);
+                      }
+                  } else if (n.type === 'live' && n.roomId) {
+                      // Live notification — vibrate + tappable toast → open live room
+                      try { if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 100]); } catch(_) {}
+                      toastNotification('🔴 ' + (n.body || (n.fromName + ' is live!')));
+                      const _lt = document.getElementById('notification-toast');
+                      if (_lt) {
+                          _lt.style.cursor = 'pointer';
+                          const _lh = () => {
+                              _lt.removeEventListener('click', _lh);
+                              _lt.style.cursor = '';
+                              window.open('live.html#watch=' + encodeURIComponent(n.roomId), '_blank');
+                          };
+                          _lt.addEventListener('click', _lh);
+                          setTimeout(() => { _lt.removeEventListener('click', _lh); _lt.style.cursor = ''; }, 5000);
                       }
                   } else {
                       toastNotification('🔔 ' + (n.body || n.title || 'New notification'));
@@ -9376,6 +10172,10 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Sort by most recently active (lastSeen field, fallback joinedAt)
           onlineUsers.sort((a, b) => (b.lastSeen || b.joinedAt || 0) - (a.lastSeen || a.joinedAt || 0));
 
+          // Expose online UIDs globally so story bubbles can show green rings
+          window._snxOnlineUids = seenUids;
+          if (typeof _renderStoryBar === 'function') _renderStoryBar();
+
           // ── Feed page "Active Now" strip ──
           const strip     = document.getElementById("activeUsersStrip");
           const stripWrap = document.getElementById("activeUsersStripWrap");
@@ -9513,11 +10313,14 @@ body.arcade-fs-ios body::after { display:none !important; }
           const loadingEl = container.querySelector('#feedLoadingState');
           if (loadingEl) loadingEl.remove();
 
-          // Filter out expired posts (48h TTL) — they may still be in Firestore until
-          // the background cleanup runs, so we skip them here silently.
+          // Filter out expired posts (48h TTL) and live-session posts.
+          // Live sessions are shown only in the story bar and Live Hub —
+          // they must never appear in the main feed scroll.
           const incomingIds = new Set();
           snapshot.forEach(pDoc => {
               const p = pDoc.data();
+              // Skip live/live_share posts — they belong in the Live Hub, not the feed
+              if (p.type === 'live' || p.type === 'live_share') return;
               // Legacy posts (no expiresAt) remain visible indefinitely
               if (p.expiresAt && p.expiresAt < nowMs) return;
               incomingIds.add(pDoc.id);
@@ -9611,6 +10414,29 @@ body.arcade-fs-ios body::after { display:none !important; }
               if (existingEl) {
                   // — Patch only the parts that can change without wiping the DOM node —
 
+                  // 0. Live post — remove card if stream ended, update if still live
+                  if (post.type === 'live' || post.type === 'live_share') {
+                      if (post.isLive === false) {
+                          // Stream ended — remove the card entirely from the feed
+                          existingEl.remove();
+                          return;
+                      }
+                      const _liveCard = existingEl.querySelector('.snx-feed-live-card');
+                      if (_liveCard) {
+                          const _dotEl = _liveCard.querySelector('.snx-flc-avatar');
+                          if (_dotEl) _dotEl.classList.add('is-live');
+                      }
+                      // Still reposition in DOM
+                      const posIdx2 = finalOrderedIds.indexOf(pDoc.id);
+                      const children2 = [...container.children];
+                      const curIdx2   = children2.indexOf(existingEl);
+                      if (curIdx2 !== posIdx2) {
+                          const ref2 = container.children[posIdx2] || null;
+                          container.insertBefore(existingEl, ref2);
+                      }
+                      return; // skip normal-post patching
+                  }
+
                   // 1. Like button: class + count
                   const likeBtn = existingEl.querySelector(`#like-btn-${pDoc.id}`);
                   if (likeBtn) {
@@ -9653,6 +10479,66 @@ body.arcade-fs-ios body::after { display:none !important; }
                   div.className = "postBox";
                   div.id = `post-${pDoc.id}`;
                   if (post.expiresAt) div.dataset.expiresAt = post.expiresAt;
+
+                  // ── LIVE / LIVE_SHARE card ─────────────────────────────────────
+                  // Skip ended streams — only render active live cards
+                  if ((post.type === 'live' || post.type === 'live_share') && post.isLive === false) {
+                      return;   // do not add ended stream cards to the feed
+                  }
+                  if (post.type === 'live' || post.type === 'live_share') {
+                      const _lAvatar  = escFeed(post.authorAvatar || '');
+                      const _lName    = escFeed(post.authorName   || 'Someone');
+                      const _lHandle  = escFeed(post.authorHandle || '');
+                      const _lRoomId  = escFeed(post.liveRoomId   || '');
+                      const _lTitle   = escFeed(post.title        || 'Shadow Nexus LIVE');
+                      const _lWatchUrl = 'live.html#watch=' + encodeURIComponent(post.liveRoomId || '');
+                      const _lAvatarStyle = _lAvatar ? `background-image:url('${_lAvatar}');background-size:cover;background-position:center;` : '';
+                      const _lInitial = (_lName || '?')[0];
+                      const _lIsShare = post.type === 'live_share';
+                      const _lIsOwner = post.uid === currentUser.uid;
+                      // Share button copies link
+                      const _lShareBtnId = 'live-share-' + pDoc.id;
+                      div.innerHTML = `
+                        <div class="snx-feed-live-card" id="flc-${pDoc.id}">
+                          ${_lIsShare ? `<div style="font-size:11px;color:#ff6677;margin-bottom:8px;display:flex;align-items:center;gap:5px;">📣 Shared a live stream</div>` : ''}
+                          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                            <div class="snx-flc-avatar${post.isLive !== false ? ' is-live' : ''}" style="${_lAvatarStyle}" onclick="viewProfile('${escFeed(post.uid || '')}')">${_lAvatar ? '' : _lInitial}</div>
+                            <div style="flex:1;min-width:0;">
+                              <div style="font-size:14px;font-weight:700;color:#fff;">${_lName} <span style="font-weight:400;color:#4a7a9a;">@${_lHandle}</span></div>
+                              <div style="font-size:12px;color:#ff4455;display:flex;align-items:center;gap:5px;margin-top:2px;">
+                                <span class="snx-live-dot-anim"></span>
+                                ${post.isLive !== false ? 'LIVE NOW' : 'Was Live'}
+                              </div>
+                            </div>
+                            <div style="font-size:11px;color:#4a7a9a;">${_postTimeAgo(post.createdAt || post.timestamp)}</div>
+                          </div>
+                          ${post.isLive !== false ? `
+                          <a href="${_lWatchUrl}" class="snx-flc-watch-btn" aria-label="Watch live">
+                            🔴 Watch Live — ${_lTitle}
+                          </a>` : `<div style="font-size:12px;color:#4a7a9a;padding:10px 0;">This stream has ended.</div>`}
+                          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                            ${post.isLive !== false ? `<button id="${_lShareBtnId}" class="react-btn" style="border-color:rgba(255,40,70,0.4);color:#ff6677;">📤 Share</button>` : ''}
+                            ${_lIsOwner ? `<button class="react-btn btn-del-post" onclick="window.deleteTimelinePost('${pDoc.id}')">🗑️ Delete</button>` : ''}
+                          </div>
+                        </div>`;
+                      // Wire share button
+                      if (post.isLive !== false) {
+                          const _sb = div.querySelector('#' + _lShareBtnId);
+                          if (_sb) {
+                              _sb.addEventListener('click', () => {
+                                  const _url = window.location.origin + window.location.pathname.replace('index.html','') + _lWatchUrl;
+                                  if (navigator.share) {
+                                      navigator.share({ title: '🔴 ' + _lName + ' is Live!', url: _url }).catch(() => {});
+                                  } else if (navigator.clipboard && window.isSecureContext) {
+                                      navigator.clipboard.writeText(_url).then(() => toastNotification('🔗 Live link copied!')).catch(() => window.prompt('Copy link:', _url));
+                                  } else {
+                                      window.prompt('Copy link:', _url);
+                                  }
+                              });
+                          }
+                      }
+                  } else {
+                  // ── Normal post ───────────────────────────────────────────────
 
                   // Repost header — shown when this card is a repost
                   let repostHeaderHTML = '';
@@ -9715,6 +10601,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                         <button class="comment-submit-btn" id="comm-submit-${pDoc.id}" onclick="submitPostComment('${pDoc.id}')">Post</button>
                     </div>
                   `;
+                  } // end normal post
 
                   // Insert at the correct position
                   const posIdx = finalOrderedIds.indexOf(pDoc.id);
@@ -10053,17 +10940,28 @@ body.arcade-fs-ios body::after { display:none !important; }
       _postBusy = true;
       const btn = document.getElementById("btnBroadcast");
       btn.disabled = true; btn.textContent = "Posting…";
-      // Read photo post destination checkboxes
-      // When a photo is attached the grouped panel is shown; otherwise the standalone text-wall checkbox is used
-      const hasMedia = !!document.getElementById("postMediaUrl").value.trim();
-      const saveToWall  = hasMedia
-          ? (document.getElementById("chkSaveToWall")?.checked === true)
-          : (document.getElementById("chkSaveToWallText")?.checked === true);
-      const saveToAlbum = hasMedia && document.getElementById("chkSaveToAlbum")?.checked === true;
+
+      // ── Read photo destination checkboxes ──
+      // photoPostOptions panel is visible → photo attached, use its checkboxes.
+      // wallSaveLabelText is used for text-only posts.
+      const photoOpts = document.getElementById("photoPostOptions");
+      const hasPhoto  = photoOpts && photoOpts.style.display !== 'none';
+      const saveToAlbum = hasPhoto && (document.getElementById("chkSaveToAlbum")?.checked === true);
+      const saveToWall  = hasPhoto
+          ? document.getElementById("chkSaveToWall")?.checked === true
+          : document.getElementById("chkSaveToWallText")?.checked === true;
+
       try {
           const now = Date.now();
           const expiresAt = now + 48 * 60 * 60 * 1000; // auto-delete after 48 hours
           const mediaUrlsRaw = mediaUrl.split(',').map(u => u.trim()).filter(Boolean);
+
+          // Determine if this is a photo post (image URL)
+          const isPhotoPost = mediaUrlsRaw.some(u => {
+              const ext = u.split('?')[0].split('.').pop().toLowerCase();
+              return !['mp4','webm','mov','avi','mkv','m4v','mp3','ogg','wav','aac','flac','m4a','opus'].includes(ext);
+          });
+
           // Extract tagged usernames from @mentions
           const taggedHandles = [...new Set((text.match(/@([a-zA-Z0-9_]+)/g) || []).map(m => m.slice(1).toLowerCase()))];
 
@@ -10078,8 +10976,8 @@ body.arcade-fs-ios body::after { display:none !important; }
               uid: currentUser.uid,
               textLen: text.length,
               mediaUrls: mediaUrlsRaw,
-              saveToWall,
               saveToAlbum,
+              saveToWall,
           });
 
           const postRef = await addDoc(collection(db, "posts"), {
@@ -10114,31 +11012,32 @@ body.arcade-fs-ios body::after { display:none !important; }
 
           console.log('[SNX Post] Feed post saved:', postRef.id, '| mediaUrls:', mediaUrlsRaw);
 
-          // ── If checked, save photo(s) to user's Photo Album ──────────────────
-          if (saveToAlbum && mediaUrlsRaw.length > 0) {
-              const albumId  = currentUser.uid + '_album';
-              for (const photoUrl of mediaUrlsRaw) {
+          // ── If photo & saveToAlbum: write each photo URL to /albumPhotos/ ──
+          if (saveToAlbum && isPhotoPost && mediaUrlsRaw.length > 0) {
+              const imageUrls = mediaUrlsRaw.filter(u => {
+                  const ext = u.split('?')[0].split('.').pop().toLowerCase();
+                  return !['mp4','webm','mov','avi','mkv','m4v','mp3','ogg','wav','aac','flac','m4a','opus'].includes(ext);
+              });
+              for (const photoUrl of imageUrls) {
                   try {
-                      // De-duplicate: skip if already in album (same owner + url)
-                      const existing = await getDocs(query(collection(db, 'albumPhotos'), where('ownerUid','==',currentUser.uid), where('url','==',photoUrl)));
-                      if (existing.empty) {
-                          await addDoc(collection(db, 'albumPhotos'), {
-                              ownerUid:    currentUser.uid,
-                              url:         photoUrl,
-                              type:        'album',
-                              caption:     text.substring(0, 200),
-                              privacy:     'public',
-                              uploadedAt:  now,
-                              albumId,
-                              feedPostId:  postRef.id,
-                              savedToWall: saveToWall,
-                          });
-                      }
+                      await addDoc(collection(db, 'albumPhotos'), {
+                          ownerUid:    currentUser.uid,
+                          url:         photoUrl,
+                          type:        'album',
+                          caption:     text || '',
+                          privacy:     'public',
+                          uploadedAt:  now,
+                          albumId:     currentUser.uid + '_album',
+                          feedPostId:  postRef.id,
+                          savedToWall: saveToWall,
+                          postId:      postRef.id,
+                          timestamp:   now,
+                      });
                   } catch (ae) {
                       console.warn('[SNX Post] Album save failed (non-fatal):', ae);
                   }
               }
-              console.log('[SNX Post] Photo(s) saved to album:', mediaUrlsRaw.length);
+              console.log('[SNX Post] Photos saved to album:', imageUrls.length);
           }
 
           // ── If checked, mirror post to profileWall subcollection (permanent) ──
@@ -10154,13 +11053,14 @@ body.arcade-fs-ios body::after { display:none !important; }
                   text,
                   mediaUrl:     mediaUrlsRaw[0] || '',
                   mediaUrls:    mediaUrlsRaw,
-                  imageURL:     mediaUrlsRaw[0] || '',
+                  imageURL:     mediaUrlsRaw[0] || '',   // explicit alias for clarity
                   visibility:   'public',
                   savedAt:      now,
                   createdAt:    now,
-                  likes:        0,
+                  savedToAlbum: saveToAlbum,
+                  likeCount:    0,
                   likedBy:      [],
-                  wallComments: [],
+                  commentCount: 0,
               });
               console.log('[SNX Post] Profile Wall entry saved:', postRef.id);
           }
@@ -10169,21 +11069,22 @@ body.arcade-fs-ios body::after { display:none !important; }
           detectAndNotifyMentions(text, postRef.id);
           document.getElementById("postText").value = "";
           document.getElementById("postMediaUrl").value = "";
-          // Clear all checkboxes
-          ['chkSaveToWall','chkSaveToWallText','chkSaveToAlbum'].forEach(id => {
-              const el = document.getElementById(id); if (el) el.checked = false;
-          });
+          const chkWall = document.getElementById("chkSaveToWall");
+          if (chkWall) chkWall.checked = false;
+          const chkWallText = document.getElementById("chkSaveToWallText");
+          if (chkWallText) chkWallText.checked = false;
+          const chkAlbum = document.getElementById("chkSaveToAlbum");
+          if (chkAlbum) chkAlbum.checked = false;
           const counter = document.getElementById("postCharCounter");
           if (counter) { counter.textContent = "500 characters left"; counter.className = "post-char-counter"; }
           // Clear media upload UI
           clearPostMedia();
-          // Build human-readable destination message
-          let _destMsg = '⚡ Post published';
-          if (saveToWall && saveToAlbum) _destMsg += ' — saved to your Wall & Photo Album!';
-          else if (saveToWall)           _destMsg += ' & saved to your Profile Wall!';
-          else if (saveToAlbum)          _destMsg += ' — photo saved to your Album!';
-          else                           _destMsg += ' to the Eclipse!';
-          toastNotification(_destMsg);
+          const destinations = [];
+          if (saveToAlbum) destinations.push('Photo Album');
+          if (saveToWall)  destinations.push('Profile Wall');
+          toastNotification(destinations.length
+              ? `⚡ Post published & saved to: ${destinations.join(' + ')}!`
+              : "⚡ Post published to the Eclipse!");
       } catch(e) {
           console.error('[SNX Post] Failed to create post:', e);
           const msg = e?.code === 'permission-denied'
@@ -10222,6 +11123,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           mention: '@ You were mentioned', repost: '🔄 Post Reposted',
           wallPost: '📝 New Wall Post', announcement: '📢 Announcement',
           tag: '🏷️ You were tagged', system: '⚙️ System Alert',
+          live: '🔴 Someone is Live',
       };
       const pushBodies = {
           message:       notif.preview
@@ -10239,13 +11141,17 @@ body.arcade-fs-ios body::after { display:none !important; }
           announcement:  notif.body || 'New announcement from admin',
           tag:           `${notif.fromName || 'Someone'} tagged you in a post`,
           system:        notif.body || 'System notification from Shadow Nexus Social',
+          live:          `${notif.fromName || 'Someone'} is live: ${notif.roomTitle || 'Shadow Nexus LIVE'}`,
       };
       sendPushToUser(targetUid, {
           title:   pushTitles[notif.type] || '🔔 Shadow Nexus Social',
           body:    pushBodies[notif.type] || 'You have a new notification',
           type:    notif.type,
           fromUid: notif.fromUid || '',
-          url:     '/'
+          roomId:  notif.roomId  || '',
+          url:     notif.type === 'live' && notif.roomId
+                     ? 'live.html#watch=' + notif.roomId
+                     : '/'
       }).catch(() => {});
   }
 
@@ -11224,6 +12130,14 @@ body.arcade-fs-ios body::after { display:none !important; }
                   <button class="btn-accept" onclick="event.stopPropagation();openArcadeHub();switchArcadeTab('invites',document.getElementById('ahTab-invites'));markNotifRead(${origIdx})">🎮 View Challenge</button>
               </div>`;
               navFn = `openArcadeHub();switchArcadeTab('invites',document.getElementById('ahTab-invites'))`;
+          } else if (n.type === 'live') {
+              icon = '🔴';
+              text = `<b>${escFeed(n.fromName)}</b> is live${n.roomTitle ? `: <i>"${escFeed(n.roomTitle)}"</i>` : ''}`;
+              actHtml = `<div class="notif-actions" style="margin-top:6px;">
+                  <button class="btn-accept" style="font-size:11px;" onclick="event.stopPropagation();window.open('live.html#watch=${escFeed(n.roomId||'')}','_blank')">🔴 Watch Live</button>
+                  <button class="notif-mark-all" style="font-size:11px;" onclick="event.stopPropagation();markNotifRead(${origIdx})">✓ Dismiss</button>
+              </div>`;
+              navFn = n.roomId ? `window.open('live.html#watch=${escFeed(n.roomId)}','_blank')` : `goLiveOrWatch()`;
           } else if (n.type === 'announcement') {
               icon = '📢';
               text = `<b>Admin</b>: ${escFeed(n.body || 'New announcement')}`;
@@ -11598,6 +12512,33 @@ body.arcade-fs-ios body::after { display:none !important; }
           const onlineBadge = document.getElementById("profileOnlineBadge");
           if (onlineBadge) onlineBadge.style.display = p.status === 'online' ? 'inline-flex' : 'none';
 
+          // LIVE NOW badge — link to the active stream room
+          const liveBadge = document.getElementById("profileLiveBadge");
+          if (liveBadge) {
+            if (p.isLive && p.liveRoomId) {
+              liveBadge.href = `live.html#watch=${encodeURIComponent(p.liveRoomId)}`;
+              liveBadge.style.display = 'inline-flex';
+            } else {
+              liveBadge.style.display = 'none';
+            }
+          }
+
+          // Avatar live ring — red pulsing border when the user is streaming
+          const avatarEl2 = document.getElementById("profileAvatar");
+          if (avatarEl2) avatarEl2.classList.toggle('is-live', !!(p.isLive));
+
+          // Watch Live button — shown on OTHER user's profile only when they are live
+          const btnWatchLive = document.getElementById("btnWatchLive");
+          const isSelf = currentUser && uid === currentUser.uid;
+          if (btnWatchLive) {
+            if (!isSelf && p.isLive && p.liveRoomId) {
+              btnWatchLive.href = `live.html#watch=${encodeURIComponent(p.liveRoomId)}`;
+              btnWatchLive.style.display = 'inline-flex';
+            } else {
+              btnWatchLive.style.display = 'none';
+            }
+          }
+
           // Joined date
           const joinedEl = document.getElementById("profileJoinedText");
           if (joinedEl && p.joinedAt) {
@@ -11639,6 +12580,12 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Post count — fetch once per profile open (best-effort, non-blocking)
           getDocs(query(collection(db, 'posts'), where('uid', '==', uid))).then(s => {
               const el = document.getElementById('cntPosts');
+              if (el) el.textContent = s.size;
+          }).catch(() => {});
+
+          // Photo count — fetch from albumPhotos collection
+          getDocs(query(collection(db, 'albumPhotos'), where('ownerUid', '==', uid))).then(s => {
+              const el = document.getElementById('cntPhotos');
               if (el) el.textContent = s.size;
           }).catch(() => {});
 
@@ -14262,9 +15209,50 @@ body.arcade-fs-ios body::after { display:none !important; }
       const seenStories = _getSeenStories();
 
       sorted.forEach(([uid, stories]) => {
-          const latest = stories[stories.length - 1];
-          const allSeen = stories.every(s => seenStories.has(s.id));
-          const bubble = document.createElement('div');
+          // Separate live story from regular stories for this user
+          const liveStory   = stories.find(s => s.type === 'live');
+          const regStories  = stories.filter(s => s.type !== 'live');
+
+          const onlineUids = window._snxOnlineUids || new Set();
+
+          // ── LIVE bubble — always first, always before regular stories ──
+          if (liveStory) {
+              const lvBubble = document.createElement('div');
+              lvBubble.className = 'story-bubble' + (uid === myUid ? ' own-story' : '');
+              lvBubble.dataset.uid = uid;
+              lvBubble.dataset.liveRoomId = liveStory.liveRoomId || '';
+              const initial = (liveStory.authorName || '?')[0].toUpperCase();
+              const avatarStyle = liveStory.authorAvatar
+                  ? `background-image:url('${escFeed(liveStory.authorAvatar)}')`
+                  : '';
+              const isOnlineLive = onlineUids.has(uid);
+              lvBubble.innerHTML = `
+                  <span class="story-live-badge">LIVE</span>
+                  <div class="story-ring story-ring-live">
+                      <div class="story-ring-inner" style="${avatarStyle}">${liveStory.authorAvatar ? '' : escFeed(initial)}</div>
+                      ${isOnlineLive ? '<div class="story-online-dot"></div>' : ''}
+                  </div>
+                  <span class="story-label" style="color:#ff5566;">${escFeed(liveStory.authorName || 'Unknown')}</span>`;
+              lvBubble.addEventListener('click', () => {
+                  const rid = liveStory.liveRoomId;
+                  if (rid) window.location.href = 'live.html#watch=' + encodeURIComponent(rid);
+              });
+              // Insert live bubble right after the "Add Story" bubble at position 0
+              const addBubble = document.getElementById('storyAddBubble');
+              if (addBubble && addBubble.nextSibling) {
+                  bar.insertBefore(lvBubble, addBubble.nextSibling);
+              } else {
+                  bar.appendChild(lvBubble);
+              }
+          }
+
+          // ── Regular story bubble (skip if no regular stories) ──
+          if (!regStories.length) return;
+          const latest   = regStories[regStories.length - 1];
+          const allSeen  = regStories.every(s => seenStories.has(s.id));
+          const hasUnseen = !allSeen;
+          const isOnline  = onlineUids.has(uid);
+          const bubble   = document.createElement('div');
           bubble.className = 'story-bubble' + (uid === myUid ? ' own-story' : '');
           bubble.dataset.uid = uid;
 
@@ -14272,11 +15260,24 @@ body.arcade-fs-ios body::after { display:none !important; }
           const avatarStyle = latest.authorAvatar
               ? `background-image:url('${escFeed(latest.authorAvatar)}')`
               : '';
-          const ringClass = 'story-ring' + (allSeen ? ' story-ring-seen' : '');
+
+          // Ring colour logic:
+          //  red   = unseen/new story
+          //  blue  = seen story (still active)
+          //  seen  = dim ring when all stories viewed
+          let ringClass = 'story-ring';
+          if (allSeen) {
+              ringClass += ' story-ring-seen';
+          } else if (hasUnseen) {
+              ringClass += ' story-ring-red';
+          } else {
+              ringClass += ' story-ring-blue';
+          }
 
           bubble.innerHTML = `
               <div class="${ringClass}">
                   <div class="story-ring-inner" style="${avatarStyle}">${latest.authorAvatar ? '' : escFeed(initial)}</div>
+                  ${isOnline ? '<div class="story-online-dot"></div>' : ''}
               </div>
               <span class="story-label">${escFeed(latest.authorName || 'Unknown')}</span>`;
 
@@ -14664,7 +15665,8 @@ function navTo(pageId) {
         stormRoomsPage:'navStorm', adminPage:'navAdmin',
         moderatorPage:'navMod', administratorPage:'navAdminOfficer',
         communityPage:'navCommunity', supportRoomsPage:'navSupport',
-        communityRulesPage:'navCommunityRules'
+        communityRulesPage:'navCommunityRules',
+        liveHubPage:'navLiveHub'
     };
     const navEl = document.getElementById(map[pageId]);
     if (navEl) navEl.classList.add('active-nav');
@@ -14898,28 +15900,17 @@ async function snxLoadProfileWall(uid) {
             }
 
             const ts = _ago(w.savedAt);
-            const pinLabel = w.pinned ? '📌 Pinned' : '📌 Pin';
-            const wallDocId = w.id;
-            const curUid    = window._snxCurrentUser?.uid || '';
+            const pinLabel  = w.pinned ? '📌 Pinned' : '📌 Pin';
+            const meUid = window._snxCurrentUser?.uid || '';
+            const likeCount = w.likeCount || 0;
+            const commentCount = w.commentCount || 0;
+            const iLiked = Array.isArray(w.likedBy) && w.likedBy.includes(meUid);
 
-            // Social counts
-            const likeCount    = w.likes || 0;
-            const commentCount = (w.wallComments || []).length;
-            const alreadyLiked = Array.isArray(w.likedBy) && w.likedBy.includes(curUid);
-
-            // Comments HTML
-            const commentsHTML = (w.wallComments || []).map(c => `
-                <div class="snx-pwall-comment">
-                    <span class="snx-pwall-comment-author">${_esc(c.author || 'User')}</span>
-                    <span class="snx-pwall-comment-text">${_esc(c.text || '')}</span>
-                    <span class="snx-pwall-comment-ts">${_ago(c.ts)}</span>
-                </div>`).join('');
-
-            const ownerCtrl = isOwner ? `
+            const ownerActions = isOwner ? `
                 <button class="snx-pwall-pin-btn${w.pinned ? ' pinned' : ''}"
-                        onclick="snxTogglePinWallPost('${wallDocId}','${uid}',${!w.pinned})">${pinLabel}</button>
+                        onclick="snxTogglePinWallPost('${w.id}','${uid}',${!w.pinned})">${pinLabel}</button>
                 <button class="snx-pwall-del-btn"
-                        onclick="snxDeleteProfileWallPost('${wallDocId}','${uid}')">🗑 Remove</button>
+                        onclick="snxDeleteProfileWallPost('${w.id}','${uid}')">🗑 Remove</button>
             ` : '';
 
             card.innerHTML = `
@@ -14932,6 +15923,7 @@ async function snxLoadProfileWall(uid) {
                                onclick="viewProfile('${_esc(uid)}')">${_esc(w.authorName || '')}</b>
                             ${w.authorHandle ? `<span style="font-size:11px;color:#4a6a8a;margin-left:4px;">@${_esc(w.authorHandle)}</span>` : ''}
                             ${_typeBadge(w)}
+                            ${w.savedToAlbum ? '<span class="snx-pwall-type-badge album" style="margin-left:4px;">📸 In Album</span>' : ''}
                         </div>
                     </div>
                     ${ts ? `<span class="snx-pwall-ts">${ts}</span>` : ''}
@@ -14939,33 +15931,35 @@ async function snxLoadProfileWall(uid) {
                 ${w.text ? `<div class="snx-pwall-text">${_esc(w.text)}</div>` : ''}
                 ${mediaHTML}
 
-                <!-- Social bar: likes / comments / share / owner controls -->
+                <!-- Social bar -->
                 <div class="snx-pwall-social-bar">
-                    <button class="snx-pwall-social-btn snx-pwall-like-btn${alreadyLiked ? ' liked' : ''}"
-                            id="snx-wlike-btn-${wallDocId}"
-                            onclick="snxWallLike('${wallDocId}','${uid}',this)">
-                        ${alreadyLiked ? '❤️' : '🤍'} <span class="snx-pwall-like-count">${likeCount}</span>
+                    <button class="snx-pwall-social-btn${iLiked ? ' liked' : ''}"
+                            id="pwlike-${w.id}"
+                            onclick="snxToggleWallPostLike('${w.id}','${uid}')">
+                        ${iLiked ? '❤️' : '🤍'} <span id="pwlcount-${w.id}">${likeCount}</span>
+                    </button>
+                    <button class="snx-pwall-social-btn share-btn"
+                            onclick="snxShareWallPost('${w.id}','${uid}','${_esc(w.text || '')}','${_esc(w.mediaUrl || '')}')">
+                        📤 Share
                     </button>
                     <button class="snx-pwall-social-btn"
-                            onclick="snxWallToggleComments('${wallDocId}')">
-                        💬 <span id="snx-wcc-${wallDocId}">${commentCount}</span>
+                            onclick="snxToggleWallComments('${w.id}')">
+                        💬 <span id="pwccount-${w.id}">${commentCount}</span>
                     </button>
-                    <button class="snx-pwall-social-btn"
-                            onclick="snxWallShare('${wallDocId}','${uid}')">
-                        🔗 Share
-                    </button>
-                    ${ownerCtrl}
+                    ${ownerActions ? `<div style="flex:1;display:flex;justify-content:flex-end;gap:6px;">${ownerActions}</div>` : ''}
                 </div>
 
-                <!-- Collapsible comments section -->
-                <div class="snx-pwall-comments-section" id="snx-wcomments-${wallDocId}" style="display:none;">
-                    <div class="snx-pwall-comments-list" id="snx-wcomlist-${wallDocId}">${commentsHTML}</div>
+                <!-- Inline comments -->
+                <div class="snx-pwall-comments" id="pwcomments-${w.id}">
+                    <div class="snx-pwall-comment-list" id="pwclist-${w.id}">
+                        <div style="color:#4a6a8a;font-size:12px;text-align:center;padding:8px 0;">Loading comments…</div>
+                    </div>
                     <div class="snx-pwall-comment-input-row">
-                        <input class="snx-pwall-comment-input" id="snx-wcomin-${wallDocId}"
-                               placeholder="Write a comment…" maxlength="300"
-                               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();snxWallComment('${wallDocId}','${uid}');}">
+                        <input class="snx-pwall-comment-input" id="pwcinput-${w.id}"
+                               maxlength="280" placeholder="Add a comment…"
+                               onkeydown="if(event.key==='Enter')snxSubmitWallComment('${w.id}','${uid}')">
                         <button class="snx-pwall-comment-send"
-                                onclick="snxWallComment('${wallDocId}','${uid}')">Send</button>
+                                onclick="snxSubmitWallComment('${w.id}','${uid}')">Send</button>
                     </div>
                 </div>
             `;
@@ -15012,88 +16006,212 @@ async function snxDeleteProfileWallPost(wallDocId, uid) {
     }
 }
 
-/* ── Wall Like ── */
-async function snxWallLike(wallDocId, uid, btn) {
+/* ══════════════════════════════════════════════════════════
+   PROFILE WALL — Social Interactions
+   (Likes, Comments, Share on wall post cards)
+   ══════════════════════════════════════════════════════════ */
+
+/** Toggle like on a profile wall post */
+async function snxToggleWallPostLike(wallDocId, wallOwnerUid) {
+    const me = window._snxCurrentUser;
+    if (!me) { toastNotification('Sign in to like posts.'); return; }
     const _fs = window._snxFirestore;
     if (!_fs) return;
-    const curUser = window._snxCurrentUser;
-    if (!curUser) { toastNotification('Please log in to like posts.'); return; }
-    const { db, doc, updateDoc, arrayUnion, arrayRemove, increment } = _fs;
-    const curUid = curUser.uid;
-    const wallRef = doc(db, 'users', uid, 'profileWall', wallDocId);
-    const countEl  = btn?.querySelector('.snx-pwall-like-count');
-    const liked    = btn?.classList.contains('liked');
+    const { db, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove } = _fs;
+    const wallDocRef = doc(db, 'users', wallOwnerUid, 'profileWall', wallDocId);
     try {
-        if (liked) {
-            await updateDoc(wallRef, { likes: increment(-1), likedBy: arrayRemove(curUid) });
-            if (btn)    { btn.classList.remove('liked'); btn.innerHTML = '🤍 <span class="snx-pwall-like-count">' + (Math.max(0, (parseInt(countEl?.textContent) || 1) - 1)) + '</span>'; }
-        } else {
-            await updateDoc(wallRef, { likes: increment(1), likedBy: arrayUnion(curUid) });
-            if (btn)    { btn.classList.add('liked'); btn.innerHTML = '❤️ <span class="snx-pwall-like-count">' + ((parseInt(countEl?.textContent) || 0) + 1) + '</span>'; }
+        const snap = await getDoc(wallDocRef);
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const likedBy = data.likedBy || [];
+        const liked   = likedBy.includes(me.uid);
+
+        await updateDoc(wallDocRef, {
+            likedBy:   liked ? arrayRemove(me.uid) : arrayUnion(me.uid),
+            likeCount: liked ? increment(-1)        : increment(1),
+        });
+
+        // Update button UI instantly
+        const btn = document.getElementById('pwlike-' + wallDocId);
+        const countEl = document.getElementById('pwlcount-' + wallDocId);
+        const newLiked = !liked;
+        const newCount = (parseInt(countEl?.textContent, 10) || 0) + (liked ? -1 : 1);
+        if (btn) {
+            btn.classList.toggle('liked', newLiked);
+            btn.innerHTML = `${newLiked ? '❤️' : '🤍'} <span id="pwlcount-${wallDocId}">${Math.max(0, newCount)}</span>`;
         }
     } catch(e) {
-        toastNotification('Could not update like.');
+        console.warn('[WallLike] Error:', e);
+        toastNotification('Failed to like post.');
     }
 }
 
-/* ── Wall Comment ── */
-async function snxWallComment(wallDocId, uid) {
+/** Toggle comment panel open/closed; loads comments on first open */
+function snxToggleWallComments(wallDocId) {
+    const panel = document.getElementById('pwcomments-' + wallDocId);
+    if (!panel) return;
+    const isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open', !isOpen);
+    if (!isOpen && !panel.dataset.loaded) {
+        panel.dataset.loaded = '1';
+        snxLoadWallComments(wallDocId);
+    }
+    // Focus the input when opening
+    if (!isOpen) {
+        const inp = document.getElementById('pwcinput-' + wallDocId);
+        if (inp) setTimeout(() => inp.focus(), 120);
+    }
+}
+
+/** Load comments for a wall post */
+async function snxLoadWallComments(wallDocId) {
+    const listEl = document.getElementById('pwclist-' + wallDocId);
+    if (!listEl) return;
+    const _fs = window._snxFirestore;
+    if (!_fs) { listEl.innerHTML = '<div style="color:#ff5577;font-size:12px;padding:8px 0;">Not ready.</div>'; return; }
+    const { db, collection, query, orderBy, getDocs } = _fs;
+    try {
+        const snap = await getDocs(
+            query(collection(db, 'wallPostComments', wallDocId, 'comments'), orderBy('createdAt', 'asc'))
+        );
+        if (snap.empty) {
+            listEl.innerHTML = '<div style="color:#4a6a8a;font-size:12px;text-align:center;padding:8px 0;">No comments yet. Be the first!</div>';
+            return;
+        }
+        const me = window._snxCurrentUser;
+        const _esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        const _ago = (ts) => {
+            const d = Math.floor((Date.now() - ts) / 1000);
+            if (d < 60) return d + 's';
+            if (d < 3600) return Math.floor(d/60) + 'm';
+            if (d < 86400) return Math.floor(d/3600) + 'h';
+            return new Date(ts).toLocaleDateString();
+        };
+        listEl.innerHTML = '';
+        snap.forEach(d => {
+            const c = d.data();
+            const av = c.authorAvatar
+                ? `<div class="snx-pwall-comment-avatar" style="background-image:url('${_esc(c.authorAvatar)}');background-size:cover;background-position:center;"></div>`
+                : `<div class="snx-pwall-comment-avatar">${(c.authorName||'?')[0].toUpperCase()}</div>`;
+            const canDel = me && (me.uid === c.authorUid);
+            const delBtn = canDel
+                ? `<button class="snx-pwall-comment-del" onclick="snxDeleteWallComment('${wallDocId}','${d.id}')" title="Delete">✕</button>`
+                : '';
+            listEl.insertAdjacentHTML('beforeend', `
+                <div class="snx-pwall-comment-item" id="pwc-${d.id}">
+                    ${av}
+                    <div class="snx-pwall-comment-body">
+                        <div class="snx-pwall-comment-author">${_esc(c.authorName || 'User')}${delBtn}</div>
+                        <div class="snx-pwall-comment-text">${_esc(c.text)}</div>
+                        <div class="snx-pwall-comment-ts">${_ago(c.createdAt)}</div>
+                    </div>
+                </div>
+            `);
+        });
+    } catch(e) {
+        console.warn('[WallComments] load error:', e);
+        listEl.innerHTML = '<div style="color:#ff5577;font-size:12px;text-align:center;padding:8px 0;">Failed to load comments.</div>';
+    }
+}
+
+/** Submit a comment on a wall post */
+async function snxSubmitWallComment(wallDocId, wallOwnerUid) {
+    const me = window._snxCurrentUser;
+    if (!me) { toastNotification('Sign in to comment.'); return; }
+    const inp = document.getElementById('pwcinput-' + wallDocId);
+    if (!inp) return;
+    const text = inp.value.trim();
+    if (!text) return;
+    if (text.length > 280) { toastNotification('Comment too long — max 280 characters.'); return; }
+
     const _fs = window._snxFirestore;
     if (!_fs) return;
-    const curUser = window._snxCurrentUser;
-    if (!curUser) { toastNotification('Please log in to comment.'); return; }
-    const inputEl = document.getElementById('snx-wcomin-' + wallDocId);
-    const text = (inputEl?.value || '').trim();
-    if (!text) return;
-    const { db, doc, updateDoc, arrayUnion } = _fs;
-    const comment = {
-        authorUid: curUser.uid,
-        author:    window._snxUserData?.displayName || curUser.displayName || 'User',
-        text,
-        ts:        Date.now(),
-    };
+    const { db, collection, addDoc, doc, updateDoc, increment } = _fs;
+    const userData = window._snxUserData || {};
+
+    inp.disabled = true;
     try {
-        await updateDoc(doc(db, 'users', uid, 'profileWall', wallDocId), {
-            wallComments: arrayUnion(comment),
+        await addDoc(collection(db, 'wallPostComments', wallDocId, 'comments'), {
+            wallDocId,
+            wallOwnerUid,
+            authorUid:    me.uid,
+            authorName:   userData.displayName || me.displayName || 'User',
+            authorHandle: userData.username    || '',
+            authorAvatar: userData.avatar      || me.photoURL    || '',
+            text,
+            createdAt:    Date.now(),
         });
-        // Append to DOM optimistically
-        const listEl = document.getElementById('snx-wcomlist-' + wallDocId);
+
+        // Increment comment count on the wall post
+        try {
+            await updateDoc(doc(db, 'users', wallOwnerUid, 'profileWall', wallDocId), {
+                commentCount: increment(1),
+            });
+            const countEl = document.getElementById('pwccount-' + wallDocId);
+            if (countEl) countEl.textContent = (parseInt(countEl.textContent, 10) || 0) + 1;
+        } catch(_) { /* non-fatal */ }
+
+        inp.value = '';
+        // Append comment immediately to the list
+        const listEl = document.getElementById('pwclist-' + wallDocId);
         if (listEl) {
             const _esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-            const row = document.createElement('div');
-            row.className = 'snx-pwall-comment';
-            row.innerHTML = `<span class="snx-pwall-comment-author">${_esc(comment.author)}</span><span class="snx-pwall-comment-text">${_esc(comment.text)}</span><span class="snx-pwall-comment-ts">just now</span>`;
-            listEl.appendChild(row);
+            const av = userData.avatar
+                ? `<div class="snx-pwall-comment-avatar" style="background-image:url('${_esc(userData.avatar)}');background-size:cover;background-position:center;"></div>`
+                : `<div class="snx-pwall-comment-avatar">${(userData.displayName || '?')[0].toUpperCase()}</div>`;
+            // Remove "no comments" placeholder if present
+            const empty = listEl.querySelector('[style*="No comments"]');
+            if (empty) empty.remove();
+            listEl.insertAdjacentHTML('beforeend', `
+                <div class="snx-pwall-comment-item">
+                    ${av}
+                    <div class="snx-pwall-comment-body">
+                        <div class="snx-pwall-comment-author">${_esc(userData.displayName || 'User')}</div>
+                        <div class="snx-pwall-comment-text">${_esc(text)}</div>
+                        <div class="snx-pwall-comment-ts">just now</div>
+                    </div>
+                </div>
+            `);
+            listEl.scrollTop = listEl.scrollHeight;
         }
-        // Update comment count badge
-        const countEl = document.getElementById('snx-wcc-' + wallDocId);
-        if (countEl) countEl.textContent = (parseInt(countEl.textContent) || 0) + 1;
-        if (inputEl) inputEl.value = '';
     } catch(e) {
-        toastNotification('Failed to post comment: ' + e.message);
+        console.warn('[WallComment] submit error:', e);
+        toastNotification('Failed to post comment.');
+    } finally {
+        inp.disabled = false;
+        inp.focus();
     }
 }
 
-/* ── Wall Comments toggle ── */
-function snxWallToggleComments(wallDocId) {
-    const sec = document.getElementById('snx-wcomments-' + wallDocId);
-    if (!sec) return;
-    const visible = sec.style.display !== 'none';
-    sec.style.display = visible ? 'none' : '';
-    if (!visible) {
-        // Focus input when opening
-        const inp = document.getElementById('snx-wcomin-' + wallDocId);
-        if (inp) setTimeout(() => inp.focus(), 80);
+/** Delete own comment from a wall post */
+async function snxDeleteWallComment(wallDocId, commentId) {
+    if (!window._snxCurrentUser) return;
+    if (!confirm('Delete this comment?')) return;
+    const _fs = window._snxFirestore;
+    if (!_fs) return;
+    const { db, doc, deleteDoc } = _fs;
+    try {
+        await deleteDoc(doc(db, 'wallPostComments', wallDocId, 'comments', commentId));
+        const el = document.getElementById('pwc-' + commentId);
+        if (el) el.remove();
+    } catch(e) {
+        toastNotification('Failed to delete comment.');
     }
 }
 
-/* ── Wall Share ── */
-function snxWallShare(wallDocId, uid) {
-    const url = `${location.origin}${location.pathname}?wall=${uid}&post=${wallDocId}`;
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(() => toastNotification('🔗 Wall post link copied!'));
+/** Share a wall post via Web Share API or clipboard fallback */
+function snxShareWallPost(wallDocId, wallOwnerUid, text, mediaUrl) {
+    const url = `${location.origin}${location.pathname}#profile-${wallOwnerUid}`;
+    const shareText = text ? text.substring(0, 120) : 'Check out this post on Shadow Nexus Social!';
+    if (navigator.share) {
+        navigator.share({ title: 'Shadow Nexus Social', text: shareText, url })
+            .catch(() => {}); // user cancelled — ignore
     } else {
-        toastNotification('Share link: ' + url);
+        if (window.snxCopyToClipboard) {
+            window.snxCopyToClipboard(url, '🔗 Link copied to clipboard!');
+        } else {
+            window.prompt('Copy this link:', url);
+        }
     }
 }
 
@@ -16348,8 +17466,13 @@ async function handlePostMediaPick(input) {
         document.getElementById('postMediaUrl').value = urls.join(',');
         document.getElementById('postMediaFilename').textContent = files.length === 1 ? files[0].name : `${files.length} files ready`;
         toastNotification(`✅ ${files.length === 1 ? 'File' : files.length + ' files'} uploaded!`);
-        // Show photo destination options panel now that a URL is confirmed
-        _snxShowPhotoPostOpts(true, files[0]);
+
+        // ── Show photo destination options if any file is an image ──
+        const hasImage = files.some(f => f.type.startsWith('image/'));
+        const photoOptsEl = document.getElementById('photoPostOptions');
+        const wallTextLabel = document.getElementById('wallSaveLabelText');
+        if (photoOptsEl) photoOptsEl.style.display = hasImage ? '' : 'none';
+        if (wallTextLabel) wallTextLabel.style.display = hasImage ? 'none' : '';
     } catch(e) {
         console.error('[SNX Upload] Media upload failed:', e);
         toastNotification('❌ Upload failed: ' + e.message);
@@ -16385,51 +17508,15 @@ function clearPostMedia() {
     document.getElementById('postMediaPreviewImg').style.display = 'none';
     document.getElementById('postMediaPreviewVid').style.display = 'none';
     document.getElementById('postMediaPreviewAud').style.display = 'none';
-    // Hide photo options panel and reset checkboxes
-    _snxShowPhotoPostOpts(false);
-}
-
-/**
- * Show or hide the grouped photo-destination options panel.
- * @param {boolean} show
- * @param {File=} file  — first file, used to detect if it is an image for album eligibility
- */
-function _snxShowPhotoPostOpts(show, file) {
-    const opts       = document.getElementById('snxPhotoPostOpts');
-    const standalone = document.getElementById('wallSaveLabelStandalone');
-    const hint       = document.getElementById('snxPhotoDestHint');
-    if (!opts || !standalone) return;
-
-    if (show) {
-        opts.style.display = '';
-        standalone.style.display = 'none';
-        // Only show Album checkbox for images (not video/audio)
-        const albumLabel = document.getElementById('snxChkAlbumLabel');
-        const isImage = !file || (file.type && file.type.startsWith('image/'));
-        if (albumLabel) albumLabel.style.display = isImage ? '' : 'none';
-        // Update hint text
-        if (hint) _snxUpdatePhotoHint();
-    } else {
-        opts.style.display = 'none';
-        standalone.style.display = '';
-        // Reset checkboxes
-        ['chkSaveToAlbum','chkSaveToWall'].forEach(id => {
-            const el = document.getElementById(id); if (el) el.checked = false;
-        });
-        if (hint) hint.textContent = '';
-    }
-}
-
-/** Update the hint line under the photo destination checkboxes. */
-function _snxUpdatePhotoHint() {
-    const hint    = document.getElementById('snxPhotoDestHint');
-    if (!hint) return;
-    const album   = document.getElementById('chkSaveToAlbum')?.checked;
-    const wall    = document.getElementById('chkSaveToWall')?.checked;
-    if (album && wall)    hint.textContent = '✅ Photo will appear in Feed, Profile Wall & Photo Album.';
-    else if (album)       hint.textContent = '📸 Photo will be saved to your Album and appear in Feed.';
-    else if (wall)        hint.textContent = '📌 Photo will appear in Feed and on your Profile Wall.';
-    else                  hint.textContent = '💡 Photo will only appear in the Feed.';
+    // Hide photo destination options, restore text-only wall toggle
+    const photoOptsEl = document.getElementById('photoPostOptions');
+    if (photoOptsEl) { photoOptsEl.style.display = 'none'; }
+    const chkAlbum = document.getElementById('chkSaveToAlbum');
+    if (chkAlbum) chkAlbum.checked = false;
+    const chkWall = document.getElementById('chkSaveToWall');
+    if (chkWall) chkWall.checked = false;
+    const wallTextLabel = document.getElementById('wallSaveLabelText');
+    if (wallTextLabel) wallTextLabel.style.display = '';
 }
 
 /* ══ Profile picture upload handlers ══ */
@@ -17725,6 +18812,7 @@ function _supportStopCanvas() {
      Shared JavaScript utilities (SW registration, PWA install,
      online/offline detection, helper functions)
      ═══════════════════════════════════════════════════════════ -->
+
 <script src="script.js"></script>
 
 <script>
@@ -22878,11 +23966,161 @@ window.scbInit = async function(user, userDataArg) {
    Hook into existing admin tab switcher so the
    dashboard loads when the Shadow Bot tab opens.
    ══════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════
+   ADMIN — LIVE ROOM MANAGER (Founder only)
+   ═══════════════════════════════════════════════════ */
+window.adminLoadLiveRooms = async function() {
+  const list = document.getElementById('adminLiveRoomsList');
+  if (!list) return;
+  list.innerHTML = '<div style="color:#4a6a8a;font-size:13px;text-align:center;padding:20px 0;">Loading…</div>';
+
+  // Load from RTDB (all rooms — active + ended)
+  const { getDatabase, ref: rtdbRef, get: rtdbGet } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+  const rtdb = getDatabase(window._snxApp);
+  let rtdbRooms = {};
+  try {
+    const snap = await rtdbGet(rtdbRef(rtdb, 'liveRooms'));
+    rtdbRooms = snap.val() || {};
+  } catch (_) {}
+
+  // Load from Firestore (all liveRooms docs)
+  let fsRooms = {};
+  try {
+    const snap = await getDocs(collection(db, 'liveRooms'));
+    snap.forEach(d => { fsRooms[d.id] = d.data(); });
+  } catch (_) {}
+
+  const allIds = new Set([...Object.keys(rtdbRooms), ...Object.keys(fsRooms)]);
+
+  if (!allIds.size) {
+    list.innerHTML = '<div style="color:#4a6a8a;font-size:13px;text-align:center;padding:20px 0;">No live rooms found — database is clean.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  allIds.forEach(roomId => {
+    const r = rtdbRooms[roomId] || fsRooms[roomId] || {};
+    const status   = r.status  || (r.isLive ? 'live' : 'ended');
+    const isActive = status === 'live';
+    const name     = r.hostName || r.hostUsername || roomId.slice(0, 12) + '…';
+    const title    = r.title    || 'Shadow Nexus LIVE';
+    const created  = r.createdAt ? new Date(r.createdAt).toLocaleString() : '—';
+    const ended    = r.endedAt   ? new Date(r.endedAt).toLocaleString()   : '—';
+
+    const card = document.createElement('div');
+    card.style.cssText = 'background:rgba(0,20,50,0.7);border:1px solid ' +
+      (isActive ? 'rgba(255,34,68,0.45)' : 'rgba(50,80,120,0.35)') +
+      ';border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;';
+    card.innerHTML = `
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:${isActive ? '#ff6677' : '#6a90b8'};margin-bottom:3px;">
+          ${isActive ? '🔴 LIVE' : '⚫ Ended'} &nbsp; <span style="color:#e0f0ff;">${escFeed(name)}</span>
+        </div>
+        <div style="font-size:11px;color:#4a7a9a;">${escFeed(title)}</div>
+        <div style="font-size:10px;color:#3a5a7a;margin-top:3px;">
+          ID: ${escFeed(roomId)} &nbsp;·&nbsp; Created: ${created}${!isActive ? ' &nbsp;·&nbsp; Ended: ' + ended : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        ${isActive ? `<button onclick="window.adminEndLiveRoom('${escFeed(roomId)}','${escFeed(r.hostId||'')}',this)" style="padding:6px 12px;border-radius:7px;background:rgba(255,34,68,0.12);border:1px solid rgba(255,34,68,0.4);color:#ff6677;font-size:11px;font-weight:700;cursor:pointer;">⛔ End Stream</button>` : ''}
+        <button onclick="window.adminDeleteLiveRoom('${escFeed(roomId)}','${escFeed(r.hostId||'')}',this)" style="padding:6px 12px;border-radius:7px;background:rgba(100,20,20,0.18);border:1px solid rgba(255,50,50,0.25);color:#cc5555;font-size:11px;font-weight:700;cursor:pointer;">🗑 Delete</button>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+};
+
+window.adminEndLiveRoom = async function(roomId, hostId, btn) {
+  if (!founderOnly()) return;
+  if (!confirm('End this live stream? The creator will see "Stream ended".')) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Ending…'; }
+  try {
+    // RTDB
+    const { getDatabase, ref: rtdbRef, update: rtdbUpdate, remove: rtdbRemove } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+    const rtdb = getDatabase(window._snxApp);
+    await rtdbUpdate(rtdbRef(rtdb, `liveRooms/${roomId}`), { status: 'ended', isLive: false, endedAt: Date.now() });
+    await rtdbRemove(rtdbRef(rtdb, `liveConnections/${roomId}`));
+    // Firestore
+    if (hostId) {
+      try { await updateDoc(doc(db, 'users', hostId), { isLive: deleteField(), liveRoomId: deleteField() }); } catch(_) {}
+      // Delete uid-keyed liveRooms doc (new schema)
+      try { await deleteDoc(doc(db, 'liveRooms', hostId)); } catch(_) {}
+    }
+    // Delete roomId-keyed liveRooms doc (legacy schema)
+    try { await deleteDoc(doc(db, 'liveRooms', roomId)); } catch(_) {}
+    // Delete any orphaned feed posts with this liveRoomId
+    try {
+      const q = query(collection(db,'posts'), where('liveRoomId','==',roomId), where('type','==','live'));
+      const s = await getDocs(q);
+      s.forEach(async d => { try { await deleteDoc(d.ref); } catch(_) {} });
+    } catch(_) {}
+    toastNotification('Stream ended.');
+    window.adminLoadLiveRooms();
+  } catch(e) {
+    toastNotification('Could not end stream: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '⛔ End Stream'; }
+  }
+};
+
+window.adminDeleteLiveRoom = async function(roomId, hostId, btn) {
+  if (!founderOnly()) return;
+  if (!confirm('Permanently delete this room from the database?')) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+  try {
+    const { getDatabase, ref: rtdbRef, remove: rtdbRemove } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+    const rtdb = getDatabase(window._snxApp);
+    await rtdbRemove(rtdbRef(rtdb, `liveRooms/${roomId}`));
+    await rtdbRemove(rtdbRef(rtdb, `liveConnections/${roomId}`));
+    // Delete roomId-keyed liveRooms doc (legacy)
+    try { await deleteDoc(doc(db, 'liveRooms', roomId)); } catch(_) {}
+    if (hostId) {
+      try { await updateDoc(doc(db, 'users', hostId), { isLive: deleteField(), liveRoomId: deleteField() }); } catch(_) {}
+      // Delete uid-keyed liveRooms doc (new schema)
+      try { await deleteDoc(doc(db, 'liveRooms', hostId)); } catch(_) {}
+    }
+    toastNotification('Room deleted.');
+    window.adminLoadLiveRooms();
+  } catch(e) {
+    toastNotification('Could not delete room: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '🗑 Delete'; }
+  }
+};
+
+window.adminPurgeEndedRooms = async function() {
+  if (!founderOnly()) return;
+  if (!confirm('Delete ALL ended/inactive rooms from both RTDB and Firestore?')) return;
+  const { getDatabase, ref: rtdbRef, get: rtdbGet, remove: rtdbRemove } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+  const rtdb = getDatabase(window._snxApp);
+  let deleted = 0;
+  try {
+    // RTDB
+    const snap = await rtdbGet(rtdbRef(rtdb, 'liveRooms'));
+    const rooms = snap.val() || {};
+    for (const [id, r] of Object.entries(rooms)) {
+      if (r.status === 'ended' || r.isLive === false) {
+        await rtdbRemove(rtdbRef(rtdb, `liveRooms/${id}`));
+        await rtdbRemove(rtdbRef(rtdb, `liveConnections/${id}`));
+        deleted++;
+      }
+    }
+    // Firestore
+    const fsSnap = await getDocs(query(collection(db,'liveRooms'), where('isLive','==',false)));
+    fsSnap.forEach(async d => { try { await deleteDoc(d.ref); deleted++; } catch(_) {} });
+    const fsSnap2 = await getDocs(query(collection(db,'liveRooms'), where('status','==','ended')));
+    fsSnap2.forEach(async d => { try { await deleteDoc(d.ref); } catch(_) {} });
+  } catch(e) {}
+  toastNotification(deleted > 0 ? `Purged ${deleted} ended room(s).` : 'No ended rooms found.');
+  window.adminLoadLiveRooms();
+};
+
 const _originalSwitchAdminTab = window.switchAdminTab;
 window.switchAdminTab = function(tab) {
   if (typeof _originalSwitchAdminTab === 'function') _originalSwitchAdminTab(tab);
   if (tab === 'shadowbot') {
     scbOpenDashboard();
+  }
+  if (tab === 'liverooms') {
+    window.adminLoadLiveRooms();
   }
 };
 

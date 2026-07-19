@@ -1,1614 +1,1462 @@
 /**
- * Shadow Nexus Live — live.js  v4
+ * Shadow Nexus Live — live.js
  *
- * Auth model
- *   VIEWER  → anonymous Firebase auth (no account needed)
- *   HOST    → Shadow Nexus Social account session, shared automatically
- *             via Firebase browserLocalPersistence.  When a user is
- *             already signed in on index.html the live page picks up
- *             the same session — no second login required.
+ * Firebase split architecture:
  *
- * Session handoff from index.html
- *   index.html sets localStorage key  snx_live_intent = 'golive'
- *   when the user clicks 🔴 GO LIVE.  The live page reads this once
- *   on boot to skip the viewer path and jump straight to setup.
+ *  MAIN Firebase (horr-a08f4) — Firestore:
+ *    - Auth / user profiles
+ *    - Feed posts, stories, notifications
+ *    - Live chat messages  (liveRooms/{roomId}/liveMessages)
+ *    - Likes counter       (liveRooms/{roomId}.likes)
  *
- * Security
- *   - Only signed-in (non-anonymous) accounts can start a stream
- *   - createRoom() enforces this + prevents duplicate streams per user
- *   - endRoom() is only callable by the original host
+ *  LIVE Firebase (Shadow Nexus Live) — Realtime Database:
+ *    - Room status         (liveRooms/{roomId})
+ *    - WebRTC offer/answer (liveConnections/{roomId})
+ *    - ICE candidates      (liveConnections/{roomId}/creatorCandidates | viewerCandidates)
+ *
+ *  CREATOR:
+ *    1. Captures local camera + mic via getUserMedia.
+ *    2. Creates liveRooms/{roomId} in RTDB (status: 'live').
+ *    3. Creates RTCPeerConnection, writes SDP offer to liveConnections/{roomId} in RTDB.
+ *    4. Waits for viewer answer + ICE, then streams directly via WebRTC.
+ *
+ *  VIEWER:
+ *    1. Reads liveRooms/{roomId} from RTDB to confirm stream is live.
+ *    2. Reads SDP offer from liveConnections/{roomId} in RTDB.
+ *    3. Creates RTCPeerConnection, sends answer + ICE back to RTDB.
+ *    4. Receives creator tracks via WebRTC ontrack.
+ *
+ *  Chat + Likes:
+ *    Stored in Firestore sub-collections under liveRooms/{roomId}.
  */
 
+'use strict';
+
+/* ── Main Firebase imports (Firestore + Auth) ── */
+import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import {
-  onAuthReady, ensureAnonAuth, loadMyProfile,
-  createRoom, getRoom, joinRoom, leaveRoom, endRoom, watchRoom,
-  sendMessage, watchMessages, sendLike, watchLikes,
-  publishGuestOffer, publishGuestAnswer, publishGuestIce,
-  watchGuestOffer, watchGuestAnswer, watchGuestIce,
-  watchGuestList, removeGuestSignal,
-  _auth, _db
-} from './firebase-live.js';
-
+  getAuth, onAuthStateChanged
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
-  signInWithEmailAndPassword
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+  getFirestore,
+  doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc,
+  collection, query, orderBy, limit, onSnapshot,
+  serverTimestamp, increment, where, deleteField, arrayUnion
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
+/* ── Realtime Database imports (signaling + room status) ── */
 import {
-  getDoc, doc,
-  collection, query, where, orderBy, onSnapshot
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  getDatabase,
+  ref, set, get, update, remove, push, onValue, off, onDisconnect,
+  serverTimestamp as rtdbTimestamp
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
-import {
-  getLocalStream, stopLocalStream,
-  toggleCamera, toggleMic, flipCamera,
-  isCamEnabled, isMicEnabled,
-  HostPeerManager, GuestPeerManager,
-  probeNetwork, MAX_GUESTS
-} from './webrtc.js';
-
-/* ═══════════════════════════════════════════════
-   CONSTANTS
-════════════════════════════════════════════════ */
-const SPAM_WINDOW = 5000;
-const SPAM_MAX    = 5;
-
-/* ═══════════════════════════════════════════════
-   STATE
-════════════════════════════════════════════════ */
-const S = {
-  // Identity
-  firebaseUser:  null,   // Firebase auth user (anon or full)
-  profile:       null,   // SNS profile { uid, displayName, username, avatar, followers, role } or null
-  viewerName:    '',     // name for anonymous viewers
-
-  // Room
-  roomId:        null,
-  roomData:      null,
-  role:          null,   // 'host' | 'guest' | 'viewer'
-  isLive:        false,
-
-  // WebRTC
-  hostPeer:      null,
-  guestPeer:     null,
-  guestStreams:  {},
-
-  // Timers / subs
-  timerRef:      null,
-  startTime:     null,
-  unsubRoom:     null,
-  unsubMsgs:     null,
-  unsubGuests:   null,
-  unsubLikes:    null,
-  unsubIce:      {},
-
-  // Chat
-  spamLog:       [],
-  chatLog:       [],
-
-  // Setup
-  setupStream:   null,
-  setupCamOn:    true,
-  setupMicOn:    true,
+/* ════════════════════════════════════════════════════
+   MAIN Firebase — live.html is a standalone page.
+   index.html is NOT loaded here — no conflict exists.
+   ════════════════════════════════════════════════════ */
+const _CFG = {
+  apiKey:            'AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y',
+  authDomain:        'horr-a08f4.firebaseapp.com',
+  databaseURL:       'https://horr-a08f4-default-rtdb.firebaseio.com',
+  projectId:         'horr-a08f4',
+  storageBucket:     'horr-a08f4.firebasestorage.app',
+  messagingSenderId: '933810617818',
+  appId:             '1:933810617818:web:efb24f123337dd987c14e3',
 };
 
-/* ═══════════════════════════════════════════════
-   DOM
-════════════════════════════════════════════════ */
-const el   = id => document.getElementById(id);
-const dom  = {
-  // Loading
-  loadingScreen:     el('loadingScreen'),
-  loadHint:          el('loadHint'),
+const _app    = initializeApp(_CFG);
+const _auth   = getAuth(_app);
+const _db     = getFirestore(_app);
+const _liveDB = getDatabase(_app);
 
-  // Discovery
-  discLiveList:      el('discLiveList'),
-  discLiveCount:     el('discLiveCount'),
-  discEmpty:         el('discEmpty'),
-  // Auth gate
-  authGate:          el('authGate'),
-  authViewer:        el('authViewer'),
-  authAccount:       el('authAccount'),
-  viewerName:        el('viewerName'),
-  viewerErr:         el('viewerErr'),
-  btnWatchNow:       el('btnWatchNow'),
-  btnSwitchToAcct:   el('btnSwitchToAccount'),
-  acctEmail:         el('acctEmail'),
-  acctPassword:      el('acctPassword'),
-  acctErr:           el('acctErr'),
-  btnSignInAcct:     el('btnSignInAcct'),
-  btnBackToViewer:   el('btnBackToViewer'),
-  // App shell
-  app:               el('app'),
-  // Top bar
-  barAvatar:         el('barAvatar'),
-  barUserName:       el('barUserName'),
-  barUserHandle:     el('barUserHandle'),
-  barAccount:        el('barAccount'),
-  barTimer:          el('barTimer'),
-  barLivePill:       el('barLivePill'),
-  // Screens
-  screenHome:        el('screenHome'),
-  screenSetup:       el('screenSetup'),
-  screenLive:        el('screenLive'),
-  screenGuest:       el('screenGuestJoin'),
-  // Home
-  btnStartLive:      el('btnStartLive'),
-  heroAnonMsg:       el('heroAnonMsg'),
-  heroSignInLink:    el('heroSignInLink'),
-  // Setup — creator identity bar
-  cibAvatar:         el('cibAvatar'),
-  cibName:           el('cibName'),
-  cibHandle:         el('cibHandle'),
-  cibFollow:         el('cibFollow'),
-  // Setup
-  camPreview:        el('camPreview'),
-  camPreviewOff:     el('camPreviewOff'),
-  setupToggleCam:    el('setupToggleCam'),
-  setupToggleMic:    el('setupToggleMic'),
-  setupFlipCam:      el('setupFlipCam'),
-  setupTitle:        el('setupTitle'),
-  setupCategory:     el('setupCategory'),
-  setupGuestPerm:    el('setupGuestPerm'),
-  setupChat:         el('setupChat'),
-  setupNetDot:       el('setupNetDot'),
-  setupNetLabel:     el('setupNetLabel'),
-  btnGoLive:         el('btnGoLive'),
-  btnSetupBack:      el('btnSetupBack'),
-  // Live room
-  videoArena:        el('videoArena'),
-  hudHostAvatar:     el('hudHostAvatar'),
-  hudHostName:       el('hudHostName'),
-  hudHostHandle:     el('hudHostHandle'),
-  hudStreamTitleText:el('hudStreamTitleText'),
-  hudViewers:        el('hudViewers'),
-  hudLikes:          el('hudLikes'),
-  hudTimer:          el('hudTimer'),
-  hostToolbar:       el('hostToolbar'),
-  guestToolbar:      el('guestToolbar'),
-  viewerToolbar:     el('viewerToolbar'),
-  guestPanel:        el('guestPanel'),
-  guestPanelList:    el('guestPanelList'),
-  tbCam:             el('tbCam'),
-  tbMic:             el('tbMic'),
-  tbFlip:            el('tbFlip'),
-  tbInvite:          el('tbInvite'),
-  tbGuests:          el('tbGuests'),
-  tbFullscreen:      el('tbFullscreen'),
-  tbEnd:             el('tbEnd'),
-  gtCam:             el('gtCam'),
-  gtMic:             el('gtMic'),
-  gtFlip:            el('gtFlip'),
-  gtFullscreen:      el('gtFullscreen'),
-  gtLeave:           el('gtLeave'),
-  vtLike:            el('vtLike'),
-  vtShare:           el('vtShare'),
-  vtFullscreen:      el('vtFullscreen'),
-  vtReport:          el('vtReport'),
-  vtLeave:           el('vtLeave'),
-  chatPanel:         el('chatPanel'),
-  btnChatToggle:     el('btnChatToggle'),
-  chatLikeBtn:       el('chatLikeBtn'),
-  chatLikeCount:     el('chatLikeCount'),
-  chatViewerNum:     el('chatViewerNum'),
-  chatList:          el('chatList'),
-  chatInput:         el('chatInput'),
-  chatEmoji:         el('chatEmoji'),
-  chatSend:          el('chatSend'),
-  emojiPicker:       el('emojiPicker'),
-  reactionBurst:     el('reactionBurst'),
-  // Dialogs
-  endDialog:         el('endDialog'),
-  dialogTitle:       el('dialogTitle'),
-  dialogMsg:         el('dialogMsg'),
-  btnDialogCancel:   el('btnDialogCancel'),
-  btnDialogConfirm:  el('btnDialogConfirm'),
-  inviteDialog:      el('inviteDialog'),
-  inviteCodeDisplay: el('inviteCodeDisplay'),
-  btnCopyCode:       el('btnCopyCode'),
-  btnCloseInvite:    el('btnCloseInvite'),
-  // Guest join
-  guestCodeInput:    el('guestCodeInput'),
-  guestToggleCam:    el('guestToggleCam'),
-  guestToggleMic:    el('guestToggleMic'),
-  btnGuestJoin:      el('btnGuestJoin'),
-  btnGuestBack:      el('btnGuestBack'),
-  // Misc
-  toastWrap:         el('toastWrap'),
-  stormCanvas:       el('stormCanvas'),
+/* ── WebRTC ICE config ── */
+const _ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'turn:openrelay.metered.ca:80',   username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',  username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  ],
 };
 
-/* ═══════════════════════════════════════════════
-   GUEST REGISTRY (host-side per-guest state)
-════════════════════════════════════════════════ */
-// uid → { name, avatar, micMuted, camOff }
-const _guestRegistry = {};
+/* ── State ── */
+let _user         = null;   // Firebase Auth user
+let _userData     = null;   // Firestore user doc data
+let _mode         = null;   // 'creator' | 'viewer'
+let _roomId       = null;
+let _feedPostId   = null;   // ID of the live post created in 'posts' collection
+let _localStream  = null;
+let _camOn        = true;
+let _micOn        = true;
+let _facingMode   = 'user';
 
-/* ═══════════════════════════════════════════════
-   BOOT
-════════════════════════════════════════════════ */
-window.addEventListener('DOMContentLoaded', boot);
+// WebRTC
+let _rtcPc           = null;   // RTCPeerConnection
+let _rtcSignalUnsub  = null;   // RTDB listener unsubscribe (off ref)
+let _rtcSignalRef    = null;   // RTDB ref being listened to
 
-async function boot() {
-  initStorm();
+let _chatUnsub        = null;
+let _viewerCountRef   = null;   // RTDB ref for viewer count listener
+let _viewerCountUnsub = null;
+let _toastTimer       = null;
+let _viewerLeftFlag   = false;  // guard: prevent double-decrement on mobile
+let _creatorEndedFlag = false;  // guard: prevent beforeunload re-running endLive cleanup
 
-  // ── Intent flag written by index.html when the user clicks GO LIVE ──
-  const _goLiveIntent = localStorage.getItem('snx_live_intent') === 'golive';
-  if (_goLiveIntent) localStorage.removeItem('snx_live_intent');
+/* ── DOM refs (resolved after DOMContentLoaded) ── */
+let D = {};
 
-  // Extract deep-link room ID from hash, e.g. live.html#watch=AB12CD
-  const _deepLink = (() => {
-    const h = location.hash.replace('#', '');
-    if (h.startsWith('watch=')) return h.split('=')[1].toUpperCase().trim();
-    return null;
-  })();
+/* ═══════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  D = {
+    loading:         document.getElementById('liveLoading'),
+    setup:           document.getElementById('liveSetup'),
+    stage:           document.getElementById('liveStage'),
+    ended:           document.getElementById('liveEndedOverlay'),
+    toast:           document.getElementById('liveToast'),
+    unmutePrompt:    document.getElementById('liveUnmutePrompt'),
 
-  setHint('Connecting to Shadow Nexus…');
+    setupPreview:    document.getElementById('setupPreview'),
+    setupPreviewOff: document.getElementById('setupPreviewOff'),
+    setupTitle:      document.getElementById('setupTitleInput'),
+    setupCamBtn:     document.getElementById('setupBtnCam'),
+    setupMicBtn:     document.getElementById('setupBtnMic'),
+    setupFlipBtn:    document.getElementById('setupBtnFlip'),
+    goLiveBtn:       document.getElementById('btnGoLive'),
 
-  onAuthReady(async firebaseUser => {
-    hideEl(dom.loadingScreen);
+    liveVideo:       document.getElementById('liveVideo'),
+    camOffOverlay:   document.getElementById('liveCamOffOverlay'),
+    topBar:          document.getElementById('liveTopBar'),
+    liveBadge:       document.getElementById('liveBadge'),
+    creatorName:     document.getElementById('liveCreatorName'),
+    creatorAvatar:   document.getElementById('liveCreatorAvatar'),
+    viewerCount:     document.getElementById('liveViewerCount'),
+    likeCount:       document.getElementById('liveLikeCount'),
+    connBanner:      document.getElementById('liveConnBanner'),
+    connTitle:       document.getElementById('liveConnTitle'),
+    connSub:         document.getElementById('liveConnSub'),
 
-    if (firebaseUser && !firebaseUser.isAnonymous) {
-      // ── Full SNS account — session carried over from index.html ──
-      S.firebaseUser = firebaseUser;
-      setHint('Loading your profile…');
-      S.profile = await loadMyProfile();
+    // Creator controls
+    btnCam:          document.getElementById('btnToggleCam'),
+    btnMic:          document.getElementById('btnToggleMic'),
+    btnFlip:         document.getElementById('btnFlipCam'),
+    btnFS:           document.getElementById('btnFullscreen'),
+    btnEnd:          document.getElementById('btnEndLive'),
+    btnShareCreator: document.getElementById('btnShareLiveCreator'),
 
-      if (S.profile) {
-        updateTopBarAccount(S.profile);
-        showHostUI();
-        showApp();
-        startDiscovery();   // start live-room watcher
+    // Viewer controls
+    likeBtn:         document.getElementById('btnLike'),
+    likeBtnCount:    document.getElementById('likeBtnCount'),
+    profileBtn:      document.getElementById('btnCreatorProfile'),
+    btnShare:        document.getElementById('btnShareLive'),
 
-        if (_deepLink) {
-          history.replaceState(null, '', location.pathname);
-          showScreen('home');
-          await handleJoinAsViewer(_deepLink);
-        } else if (_goLiveIntent) {
-          showScreen('home');
-          await openSetup();
-        } else {
-          showScreen('home');
-        }
-        return;
-      }
-    }
+    // Chat
+    chatMessages:    document.getElementById('liveChatMessages'),
+    chatInput:       document.getElementById('liveChatInput'),
+    chatSend:        document.getElementById('liveChatSend'),
 
-    // ── Anonymous / no account ──
-    // Silently get anonymous auth so Firestore rules pass,
-    // then show the discovery screen directly — no login prompt.
-    await ensureAnonViewer();
-    startDiscovery();  // auth now ready, start live-room watcher
-
-    if (_deepLink) {
-      history.replaceState(null, '', location.pathname);
-      await handleJoinAsViewer(_deepLink);
-      return;
-    }
-
-    if (_goLiveIntent) {
-      // Tried to go live but no session — redirect back to SNS to sign in
-      toast('Sign in to Shadow Nexus Social first to go live.', 'info');
-      setTimeout(() => { window.location.href = 'index.html'; }, 2200);
-    }
-
-    showScreen('home');
-  });
-
-  setTimeout(() => hideEl(dom.loadingScreen), 4000);
-  wireAll();
-  setupBackButton();
-}
-
-/* Silently sign in anonymously — no UI shown, viewer goes straight to discovery */
-async function ensureAnonViewer() {
-  await ensureAnonAuth();
-  S.firebaseUser = _auth.currentUser;
-  const savedName = sessionStorage.getItem('snx_live_viewer') || 'Viewer';
-  S.viewerName = savedName;
-  updateTopBarViewer(savedName);
-  showViewerUI();
-  showApp();
-}
-
-/* ═══════════════════════════════════════════════
-   LIVE DISCOVERY — real-time watcher
-   Renders creator cards in screenHome's disc-live-list.
-════════════════════════════════════════════════ */
-const CAT_LABELS_DISC = {
-  general: '🌑 General', music: '🎵 Music', gaming: '🎮 Gaming',
-  talk: '💬 Talk', art: '🎨 Art', vibes: '⚡ Vibes',
-};
-
-let _discUnsub = null;
-
-function startDiscovery() {
-  if (_discUnsub) return;   // already running
-
-  const q = query(
-    collection(_db, 'liveRooms'),
-    where('status', '==', 'live'),
-    orderBy('createdAt', 'desc')
-  );
-
-  _discUnsub = onSnapshot(q, snap => {
-    const rooms = [];
-    snap.forEach(d => rooms.push(d.data()));
-    rooms.sort((a, b) => (b.viewers || 0) - (a.viewers || 0));
-    renderDiscovery(rooms);
-  }, () => renderDiscovery([]));
-}
-
-function renderDiscovery(rooms) {
-  const list     = dom.discLiveList;
-  const countEl  = dom.discLiveCount;
-  const emptyEl  = dom.discEmpty;
-  if (!list) return;
-
-  const n = rooms.length;
-  if (countEl) countEl.textContent = n > 0 ? n + (n === 1 ? ' live' : ' live') : '';
-
-  // Remove stale cards
-  const current = new Set(rooms.map(r => r.roomId));
-  list.querySelectorAll('.disc-live-card').forEach(c => {
-    if (!current.has(c.dataset.rid)) c.remove();
-  });
-
-  if (n === 0) {
-    if (emptyEl) emptyEl.style.display = '';
-    return;
-  }
-  if (emptyEl) emptyEl.style.display = 'none';
-
-  rooms.forEach((room, i) => {
-    let card = list.querySelector(`[data-rid="${room.roomId}"]`);
-    if (!card) {
-      card = buildDiscCard(room);
-      const siblings = [...list.querySelectorAll('.disc-live-card')];
-      if (i < siblings.length) list.insertBefore(card, siblings[i]);
-      else                     list.appendChild(card);
-    } else {
-      // Live-update viewer count
-      const vEl = card.querySelector('.disc-card-viewers');
-      if (vEl) vEl.innerHTML = `
-        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-          <circle cx="12" cy="12" r="3"/>
-        </svg>
-        ${room.viewers || 0} watching`;
-    }
-  });
-}
-
-function buildDiscCard(room) {
-  const av     = room.hostAvatar   || '';
-  const name   = room.hostName     || room.hostUsername || 'Creator';
-  const handle = room.hostUsername ? '@' + room.hostUsername : '';
-  const title  = room.title        || 'Shadow Nexus LIVE';
-  const views  = room.viewers      || 0;
-  const cat    = CAT_LABELS_DISC[room.category] || '🌑 General';
-  const init   = (name[0] || '?').toUpperCase();
-  const roomId = room.roomId || '';
-
-  const card = document.createElement('a');
-  card.className   = 'disc-live-card';
-  card.dataset.rid = roomId;
-  card.setAttribute('role', 'button');
-  card.setAttribute('aria-label', `Watch ${name} live`);
-
-  const avHtml = av
-    ? `<img src="${esc(av)}" alt="${esc(name)}" />`
-    : esc(init);
-
-  card.innerHTML = `
-    <div class="disc-card-av-wrap">
-      <div class="disc-card-av">${avHtml}</div>
-      <span class="disc-card-badge">● LIVE</span>
-    </div>
-    <div class="disc-card-info">
-      <div class="disc-card-name-row">
-        <span class="disc-card-name">${esc(name)}</span>
-        ${handle ? `<span class="disc-card-handle">${esc(handle)}</span>` : ''}
-      </div>
-      <div class="disc-card-title">"${esc(title)}"</div>
-      <div class="disc-card-meta">
-        <span class="disc-card-viewers">
-          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-          ${views} watching
-        </span>
-        <span class="disc-card-cat">${esc(cat)}</span>
-      </div>
-    </div>
-    <button class="disc-card-watch-btn" data-rid="${esc(roomId)}">WATCH LIVE</button>
-  `;
-
-  // Click anywhere on the card or the button — join as viewer
-  card.addEventListener('click', e => {
-    e.preventDefault();
-    handleJoinAsViewer(roomId);
-  });
-
-  return card;
-}
-
-function setHint(t) { if (dom.loadHint) dom.loadHint.textContent = t; }
-
-/* ═══════════════════════════════════════════════
-   AUTH — VIEWER (anonymous)
-════════════════════════════════════════════════ */
-async function handleWatchNow() {
-  const name = dom.viewerName.value.trim();
-  if (!name || name.length < 2) {
-    dom.viewerErr.textContent = 'Enter at least 2 characters.';
-    return;
-  }
-  dom.btnWatchNow.disabled = true;
-
-  try {
-    await ensureAnonAuth();
-    S.firebaseUser = _auth.currentUser;
-    S.viewerName   = name;
-    sessionStorage.setItem('snx_live_viewer', name);
-
-    hideEl(dom.authGate);
-    updateTopBarViewer(name);
-    showViewerUI();
-    showApp();
-    showScreen('home');
-
-    // Auto-join deep-linked room if present
-    const pendingRoom = sessionStorage.getItem('snx_live_deeplink');
-    if (pendingRoom) {
-      sessionStorage.removeItem('snx_live_deeplink');
-      await handleJoinAsViewer(pendingRoom);
-    }
-  } catch (e) {
-    dom.viewerErr.textContent = 'Error: ' + e.message;
-    dom.btnWatchNow.disabled  = false;
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   AUTH — ACCOUNT (email/password, for hosting)
-════════════════════════════════════════════════ */
-function showAccountLogin() {
-  hideEl(dom.authViewer);
-  showEl(dom.authAccount);
-  dom.acctEmail.focus();
-}
-
-function showViewerLogin() {
-  hideEl(dom.authAccount);
-  showEl(dom.authViewer);
-}
-
-async function handleSignInAccount() {
-  const email    = dom.acctEmail.value.trim();
-  const password = dom.acctPassword.value;
-  if (!email || !password) {
-    dom.acctErr.textContent = 'Enter your email and password.';
-    return;
-  }
-
-  dom.btnSignInAcct.disabled     = true;
-  dom.btnSignInAcct.textContent  = 'Signing in…';
-  dom.acctErr.textContent        = '';
-
-  try {
-    await signInWithEmailAndPassword(_auth, email, password);
-    S.firebaseUser = _auth.currentUser;
-
-    // Load the SNS profile
-    S.profile = await loadMyProfile();
-    if (!S.profile) {
-      throw new Error('Account found but no Shadow Nexus profile exists. Please sign in at shadownexus.social first.');
-    }
-
-    hideEl(dom.authGate);
-    updateTopBarAccount(S.profile);
-    showHostUI();
-    showApp();
-    showScreen('home');
-
-    // Auto-join deep-linked room if present
-    const pendingRoom = sessionStorage.getItem('snx_live_deeplink');
-    if (pendingRoom) {
-      sessionStorage.removeItem('snx_live_deeplink');
-      await handleJoinAsViewer(pendingRoom);
-    }
-  } catch (e) {
-    let msg = e.message;
-    if (msg.includes('user-not-found') || msg.includes('wrong-password') || msg.includes('invalid-credential')) {
-      msg = 'Incorrect email or password.';
-    } else if (msg.includes('too-many-requests')) {
-      msg = 'Too many attempts. Try again later.';
-    }
-    dom.acctErr.textContent        = msg;
-    dom.btnSignInAcct.disabled     = false;
-    dom.btnSignInAcct.textContent  = 'SIGN IN & GO LIVE';
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   UI STATE — HOST vs VIEWER
-════════════════════════════════════════════════ */
-function showHostUI() {
-  showEl(dom.btnStartLive);
-  hideEl(dom.heroAnonMsg);
-}
-
-function showViewerUI() {
-  hideEl(dom.btnStartLive);
-  showEl(dom.heroAnonMsg);
-}
-
-function updateTopBarAccount(profile) {
-  setAvatarEl(dom.barAvatar, profile.avatar, profile.displayName);
-  dom.barUserName.textContent   = profile.displayName;
-  dom.barUserHandle.textContent = profile.username ? '@' + profile.username : '';
-  showEl(dom.barAccount);
-}
-
-function updateTopBarViewer(name) {
-  setAvatarEl(dom.barAvatar, '', name);
-  dom.barUserName.textContent   = name;
-  dom.barUserHandle.textContent = 'Viewer';
-  showEl(dom.barAccount);
-}
-
-/* ═══════════════════════════════════════════════
-   SCREEN NAVIGATION
-════════════════════════════════════════════════ */
-function showApp()       { showEl(dom.app); }
-
-function showScreen(name) {
-  const map = {
-    home:  dom.screenHome,
-    setup: dom.screenSetup,
-    live:  dom.screenLive,
-    guest: dom.screenGuest,
+    // Ended overlay
+    endedTitle:      document.getElementById('endedTitle'),
+    endedSub:        document.getElementById('endedSub'),
+    endedBackBtn:    document.getElementById('endedBackBtn'),
   };
-  Object.values(map).forEach(s => hideEl(s));
-  showEl(map[name]);
-}
 
-/* ═══════════════════════════════════════════════
-   HOST SETUP
-════════════════════════════════════════════════ */
-async function openSetup() {
-  if (!S.profile) {
-    // User is anonymous — show account login
-    showEl(dom.authGate);
-    showAccountLogin();
-    return;
-  }
+  // Disable Go Live until Firebase auth resolves
+  if (D.goLiveBtn) { D.goLiveBtn.disabled = true; }
 
-  // Populate creator identity bar
-  setAvatarEl(dom.cibAvatar, S.profile.avatar, S.profile.displayName);
-  dom.cibName.textContent   = S.profile.displayName;
-  dom.cibHandle.textContent = S.profile.username ? '@' + S.profile.username : '';
-  dom.cibFollow.textContent = S.profile.followers.length
-    ? S.profile.followers.length + ' followers'
-    : '';
+  // Wire up static buttons
+  D.setupCamBtn  && D.setupCamBtn.addEventListener('click', toggleSetupCam);
+  D.setupMicBtn  && D.setupMicBtn.addEventListener('click', toggleSetupMic);
+  D.setupFlipBtn && D.setupFlipBtn.addEventListener('click', flipSetupCamera);
+  D.goLiveBtn    && D.goLiveBtn.addEventListener('click', startLive);
 
-  showScreen('setup');
-  await startSetupCamera();
-  checkNet();
-}
+  D.btnCam  && D.btnCam.addEventListener('click',   () => toggleLiveCam());
+  D.btnMic  && D.btnMic.addEventListener('click',   () => toggleLiveMic());
+  D.btnFlip && D.btnFlip.addEventListener('click',  () => flipLiveCamera());
+  D.btnFS   && D.btnFS.addEventListener('click',    toggleFullscreen);
+  D.btnEnd  && D.btnEnd.addEventListener('click',   endLive);
 
-async function startSetupCamera() {
-  S.setupCamOn = true;
-  S.setupMicOn = true;
-  try {
-    S.setupStream = await getLocalStream(true, true);
-    dom.camPreview.srcObject = S.setupStream;
-    hideEl(dom.camPreviewOff);
-    setToggle(dom.setupToggleCam, true);
-    setToggle(dom.setupToggleMic, true);
-  } catch (e) {
-    showEl(dom.camPreviewOff);
-    toast('Camera denied — check browser permissions.', 'warn');
-  }
-}
-
-function stopSetupCamera() {
-  if (S.setupStream) { S.setupStream.getTracks().forEach(t => t.stop()); S.setupStream = null; }
-}
-
-function handleSetupToggleCam() {
-  S.setupCamOn = !S.setupCamOn;
-  S.setupStream?.getVideoTracks().forEach(t => t.enabled = S.setupCamOn);
-  setToggle(dom.setupToggleCam, S.setupCamOn);
-  S.setupCamOn ? hideEl(dom.camPreviewOff) : showEl(dom.camPreviewOff);
-}
-
-function handleSetupToggleMic() {
-  S.setupMicOn = !S.setupMicOn;
-  S.setupStream?.getAudioTracks().forEach(t => t.enabled = S.setupMicOn);
-  setToggle(dom.setupToggleMic, S.setupMicOn);
-}
-
-async function handleSetupFlip() {
-  const ns = await flipCamera();
-  if (!ns) return;
-  S.setupStream = ns;
-  dom.camPreview.srcObject = ns;
-}
-
-async function handleGoLive() {
-  if (!S.profile) { toast('Sign in with your SNS account to go live.', 'error'); return; }
-
-  dom.btnGoLive.disabled = true;
-
-  try {
-    stopSetupCamera();
-    const stream     = await getLocalStream(S.setupCamOn, S.setupMicOn);
-    S.setupStream    = null;
-
-    const title      = dom.setupTitle.value.trim()    || 'Shadow Nexus LIVE';
-    const category   = dom.setupCategory.value        || 'general';
-    const guestPerm  = dom.setupGuestPerm.value       || 'invite_only';
-    const chatMode   = dom.setupChat.value            || 'open';
-
-    const roomId = await createRoom(S.profile, title, category, guestPerm, chatMode);
-    S.roomId     = roomId;
-    S.role       = 'host';
-
-    await enterLiveRoom(roomId, 'host', stream);
-    showScreen('live');
-    toast('🔴 You are live! Room: ' + roomId, 'success');
-  } catch (e) {
-    if (e.message.startsWith('DUPLICATE:')) {
-      const existingId = e.message.split(':')[1];
-      toast('You already have an active stream (' + existingId + '). End it first.', 'warn');
-    } else {
-      toast('Could not go live: ' + e.message, 'error');
-    }
-    console.error(e);
-    dom.btnGoLive.disabled = false;
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   VIEWER — INSTANT JOIN (no code, no wait)
-════════════════════════════════════════════════ */
-async function handleJoinAsViewer(roomId) {
-  // Ensure auth — silently sign in if needed (viewers need no account)
-  if (!S.firebaseUser) {
-    await ensureAnonViewer();
-  }
-
-  try {
-    const room = await getRoom(roomId);
-    if (!room)                  { toast('Stream not found.',       'error'); return; }
-    if (room.status === 'ended'){ toast('This stream has ended.',  'warn');  return; }
-
-    S.roomId = roomId;
-    S.role   = 'viewer';
-
-    const name = S.profile?.displayName || S.viewerName || 'Viewer';
-    await joinRoom(roomId, name);
-    await enterLiveRoom(roomId, 'viewer', null);
-    showScreen('live');
-  } catch (e) {
-    toast('Could not join: ' + e.message, 'error');
-    console.error(e);
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   GUEST JOIN (on-screen with code)
-════════════════════════════════════════════════ */
-async function handleGuestJoin() {
-  const code = dom.guestCodeInput.value.trim().toUpperCase();
-  if (code.length < 4) { toast('Enter a valid room code.', 'warn'); return; }
-
-  dom.btnGuestJoin.disabled    = true;
-  dom.btnGuestJoin.textContent = 'Joining…';
-
-  try {
-    const room = await getRoom(code);
-    if (!room) throw new Error('Room not found.');
-    if (room.status === 'ended') throw new Error('Stream has ended.');
-
-    const camOn  = dom.guestToggleCam.classList.contains('active');
-    const micOn  = dom.guestToggleMic.classList.contains('active');
-    const stream = await getLocalStream(camOn, micOn);
-
-    S.roomId = code;
-    S.role   = 'guest';
-
-    const name = S.profile?.displayName || S.viewerName || 'Guest';
-    await joinRoom(code, name);
-    await enterLiveRoom(code, 'guest', stream);
-    showScreen('live');
-    toast('Joined as a guest!', 'success');
-  } catch (e) {
-    toast('Could not join: ' + e.message, 'error');
-    console.error(e);
-  } finally {
-    dom.btnGuestJoin.disabled    = false;
-    dom.btnGuestJoin.textContent = 'JOIN AS GUEST';
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   ENTER LIVE ROOM
-════════════════════════════════════════════════ */
-async function enterLiveRoom(roomId, role, localStream) {
-  S.isLive = true;
-
-  // Top bar
-  showEl(dom.barLivePill);
-  if (role === 'host') {
-    S.startTime = Date.now();
-    showEl(dom.barTimer);
-    startTimer();
-  }
-
-  // Toolbars
-  hideEl(dom.hostToolbar); hideEl(dom.guestToolbar); hideEl(dom.viewerToolbar);
-  if (role === 'host')   showEl(dom.hostToolbar);
-  if (role === 'guest')  showEl(dom.guestToolbar);
-  if (role === 'viewer') showEl(dom.viewerToolbar);
-
-  // Local video box
-  if (localStream && role !== 'viewer') {
-    const selfId = role === 'host' ? 'vbox-self' : 'vbox-guest-self';
-    const senderProfile = S.profile || { displayName: S.viewerName, avatar: '' };
-    addVideoBox(selfId, localStream, senderProfile.displayName, senderProfile.avatar, true, role === 'host');
-    updateArenaLayout();
-  }
-
-  // Room data + HUD
-  const room = await getRoom(roomId);
-  S.roomData = room;
-  if (room) {
-    populateLiveHUD(room);
-    dom.chatViewerNum.textContent = room.viewers ?? 0;
-  }
-
-  // Watch room
-  S.unsubRoom = watchRoom(roomId, data => {
-    if (!data) return;
-    S.roomData = data;
-    dom.chatViewerNum.textContent = data.viewers ?? 0;
-    dom.hudViewers.textContent    = data.viewers ?? 0;
-    if (data.status === 'ended' && role !== 'host') {
-      toast('The host ended the stream.', 'info');
-      doLeave(false);
-    }
+  D.likeBtn          && D.likeBtn.addEventListener('click',          sendLike);
+  D.btnShare         && D.btnShare.addEventListener('click',         shareLive);
+  D.btnShareCreator  && D.btnShareCreator.addEventListener('click',  shareLive);
+  D.chatSend  && D.chatSend.addEventListener('click',  sendChat);
+  D.chatInput && D.chatInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
   });
 
-  // Chat
-  S.chatLog   = [];
-  S.unsubMsgs = watchMessages(roomId, msgs => onNewMessages(msgs));
-
-  // Likes
-  S.unsubLikes = watchLikes(roomId, count => updateLikeUI(count));
-
-  // WebRTC
-  if (role === 'host')  setupHostWebRTC(roomId);
-  if (role === 'guest') setupGuestWebRTC(roomId);
-}
-
-function populateLiveHUD(room) {
-  setAvatarEl(dom.hudHostAvatar, room.hostAvatar, room.hostName);
-  dom.hudHostName.textContent   = room.hostName    || '—';
-  dom.hudHostHandle.textContent = room.hostUsername ? '@' + room.hostUsername : '';
-  dom.hudViewers.textContent    = room.viewers ?? 0;
-  if (dom.hudLikes) dom.hudLikes.textContent = room.likes ?? 0;
-  // Stream title strip
-  if (dom.hudStreamTitleText && room.title) {
-    dom.hudStreamTitleText.textContent = room.title;
-    dom.hudStreamTitleText.closest?.('.hud-stream-title')?.removeAttribute('hidden');
-  }
-}
-
-function updateLikeUI(count) {
-  if (dom.hudLikes)      dom.hudLikes.textContent     = count;
-  if (dom.chatLikeCount) dom.chatLikeCount.textContent = count;
-}
-
-async function handleLike() {
-  if (!S.roomId) return;
-  try {
-    await sendLike(S.roomId);
-    // Toggle liked class on both buttons
-    dom.chatLikeBtn?.classList.add('liked');
-    dom.vtLike?.classList.add('liked');
-    // Float hearts burst
-    handleReaction('❤️');
-  } catch (e) {
-    toast('Could not send like.', 'warn');
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   HOST WEBRTC
-════════════════════════════════════════════════ */
-function setupHostWebRTC(roomId) {
-  S.hostPeer = new HostPeerManager({
-    onGuestStream: async (stream, uid) => {
-      S.guestStreams[uid] = stream;
-      // Resolve guest name from liveUsers doc
-      let guestName = 'Guest';
-      let guestAvatar = '';
-      try {
-        const snap = await getDoc(doc(_db, 'liveUsers', uid));
-        if (snap.exists()) { guestName = snap.data().name || guestName; guestAvatar = snap.data().avatar || ''; }
-      } catch (_) {}
-      // Register guest for management panel
-      _guestRegistry[uid] = { name: guestName, avatar: guestAvatar, micMuted: false };
-      addVideoBox('vbox-' + uid, stream, guestName, guestAvatar, false, false);
-      updateArenaLayout();
-      // Refresh guest panel if open
-      if (dom.guestPanel && !dom.guestPanel.classList.contains('hidden')) renderGuestPanel();
-      toast(esc(guestName) + ' joined as a guest!', 'info');
-    },
-    onGuestLeave: (uid) => {
-      removeVideoBox('vbox-' + uid);
-      delete S.guestStreams[uid];
-      delete _guestRegistry[uid];
-      updateArenaLayout();
-      if (dom.guestPanel && !dom.guestPanel.classList.contains('hidden')) renderGuestPanel();
-    },
-    onIceForGuest: (uid, cand) => publishGuestIce(roomId, uid, 'host', cand),
-    onStateChange: (s, uid)    => console.log('[Host]', uid, s),
-  });
-
-  S.unsubGuests = watchGuestList(roomId, async uids => {
-    for (const uid of uids) {
-      if (uid === S.firebaseUser?.uid) continue;
-      if (S.guestStreams[uid])         continue;
-      watchGuestOffer(roomId, uid, async offer => {
-        const answerSdp = await S.hostPeer.handleGuestOffer(uid, offer.sdp);
-        if (!answerSdp) return;
-        await publishGuestAnswer(roomId, uid, answerSdp);
-        S.unsubIce[uid] = watchGuestIce(roomId, uid, 'guest', c => S.hostPeer.addGuestIce(uid, c));
-      });
-    }
-  });
-}
-
-/* ═══════════════════════════════════════════════
-   GUEST WEBRTC
-════════════════════════════════════════════════ */
-async function setupGuestWebRTC(roomId) {
-  const uid = S.firebaseUser?.uid;
-  S.guestPeer = new GuestPeerManager({
-    onHostStream: stream => {
-      addVideoBox('vbox-host', stream, S.roomData?.hostName || 'Host', S.roomData?.hostAvatar || '', false, true);
-      updateArenaLayout();
-    },
-    onIceForHost: cand => publishGuestIce(roomId, uid, 'guest', cand),
-    onStateChange: s    => console.log('[Guest] conn:', s),
-  });
-
-  const offerSdp = await S.guestPeer.createOffer();
-  await publishGuestOffer(roomId, uid, offerSdp);
-  watchGuestAnswer(roomId, uid, async ans => await S.guestPeer.handleHostAnswer(ans.sdp));
-  S.unsubIce['host'] = watchGuestIce(roomId, uid, 'host', c => S.guestPeer.addHostIce(c));
-  S.guestPeer.onReconnectOffer(sdp => publishGuestOffer(roomId, uid, sdp));
-}
-
-/* ═══════════════════════════════════════════════
-   VIDEO BOXES
-════════════════════════════════════════════════ */
-/**
- * Add a video box for a participant.
- * Includes: profile picture, username, mic icon, camera-off overlay,
- * Blue Nexus glow border, speaking ring via AudioContext analysis.
- */
-function addVideoBox(id, stream, name, avatar, isSelf, isHost) {
-  if (document.getElementById(id)) {
-    const v = document.querySelector(`#${id} .vbox-video`);
-    if (v) v.srcObject = stream;
-    return;
-  }
-
-  const box         = document.createElement('div');
-  box.id            = id;
-  box.className     = 'vbox';
-
-  const video       = document.createElement('video');
-  video.autoplay    = true;
-  video.playsInline = true;
-  video.muted       = isSelf;
-  video.srcObject   = stream;
-  video.className   = 'vbox-video' + (isSelf ? ' mirror' : '');
-
-  const initial     = (name || '?')[0].toUpperCase();
-
-  // Camera-off placeholder with glow avatar
-  const camOff      = document.createElement('div');
-  camOff.className  = 'vbox-cam-off hidden';
-  camOff.id         = id + '-camoff';
-  const camOffAv    = avatar
-    ? `<img src="${esc(avatar)}" class="vbox-cam-off-img" alt="${esc(name)}" />`
-    : `<div class="vbox-cam-off-letter">${initial}</div>`;
-  camOff.innerHTML  = camOffAv + `<span class="vbox-cam-off-name">${esc(name)}</span>`;
-
-  // Nameplate: profile picture + username + mic icon
-  const plate       = document.createElement('div');
-  plate.className   = 'vbox-nameplate';
-  plate.id          = id + '-plate';
-  const plateAv     = avatar
-    ? `<img src="${esc(avatar)}" class="vbox-np-avatar-img" alt="${esc(name)}" />`
-    : `<div class="vbox-avatar">${initial}</div>`;
-  plate.innerHTML   = plateAv
-    + `<div class="vbox-info">`
-    + `<div class="vbox-name">${esc(name)}</div>`
-    + `<span class="vbox-mic-icon" id="${id}-mic">🎤</span>`
-    + `</div>`;
-
-  // Host decorations
-  if (isHost) {
-    const crown       = document.createElement('div');
-    crown.className   = 'vbox-host-crown';
-    crown.textContent = '👑';
-    box.appendChild(crown);
-
-    const badge       = document.createElement('div');
-    badge.className   = 'vbox-live-badge';
-    badge.textContent = 'LIVE';
-    box.appendChild(badge);
-  }
-
-  box.appendChild(video);
-  box.appendChild(camOff);
-  box.appendChild(plate);
-  dom.videoArena.appendChild(box);
-
-  // Speaking indicator via Web Audio API (audio tracks only, not for self-muted)
-  if (stream && !isSelf) {
-    startSpeakingDetector(id, stream, box);
-  }
-}
-
-/**
- * Web Audio API speaking detector.
- * Polls audio level and toggles the .speaking class on the vbox.
- */
-function startSpeakingDetector(boxId, stream, boxEl) {
-  try {
-    const audioTracks = stream.getAudioTracks();
-    if (!audioTracks.length) return;
-
-    const ctx      = new (window.AudioContext || window.webkitAudioContext)();
-    const source   = ctx.createMediaStreamSource(stream);
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.6;
-    source.connect(analyser);
-
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    let speaking = false;
-    let frameId;
-
-    function tick() {
-      frameId = requestAnimationFrame(tick);
-      analyser.getByteFrequencyData(data);
-      let sum = 0;
-      for (let i = 0; i < data.length; i++) sum += data[i];
-      const avg   = sum / data.length;
-      const isSpeaking = avg > 8;   // threshold
-      if (isSpeaking !== speaking) {
-        speaking = isSpeaking;
-        boxEl.classList.toggle('speaking', speaking);
-      }
-    }
-    tick();
-
-    // Clean up when box is removed
-    const obs = new MutationObserver(() => {
-      if (!document.getElementById(boxId)) {
-        cancelAnimationFrame(frameId);
-        ctx.close().catch(() => {});
-        obs.disconnect();
-      }
-    });
-    obs.observe(dom.videoArena, { childList: true });
-  } catch (_) { /* AudioContext not supported — silently skip */ }
-}
-
-function removeVideoBox(id) {
-  document.getElementById(id)?.remove();
-}
-
-/**
- * Smart arena layout — exact grid for each count:
- *  1 person  → 1×1  (full screen)
- *  2 people  → 1×2  (side by side)
- *  3 people  → 2 cols, first spans both
- *  4 people  → 2×2
- *  5 people  → 2 rows × 3 cols, last spans 2
- *  6 people  → 2×3
- *  7 people  → 2 rows, last spans 2
- *  8 people  → 2×4
- */
-function updateArenaLayout() {
-  const boxes = dom.videoArena.querySelectorAll('.vbox');
-  const n     = boxes.length;
-  if (!n) return;
-
-  // Reset all spans first
-  boxes.forEach(b => { b.style.gridColumn = ''; b.style.gridRow = ''; });
-
-  switch (n) {
-    case 1:
-      dom.videoArena.style.gridTemplateColumns = '1fr';
-      dom.videoArena.style.gridTemplateRows    = '1fr';
-      break;
-    case 2:
-      dom.videoArena.style.gridTemplateColumns = '1fr 1fr';
-      dom.videoArena.style.gridTemplateRows    = '1fr';
-      break;
-    case 3:
-      dom.videoArena.style.gridTemplateColumns = '1fr 1fr';
-      dom.videoArena.style.gridTemplateRows    = '1fr 1fr';
-      boxes[0].style.gridColumn = 'span 2';
-      break;
-    case 4:
-      dom.videoArena.style.gridTemplateColumns = '1fr 1fr';
-      dom.videoArena.style.gridTemplateRows    = '1fr 1fr';
-      break;
-    case 5:
-      dom.videoArena.style.gridTemplateColumns = '1fr 1fr 1fr';
-      dom.videoArena.style.gridTemplateRows    = '1fr 1fr';
-      boxes[4].style.gridColumn = 'span 3';
-      break;
-    case 6:
-      dom.videoArena.style.gridTemplateColumns = '1fr 1fr 1fr';
-      dom.videoArena.style.gridTemplateRows    = '1fr 1fr';
-      break;
-    case 7:
-      dom.videoArena.style.gridTemplateColumns = '1fr 1fr 1fr 1fr';
-      dom.videoArena.style.gridTemplateRows    = '1fr 1fr';
-      boxes[6].style.gridColumn = 'span 2';
-      break;
-    case 8:
-    default:
-      dom.videoArena.style.gridTemplateColumns = '1fr 1fr 1fr 1fr';
-      dom.videoArena.style.gridTemplateRows    = '1fr 1fr';
-      break;
-  }
-}
-
-/* Update mic icon for a video box */
-function setVboxMicIcon(boxId, micOn) {
-  const micEl = el(boxId + '-mic');
-  if (!micEl) return;
-  micEl.textContent = micOn ? '🎤' : '🔇';
-  micEl.classList.toggle('muted', !micOn);
-}
-
-/* ═══════════════════════════════════════════════
-   HOST TOOLBAR ACTIONS
-════════════════════════════════════════════════ */
-function handleTbCam() {
-  const on = toggleCamera(!isCamEnabled());
-  setTb(dom.tbCam, on);
-  const co = el('vbox-self-camoff');
-  if (co) on ? co.classList.add('hidden') : co.classList.remove('hidden');
-  // Update mic icon to reflect camera state
-  setVboxMicIcon('vbox-self', isMicEnabled());
-}
-
-function handleTbMic() {
-  const on = toggleMic(!isMicEnabled());
-  setTb(dom.tbMic, on);
-  setVboxMicIcon('vbox-self', on);
-}
-
-async function handleTbFlip() {
-  const ns = await flipCamera();
-  if (!ns) return;
-  const v  = el('vbox-self')?.querySelector('.vbox-video') ||
-             el('vbox-guest-self')?.querySelector('.vbox-video');
-  if (v) v.srcObject = ns;
-}
-
-function handleTbInvite() {
-  if (!S.roomId) return;
-  dom.inviteCodeDisplay.textContent = S.roomId;
-  showEl(dom.inviteDialog);
-}
-
-function handleCopyCode() {
-  navigator.clipboard?.writeText(S.roomId).then(() => toast('Code copied!', 'success'));
-}
-
-function handleTbEnd() {
-  dom.dialogTitle.textContent = 'End your live stream?';
-  dom.dialogMsg.textContent   = 'Your viewers will leave the Shadow Realm.';
-  showEl(dom.endDialog);
-}
-
-/* ═══════════════════════════════════════════════
-   HOST — GUEST MANAGEMENT PANEL
-════════════════════════════════════════════════ */
-function handleTbGuests() {
-  if (!dom.guestPanel) return;
-  dom.guestPanel.classList.toggle('hidden');
-  renderGuestPanel();
-}
-
-function renderGuestPanel() {
-  if (!dom.guestPanelList) return;
-  const uids = Object.keys(_guestRegistry);
-  if (!uids.length) {
-    dom.guestPanelList.innerHTML = '<p class="guest-panel-empty">No guests yet.</p>';
-    return;
-  }
-  dom.guestPanelList.innerHTML = '';
-  uids.forEach(uid => {
-    const g   = _guestRegistry[uid];
-    const row = document.createElement('div');
-    row.className = 'gp-row';
-
-    const avEl = document.createElement('div');
-    avEl.className = 'gp-avatar';
-    if (g.avatar) {
-      avEl.style.backgroundImage = `url('${esc(g.avatar)}')`;
-      avEl.style.backgroundSize  = 'cover';
-    } else {
-      avEl.textContent = (g.name || '?')[0].toUpperCase();
-    }
-
-    const nameEl = document.createElement('div');
-    nameEl.className   = 'gp-name';
-    nameEl.textContent = g.name || 'Guest';
-
-    const actions = document.createElement('div');
-    actions.className = 'gp-actions';
-
-    // Mute/unmute button
-    const muteBtn = document.createElement('button');
-    muteBtn.className   = 'gp-btn mute-btn';
-    muteBtn.title       = g.micMuted ? 'Unmute' : 'Mute';
-    muteBtn.textContent = g.micMuted ? '🔇' : '🎤';
-    muteBtn.addEventListener('click', () => {
-      // Signal guest to mute (via Firestore flag) — best-effort
-      g.micMuted = !g.micMuted;
-      muteBtn.textContent = g.micMuted ? '🔇' : '🎤';
-      muteBtn.title       = g.micMuted ? 'Unmute' : 'Mute';
-      setVboxMicIcon('vbox-' + uid, !g.micMuted);
-      toast((g.micMuted ? 'Muted ' : 'Unmuted ') + esc(g.name), 'info');
-    });
-
-    // Kick/remove button
-    const kickBtn = document.createElement('button');
-    kickBtn.className   = 'gp-btn kick-btn';
-    kickBtn.title       = 'Remove from stream';
-    kickBtn.textContent = '✕';
-    kickBtn.addEventListener('click', async () => {
-      try {
-        // Remove their signaling data — peer will disconnect
-        await removeGuestSignal(S.roomId, uid);
-        removeVideoBox('vbox-' + uid);
-        delete _guestRegistry[uid];
-        delete S.guestStreams[uid];
-        updateArenaLayout();
-        renderGuestPanel();
-        toast(esc(g.name) + ' was removed.', 'info');
-      } catch (e) {
-        toast('Could not remove guest.', 'warn');
-      }
-    });
-
-    actions.appendChild(muteBtn);
-    actions.appendChild(kickBtn);
-    row.appendChild(avEl);
-    row.appendChild(nameEl);
-    row.appendChild(actions);
-    dom.guestPanelList.appendChild(row);
-  });
-}
-
-/* ═══════════════════════════════════════════════
-   GUEST / VIEWER TOOLBAR ACTIONS
-════════════════════════════════════════════════ */
-function handleGtCam() {
-  const on = toggleCamera(!isCamEnabled());
-  setTb(dom.gtCam, on);
-  const co = el('vbox-guest-self-camoff');
-  if (co) on ? co.classList.add('hidden') : co.classList.remove('hidden');
-}
-
-function handleGtMic() {
-  const on = toggleMic(!isMicEnabled());
-  setTb(dom.gtMic, on);
-  setVboxMicIcon('vbox-guest-self', on);
-}
-
-function handleGtLeave() {
-  dom.dialogTitle.textContent = 'Leave the stream?';
-  dom.dialogMsg.textContent   = 'You will be removed from the video feed.';
-  showEl(dom.endDialog);
-}
-
-function handleVtShare() {
-  if (navigator.share) {
-    navigator.share({ title: 'Shadow Nexus Live', text: 'Join me!', url: location.href }).catch(() => {});
-  } else {
-    navigator.clipboard?.writeText(location.href);
-    toast('Link copied!', 'success');
-  }
-}
-
-function handleVtReport() { toast('Report submitted. Thank you.', 'info'); }
-function handleVtLeave()  { doLeave(false); }
-
-/* ═══════════════════════════════════════════════
-   END / LEAVE STREAM
-════════════════════════════════════════════════ */
-async function confirmEnd() {
-  hideEl(dom.endDialog);
-  if (S.role === 'host') { await endRoom(S.roomId); }
-  else                   { await leaveRoom(S.roomId); }
-  doLeave(S.role === 'host');
-}
-
-function cancelEnd() { hideEl(dom.endDialog); }
-
-function doLeave(wasHost) {
-  S.isLive = false;
-
-  if (S.timerRef) { clearInterval(S.timerRef); S.timerRef = null; }
-
-  [S.unsubRoom, S.unsubMsgs, S.unsubGuests, S.unsubLikes].forEach(fn => { try { fn?.(); } catch (_) {} });
-  Object.values(S.unsubIce).forEach(fn => { try { fn?.(); } catch (_) {} });
-  S.unsubRoom = S.unsubMsgs = S.unsubGuests = S.unsubLikes = null;
-  S.unsubIce  = {};
-
-  S.hostPeer?.closeAll();  S.hostPeer  = null;
-  S.guestPeer?.close();    S.guestPeer = null;
-
-  stopLocalStream();
-
-  dom.videoArena.innerHTML = '';
-  dom.chatList.innerHTML   = '';
-  S.chatLog    = [];
-  S.guestStreams = {};
-  // Reset guest registry and hide panel
-  Object.keys(_guestRegistry).forEach(k => delete _guestRegistry[k]);
-  if (dom.guestPanel) hideEl(dom.guestPanel);
-  S.roomId     = null;
-  S.role       = null;
-
-  hideEl(dom.barLivePill);
-  hideEl(dom.barTimer);
-  dom.barTimer.textContent  = '00:00';
-  dom.hudTimer.textContent  = '00:00';
-  if (dom.hudLikes)      dom.hudLikes.textContent     = '0';
-  if (dom.chatLikeCount) dom.chatLikeCount.textContent = '0';
-  if (dom.btnGoLive)     dom.btnGoLive.disabled        = false;
-  dom.chatLikeBtn?.classList.remove('liked');
-  dom.vtLike?.classList.remove('liked');
-
-  showScreen('home');
-  toast(wasHost ? 'Stream ended.' : 'You left the stream.', 'info');
-}
-
-/* ═══════════════════════════════════════════════
-   CHAT
-════════════════════════════════════════════════ */
-function onNewMessages(msgs) {
-  const prev = S.chatLog.length;
-  if (msgs.length <= prev) return;
-  S.chatLog = msgs;
-  msgs.slice(prev).forEach(m => appendChatMsg(m));
-}
-
-function appendChatMsg(msg) {
-  const li       = document.createElement('li');
-  li.className   = 'chat-msg';
-
-  const isHost   = msg.userId === S.roomData?.hostId;
-  const initial  = (msg.username || '?')[0].toUpperCase();
-  const ts       = msg.timestamp?.toDate ? fmtTime(msg.timestamp.toDate()) : '';
-  const avatarEl = msg.avatar
-    ? `<img src="${esc(msg.avatar)}" class="chat-ava-img" alt="${esc(msg.username)}" />`
-    : `<div class="chat-ava">${initial}</div>`;
-
-  li.innerHTML = `
-    ${avatarEl}
-    <div class="chat-body">
-      <span class="chat-user${isHost ? ' is-host' : ''}">${esc(msg.username)}</span>
-      <span class="chat-ts">${ts}</span>
-      <div class="chat-text">${esc(msg.message)}</div>
-    </div>`;
-
-  dom.chatList.appendChild(li);
-  dom.chatList.scrollTop = dom.chatList.scrollHeight;
-}
-
-async function handleSendChat() {
-  const text = dom.chatInput.value.trim();
-  if (!text || !S.roomId) return;
-
-  const now = Date.now();
-  S.spamLog = S.spamLog.filter(t => now - t < SPAM_WINDOW);
-  if (S.spamLog.length >= SPAM_MAX) { toast('Slow down!', 'warn'); return; }
-  S.spamLog.push(now);
-
-  dom.chatInput.value = '';
-  hideEl(dom.emojiPicker);
-  try { await sendMessage(S.roomId, text); }
-  catch (e) { toast('Failed to send.', 'error'); }
-}
-
-/* ═══════════════════════════════════════════════
-   REACTIONS
-════════════════════════════════════════════════ */
-function handleReaction(emoji) {
-  if (S.roomId) sendMessage(S.roomId, emoji).catch(() => {});
-  for (let i = 0; i < 6; i++) {
-    const e          = document.createElement('div');
-    e.className      = 'burst-emoji';
-    e.textContent    = emoji;
-    e.style.left     = (15 + Math.random() * 70) + '%';
-    e.style.bottom   = '80px';
-    e.style.animationDelay    = (i * 0.1) + 's';
-    e.style.animationDuration = (1.8 + Math.random() * 0.8) + 's';
-    dom.reactionBurst.appendChild(e);
-    e.addEventListener('animationend', () => e.remove(), { once: true });
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   TIMER
-════════════════════════════════════════════════ */
-function startTimer() {
-  S.timerRef = setInterval(() => {
-    const s = Math.floor((Date.now() - S.startTime) / 1000);
-    const t = `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
-    dom.barTimer.textContent = t;
-    dom.hudTimer.textContent = t;
-  }, 1000);
-}
-
-/* ═══════════════════════════════════════════════
-   NETWORK
-════════════════════════════════════════════════ */
-async function checkNet() {
-  const q      = await probeNetwork();
-  const labels = { good: 'Good ✓', medium: 'OK ⚠', poor: 'Weak ⚠', unknown: 'Checking…' };
-  if (dom.setupNetDot)   dom.setupNetDot.className    = 'net-dot ' + q;
-  if (dom.setupNetLabel) dom.setupNetLabel.textContent = labels[q] || 'Checking…';
-}
-
-/* ═══════════════════════════════════════════════
-   FULLSCREEN
-════════════════════════════════════════════════ */
-function goFullscreen(target) {
-  if (!document.fullscreenElement)
-    (target.requestFullscreen || target.webkitRequestFullscreen || (() => {})).call(target);
-  else
-    (document.exitFullscreen   || document.webkitExitFullscreen  || (() => {})).call(document);
-}
-
-/* ═══════════════════════════════════════════════
-   ANDROID BACK BUTTON
-════════════════════════════════════════════════ */
-function setupBackButton() {
-  history.pushState(null, '', location.href);
-  window.addEventListener('popstate', () => {
-    if (S.isLive) {
-      history.pushState(null, '', location.href);
-      dom.dialogTitle.textContent = S.role === 'host' ? 'End your live stream?' : 'Leave the stream?';
-      dom.dialogMsg.textContent   = S.role === 'host' ? 'Your viewers will be removed.' : 'You will leave the stream.';
-      showEl(dom.endDialog);
-    }
-  });
-}
-
-/* ═══════════════════════════════════════════════
-   STORM CANVAS
-════════════════════════════════════════════════ */
-function initStorm() {
-  const canvas = dom.stormCanvas;
-  if (!canvas) return;
-  const ctx    = canvas.getContext('2d');
-  let W, H;
-
-  const resize = () => { W = canvas.width = innerWidth; H = canvas.height = innerHeight; };
-  resize();
-  window.addEventListener('resize', resize, { passive: true });
-
-  function bolt(x1, y1, x2, y2, r, d) {
-    if (!d) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); return; }
-    const mx = (x1 + x2) / 2 + (Math.random() - 0.5) * r;
-    const my = (y1 + y2) / 2 + (Math.random() - 0.5) * r;
-    bolt(x1, y1, mx, my, r / 2, d - 1);
-    bolt(mx, my, x2, y2, r / 2, d - 1);
-    if (d > 1 && Math.random() < 0.3) {
-      ctx.globalAlpha = 0.4;
-      bolt(mx, my, mx + (Math.random() - .5) * r * 2, my + Math.random() * r * 2, r / 3, d - 2);
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  function flash() {
-    ctx.clearRect(0, 0, W, H);
-    const nb = 1 + Math.floor(Math.random() * 2);
-    for (let i = 0; i < nb; i++) {
-      const x1 = Math.random() * W;
-      const x2 = x1 + (Math.random() - .5) * 150;
-      ctx.strokeStyle = `rgba(${40 + ~~(Math.random() * 30)},${100 + ~~(Math.random() * 80)},255,${0.45 + Math.random() * 0.5})`;
-      ctx.lineWidth   = 0.8 + Math.random() * 1.6;
-      ctx.shadowColor = '#2979ff';
-      ctx.shadowBlur  = 14 + Math.random() * 14;
-      bolt(x1, 0, x2, H * (0.3 + Math.random() * 0.55), 72, 6);
-    }
-    // flame glow at bottom
-    const g = ctx.createLinearGradient(0, H * 0.8, 0, H);
-    g.addColorStop(0, 'rgba(41,121,255,0)');
-    g.addColorStop(1, 'rgba(41,121,255,0.04)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, H * 0.8, W, H * 0.2);
-    setTimeout(() => ctx.clearRect(0, 0, W, H), 55 + Math.random() * 90);
-  }
-
-  (function sched() { setTimeout(() => { flash(); sched(); }, 700 + Math.random() * 2800); })();
-}
-
-/* ═══════════════════════════════════════════════
-   TOAST
-════════════════════════════════════════════════ */
-function toast(msg, type = 'info') {
-  const t    = document.createElement('div');
-  t.className = `snx-toast ${type}`;
-  t.textContent = msg;
-  dom.toastWrap.appendChild(t);
-  requestAnimationFrame(() => t.classList.add('show'));
-  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 380); }, 3200);
-}
-
-/* ═══════════════════════════════════════════════
-   HELPERS
-════════════════════════════════════════════════ */
-function showEl(e) { e?.classList.remove('hidden'); }
-function hideEl(e) { e?.classList.add('hidden'); }
-function setToggle(btn, on) { btn.classList.toggle('active', on); btn.classList.toggle('off', !on); }
-function setTb(btn, on)     { btn.classList.toggle('active', on); btn.classList.toggle('off', !on); }
-function pad(n)  { return String(n).padStart(2, '0'); }
-function esc(s)  { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function fmtTime(d) { return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0'); }
-
-/** Set an avatar element to either an image or a coloured initial. */
-function setAvatarEl(container, src, name) {
-  if (!container) return;
-  if (src) {
-    container.style.backgroundImage = `url('${esc(src)}')`;
-    container.style.backgroundSize  = 'cover';
-    container.textContent            = '';
-  } else {
-    container.style.backgroundImage = 'none';
-    container.textContent            = (name || '?')[0].toUpperCase();
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   WIRE EVENTS
-════════════════════════════════════════════════ */
-function wireAll() {
-  // Auth — viewer
-  dom.btnWatchNow?.addEventListener('click', handleWatchNow);
-  dom.viewerName?.addEventListener('keydown', e => { if (e.key === 'Enter') handleWatchNow(); });
-  dom.btnSwitchToAcct?.addEventListener('click', showAccountLogin);
-
-  // Auth — account
-  dom.btnSignInAcct?.addEventListener('click', handleSignInAccount);
-  dom.acctPassword?.addEventListener('keydown', e => { if (e.key === 'Enter') handleSignInAccount(); });
-  dom.btnBackToViewer?.addEventListener('click', showViewerLogin);
-
-  // Hero sign-in link — redirect to the main SNS site to sign in first,
-  // then return to live.html with the GO LIVE intent.
-  dom.heroSignInLink?.addEventListener('click', e => {
-    e.preventDefault();
-    localStorage.setItem('snx_live_intent', 'golive');
+  D.endedBackBtn && D.endedBackBtn.addEventListener('click', () => {
     window.location.href = 'index.html';
   });
 
-  // Home
-  dom.btnStartLive?.addEventListener('click', openSetup);
+  document.getElementById('liveCloseBtn') &&
+    document.getElementById('liveCloseBtn').addEventListener('click', onCloseBtn);
 
-  // Setup
-  dom.setupToggleCam?.addEventListener('click', handleSetupToggleCam);
-  dom.setupToggleMic?.addEventListener('click', handleSetupToggleMic);
-  dom.setupFlipCam?.addEventListener('click',   handleSetupFlip);
-  dom.btnGoLive?.addEventListener('click',      handleGoLive);
-  dom.btnSetupBack?.addEventListener('click',   () => { stopSetupCamera(); showScreen('home'); });
-
-  // Host toolbar
-  dom.tbCam?.addEventListener('click',        handleTbCam);
-  dom.tbMic?.addEventListener('click',        handleTbMic);
-  dom.tbFlip?.addEventListener('click',       handleTbFlip);
-  dom.tbInvite?.addEventListener('click',     handleTbInvite);
-  dom.tbGuests?.addEventListener('click',     handleTbGuests);
-  dom.tbFullscreen?.addEventListener('click', () => goFullscreen(dom.screenLive));
-  dom.tbEnd?.addEventListener('click',        handleTbEnd);
-
-  // Guest toolbar
-  dom.gtCam?.addEventListener('click',        handleGtCam);
-  dom.gtMic?.addEventListener('click',        handleGtMic);
-  dom.gtFlip?.addEventListener('click',       handleTbFlip);
-  dom.gtFullscreen?.addEventListener('click', () => goFullscreen(dom.screenLive));
-  dom.gtLeave?.addEventListener('click',      handleGtLeave);
-
-  // Viewer toolbar
-  dom.vtLike?.addEventListener('click',       handleLike);
-  dom.vtShare?.addEventListener('click',      handleVtShare);
-  dom.vtFullscreen?.addEventListener('click', () => goFullscreen(dom.screenLive));
-  dom.vtReport?.addEventListener('click',     handleVtReport);
-  dom.vtLeave?.addEventListener('click',      handleVtLeave);
-
-  // Chat toggle (mobile/fullscreen)
-  dom.btnChatToggle?.addEventListener('click', () => {
-    dom.chatPanel?.classList.toggle('collapsed');
+  D.stage && D.stage.addEventListener('click', e => {
+    if (_mode !== 'creator') return;
+    const ignore = ['.live-ctrl-btn','#btnEndLive','.live-chat-input','.live-chat-send',
+                    '.live-close-btn','.live-creator-pill','.live-badge'];
+    if (ignore.some(s => e.target.closest(s))) return;
+    D.stage.classList.toggle('live-controls-hidden');
   });
 
-  // Close guest panel when clicking outside it
-  dom.screenLive?.addEventListener('click', e => {
-    if (dom.guestPanel && !dom.guestPanel.contains(e.target) && e.target !== dom.tbGuests && !dom.tbGuests?.contains(e.target)) {
-      if (!dom.guestPanel.classList.contains('hidden')) hideEl(dom.guestPanel);
+  onAuthStateChanged(_auth, user => {
+    if (!user) {
+      _hideLoading();
+      window.location.href = 'index.html';
+      return;
+    }
+    _user = user;
+    _loadUserData().then(() => {
+      if (D.goLiveBtn) { D.goLiveBtn.disabled = false; }
+      _resolveMode();
+    });
+  });
+});
+
+/* ── Load Firestore user doc ── */
+async function _loadUserData() {
+  try {
+    const snap = await getDoc(doc(_db, 'users', _user.uid));
+    _userData = snap.exists() ? snap.data() : { displayName: _user.email?.split('@')[0] || 'Guest', username: '' };
+  } catch (_) {
+    _userData = { displayName: _user.email?.split('@')[0] || 'Guest', username: '' };
+  }
+}
+
+/* ── Decide mode from URL hash ── */
+async function _resolveMode() {
+  const hash = location.hash;
+  localStorage.removeItem('snx_live_intent');
+
+  if (hash.startsWith('#watch=')) {
+    _roomId = hash.slice(7);   // roomId is plain [a-zA-Z0-9_] — no decoding needed
+    _mode   = 'viewer';
+    document.body.classList.add('is-viewer');
+    await _startViewer();
+  } else {
+    _mode = 'creator';
+    document.body.classList.add('is-creator');
+    await _startCreatorSetup();
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   CREATOR SETUP
+   ═══════════════════════════════════════════════════ */
+async function _startCreatorSetup() {
+  _hideLoading();
+  if (D.setup) D.setup.style.display = 'block';
+
+  try {
+    _localStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: _facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: true,
+    });
+    if (D.setupPreview) {
+      D.setupPreview.srcObject = _localStream;
+      D.setupPreview.play().catch(() => {});
+    }
+    _updateSetupPreviewState(true);
+  } catch (err) {
+    try {
+      _localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      _camOn = false;
+      _updateSetupPreviewState(false);
+      toast('Camera is audio only');
+    } catch (e) {
+      _showSetupPermError('Camera & mic access denied. Allow Camera + Microphone in your browser settings, then refresh.');
+    }
+  }
+}
+
+function _showSetupPermError(msg) {
+  toast(msg);
+  const existing = document.getElementById('_snxSetupPermError');
+  if (existing) { existing.textContent = msg; return; }
+  const banner = document.createElement('div');
+  banner.id = '_snxSetupPermError';
+  banner.style.cssText = [
+    'width:100%', 'background:rgba(180,0,30,0.18)', 'border:1px solid rgba(255,50,70,0.55)',
+    'border-radius:10px', 'padding:12px 14px', 'font-size:13px', 'color:#ff8899',
+    'line-height:1.5', 'text-align:center',
+  ].join(';');
+  banner.textContent = msg;
+  const input = document.getElementById('setupTitleInput');
+  if (input && input.parentNode) {
+    input.parentNode.insertBefore(banner, input);
+  } else if (D.goLiveBtn && D.goLiveBtn.parentNode) {
+    D.goLiveBtn.parentNode.insertBefore(banner, D.goLiveBtn);
+  }
+  if (D.goLiveBtn) {
+    D.goLiveBtn.disabled = true;
+    D.goLiveBtn.title = 'Camera & mic access required';
+  }
+}
+
+function _updateSetupPreviewState(hasVideo) {
+  if (!D.setupPreviewOff) return;
+  D.setupPreviewOff.classList.toggle('visible', !hasVideo);
+  if (D.setupPreview) D.setupPreview.style.display = hasVideo ? 'block' : 'none';
+}
+
+function toggleSetupCam() {
+  _camOn = !_camOn;
+  if (_localStream) {
+    _localStream.getVideoTracks().forEach(t => t.enabled = _camOn);
+  }
+  _updateSetupPreviewState(_camOn && !!(_localStream?.getVideoTracks().length));
+  if (D.setupCamBtn) {
+    D.setupCamBtn.querySelector('.setup-ctrl-icon').textContent = '📷';
+    D.setupCamBtn.classList.toggle('off', !_camOn);
+    D.setupCamBtn.querySelector('span:last-child').textContent  = _camOn ? 'Cam' : 'Cam Off';
+  }
+}
+
+function toggleSetupMic() {
+  _micOn = !_micOn;
+  if (_localStream) {
+    _localStream.getAudioTracks().forEach(t => t.enabled = _micOn);
+  }
+  if (D.setupMicBtn) {
+    D.setupMicBtn.querySelector('.setup-ctrl-icon').textContent = _micOn ? '🎤' : '🔇';
+    D.setupMicBtn.classList.toggle('off', !_micOn);
+    D.setupMicBtn.querySelector('span:last-child').textContent  = _micOn ? 'Mic' : 'Mic Off';
+  }
+}
+
+async function flipSetupCamera() {
+  _facingMode = _facingMode === 'user' ? 'environment' : 'user';
+  if (_localStream) {
+    _localStream.getTracks().forEach(t => t.stop());
+  }
+  try {
+    _localStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: _facingMode }, audio: _micOn,
+    });
+    if (D.setupPreview) {
+      D.setupPreview.srcObject = _localStream;
+      D.setupPreview.play().catch(() => {});
+    }
+    _camOn = true;
+    _updateSetupPreviewState(true);
+  } catch (_) {}
+}
+
+/* ═══════════════════════════════════════════════════
+   START LIVE (creator)
+   ═══════════════════════════════════════════════════ */
+async function startLive() {
+  if (!_user) {
+    toast('Please wait…');
+    return;
+  }
+  if (_user.isAnonymous) {
+    toast('Sign in to go live.');
+    return;
+  }
+  if (!_localStream || !_localStream.getTracks().length) {
+    toast('Camera or mic not available. Check permissions and refresh.');
+    return;
+  }
+
+  // ── Kill any previous stuck live session for this user ──
+  try {
+    const userSnap = await getDoc(doc(_db, 'users', _user.uid));
+    const prevRoomId = userSnap.exists() ? userSnap.data().liveRoomId : null;
+    if (prevRoomId) {
+      await update(ref(_liveDB, `liveRooms/${prevRoomId}`), { status: 'ended', isLive: false, endedAt: Date.now() });
+      await remove(ref(_liveDB, `liveConnections/${prevRoomId}`));
+      await updateDoc(doc(_db, 'users', _user.uid), { isLive: deleteField(), liveRoomId: deleteField() });
+    }
+    // Always delete the uid-keyed Firestore liveRooms doc (and legacy roomId-keyed one)
+    try { await deleteDoc(doc(_db, 'liveRooms', _user.uid)); } catch (_) {}
+    if (prevRoomId) {
+      try { await deleteDoc(doc(_db, 'liveRooms', prevRoomId)); } catch (_) {}
+    }
+    // Also clean up any orphaned feed posts with type='live' for this user
+    try {
+      const orphanQ = query(
+        collection(_db, 'posts'),
+        where('uid', '==', _user.uid),
+        where('type', '==', 'live')
+      );
+      const orphanSnap = await getDocs(orphanQ);
+      orphanSnap.forEach(async d => { try { await deleteDoc(d.ref); } catch(_) {} });
+    } catch (_) {}
+  } catch (_) {}
+
+  const titleVal = (D.setupTitle?.value || '').trim();
+  if (D.goLiveBtn) { D.goLiveBtn.disabled = true; D.goLiveBtn.textContent = 'Going Live…'; }
+
+  // Sanitize uid — strip any chars forbidden in RTDB keys (. # $ / [ ])
+  const _safeUid = _user.uid.replace(/[.#$/\[\]]/g, '_');
+  _roomId = `${_safeUid}_${Date.now().toString(36)}`;
+
+  const creatorData = {
+    roomId:       _roomId,
+    hostId:       _user.uid,
+    hostName:     _userData.displayName || _user.email?.split('@')[0] || 'Creator',
+    hostUsername: _userData.username || '',
+    hostAvatar:   _userData.avatar || _userData.profilePicture || '',
+    title:        titleVal || 'Shadow Nexus LIVE',
+    status:       'live',
+    isLive:       true,
+    viewers:      0,
+    likes:        0,
+    createdAt:    Date.now(),
+  };
+
+  /* ── Write room to LIVE Realtime Database ── */
+  try {
+    await set(ref(_liveDB, `liveRooms/${_roomId}`), creatorData);
+  } catch (e) {
+    toast('Could not start live. Please try again.');
+    if (D.goLiveBtn) { D.goLiveBtn.disabled = false; D.goLiveBtn.textContent = 'Start Live'; }
+    return;
+  }
+
+  /* ── Mirror room to Firestore so Live Hub can query it.
+        Keyed by uid so only ONE doc per user ever exists —
+        reconnecting simply overwrites the previous entry.   ── */
+  try {
+    await setDoc(doc(_db, 'liveRooms', _user.uid), {
+      ...creatorData,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  } catch (_) {}
+
+  /* ── Guard: prevent accidental cleanup if page unloads during live ── */
+  _creatorEndedFlag = false;
+  window.addEventListener('beforeunload', _creatorBeforeUnload);
+  window.addEventListener('pagehide',     _creatorBeforeUnload);
+
+  if (D.setup) D.setup.style.display = 'none';
+  _showStage();
+  _attachLocalVideoToStage();
+  _populateCreatorInfo(creatorData);
+
+  await _startCreatorWebRTC();
+
+  _subscribeChat();
+  _subscribeViewerCount();
+  _showCreatorShareBar();
+
+  toast('🔴 You are LIVE!');
+
+  // ── Non-critical side-work ──
+  try {
+    await updateDoc(doc(_db, 'users', _user.uid), { isLive: true, liveRoomId: _roomId });
+  } catch (_) {}
+  // _createLiveFeedPost intentionally omitted — live sessions must not create
+  // feed posts; they appear only in the story bar and Live Hub.
+  _createLiveStory(creatorData);
+  _notifyFollowersLive(creatorData);
+}
+
+function _attachLocalVideoToStage() {
+  if (!D.liveVideo || !_localStream) return;
+  D.liveVideo.srcObject = _localStream;
+  D.liveVideo.play().catch(() => {});
+  D.camOffOverlay && D.camOffOverlay.classList.toggle('visible', !_camOn);
+}
+
+/* ── Share bar: big visible URL strip shown on the live stage ──
+   Creator sees their exact watch link immediately so they can copy
+   and send it without going through the share modal.              */
+function _showCreatorShareBar() {
+  const old = document.getElementById('_snxCreatorShareBar');
+  if (old) old.remove();
+
+  const url = _buildLiveUrl();
+
+  const bar = document.createElement('div');
+  bar.id = '_snxCreatorShareBar';
+  bar.style.cssText = [
+    'position:absolute', 'top:64px', 'left:50%',
+    'transform:translateX(-50%)',
+    'z-index:50', 'max-width:calc(100vw - 24px)', 'width:420px',
+    'background:rgba(0,10,30,0.93)',
+    'border:1.5px solid rgba(0,174,239,0.7)',
+    'border-radius:12px', 'padding:10px 14px',
+    'display:flex', 'align-items:center', 'gap:10px',
+    'backdrop-filter:blur(8px)',
+  ].join(';');
+
+  bar.innerHTML = `
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:10px;color:#6a90b8;margin-bottom:3px;letter-spacing:.5px;text-transform:uppercase;">Your watch link — share this!</div>
+      <div id="_snxShareUrlText" style="font-size:12px;color:#00AEEF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:monospace;">${url}</div>
+    </div>
+    <button id="_snxCopyShareUrl" style="
+      flex-shrink:0;padding:8px 14px;border-radius:8px;
+      background:rgba(0,174,239,0.2);border:1px solid rgba(0,174,239,0.6);
+      color:#00AEEF;font-size:12px;font-weight:700;cursor:pointer;
+      white-space:nowrap;
+    ">📋 Copy</button>
+    <button id="_snxDismissShareBar" style="
+      flex-shrink:0;width:28px;height:28px;border-radius:50%;
+      background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);
+      color:#aaa;font-size:14px;cursor:pointer;
+    ">✕</button>
+  `;
+
+  // Copy button
+  bar.querySelector('#_snxCopyShareUrl').addEventListener('click', () => {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(url)
+        .then(() => toast('✅ Link copied! Send it to your viewers.'))
+        .catch(() => window.prompt('Copy your watch link:', url));
+    } else {
+      window.prompt('Copy your watch link:', url);
     }
   });
 
-  // Like button in chat panel
-  dom.chatLikeBtn?.addEventListener('click', handleLike);
+  // Dismiss
+  bar.querySelector('#_snxDismissShareBar').addEventListener('click', () => bar.remove());
 
-  // Chat
-  dom.chatSend?.addEventListener('click', handleSendChat);
-  dom.chatInput?.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(); }
+  // Auto-dismiss after 60 s
+  setTimeout(() => bar.remove(), 60000);
+
+  const stage = document.getElementById('liveStage');
+  const videoWrap = stage?.querySelector('.live-video-wrap');
+  (videoWrap || stage || document.body).appendChild(bar);
+}
+
+function _populateCreatorInfo(data) {
+  if (D.creatorName)   D.creatorName.textContent  = data.hostName;
+  if (D.creatorAvatar) {
+    if (data.hostAvatar) {
+      D.creatorAvatar.style.backgroundImage = `url('${data.hostAvatar}')`;
+      D.creatorAvatar.textContent = '';
+    } else {
+      D.creatorAvatar.textContent = (data.hostName || '?')[0].toUpperCase();
+    }
+  }
+}
+
+/* ── Subscribe to viewer count + likes from LIVE RTDB
+      Also mirrors viewer count to Firestore liveRooms doc so the Live Hub
+      stays in real-time sync without an extra Firestore write on every tick. ── */
+function _subscribeViewerCount() {
+  _viewerCountRef = ref(_liveDB, `liveRooms/${_roomId}`);
+  let _lastMirroredViewers = -1;
+  _viewerCountUnsub = onValue(_viewerCountRef, snap => {
+    const d = snap.val() || {};
+    if (D.viewerCount) D.viewerCount.textContent = '👁 ' + (d.viewers || 0);
+    if (D.likeCount)   D.likeCount.textContent   = '❤️ ' + (d.likes   || 0);
+    // Mirror viewer count to Firestore (uid-keyed doc) so Live Hub cards update in real time
+    const v = d.viewers || 0;
+    if (v !== _lastMirroredViewers && _roomId && _user) {
+      _lastMirroredViewers = v;
+      updateDoc(doc(_db, 'liveRooms', _user.uid), { viewers: v }).catch(() => {});
+    }
   });
-  dom.chatEmoji?.addEventListener('click', () => dom.emojiPicker?.classList.toggle('hidden'));
-  dom.emojiPicker?.querySelectorAll('span').forEach(s => {
-    s.addEventListener('click', () => {
-      dom.chatInput.value += s.textContent;
-      dom.chatInput.focus();
-      hideEl(dom.emojiPicker);
+}
+
+/* ═══════════════════════════════════════════════════
+   CREATOR CONTROLS — Cam / Mic / Flip / End
+   ═══════════════════════════════════════════════════ */
+function toggleLiveCam() {
+  _camOn = !_camOn;
+  if (_localStream) _localStream.getVideoTracks().forEach(t => t.enabled = _camOn);
+  if (D.btnCam) { D.btnCam.textContent = _camOn ? '📷' : '🚫'; D.btnCam.classList.toggle('off', !_camOn); }
+  if (D.camOffOverlay) D.camOffOverlay.classList.toggle('visible', !_camOn);
+}
+
+function toggleLiveMic() {
+  _micOn = !_micOn;
+  if (_localStream) _localStream.getAudioTracks().forEach(t => t.enabled = _micOn);
+  if (D.btnMic) { D.btnMic.textContent = _micOn ? '🎤' : '🔇'; D.btnMic.classList.toggle('off', !_micOn); }
+  toast(_micOn ? 'Mic on' : 'Mic muted');
+}
+
+async function flipLiveCamera() {
+  _facingMode = _facingMode === 'user' ? 'environment' : 'user';
+  const oldStream = _localStream;
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: _facingMode }, audio: _micOn,
     });
+    if (oldStream) oldStream.getTracks().forEach(t => t.stop());
+    _localStream = newStream;
+    if (D.liveVideo) {
+      D.liveVideo.srcObject = newStream;
+      D.liveVideo.play().catch(() => {});
+    }
+    if (_rtcPc && newStream.getVideoTracks()[0]) {
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      const sender = _rtcPc.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(newVideoTrack).catch(() => {});
+      }
+    }
+  } catch (e) {
+    toast('Could not flip camera.');
+  }
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+/* ── Creator page unload guard — only fires if endLive() was NOT called ── */
+function _creatorBeforeUnload() {
+  if (_creatorEndedFlag || !_roomId) return;
+  // Can't do async work in beforeunload; onDisconnect handles the RTDB cleanup.
+  if (_localStream) { _localStream.getTracks().forEach(t => t.stop()); _localStream = null; }
+}
+
+async function endLive() {
+  if (_creatorEndedFlag) return;   // prevent double-call
+  _creatorEndedFlag = true;
+
+  // Cancel the onDisconnect trigger — we are ending cleanly ourselves
+  if (_roomId) {
+    try { await onDisconnect(ref(_liveDB, `liveRooms/${_roomId}`)).cancel(); } catch (_) {}
+  }
+
+  window.removeEventListener('beforeunload', _creatorBeforeUnload);
+  window.removeEventListener('pagehide',     _creatorBeforeUnload);
+
+  if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
+  if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
+  if (_chatUnsub)        { _chatUnsub();         _chatUnsub        = null; }
+  if (_viewerCountRef && _viewerCountUnsub) { off(_viewerCountRef); _viewerCountRef = null; _viewerCountUnsub = null; }
+
+  /* ── Remove WebRTC signaling from LIVE RTDB ── */
+  if (_roomId) {
+    try { await remove(ref(_liveDB, `liveConnections/${_roomId}`)); } catch (_) {}
+  }
+
+  if (_localStream) { _localStream.getTracks().forEach(t => t.stop()); _localStream = null; }
+
+  /* ── Mark room as ended in LIVE RTDB ── */
+  const _endedRoomId = _roomId;
+  try {
+    await update(ref(_liveDB, `liveRooms/${_endedRoomId}`), {
+      status:  'ended',
+      isLive:  false,
+      endedAt: Date.now(),
+    });
+  } catch (_) {}
+
+  /* ── Clear live status from main Firestore user doc ── */
+  try {
+    await updateDoc(doc(_db, 'users', _user.uid), {
+      isLive:     deleteField(),
+      liveRoomId: deleteField(),
+    });
+  } catch (_) {}
+
+  /* ── Delete live feed post from main Firestore (safety net for old data) ── */
+  if (_feedPostId) {
+    try { await deleteDoc(doc(_db, 'posts', _feedPostId)); } catch (_) {}
+    _feedPostId = null;
+  }
+
+  /* ── Mark share posts as ended in main Firestore ── */
+  try {
+    const shareQ = query(
+      collection(_db, 'posts'),
+      where('liveRoomId', '==', _endedRoomId),
+      where('type', '==', 'live_share')
+    );
+    const shareSnap = await getDocs(shareQ);
+    shareSnap.forEach(async shareDoc => {
+      try { await updateDoc(shareDoc.ref, { isLive: false }); } catch (_) {}
+    });
+  } catch (_) {}
+
+  /* ── Delete Firestore liveRooms doc (keyed by uid) so it disappears from Live Hub ── */
+  try { await deleteDoc(doc(_db, 'liveRooms', _user.uid)); } catch (_) {}
+  /* ── Also delete by roomId in case old data used roomId as key ── */
+  try { await deleteDoc(doc(_db, 'liveRooms', _endedRoomId)); } catch (_) {}
+
+  /* ── Schedule RTDB room deletion after 5 min (cleans up ended marker) ── */
+  setTimeout(async () => {
+    try { await remove(ref(_liveDB, `liveRooms/${_endedRoomId}`)); } catch (_) {}
+  }, 5 * 60 * 1000);
+
+  _deleteLiveStory();
+  _showEndedOverlay(true);
+}
+
+/* ═══════════════════════════════════════════════════
+   LIVE FEED POST — Firestore 'posts' collection
+   ═══════════════════════════════════════════════════ */
+async function _createLiveFeedPost(creatorData) {
+  if (!_user || !_roomId) return;
+  try {
+    const postRef = await addDoc(collection(_db, 'posts'), {
+      type:          'live',
+      uid:           _user.uid,
+      authorUid:     _user.uid,
+      authorName:    creatorData.hostName     || '',
+      authorHandle:  creatorData.hostUsername || '',
+      authorAvatar:  creatorData.hostAvatar   || '',
+      liveRoomId:    _roomId,
+      isLive:        true,
+      title:         creatorData.title        || 'Shadow Nexus LIVE',
+      text:          (creatorData.hostName || 'Someone') + ' is Live now 🔴',
+      timestamp:     Date.now(),
+      createdAt:     Date.now(),
+      likes:         0,
+      comments:      [],
+    });
+    _feedPostId = postRef.id;
+  } catch (_) {}
+}
+
+/* ═══════════════════════════════════════════════════
+   LIVE STORY — Firestore 'stories' collection
+   ═══════════════════════════════════════════════════ */
+function _liveStoryId() {
+  return `live_${_user.uid}`;
+}
+
+async function _createLiveStory(creatorData) {
+  if (!_user || !_roomId) return;
+  const now = Date.now();
+  const expiresAt = now + 12 * 60 * 60 * 1000;
+  try {
+    await setDoc(doc(_db, 'stories', _liveStoryId()), {
+      uid:          _user.uid,
+      authorName:   creatorData.hostName     || '',
+      authorHandle: creatorData.hostUsername || '',
+      authorAvatar: creatorData.hostAvatar   || '',
+      type:         'live',
+      liveRoomId:   _roomId,
+      title:        creatorData.title        || 'Shadow Nexus LIVE',
+      createdAt:    now,
+      expiresAt,
+    });
+  } catch (_) {}
+}
+
+async function _deleteLiveStory() {
+  if (!_user) return;
+  try {
+    await deleteDoc(doc(_db, 'stories', _liveStoryId()));
+  } catch (_) {}
+}
+
+/* ═══════════════════════════════════════════════════
+   FOLLOWER LIVE NOTIFICATIONS — Firestore 'notifications'
+   ═══════════════════════════════════════════════════ */
+async function _notifyFollowersLive(creatorData) {
+  if (!_user) return;
+  try {
+    const snap = await getDoc(doc(_db, 'users', _user.uid));
+    if (!snap.exists()) return;
+    const followers = snap.data().followers || [];
+    if (!followers.length) return;
+
+    const notif = {
+      id:         `live_${_user.uid}_${Date.now()}`,
+      type:       'live',
+      fromUid:    _user.uid,
+      fromName:   creatorData.hostName    || '',
+      fromAvatar: creatorData.hostAvatar  || '',
+      roomId:     _roomId,
+      roomTitle:  creatorData.title       || 'Shadow Nexus LIVE',
+      title:      '🔴 ' + (creatorData.hostName || 'Someone') + ' is Live',
+      body:       `${creatorData.hostName || 'Someone'} is live: ${creatorData.title || 'Shadow Nexus LIVE'}`,
+      url:        'live.html#watch=' + _roomId,
+      ts:         Date.now(),
+      read:       false,
+    };
+
+    const batches = followers.map(async fUid => {
+      try { await addDoc(collection(_db, 'notifications', fUid, 'items'), notif); } catch (_) {}
+      try { await updateDoc(doc(_db, 'users', fUid), { pushQueue: arrayUnion(notif) }); } catch (_) {}
+    });
+
+    await Promise.allSettled(batches);
+  } catch (_) {}
+}
+
+/* ═══════════════════════════════════════════════════
+   VIEWER — join a live stream
+   ═══════════════════════════════════════════════════ */
+async function _startViewer() {
+  let roomData = null;
+
+  const _MAX_RETRIES = 8;
+  const _RETRY_MS    = 2000;
+
+  for (let attempt = 0; attempt < _MAX_RETRIES; attempt++) {
+    try {
+      const snap = await get(ref(_liveDB, `liveRooms/${_roomId}`));
+      if (snap.exists() && snap.val().status === 'live') {
+        roomData = snap.val();
+        break;
+      }
+      if (snap.exists() && snap.val().status === 'ended') {
+        _hideLoading();
+        _showEndedOverlay(false, 'Stream ended', 'This live stream has already ended.');
+        return;
+      }
+    } catch (e) {
+      _hideLoading();
+      toast('Could not connect. Please try again.');
+      return;
+    }
+    if (attempt === 0) {
+      _hideLoading();
+      _showStage();
+      _showConnBanner('Waiting for stream…', '');
+    }
+    await new Promise(r => setTimeout(r, _RETRY_MS));
+  }
+
+  if (!roomData) {
+    _showEndedOverlay(false, 'Stream ended', 'This live stream has ended or does not exist.');
+    return;
+  }
+
+  _hideLoading();
+  _showStage();
+  _hideConnBanner();
+  _populateCreatorInfo(roomData);
+  _setupViewerControls(roomData);
+  _subscribeChat();
+
+  /* ── Increment viewer count in LIVE RTDB ── */
+  try {
+    const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
+    const currentSnap = await get(viewersRef);
+    await set(viewersRef, (currentSnap.val() || 0) + 1);
+  } catch (_) {}
+
+  /* ── Watch for stream ending via LIVE RTDB ── */
+  let _roomWatchSeenFirst = false;
+  const roomWatchRef = ref(_liveDB, `liveRooms/${_roomId}`);
+  onValue(roomWatchRef, snap => {
+    const d = snap.val() || {};
+    if (D.viewerCount) D.viewerCount.textContent = '👁 ' + (d.viewers || 0);
+    if (D.likeCount)   D.likeCount.textContent   = '❤️ ' + (d.likes   || 0);
+    if (!_roomWatchSeenFirst) {
+      _roomWatchSeenFirst = true;
+      return;
+    }
+    if (!snap.exists() || d.status === 'ended') {
+      _showEndedOverlay(false, 'Stream ended', `${roomData.hostName} has ended the live stream.`);
+    }
   });
 
-  // Reactions
-  document.querySelectorAll('.react-btn').forEach(btn => {
-    btn.addEventListener('click', () => handleReaction(btn.dataset.emoji));
+  await _startViewerWebRTC(roomData);
+
+  window.addEventListener('beforeunload', _viewerLeave);
+  window.addEventListener('pagehide',     _viewerLeave);
+}
+
+async function _viewerLeave() {
+  if (_viewerLeftFlag || !_roomId) return;
+  _viewerLeftFlag = true;
+
+  if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
+  if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
+
+  /* ── Decrement viewer count in LIVE RTDB ── */
+  try {
+    const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
+    const snap = await get(viewersRef);
+    const cur = snap.val() || 0;
+    await set(viewersRef, Math.max(0, cur - 1));
+  } catch (_) {}
+}
+
+function _setupViewerControls(roomData) {
+  if (D.profileBtn) {
+    D.profileBtn.style.display = 'flex';
+    D.profileBtn.onclick = () => {
+      window.open('index.html#profile=' + roomData.hostId, '_blank');
+    };
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   WebRTC — CREATOR
+   Uses LIVE Realtime Database for signaling.
+   ═══════════════════════════════════════════════════ */
+async function _startCreatorWebRTC() {
+  if (!_localStream) {
+    toast('Camera or mic not available.');
+    return;
+  }
+
+  _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
+
+  // Add tracks with explicit sendonly direction
+  _localStream.getTracks().forEach(track => {
+    _rtcPc.addTrack(track, _localStream);
   });
 
-  // Dialogs
-  dom.btnDialogCancel?.addEventListener('click',  cancelEnd);
-  dom.btnDialogConfirm?.addEventListener('click', confirmEnd);
-  dom.btnCopyCode?.addEventListener('click',      handleCopyCode);
-  dom.btnCloseInvite?.addEventListener('click',   () => hideEl(dom.inviteDialog));
-
-  // Guest join screen
-  dom.btnGuestJoin?.addEventListener('click', handleGuestJoin);
-  dom.btnGuestBack?.addEventListener('click', () => showScreen('home'));
-  dom.guestCodeInput?.addEventListener('keydown', e => { if (e.key === 'Enter') handleGuestJoin(); });
-
-  dom.guestToggleCam?.addEventListener('click', () => {
-    dom.guestToggleCam.classList.toggle('active');
-    dom.guestToggleCam.classList.toggle('off');
-  });
-  dom.guestToggleMic?.addEventListener('click', () => {
-    dom.guestToggleMic.classList.toggle('active');
-    dom.guestToggleMic.classList.toggle('off');
+  // Ensure transceivers are explicitly set to sendonly (belt+braces for iOS Safari)
+  _rtcPc.getTransceivers().forEach(tc => {
+    tc.direction = 'sendonly';
   });
 
-  // Close emoji on outside click
-  document.addEventListener('click', e => {
-    if (!dom.emojiPicker?.contains(e.target) && e.target !== dom.chatEmoji) hideEl(dom.emojiPicker);
+  _rtcPc.onconnectionstatechange = () => {
+    if (_rtcPc.connectionState === 'connected') {
+    }
+  };
+
+  const connRef = ref(_liveDB, `liveConnections/${_roomId}`);
+  const _pendingCandidates = [];
+  let   _offerWritten      = false;
+
+  // Wire BEFORE createOffer so no early candidates are dropped
+  _rtcPc.onicecandidate = async (e) => {
+    if (!e.candidate) return;
+    if (!_offerWritten) {
+      _pendingCandidates.push(e.candidate.toJSON());
+      return;
+    }
+    try { await push(ref(_liveDB, `liveConnections/${_roomId}/creatorCandidates`), e.candidate.toJSON()); }
+    catch (_) {}
+  };
+
+  // createOffer with a 10-second timeout
+  let offer;
+  try {
+    offer = await Promise.race([
+      _rtcPc.createOffer(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('createOffer timed out after 10s')), 10000)),
+    ]);
+  } catch (e) {
+    toast('Could not start stream. Please try again.');
+    return;
+  }
+
+  try {
+    await _rtcPc.setLocalDescription(offer);
+  } catch (e) {
+    toast('Could not start stream. Please try again.');
+    return;
+  }
+
+  // Write offer to RTDB
+  try {
+    await set(connRef, {
+      offer:             { type: offer.type, sdp: offer.sdp },
+      creatorCandidates: {},
+      viewerCandidates:  {},
+    });
+    _offerWritten = true;
+  } catch (e) {
+    toast('Could not start live. Please try again.');
+    return;
+  }
+
+  // Register onDisconnect AFTER offer is confirmed in RTDB
+  try {
+    await onDisconnect(ref(_liveDB, `liveRooms/${_roomId}`)).update({
+      status: 'ended', isLive: false, endedAt: Date.now(),
+    });
+  } catch (_) {}
+
+  // Flush buffered candidates
+  if (_pendingCandidates.length) {
+    for (const cand of _pendingCandidates) {
+      try { await push(ref(_liveDB, `liveConnections/${_roomId}/creatorCandidates`), cand); } catch (_) {}
+    }
+    _pendingCandidates.length = 0;
+  }
+
+  // Watch for viewer answer + ICE
+  let _appliedViewerCandKeys = new Set();
+  _rtcSignalRef   = connRef;
+  _rtcSignalUnsub = onValue(connRef, async snap => {
+    if (!snap.exists()) return;
+    const d = snap.val();
+
+    if (d.answer && _rtcPc.remoteDescription === null) {
+      try {
+        await _rtcPc.setRemoteDescription(new RTCSessionDescription(d.answer));
+      } catch (_) {}
+    }
+
+    if (_rtcPc.remoteDescription && d.viewerCandidates) {
+      for (const [key, cand] of Object.entries(d.viewerCandidates)) {
+        if (_appliedViewerCandKeys.has(key)) continue;
+        _appliedViewerCandKeys.add(key);
+        try { await _rtcPc.addIceCandidate(new RTCIceCandidate(cand)); } catch (_) {}
+      }
+    }
   });
 
-  // Network
-  window.addEventListener('online',  checkNet);
-  window.addEventListener('offline', () => {
-    if (dom.setupNetDot) { dom.setupNetDot.className = 'net-dot poor'; dom.setupNetLabel.textContent = 'No connection'; }
+  toast('Live now');
+}
+
+/* ═══════════════════════════════════════════════════
+   WebRTC — VIEWER
+   Uses LIVE Realtime Database for signaling.
+   ═══════════════════════════════════════════════════ */
+async function _startViewerWebRTC(roomData) {
+  _showConnBanner('Waiting for stream…', '');
+
+  const connRef = ref(_liveDB, `liveConnections/${_roomId}`);
+
+  /* ── Read offer from LIVE RTDB ── */
+  let connSnap;
+  try {
+    connSnap = await get(connRef);
+  } catch (e) {
+    _showConnBanner('Waiting for stream…', '');
+    return;
+  }
+
+  if (!connSnap.exists() || !connSnap.val().offer) {
+    _showConnBanner('Waiting for stream…', '');
+    const offerWaitRef = ref(_liveDB, `liveConnections/${_roomId}`);
+    let _offerWaitListener;
+    _offerWaitListener = onValue(offerWaitRef, async snap => {
+      if (!snap.exists() || !snap.val().offer) return;
+      off(offerWaitRef, _offerWaitListener);
+      _startViewerWebRTC(roomData);
+    });
+    return;
+  }
+
+  if (_rtcPc) { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
+  _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
+
+  _rtcPc.ontrack = (e) => {
+    if (!D.liveVideo) return;
+    const stream = e.streams[0] || new MediaStream([e.track]);
+    D.liveVideo.srcObject = stream;
+    D.liveVideo.muted = true;
+    D.liveVideo.play().catch(() => {});
+    _showUnmutePrompt();
+    _hideConnBanner();
+  };
+
+  _rtcPc.onconnectionstatechange = () => {
+    if (_rtcPc.connectionState === 'connected') {
+      _hideConnBanner();
+      // connected — banner already hidden by ontrack
+    } else if (_rtcPc.connectionState === 'disconnected' || _rtcPc.connectionState === 'failed') {
+      _showConnBanner('Waiting for stream…', '');
+    }
+  };
+
+  /* ── Set remote description (offer) ── */
+  const offer = connSnap.val().offer;
+  try {
+    await _rtcPc.setRemoteDescription(new RTCSessionDescription(offer));
+  } catch (e) {
+    _showConnBanner('Waiting for stream…', '');
+    return;
+  }
+
+  /* ── Wire ICE handler BEFORE createAnswer so viewer candidates aren't lost ── */
+  const _viewerPendingCands = [];
+  let   _viewerAnswerWritten = false;
+
+  _rtcPc.onicecandidate = async (e) => {
+    if (!e.candidate) return;
+    if (!_viewerAnswerWritten) {
+      _viewerPendingCands.push(e.candidate.toJSON());
+      return;
+    }
+    try {
+      await push(ref(_liveDB, `liveConnections/${_roomId}/viewerCandidates`), e.candidate.toJSON());
+    } catch (_) {}
+  };
+
+  const answer = await _rtcPc.createAnswer();
+  await _rtcPc.setLocalDescription(answer);
+
+  /* ── Write answer to RTDB ── */
+  try {
+    await update(connRef, {
+      answer: { type: answer.type, sdp: answer.sdp },
+    });
+    _viewerAnswerWritten = true;
+  } catch (e) {
+    _showConnBanner('Waiting for stream…', '');
+    return;
+  }
+
+  /* ── Flush any viewer ICE candidates buffered before the answer was written ── */
+  if (_viewerPendingCands.length) {
+    for (const cand of _viewerPendingCands) {
+      try { await push(ref(_liveDB, `liveConnections/${_roomId}/viewerCandidates`), cand); } catch (_) {}
+    }
+    _viewerPendingCands.length = 0;
+  }
+
+  /* ── Apply existing creator ICE candidates ── */
+  let _appliedCreatorCandKeys = new Set();
+  const existingCands = connSnap.val().creatorCandidates || {};
+  for (const [key, cand] of Object.entries(existingCands)) {
+    _appliedCreatorCandKeys.add(key);
+    try { await _rtcPc.addIceCandidate(new RTCIceCandidate(cand)); } catch (_) {}
+  }
+
+  /* ── Listen for new creator ICE candidates ── */
+  _rtcSignalRef   = connRef;
+  _rtcSignalUnsub = onValue(connRef, async snap => {
+    if (!snap.exists()) return;
+    const d = snap.val();
+    if (d.creatorCandidates) {
+      for (const [key, cand] of Object.entries(d.creatorCandidates)) {
+        if (_appliedCreatorCandKeys.has(key)) continue;
+        _appliedCreatorCandKeys.add(key);
+        try { await _rtcPc.addIceCandidate(new RTCIceCandidate(cand)); } catch (_) {}
+      }
+    }
   });
+
+  _showConnBanner('Waiting for stream…', '');
+}
+
+/* ═══════════════════════════════════════════════════
+   CHAT — Firestore sub-collection
+   ═══════════════════════════════════════════════════ */
+function _subscribeChat() {
+  if (!_roomId) return;
+  const q = query(
+    collection(_db, 'liveRooms', _roomId, 'liveMessages'),
+    orderBy('createdAt', 'asc'),
+    limit(150)
+  );
+  _chatUnsub = onSnapshot(q, snap => {
+    snap.docChanges().forEach(ch => {
+      if (ch.type === 'added') _appendChatMsg(ch.doc.data());
+    });
+  }, () => {});
+}
+
+function _appendChatMsg(data) {
+  if (!D.chatMessages) return;
+  const hostUid  = _roomId ? _roomId.split('_')[0] : null;
+  const isHost   = !!(hostUid && data.userId === hostUid);
+  const isSystem = data.type === 'system';
+
+  const el = document.createElement('div');
+  el.className = 'live-chat-msg' + (isSystem ? ' system' : '');
+  if (!isSystem) {
+    el.innerHTML = `<span class="live-chat-author${isHost ? ' is-host' : ''}">${_esc(data.userName || 'Guest')}</span>
+                    <span class="live-chat-text">${_esc(data.text)}</span>`;
+  } else {
+    el.innerHTML = `<span class="live-chat-text">${_esc(data.text)}</span>`;
+  }
+  D.chatMessages.appendChild(el);
+  D.chatMessages.scrollTop = D.chatMessages.scrollHeight;
+
+  while (D.chatMessages.children.length > 80) {
+    D.chatMessages.removeChild(D.chatMessages.firstChild);
+  }
+}
+
+/* ── Live chat AI safety rules (mirrors index.html _RULES) ── */
+const _LIVE_RULES = [
+  { category: 'Threats',           severity: 'block', patterns: [
+      /\bi('?ll| will|'m going to|m gonna|gonna|will)\s+(kill|hurt|murder|destroy|beat|shoot|stab|end)\s+(you|u|them|him|her)/i,
+      /\b(kill\s*your?self|kys|go\s*die|i\s*will\s*find\s*you|watch\s*your\s*back|you('re|\s+are)\s+dead|dead\s*man|dead\s*girl|die\s*bitch)\b/i,
+      /\b(bomb|shoot up|blow up|attack)\s*(the\s*)?(school|place|building|event)/i,
+  ]},
+  { category: 'Hate Speech',       severity: 'block', patterns: [
+      /\b(f+u+c+k+\s*(all\s*)?(blacks?|whites?|jews?|muslims?|christians?|gays?|lesbians?|trans|latinos?|asians?|mexicans?|arabs?))\b/i,
+      /\b(all\s+(blacks?|whites?|jews?|muslims?|gays?|lesbians?|trans|latinos?|asians?)\s+should\s+(die|be\s+killed|disappear|burn))\b/i,
+      /\b(white\s*power|white\s*supremac|ethnic\s*cleans|n[i1]+gg[e3]r|ch[i1]nk|sp[i1]c|k[i1]ke|f[a4]gg[o0]t|tr[a4]nny)\b/i,
+  ]},
+  { category: 'Doxxing',           severity: 'block', patterns: [
+      /\b(here('?s|\s+is)\s+(your|his|her|their)\s+(address|phone|number|location|ip\s*address|home|school|work))\b/i,
+      /\b(i\s*(know|found)\s+where\s+you\s+(live|work|go\s+to\s+school))\b/i,
+  ]},
+  { category: 'Self-Harm Promotion', severity: 'block', patterns: [
+      /\b(how\s+to\s+(properly\s+)?(cut|harm|hurt)\s+(yourself|myself)|best\s+way\s+to\s+(overdose|die|end\s+(it|your\s+life)))\b/i,
+      /\b(just\s+(do\s+it|end\s+it|kill\s+yourself|hurt\s+yourself)\s+(already|please|nobody\s+cares))\b/i,
+  ]},
+  { category: 'Harassment',        severity: 'warn',  patterns: [
+      /\b(shut\s*(the\s*f[uck*@]+\s*)?up\s+(you\s+)?(stupid|dumb|idiot|ugly|fat|loser|worthless|pathetic|disgusting)\b)/i,
+      /\b(nobody\s+(likes?|cares\s*about)\s+you|you\s+(are|r|re)\s+(worthless|pathetic|trash|garbage|a\s+loser|disgusting|nothing))\b/i,
+  ]},
+  { category: 'Spam',              severity: 'warn',  patterns: [
+      /(.)\1{19,}/,
+      /(\b\w+\b)(\s+\1){7,}/i,
+  ]},
+];
+
+function _liveScanText(text) {
+  if (!text) return null;
+  for (const rule of _LIVE_RULES) {
+    for (const pat of rule.patterns) {
+      if (pat.test(text)) return rule;
+    }
+  }
+  return null;
+}
+
+async function sendChat() {
+  if (!_user || !_roomId) return;
+  const text = (D.chatInput?.value || '').trim();
+  if (!text || text.length > 200) return;
+
+  // ── AI Safety scan ──
+  const hit = _liveScanText(text);
+  if (hit) {
+    const isMod = _userData?.role === 'founder' ||
+                  _userData?.role === 'administrator' ||
+                  _userData?.role === 'moderator';
+    if (hit.severity === 'block' && !isMod) {
+      toast(`🚫 Blocked · ${hit.category}: Keep it safe.`);
+      return;   // hard block — do NOT clear input, let user edit
+    }
+    toast(`⚠️ Warning · ${hit.category}: Please keep the community safe.`);
+  }
+
+  if (D.chatInput) D.chatInput.value = '';
+
+  try {
+    await addDoc(collection(_db, 'liveRooms', _roomId, 'liveMessages'), {
+      userId:    _user.uid,
+      userName:  _userData.displayName || 'Guest',
+      text,
+      type:      'chat',
+      createdAt: serverTimestamp(),
+    });
+  } catch (e) {
+    toast('Could not send message.');
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   LIKES — LIVE RTDB
+   ═══════════════════════════════════════════════════ */
+let _hasLiked = false;
+
+async function sendLike() {
+  if (!_user || !_roomId || _hasLiked) return;
+  _hasLiked = true;
+  if (D.likeBtn)      D.likeBtn.classList.add('liked');
+  if (D.likeBtnCount) D.likeBtnCount.textContent = '❤️';
+
+  _spawnHeartBurst();
+
+  try {
+    const likesRef = ref(_liveDB, `liveRooms/${_roomId}/likes`);
+    const snap = await get(likesRef);
+    await set(likesRef, (snap.val() || 0) + 1);
+  } catch (_) {}
+
+  setTimeout(() => {
+    _hasLiked = false;
+    if (D.likeBtn) D.likeBtn.classList.remove('liked');
+  }, 5000);
+}
+
+function _spawnHeartBurst() {
+  const stage = D.stage;
+  if (!stage) return;
+  const el = document.createElement('div');
+  el.className = 'like-burst';
+  el.textContent = '❤️';
+  const rect = stage.getBoundingClientRect();
+  el.style.left     = (rect.width  * 0.75 + (Math.random() - 0.5) * 60) + 'px';
+  el.style.bottom   = (80 + Math.random() * 60) + 'px';
+  el.style.position = 'absolute';
+  stage.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+/* ═══════════════════════════════════════════════════
+   UI HELPERS
+   ═══════════════════════════════════════════════════ */
+function _hideLoading() {
+  if (D.loading) D.loading.style.display = 'none';
+}
+
+function _showStage() {
+  if (D.stage) D.stage.classList.add('active');
+}
+
+function _showConnBanner(title, sub) {
+  if (!D.connBanner) return;
+  if (D.connTitle) D.connTitle.textContent = title;
+  if (D.connSub)   D.connSub.textContent   = sub;
+  D.connBanner.classList.add('visible');
+}
+
+function _hideConnBanner() {
+  if (D.connBanner) D.connBanner.classList.remove('visible');
+}
+
+function _showUnmutePrompt() {
+  const p = D.unmutePrompt;
+  if (!p) return;
+  p.style.display = 'block';
+  const _unmute = () => {
+    if (D.liveVideo) D.liveVideo.muted = false;
+    p.style.display = 'none';
+    p.removeEventListener('click', _unmute);
+    if (D.stage) D.stage.removeEventListener('click', _unmute);
+  };
+  p.addEventListener('click', _unmute);
+  if (D.stage) D.stage.addEventListener('click', _unmute, { once: true });
+}
+
+function _showEndedOverlay(wasCreator, title, sub) {
+  if (!D.ended) return;
+  if (D.endedTitle) D.endedTitle.textContent = title || 'Stream ended';
+  if (D.endedSub)   D.endedSub.textContent   = sub   || (wasCreator
+    ? 'Your live stream has ended. Thanks for going live!'
+    : 'The creator has ended this live stream.');
+  D.ended.classList.add('visible');
+  if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
+  if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
+  if (_chatUnsub) { _chatUnsub(); _chatUnsub = null; }
+}
+
+function onCloseBtn() {
+  if (_mode === 'creator') {
+    endLive();
+  } else {
+    _viewerLeave();
+    window.location.href = 'index.html';
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   SHARE
+   ═══════════════════════════════════════════════════ */
+function shareLive() {
+  if (!_roomId) { toast('Start your live first.'); return; }
+  _openShareModal();
+}
+
+function _buildLiveUrl() {
+  const base = window.location.origin + window.location.pathname.replace('live.html', '');
+  return base + 'live.html#watch=' + _roomId;
+}
+
+function _openShareModal() {
+  const old = document.getElementById('_snxShareModal');
+  if (old) old.remove();
+
+  const url      = _buildLiveUrl();
+  const name     = _userData?.displayName || 'Someone';
+  const shareMsg = `${name} is Live Now 🔴 — Watch: ${url}`;
+
+  const modal = document.createElement('div');
+  modal.id    = '_snxShareModal';
+  modal.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    display:flex;align-items:flex-end;justify-content:center;
+    background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      background:#0d2444;border:1px solid rgba(0,174,239,0.3);
+      border-radius:20px 20px 0 0;padding:24px 20px 36px;
+      width:100%;max-width:520px;
+    ">
+      <div style="text-align:center;font-size:16px;font-weight:800;color:#fff;margin-bottom:18px;">
+        📤 Share Live Stream
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <button id="_snxShareCopyLink" style="
+          background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.4);
+          border-radius:12px;padding:14px 18px;color:#00AEEF;font-size:14px;
+          font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;
+        ">🔗 Copy Live Link</button>
+        <button id="_snxShareToFeed" style="
+          background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.4);
+          border-radius:12px;padding:14px 18px;color:#00AEEF;font-size:14px;
+          font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;
+        ">📣 Share to Feed</button>
+        <button id="_snxShareNative" style="
+          background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.4);
+          border-radius:12px;padding:14px 18px;color:#00AEEF;font-size:14px;
+          font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;
+        ">📲 Share to Friends / Apps</button>
+      </div>
+      <button id="_snxShareClose" style="
+        margin-top:18px;width:100%;background:rgba(255,255,255,0.06);
+        border:1px solid rgba(255,255,255,0.12);border-radius:12px;
+        padding:12px;color:#6a90b8;font-size:14px;cursor:pointer;
+      ">Cancel</button>
+    </div>`;
+
+  document.body.appendChild(modal);
+
+  modal.querySelector('#_snxShareCopyLink').addEventListener('click', () => {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(url)
+        .then(() => { toast('🔗 Live link copied!'); })
+        .catch(() => { window.prompt('Copy this link:', url); });
+    } else {
+      window.prompt('Copy this link:', url);
+    }
+    _closeShareModal();
+  });
+
+  modal.querySelector('#_snxShareToFeed').addEventListener('click', async () => {
+    _closeShareModal();
+    try {
+      await addDoc(collection(_db, 'posts'), {
+        type:         'live_share',
+        uid:          _user.uid,
+        authorUid:    _user.uid,
+        authorName:   _userData?.displayName || '',
+        authorHandle: _userData?.username    || '',
+        authorAvatar: _userData?.avatar      || '',
+        liveRoomId:   _roomId,
+        isLive:       true,
+        text:         shareMsg,
+        timestamp:    Date.now(),
+        createdAt:    Date.now(),
+        likes:        0,
+        comments:     [],
+      });
+      toast('📣 Shared to Feed!');
+    } catch (e) {
+      toast('Could not share.');
+    }
+  });
+
+  modal.querySelector('#_snxShareNative').addEventListener('click', () => {
+    _closeShareModal();
+    if (navigator.share) {
+      navigator.share({
+        title: '🔴 Watch me live on Shadow Nexus!',
+        text:  shareMsg,
+        url,
+      }).catch(() => {});
+    } else {
+      window.prompt('Copy this link to share:', url);
+    }
+  });
+
+  modal.querySelector('#_snxShareClose').addEventListener('click', _closeShareModal);
+  modal.addEventListener('click', e => { if (e.target === modal) _closeShareModal(); });
+}
+
+function _closeShareModal() {
+  const m = document.getElementById('_snxShareModal');
+  if (m) m.remove();
+}
+
+function toast(msg) {
+  if (!D.toast) return;
+  clearTimeout(_toastTimer);
+  D.toast.textContent = msg;
+  D.toast.classList.add('visible');
+  _toastTimer = setTimeout(() => D.toast.classList.remove('visible'), 3200);
+}
+
+function _esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

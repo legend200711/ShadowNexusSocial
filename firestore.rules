@@ -10,11 +10,6 @@ rules_version = '2';
 //   /notifications/{uid}/items/{id} — per-user notifications (NEW subcollection)
 //   /stories/{storyId}          — stories
 //   /posts/{postId}             — feed posts (comments + likes stored inside doc)
-//                                 NEW fields: savedToAlbum (bool), savedToWall (bool)
-//   /users/{uid}/profileWall/{postId} — permanent wall posts
-//                                 NEW fields: likes, likedBy[], wallComments[], savedToAlbum
-//   /albumPhotos/{photoId}      — photo album entries
-//                                 NEW fields: feedPostId (from feed post create)
 //   /chats/{chatId}             — DM conversations (legacy — kept for existing data)
 //   /siteSettings/{doc}         — site config (maintenance mode, feature flags)
 //   /aiModerationLog/{docId}    — AI moderation events
@@ -95,17 +90,17 @@ service cloud.firestore {
       // ── Profile Wall subcollection ─────────────────────────────────────────
       // users/{uid}/profileWall/{postId}
       // Stores posts the user permanently saved from the Feed.
-      // Fields: postId, uid, authorName, text, mediaUrl, mediaUrls, imageURL,
-      //         savedAt, createdAt, pinned, visibility,
-      //         likes (int), likedBy (array), wallComments (array),
-      //         savedToAlbum (bool)
-      // Any signed-in user can read; only the owner (or Founder) can write/delete.
-      // Any signed-in user can update (for likes/comments from other users).
+      // Any signed-in user can read.
+      // Owner (or Founder) can create/update/delete.
+      // Any signed-in user can increment like/comment counts.
       match /profileWall/{postId} {
         allow read:   if isSignedIn();
         allow create: if isOwner(uid);
-        allow update: if isSignedIn();   // likes + comments from any signed-in user
         allow delete: if isOwner(uid) || isFounder();
+        allow update: if isOwner(uid)
+          || isFounder()
+          || (isSignedIn() && request.resource.data.diff(resource.data)
+                .affectedKeys().hasOnly(['likeCount', 'likedBy', 'commentCount']));
       }
     }
 
@@ -177,7 +172,9 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isSignedIn();
       allow delete: if isSignedIn()
-        && (resource.data.authorUid == request.auth.uid || isFounder());
+        && (resource.data.authorUid == request.auth.uid
+            || resource.data.uid    == request.auth.uid
+            || isFounder());
     }
 
     // ── Posts ─────────────────────────────────────────────────────────────────
@@ -188,7 +185,16 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && (resource.data.uid == request.auth.uid
             || resource.data.authorUid == request.auth.uid
-            || isModerator());
+            || isModerator()
+            // Any signed-in user may like/unlike any post
+            || request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['likedBy', 'likes'])
+            // Any signed-in user may add/remove a comment
+            || request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['comments'])
+            // Any signed-in user may increment repost count
+            || request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['repostCount']));
       allow delete: if isSignedIn()
         && (resource.data.uid == request.auth.uid
             || resource.data.authorUid == request.auth.uid
@@ -327,13 +333,185 @@ service cloud.firestore {
             || resource.data.privacy != 'private'
             || isFounder());
 
+      // Owner / Founder can update anything.
+      // Any signed-in user can update only the social reaction fields (like/comment counts).
       allow update: if isSignedIn()
         && (resource.data.ownerUid == request.auth.uid
-            || isFounder());
+            || isFounder()
+            || request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['likeCount', 'likedBy', 'commentCount']));
 
       allow delete: if isSignedIn()
         && (resource.data.ownerUid == request.auth.uid
             || isFounder());
+
+      // ── Photo comments subcollection ───────────────────────────
+      match /comments/{commentId} {
+        // Any signed-in user can read and create comments
+        allow read:   if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.authorUid == request.auth.uid;
+        // Only the comment author or the photo owner (or Founder) can delete
+        allow delete: if isSignedIn()
+          && (resource.data.authorUid == request.auth.uid
+              || get(/databases/$(database)/documents/albumPhotos/$(photoId)).data.ownerUid == request.auth.uid
+              || isFounder());
+        allow update: if false;
+      }
+    }
+
+    // ── Live Rooms ─────────────────────────────────────────────────────────────
+    //
+    //   /liveRooms/{uid}             — one doc per host, keyed by host uid
+    //                                  Ensures only one active session per user.
+    //   /liveRooms/{uid}/liveMessages/{msgId} — chat messages
+    //
+    // Host: must be a non-anonymous signed-in user.
+    // Viewers & guests: must be authenticated (anonymous is fine).
+    //
+    // Legacy roomId-keyed docs are still readable/deletable for migration.
+
+    match /liveRooms/{uid} {
+      // Any authenticated user (incl. anonymous) can read live rooms
+      allow read: if isSignedIn();
+
+      // Only a non-anonymous signed-in user may create/overwrite their own room doc.
+      // The document ID must equal the host's uid — enforcing one doc per user.
+      allow create: if isSignedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && request.resource.data.hostId == request.auth.uid;
+
+      // Allowed updates:
+      //  - host can update anything in their own room (uid == doc key)
+      //  - any signed-in user can increment viewers / likes (fields only)
+      allow update: if isSignedIn()
+        && (
+          resource.data.hostId == request.auth.uid
+          || request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['viewers', 'likes'])
+        );
+
+      // Only the host or Founder may delete a room
+      allow delete: if isSignedIn()
+        && (resource.data.hostId == request.auth.uid || isFounder());
+
+      // ── Live chat messages ─────────────────────────────────────────────────
+      match /liveMessages/{msgId} {
+        // Any authenticated viewer can read chat
+        allow read: if isSignedIn();
+        // Any authenticated user can send a message (spam guard is client-side)
+        allow create: if isSignedIn();
+        // Only the sender or host/Founder may delete a message
+        allow delete: if isSignedIn()
+          && (
+            resource.data.userId == request.auth.uid
+            || get(/databases/$(database)/documents/liveRooms/$(roomId)).data.hostId == request.auth.uid
+            || isFounder()
+          );
+        allow update: if false;
+      }
+    }
+
+    // ── Community ─────────────────────────────────────────────────────────────
+    //
+    //   /community/reactions             — aggregated reaction counts (increment)
+    //   /community/challenges/completions/{uid_date} — daily challenge records
+    //   /community/anonBoard/posts/{postId}          — anonymous support posts
+
+    match /community/reactions {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /community/challenges/completions/{docId} {
+      allow read:           if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isFounder();
+    }
+
+    match /community/anonBoard/posts/{postId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      // Only Founder can delete; updates only allowed for incrementing hugs
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hugs']);
+      allow delete: if isFounder();
+    }
+
+    // ── Live Users (presence) ──────────────────────────────────────────────────
+    //
+    //   /liveUsers/{uid} — one doc per active participant, owner-scoped
+
+    match /liveUsers/{uid} {
+      // Anyone authenticated can read presence (for name resolution)
+      allow read: if isSignedIn();
+      // Each user manages their own presence doc
+      allow create, update: if isOwner(uid);
+      allow delete: if isOwner(uid) || isFounder();
+    }
+
+    // ── Live Connections (WebRTC signaling) ────────────────────────────────────
+    //
+    //   /liveConnections/{roomId}
+    //     offer             : { type, sdp }         — creator writes
+    //     answer            : { type, sdp }         — viewer writes
+    //     creatorCandidates : [ … ]                 — creator appends via arrayUnion
+    //     viewerCandidates  : [ … ]                 — viewer appends via arrayUnion
+
+    match /liveConnections/{roomId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── Live Signals (WebRTC signaling — legacy, kept for compatibility) ───────
+
+    match /liveSignals/{roomId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+
+      match /viewers/{viewerUid} {
+        allow read: if isSignedIn();
+        allow create: if isOwner(viewerUid);
+        allow update: if isSignedIn();
+        allow delete: if isOwner(viewerUid) || isFounder();
+
+        match /hostIce/{id} {
+          allow read:   if isSignedIn();
+          allow create: if isSignedIn();
+          allow delete: if isOwner(viewerUid) || isSignedIn();
+          allow update: if false;
+        }
+
+        match /viewerIce/{id} {
+          allow read:   if isSignedIn();
+          allow create: if isOwner(viewerUid);
+          allow delete: if isOwner(viewerUid) || isSignedIn();
+          allow update: if false;
+        }
+      }
+    }
+
+    // ── Wall Post Comments ─────────────────────────────────────────────────────
+    //
+    //   /wallPostComments/{wallDocId}/comments/{commentId}
+    //     wallDocId, wallOwnerUid, authorUid, authorName, authorHandle,
+    //     authorAvatar, text, createdAt
+    //
+    // Any signed-in user can read and create comments.
+    // Only the comment author (or Founder) can delete.
+
+    match /wallPostComments/{wallDocId} {
+      allow read:  if isSignedIn();
+      allow write: if false; // only subcollection comments are written
+
+      match /comments/{commentId} {
+        allow read:   if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.authorUid == request.auth.uid;
+        allow delete: if isSignedIn()
+          && (resource.data.authorUid == request.auth.uid || isFounder());
+        allow update: if false;
+      }
     }
 
   }

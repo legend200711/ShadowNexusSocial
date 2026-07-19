@@ -1,361 +1,244 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Shadow Nexus Live</title>
-  <link rel="stylesheet" href="live.css" />
+<meta charset="UTF-8">
+<title>Shadow Nexus Live 🔴</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0B1F3A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="stylesheet" href="live.css">
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════ STORM CANVAS (background) -->
-<canvas id="stormCanvas" aria-hidden="true"></canvas>
-
-<!-- ═══════════════════════════════════════════ LOADING SCREEN -->
-<div id="loadingScreen" class="loading-screen">
-  <div class="loading-logo">🔴</div>
-  <div class="loading-brand">SHADOW NEXUS LIVE</div>
-  <div class="loading-hint" id="loadHint">Connecting to Shadow Nexus…</div>
-  <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+<!-- ══════════════════════════════════════════════
+     LOADING — shown while Firebase auth resolves
+     ══════════════════════════════════════════════ -->
+<div id="liveLoading">
+  <div class="ll-spinner"></div>
+  <div class="ll-text">Connecting to Shadow Nexus Live…</div>
 </div>
 
-<!-- ═══════════════════════════════════════════ AUTH GATE (fallback only) -->
-<div id="authGate" class="auth-gate hidden">
 
-  <!-- Viewer panel -->
-  <div id="authViewer" class="auth-panel">
-    <div class="auth-logo">🔴</div>
-    <h2 class="auth-title">Shadow Nexus Live</h2>
-    <p class="auth-sub">Watch creators live — no account needed.</p>
-    <input id="viewerName" class="auth-input" type="text" maxlength="30"
-           placeholder="Choose a viewer name…" autocomplete="off" />
-    <p id="viewerErr" class="auth-err"></p>
-    <button id="btnWatchNow" class="auth-btn primary">WATCH NOW →</button>
-    <button id="btnSwitchToAccount" class="auth-btn ghost" style="margin-top:10px;">
-      Sign in with SNS account to go live
+<!-- ══════════════════════════════════════════════
+     CREATOR SETUP — camera preview + Go Live button
+     ══════════════════════════════════════════════ -->
+<div id="liveSetup" aria-label="Live Setup Screen">
+  <div class="setup-inner">
+
+    <!-- Logo / brand -->
+    <div class="setup-logo">🌑</div>
+    <h1 class="setup-title">Shadow Nexus Live</h1>
+    <p class="setup-sub">Preview your camera before going live</p>
+
+    <!-- Camera preview -->
+    <div class="setup-preview-wrap">
+      <video id="setupPreview" autoplay muted playsinline></video>
+      <div class="setup-preview-off" id="setupPreviewOff">
+        <div class="setup-preview-off-icon">📷</div>
+        <span>Camera is off</span>
+      </div>
+    </div>
+
+    <!-- Camera / Mic / Flip controls -->
+    <div class="setup-controls">
+
+      <button class="setup-ctrl-btn" id="setupBtnCam" aria-label="Toggle camera">
+        <span class="setup-ctrl-icon">📷</span>
+        <span>Cam</span>
+      </button>
+
+      <button class="setup-ctrl-btn" id="setupBtnMic" aria-label="Toggle microphone">
+        <span class="setup-ctrl-icon">🎤</span>
+        <span>Mic</span>
+      </button>
+
+      <button class="setup-ctrl-btn" id="setupBtnFlip" aria-label="Flip camera">
+        <span class="setup-ctrl-icon">🔄</span>
+        <span>Flip</span>
+      </button>
+
+    </div>
+
+    <!-- Live title -->
+    <input
+      id="setupTitleInput"
+      class="setup-input"
+      type="text"
+      placeholder="What are you streaming today? (optional)"
+      maxlength="80"
+    >
+
+    <!-- Go Live -->
+    <button id="btnGoLive" class="setup-go-live-btn" aria-label="Start live stream">
+      <span class="go-live-dot"></span>
+      Start Live
     </button>
-  </div>
 
-  <!-- Account panel (fallback — shown when session is missing) -->
-  <div id="authAccount" class="auth-panel hidden">
-    <div class="auth-logo">🌑</div>
-    <h2 class="auth-title">Shadow Nexus Account</h2>
-    <p class="auth-sub">Sign in to start your live stream.</p>
-    <input id="acctEmail"    class="auth-input" type="email"    placeholder="Email" autocomplete="email" />
-    <input id="acctPassword" class="auth-input" type="password" placeholder="Password" autocomplete="current-password" />
-    <p id="acctErr" class="auth-err"></p>
-    <button id="btnSignInAcct"    class="auth-btn primary">SIGN IN &amp; GO LIVE</button>
-    <button id="btnBackToViewer"  class="auth-btn ghost" style="margin-top:8px;">← Watch as viewer</button>
-  </div>
-
-</div>
-
-<!-- ═══════════════════════════════════════════ APP SHELL -->
-<div id="app" class="hidden">
-
-  <!-- ── TOP BAR ── -->
-  <header class="top-bar">
-    <a href="index.html" class="top-bar-back" title="Back to Shadow Nexus Social">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    <!-- Back link -->
+    <a href="index.html" style="font-size:13px;color:#3a6a9a;text-decoration:none;margin-top:-8px;">
+      ← Back to Feed
     </a>
-    <div class="top-bar-brand">
-      <span class="top-bar-dot">🔴</span>
-      <span class="top-bar-name">Shadow Nexus Live</span>
-    </div>
-    <div id="barAccount" class="top-bar-user hidden">
-      <div id="barAvatar" class="tb-avatar"></div>
-      <div class="tb-user-info">
-        <div id="barUserName"   class="tb-name">—</div>
-        <div id="barUserHandle" class="tb-handle"></div>
-      </div>
-      <span id="barLivePill"  class="live-pill hidden">● LIVE</span>
-      <span id="barTimer"     class="live-timer hidden">00:00</span>
-    </div>
-  </header>
 
-  <!-- ══════════════════════════ SCREEN: HOME (DISCOVERY) ══════════════════════════ -->
-  <div id="screenHome" class="screen hidden">
-
-    <!-- Hero GO LIVE button (account users only) -->
-    <div id="heroSection" class="hero-section">
-      <button id="btnStartLive" class="hero-go-live-btn hidden">
-        <span class="hero-dot">🔴</span> GO LIVE
-      </button>
-      <p id="heroAnonMsg" class="hero-anon-msg hidden">
-        Want to go live? <a id="heroSignInLink" href="index.html">Sign in to Shadow Nexus Social →</a>
-      </p>
-    </div>
-
-    <!-- Discovery: LIVE NOW -->
-    <section class="disc-section">
-      <div class="disc-header">
-        <h2 class="disc-title"><span class="disc-live-dot">●</span> LIVE NOW</h2>
-        <span id="discLiveCount" class="disc-count"></span>
-      </div>
-      <div id="discLiveList" class="disc-live-list">
-        <div id="discEmpty" class="disc-empty">
-          <div class="disc-empty-icon">📡</div>
-          <p>No one is live right now.<br>Be the first!</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Join as guest (by code) -->
-    <div class="join-code-banner">
-      <p class="join-code-label">Got a guest invite code?</p>
-      <button class="join-code-btn" onclick="document.getElementById('screenGuestJoin').classList.remove('hidden');document.getElementById('screenHome').classList.add('hidden');">
-        Join as Guest →
-      </button>
-    </div>
-
-  </div>
-
-  <!-- ══════════════════════════ SCREEN: SETUP ══════════════════════════ -->
-  <div id="screenSetup" class="screen hidden">
-
-    <!-- Creator identity bar -->
-    <div class="cib">
-      <div id="cibAvatar" class="cib-avatar"></div>
-      <div class="cib-info">
-        <div id="cibName"   class="cib-name">—</div>
-        <div id="cibHandle" class="cib-handle"></div>
-        <div id="cibFollow" class="cib-follow"></div>
-      </div>
-    </div>
-
-    <div class="setup-layout">
-
-      <!-- Camera preview -->
-      <div class="setup-preview-wrap">
-        <video id="camPreview" class="cam-preview" autoplay playsinline muted></video>
-        <div   id="camPreviewOff" class="cam-preview-off hidden">
-          <span class="cam-off-icon">📷</span>
-          <span>Camera off</span>
-        </div>
-        <!-- Preview controls -->
-        <div class="preview-controls">
-          <button id="setupToggleCam" class="preview-btn active" title="Toggle Camera">🎥</button>
-          <button id="setupToggleMic" class="preview-btn active" title="Toggle Mic">🎤</button>
-          <button id="setupFlipCam"   class="preview-btn"        title="Flip Camera">🔄</button>
-        </div>
-      </div>
-
-      <!-- Stream settings -->
-      <div class="setup-settings">
-        <label class="setup-label">Stream Title
-          <input id="setupTitle" class="setup-input" type="text" maxlength="80"
-                 placeholder="What are you streaming today?" />
-        </label>
-
-        <label class="setup-label">Category
-          <select id="setupCategory" class="setup-select">
-            <option value="general">🌑 General</option>
-            <option value="gaming">🎮 Gaming</option>
-            <option value="music">🎵 Music</option>
-            <option value="talk">💬 Talk / Chat</option>
-            <option value="art">🎨 Art</option>
-            <option value="vibes">⚡ Vibes</option>
-          </select>
-        </label>
-
-        <label class="setup-label">Guest Permissions
-          <select id="setupGuestPerm" class="setup-select">
-            <option value="invite_only">Invite only</option>
-            <option value="open">Open — anyone can request</option>
-            <option value="none">No guests</option>
-          </select>
-        </label>
-
-        <label class="setup-label">Chat Mode
-          <select id="setupChat" class="setup-select">
-            <option value="open">Open — all viewers</option>
-            <option value="followers">Followers only</option>
-            <option value="off">Chat off</option>
-          </select>
-        </label>
-
-        <!-- Network quality -->
-        <div class="net-row">
-          <span id="setupNetDot"   class="net-dot unknown"></span>
-          <span id="setupNetLabel" class="net-label">Checking connection…</span>
-        </div>
-
-        <!-- Go live -->
-        <button id="btnGoLive" class="go-live-btn">
-          <span>🔴</span> START LIVE
-        </button>
-        <button id="btnSetupBack" class="setup-back-btn">← Back</button>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ══════════════════════════ SCREEN: LIVE ROOM ══════════════════════════ -->
-  <div id="screenLive" class="screen screen-live hidden">
-
-    <!-- Video arena -->
-    <div id="videoArena" class="video-arena"></div>
-
-    <!-- HUD overlay -->
-    <div class="hud">
-      <div class="hud-left">
-        <div id="hudHostAvatar" class="hud-host-avatar"></div>
-        <div class="hud-host-info">
-          <div id="hudHostName"   class="hud-host-name">—</div>
-          <div id="hudHostHandle" class="hud-host-handle"></div>
-        </div>
-        <div class="hud-stream-title" hidden>
-          <span id="hudStreamTitleText"></span>
-        </div>
-      </div>
-      <div class="hud-right">
-        <span class="hud-live-badge">● LIVE</span>
-        <span class="hud-stat">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          <span id="hudViewers">0</span>
-        </span>
-        <span class="hud-stat">❤️ <span id="hudLikes">0</span></span>
-        <span id="hudTimer" class="hud-timer">00:00</span>
-      </div>
-    </div>
-
-    <!-- HOST TOOLBAR -->
-    <div id="hostToolbar" class="toolbar hidden">
-      <button id="tbCam"        class="tb-btn active" title="Camera">🎥<span class="tb-label">Camera</span></button>
-      <button id="tbMic"        class="tb-btn active" title="Mic">🎤<span class="tb-label">Mic</span></button>
-      <button id="tbFlip"       class="tb-btn"        title="Flip">🔄<span class="tb-label">Flip</span></button>
-      <button id="tbInvite"     class="tb-btn"        title="Invite guests">👥<span class="tb-label">Invite</span></button>
-      <button id="tbGuests"     class="tb-btn"        title="Manage guests">⚙️<span class="tb-label">Guests</span></button>
-      <button id="tbFullscreen" class="tb-btn"        title="Fullscreen">⛶<span class="tb-label">Full</span></button>
-      <button id="tbEnd"        class="tb-btn danger" title="End stream">⬛<span class="tb-label">End</span></button>
-    </div>
-
-    <!-- GUEST TOOLBAR -->
-    <div id="guestToolbar" class="toolbar hidden">
-      <button id="gtCam"        class="tb-btn active" title="Camera">🎥<span class="tb-label">Camera</span></button>
-      <button id="gtMic"        class="tb-btn active" title="Mic">🎤<span class="tb-label">Mic</span></button>
-      <button id="gtFlip"       class="tb-btn"        title="Flip">🔄<span class="tb-label">Flip</span></button>
-      <button id="gtFullscreen" class="tb-btn"        title="Fullscreen">⛶<span class="tb-label">Full</span></button>
-      <button id="gtLeave"      class="tb-btn danger" title="Leave">🚪<span class="tb-label">Leave</span></button>
-    </div>
-
-    <!-- VIEWER TOOLBAR -->
-    <div id="viewerToolbar" class="toolbar hidden">
-      <button id="vtLike"       class="tb-btn"        title="Like">❤️<span class="tb-label">Like</span></button>
-      <button id="vtShare"      class="tb-btn"        title="Share">🔗<span class="tb-label">Share</span></button>
-      <button id="vtFullscreen" class="tb-btn"        title="Fullscreen">⛶<span class="tb-label">Full</span></button>
-      <button id="vtReport"     class="tb-btn warn"   title="Report">🚩<span class="tb-label">Report</span></button>
-      <button id="vtLeave"      class="tb-btn danger" title="Leave">🚪<span class="tb-label">Leave</span></button>
-    </div>
-
-    <!-- GUEST MANAGEMENT PANEL -->
-    <div id="guestPanel" class="guest-panel hidden">
-      <div class="guest-panel-header">
-        <span>Guests</span>
-        <button class="guest-panel-close" onclick="document.getElementById('guestPanel').classList.add('hidden')">✕</button>
-      </div>
-      <div id="guestPanelList" class="guest-panel-list"></div>
-    </div>
-
-    <!-- CHAT PANEL -->
-    <div id="chatPanel" class="chat-panel">
-      <div class="chat-header">
-        <div class="chat-header-stats">
-          <button id="chatLikeBtn" class="chat-like-btn" title="Like stream">❤️ <span id="chatLikeCount">0</span></button>
-          <span class="chat-viewer-pill">
-            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            <span id="chatViewerNum">0</span>
-          </span>
-        </div>
-        <button id="btnChatToggle" class="chat-toggle-btn" title="Toggle chat">💬</button>
-      </div>
-
-      <!-- Reaction quick-buttons -->
-      <div class="reaction-row">
-        <button class="react-btn" data-emoji="❤️">❤️</button>
-        <button class="react-btn" data-emoji="🔥">🔥</button>
-        <button class="react-btn" data-emoji="⚡">⚡</button>
-        <button class="react-btn" data-emoji="🌑">🌑</button>
-        <button class="react-btn" data-emoji="👑">👑</button>
-        <button class="react-btn" data-emoji="😂">😂</button>
-      </div>
-
-      <!-- Messages -->
-      <ul id="chatList" class="chat-list"></ul>
-
-      <!-- Emoji picker -->
-      <div id="emojiPicker" class="emoji-picker hidden">
-        <span>😀</span><span>😂</span><span>😍</span><span>😎</span><span>🥺</span>
-        <span>😭</span><span>😡</span><span>🤔</span><span>🙏</span><span>💀</span>
-        <span>❤️</span><span>🔥</span><span>⚡</span><span>🌑</span><span>👑</span>
-        <span>🎉</span><span>💯</span><span>👀</span><span>🫡</span><span>🤝</span>
-      </div>
-
-      <!-- Chat input -->
-      <div class="chat-input-row">
-        <button id="chatEmoji" class="chat-emoji-btn" title="Emoji">😊</button>
-        <input  id="chatInput" class="chat-input" type="text" maxlength="200"
-                placeholder="Say something…" autocomplete="off" />
-        <button id="chatSend" class="chat-send-btn">➤</button>
-      </div>
-    </div>
-
-    <!-- Reaction burst layer -->
-    <div id="reactionBurst" class="reaction-burst" aria-hidden="true"></div>
-
-  </div>
-
-  <!-- ══════════════════════════ SCREEN: GUEST JOIN ══════════════════════════ -->
-  <div id="screenGuestJoin" class="screen guest-join-screen hidden">
-    <div class="guest-join-card">
-      <div class="guest-join-icon">👥</div>
-      <h2 class="guest-join-title">Join as Guest</h2>
-      <p class="guest-join-sub">Enter the invite code from the host</p>
-      <input id="guestCodeInput" class="auth-input" type="text" maxlength="8"
-             placeholder="Room code e.g. AB12CD" autocomplete="off"
-             style="text-transform:uppercase;letter-spacing:4px;text-align:center;font-size:20px;" />
-      <div class="guest-join-controls">
-        <button id="guestToggleCam" class="preview-btn active" title="Camera">🎥 Cam</button>
-        <button id="guestToggleMic" class="preview-btn active" title="Mic">🎤 Mic</button>
-      </div>
-      <button id="btnGuestJoin" class="go-live-btn">JOIN AS GUEST</button>
-      <button id="btnGuestBack" class="setup-back-btn">← Back to Discovery</button>
-    </div>
-  </div>
-
-</div><!-- /app -->
-
-<!-- ═══════════════════════════════════════════ DIALOGS -->
-
-<!-- End / Leave dialog -->
-<div id="endDialog" class="dialog-overlay hidden" role="dialog" aria-modal="true">
-  <div class="dialog-card">
-    <h3 id="dialogTitle" class="dialog-title">End your stream?</h3>
-    <p  id="dialogMsg"   class="dialog-msg">Your viewers will leave the Shadow Realm.</p>
-    <div class="dialog-actions">
-      <button id="btnDialogCancel"  class="dialog-btn ghost">Cancel</button>
-      <button id="btnDialogConfirm" class="dialog-btn danger">Confirm</button>
-    </div>
   </div>
 </div>
 
-<!-- Invite code dialog -->
-<div id="inviteDialog" class="dialog-overlay hidden" role="dialog" aria-modal="true">
-  <div class="dialog-card">
-    <h3 class="dialog-title">Guest Invite Code</h3>
-    <p class="dialog-msg">Share this code — guests enter it on Shadow Nexus Live.</p>
-    <div id="inviteCodeDisplay" class="invite-code-display">——</div>
-    <div class="dialog-actions">
-      <button id="btnCopyCode"    class="dialog-btn primary">📋 Copy Code</button>
-      <button id="btnCloseInvite" class="dialog-btn ghost">Close</button>
+
+<!-- ══════════════════════════════════════════════
+     LIVE STAGE — fullscreen video + overlay controls
+     Shared by creator and viewer.
+     ══════════════════════════════════════════════ -->
+<div id="liveStage" role="main" aria-label="Live Stream">
+
+  <!-- Main video -->
+  <div class="live-video-wrap">
+
+    <video
+      id="liveVideo"
+      autoplay
+      playsinline
+      muted
+      aria-label="Live stream video"
+    ></video>
+
+    <!-- Tap-to-unmute prompt (viewer only, shown until user taps) -->
+    <div id="liveUnmutePrompt" style="
+      display:none;position:absolute;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,0.72);border:1px solid rgba(255,255,255,0.2);
+      border-radius:14px;padding:14px 24px;text-align:center;
+      font-size:14px;color:#fff;cursor:pointer;z-index:25;
+      backdrop-filter:blur(6px);white-space:nowrap;
+    ">
+      🔊 Tap to unmute
     </div>
-  </div>
+
+    <!-- Camera-off overlay (creator only) -->
+    <div id="liveCamOffOverlay" class="live-cam-off-overlay">
+      <div class="live-cam-off-icon">📷</div>
+      <span style="font-size:13px;color:#3a5a7a;">Camera is paused</span>
+    </div>
+
+    <!-- Connection status banner (viewer only) -->
+    <div id="liveConnBanner" class="live-conn-banner">
+      <div id="liveConnTitle" class="live-conn-title">Connecting…</div>
+      <div id="liveConnSub"   class="live-conn-sub"></div>
+    </div>
+
+    <!-- ── Top overlay bar ── -->
+    <div id="liveTopBar" class="live-top-bar">
+
+      <!-- LIVE badge -->
+      <div class="live-badge" id="liveBadge">
+        <span class="live-badge-dot"></span>
+        LIVE
+      </div>
+
+      <!-- Creator info pill -->
+      <div class="live-creator-pill">
+        <div id="liveCreatorAvatar" class="live-creator-avatar"></div>
+        <div id="liveCreatorName"   class="live-creator-name">Shadow Nexus</div>
+      </div>
+
+      <!-- Viewer count -->
+      <div class="live-viewer-count" id="liveViewerCount">👁 0</div>
+
+      <!-- Close / End button -->
+      <button
+        id="liveCloseBtn"
+        class="live-close-btn"
+        aria-label="End / Leave stream"
+      >✕</button>
+
+    </div>
+
+    <!-- ── Stats ribbon (likes) ── -->
+    <div class="live-stats-ribbon">
+      <div class="live-stat-pill" id="liveLikeCount">❤️ 0</div>
+    </div>
+
+    <!-- ── Chat panel (both creator and viewer) ── -->
+    <div class="live-chat-panel" aria-label="Live Chat">
+      <div id="liveChatMessages" class="live-chat-messages" aria-live="polite"></div>
+      <div class="live-chat-input-row">
+        <input
+          id="liveChatInput"
+          class="live-chat-input"
+          type="text"
+          placeholder="Say something…"
+          maxlength="200"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+        >
+        <button id="liveChatSend" class="live-chat-send" aria-label="Send chat message">➤</button>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         CREATOR CONTROLS (bottom bar)
+         Hidden for viewers via CSS
+         ═══════════════════════════════════ -->
+    <div class="live-bottom-bar">
+
+      <button id="btnToggleCam" class="live-ctrl-btn" aria-label="Toggle camera" title="Camera">📷</button>
+      <button id="btnToggleMic" class="live-ctrl-btn" aria-label="Toggle microphone" title="Mic">🎤</button>
+      <button id="btnFlipCam"   class="live-ctrl-btn" aria-label="Flip camera" title="Flip">🔄</button>
+      <button id="btnFullscreen" class="live-ctrl-btn" aria-label="Fullscreen" title="Fullscreen">⛶</button>
+      <button id="btnShareLiveCreator" class="live-ctrl-btn" aria-label="Share live stream" title="Share">📤</button>
+      <button id="btnEndLive"   class="live-ctrl-btn" aria-label="End live stream">END LIVE</button>
+
+    </div>
+
+    <!-- ═══════════════════════════════════
+         VIEWER ACTIONS (bottom-right)
+         Hidden for creator via CSS
+         ═══════════════════════════════════ -->
+    <div class="live-viewer-actions">
+
+      <button id="btnCreatorProfile" class="live-profile-btn" aria-label="View creator profile">
+        <span class="live-profile-icon">👤</span>
+        Profile
+      </button>
+
+      <button id="btnShareLive" class="live-share-btn" aria-label="Share live stream">
+        <span class="live-share-icon">📤</span>
+        Share
+      </button>
+
+      <button id="btnLike" class="live-like-btn" aria-label="Like stream">
+        <span class="live-like-icon">❤️</span>
+        <span id="likeBtnCount">Like</span>
+      </button>
+
+    </div>
+
+  </div><!-- .live-video-wrap -->
+
+</div><!-- #liveStage -->
+
+
+<!-- ══════════════════════════════════════════════
+     STREAM ENDED OVERLAY
+     ══════════════════════════════════════════════ -->
+<div id="liveEndedOverlay">
+  <div class="ended-icon">🌑</div>
+  <h2 id="endedTitle" class="ended-title">Stream Ended</h2>
+  <p  id="endedSub"   class="ended-sub">This live stream has ended.</p>
+  <button id="endedBackBtn" class="ended-back-btn">← Back to Feed</button>
 </div>
 
-<!-- ═══════════════════════════════════════════ TOAST WRAP -->
-<div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
 
-<!-- ═══════════════════════════════════════════ SCRIPTS -->
+<!-- ══════════════════════════════════════════════
+     TOAST NOTIFICATION
+     ══════════════════════════════════════════════ -->
+<div id="liveToast" role="alert" aria-live="assertive"></div>
+
+
+<!-- ══════════════════════════════════════════════
+     LIVE ENGINE (ES module)
+     ══════════════════════════════════════════════ -->
 <script type="module" src="live.js"></script>
 
 </body>

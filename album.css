@@ -542,6 +542,49 @@
     margin: 0 0 16px;
 }
 
+/* ── Mobile library / camera pick buttons ────────────────────── */
+.snx-aum-pick-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.snx-aum-pick-btn {
+    flex: 1;
+    padding: 14px 10px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    border: 1.5px solid rgba(0, 174, 239, 0.5);
+    background: rgba(0, 20, 60, 0.65);
+    color: var(--neon-blue, #00AEEF);
+    cursor: pointer;
+    transition: background .18s, border-color .18s, box-shadow .18s;
+    line-height: 1.4;
+}
+
+.snx-aum-pick-btn:hover,
+.snx-aum-pick-btn:active {
+    background: rgba(0, 50, 130, 0.55);
+    border-color: rgba(0, 174, 239, 0.85);
+    box-shadow: 0 0 12px rgba(0, 174, 239, 0.25);
+}
+
+/* Hide drag-drop zone on touch-only devices; show pick row prominently */
+@media (hover: none) and (pointer: coarse) {
+    .snx-aum-dropzone {
+        display: none;
+    }
+}
+
+/* On desktop, hide the pick-row (dropzone handles it) — but always show
+   if only one button remains so there is still a visible tap target */
+@media (hover: hover) and (pointer: fine) {
+    .snx-aum-pick-row:not(:has(.snx-aum-pick-btn--gallery)) {
+        display: none;
+    }
+}
+
 .snx-aum-dropzone {
     border: 2px dashed rgba(0, 174, 239, 0.4);
     border-radius: 10px;
@@ -788,3 +831,176 @@
 .snx-aum-status.success {
     color: #39FF14;
 }
+
+/* ── Upload pick-btn: emoji + label stacked ─────────────────── */
+.snx-aum-pick-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 22px;   /* emoji size */
+    padding: 14px 8px 10px;
+}
+.snx-aum-pick-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--neon-blue, #00AEEF);
+    line-height: 1;
+}
+
+/* ── Single gallery button — full-width horizontal layout ────── */
+.snx-aum-pick-btn--gallery {
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+    font-size: 20px;
+    padding: 16px 20px;
+    width: 100%;
+    background: linear-gradient(135deg, rgba(0,30,80,0.70), rgba(0,60,150,0.50));
+    border-color: rgba(0, 174, 239, 0.65);
+}
+.snx-aum-pick-btn--gallery .snx-aum-pick-label {
+    font-size: 13px;
+    letter-spacing: 0.6px;
+}
+
+/* ── Viewer social action bar ────────────────────────────────── */
+.snx-av-social-bar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 10px 0 6px;
+}
+
+.snx-av-social-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(0, 174, 239, 0.4);
+    background: rgba(0, 20, 60, 0.55);
+    color: #b8d4f0;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+    touch-action: manipulation;
+}
+.snx-av-social-btn:hover {
+    background: rgba(0, 60, 140, 0.5);
+    border-color: rgba(0, 174, 239, 0.8);
+    color: #00AEEF;
+}
+.snx-av-social-btn:active { transform: scale(0.94); }
+
+/* Like button — highlighted when liked */
+.snx-av-like-btn.liked {
+    border-color: rgba(255, 60, 100, 0.75) !important;
+    color: #ff6688 !important;
+    background: rgba(255, 30, 70, 0.14) !important;
+}
+.snx-av-like-icon { font-size: 16px; line-height: 1; }
+.snx-av-like-count { min-width: 14px; text-align: center; }
+
+/* Report button — subtle red tint */
+.snx-av-report-btn {
+    border-color: rgba(255, 80, 80, 0.3) !important;
+    color: #ff8888 !important;
+}
+.snx-av-report-btn:hover {
+    background: rgba(255, 40, 40, 0.12) !important;
+    border-color: rgba(255, 80, 80, 0.7) !important;
+}
+
+/* ── Inline comment panel ────────────────────────────────────── */
+.snx-av-comment-panel {
+    background: rgba(5, 15, 40, 0.88);
+    border: 1px solid rgba(0, 174, 239, 0.22);
+    border-radius: 10px;
+    padding: 10px 12px 8px;
+    margin: 6px 0;
+    max-height: 220px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.snx-av-comment-list {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 140px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 100, 220, 0.2) transparent;
+}
+.snx-av-comment-list::-webkit-scrollbar { width: 3px; }
+.snx-av-comment-list::-webkit-scrollbar-thumb { background: rgba(0, 100, 220, 0.25); border-radius: 3px; }
+
+.snx-av-comment-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    flex-wrap: wrap;
+    animation: chatMsgIn 0.15s ease-out both;
+}
+.snx-av-comment-author {
+    color: #00c8ff;
+    font-weight: 700;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+.snx-av-comment-text {
+    color: #a0bcd0;
+    word-break: break-word;
+    flex: 1;
+}
+.snx-av-comment-ts {
+    color: #3a5a7a;
+    font-size: 10px;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.snx-av-comment-input-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+}
+.snx-av-comment-input-row input {
+    flex: 1;
+    margin: 0;
+    font-size: 12px;
+    padding: 7px 11px;
+    border-radius: 20px;
+    background: rgba(0, 10, 30, 0.7);
+    border: 1px solid rgba(0, 174, 239, 0.3);
+    color: #fff;
+    min-width: 0;
+}
+.snx-av-comment-input-row input:focus {
+    outline: none;
+    border-color: rgba(0, 174, 239, 0.65);
+    box-shadow: 0 0 8px rgba(0, 140, 255, 0.18);
+}
+.snx-av-comment-input-row button {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #003388, #0066cc);
+    border: 1px solid rgba(0, 174, 239, 0.6);
+    color: #fff;
+    cursor: pointer;
+    transition: filter .15s;
+}
+.snx-av-comment-input-row button:hover { filter: brightness(1.14); }

@@ -25,8 +25,8 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// GitHub Pages serves this app under /ShadowNexusSocial/
-const SNX_BASE = '/ShadowNexusSocial/';
+// GitHub Pages serves this app under /TEST/
+const SNX_BASE = '/TEST/';
 const ICON  = SNX_BASE + 'icon-192.png';
 const BADGE = SNX_BASE + 'favicon-32x32.png';
 const APP_URL = SNX_BASE;
@@ -46,6 +46,7 @@ const TYPE_TITLES = {
   repost:        '🔄 Post Reposted',
   wallPost:      '📝 New Wall Post',
   system:        '⚙️ System Alert',
+  live:          '🔴 Someone is Live',
 };
 
 // ── Vibration patterns by type ────────────────────────────────────────────────
@@ -53,6 +54,7 @@ function vibrateFor(type) {
   if (type === 'message')       return [120, 60, 120, 60, 120]; // triple pulse for messages
   if (type === 'system')        return [300, 100, 300];          // double long for alerts
   if (type === 'friendRequest') return [200, 100, 200];
+  if (type === 'live')          return [100, 50, 100, 50, 100]; // quick burst for live
   return [200, 100, 200];
 }
 
@@ -62,8 +64,14 @@ messaging.onBackgroundMessage((payload) => {
   const notif   = payload.notification || {};
   const type    = data.type    || 'announcement';
   const fromUid = data.fromUid || '';
+  const roomId  = data.roomId  || '';
   const title   = notif.title || TYPE_TITLES[type] || '🔔 Shadow Nexus Social';
   const body    = notif.body  || data.body || 'You have a new notification';
+
+  // For live notifications the tap should open the live room directly
+  const targetUrl = type === 'live' && roomId
+    ? APP_URL + 'live.html#watch=' + roomId
+    : APP_URL;
 
   return self.registration.showNotification(title, {
     body,
@@ -72,13 +80,14 @@ messaging.onBackgroundMessage((payload) => {
     tag:      `snx-${type}-${fromUid || Date.now()}`,
     renotify: true,
     vibrate:  vibrateFor(type),
-    requireInteraction: type === 'message' || type === 'system',
-    data:     { url: APP_URL, type, fromUid },
+    requireInteraction: type === 'message' || type === 'system' || type === 'live',
+    data:     { url: targetUrl, type, fromUid, roomId },
   });
 });
 
 // ── Notification click handler ─────────────────────────────────────────────────
 // • message  → open app + post SNX_OPEN_CHAT → ipcOpen(fromUid)
+// • live     → open live.html#watch={roomId} (or focus existing tab)
 // • system   → open Notification Center
 // • default  → focus existing tab or open app
 self.addEventListener('notificationclick', (event) => {
@@ -88,10 +97,19 @@ self.addEventListener('notificationclick', (event) => {
   const url     = data.url || APP_URL;
   const type    = data.type    || '';
   const fromUid = data.fromUid || '';
+  const roomId  = data.roomId  || '';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      const appTab = list.find(c => c.url.includes('/ShadowNexusSocial'));
+      const appTab  = list.find(c => c.url.includes('/TEST'));
+      const liveTab = list.find(c => c.url.includes('live.html'));
+
+      if (type === 'live' && roomId) {
+        // Open (or focus) the live room directly
+        const liveUrl = APP_URL + 'live.html#watch=' + roomId;
+        if (liveTab) { liveTab.focus(); return; }
+        return clients.openWindow(liveUrl);
+      }
 
       if (type === 'message' && fromUid) {
         // Tell the open page to call window.ipcOpen(fromUid)

@@ -54,7 +54,8 @@
        ═══════════════════════════════════════════════════════════ */
     let db, currentUser;
     let collection, addDoc, getDocs, getDoc, doc, updateDoc,
-        deleteDoc, query, where, orderBy, serverTimestamp, setDoc;
+        deleteDoc, query, where, orderBy, serverTimestamp, setDoc,
+        increment, arrayUnion, arrayRemove;
 
     // Viewer state
     let _viewerPhotos   = [];
@@ -85,7 +86,8 @@
         db          = window._snxDb;
         currentUser = window._snxCurrentUser;
         ({ collection, addDoc, getDocs, getDoc, doc, updateDoc,
-           deleteDoc, query, where, orderBy, serverTimestamp, setDoc }
+           deleteDoc, query, where, orderBy, serverTimestamp, setDoc,
+           increment, arrayUnion, arrayRemove }
             = window._snxFirestore);
 
         // Keep currentUser in sync — always overwrite so a token refresh is picked up
@@ -212,6 +214,15 @@
             <button class="snx-aum-close" onclick="window.snxAlbum.closeUploadModal()" aria-label="Close">✕</button>
             <h3 class="snx-aum-title">📤 Upload to Photo Album</h3>
 
+            <!-- Gallery picker button — opens the OS photo library (no camera) -->
+            <div class="snx-aum-pick-row" id="snxAumPickRow">
+                <button class="snx-aum-pick-btn snx-aum-pick-btn--gallery" type="button"
+                        onclick="document.getElementById('snxAumFileInput').click()"
+                        aria-label="Choose photos from your gallery">
+                    🖼<span class="snx-aum-pick-label">Choose from Gallery</span>
+                </button>
+            </div>
+
             <div class="snx-aum-dropzone" id="snxAumDropzone"
                  tabindex="0"
                  ondragover="event.preventDefault();this.classList.add('drag-over')"
@@ -220,10 +231,12 @@
                  onclick="document.getElementById('snxAumFileInput').click()"
                  onkeydown="if(event.key==='Enter'||event.key===' ')document.getElementById('snxAumFileInput').click()">
                 <div class="snx-aum-dropzone-icon">📁</div>
-                <div class="snx-aum-dropzone-text">Tap to choose photos, or drag &amp; drop here</div>
-                <div class="snx-aum-dropzone-hint">JPG, PNG, WEBP, GIF · Up to 10 photos at once</div>
+                <div class="snx-aum-dropzone-text">Drag &amp; drop photos here</div>
+                <div class="snx-aum-dropzone-hint">JPG · PNG · WEBP · GIF &nbsp;·&nbsp; Up to 10 at once</div>
             </div>
-            <input type="file" id="snxAumFileInput" accept="image/*" multiple capture="environment"
+
+            <!-- Gallery picker — no capture attribute, shows OS photo library on Android & iOS -->
+            <input type="file" id="snxAumFileInput" accept="image/*" multiple
                    style="display:none;" onchange="window.snxAlbum._handleFileSelect(this)">
 
             <div class="snx-aum-selected" id="snxAumPreviews"></div>
@@ -279,6 +292,42 @@
             <span class="snx-av-counter" id="snxAvCounter">1 of 1</span>
             <span class="snx-av-caption" id="snxAvCaption"></span>
             <span class="snx-av-date"    id="snxAvDate"></span>
+
+            <!-- Viewer social actions (like, comment, share, report) -->
+            <div class="snx-av-social-bar" id="snxAvSocialBar">
+                <button class="snx-av-social-btn snx-av-like-btn" id="snxAvLikeBtn"
+                        onclick="window.snxAlbum.togglePhotoLike()"
+                        aria-label="Like this photo">
+                    <span class="snx-av-like-icon">❤️</span>
+                    <span class="snx-av-like-count" id="snxAvLikeCount">0</span>
+                </button>
+                <button class="snx-av-social-btn" id="snxAvCommentBtn"
+                        onclick="window.snxAlbum.toggleCommentPanel()"
+                        aria-label="Comment on this photo">
+                    💬 <span id="snxAvCommentCount">0</span>
+                </button>
+                <button class="snx-av-social-btn" id="snxAvShareBtn"
+                        onclick="window.snxAlbum.shareCurrentPhoto()"
+                        aria-label="Share this photo">
+                    📤 Share
+                </button>
+                <button class="snx-av-social-btn snx-av-report-btn" id="snxAvReportBtn"
+                        onclick="window.snxAlbum.reportCurrentPhoto()"
+                        aria-label="Report this photo">
+                    🚩 Report
+                </button>
+            </div>
+
+            <!-- Inline comment panel -->
+            <div class="snx-av-comment-panel" id="snxAvCommentPanel" style="display:none;">
+                <div class="snx-av-comment-list" id="snxAvCommentList"></div>
+                <div class="snx-av-comment-input-row">
+                    <input id="snxAvCommentInput" type="text" maxlength="200"
+                           placeholder="Add a comment…" autocomplete="off"
+                           onkeydown="if(event.key==='Enter')window.snxAlbum.submitPhotoComment()">
+                    <button onclick="window.snxAlbum.submitPhotoComment()">Send</button>
+                </div>
+            </div>
 
             <!-- Caption edit (owner only) -->
             <div class="snx-av-caption-edit" id="snxAvCaptionEdit">
@@ -794,28 +843,24 @@
                 if (saveToWall) {
                     try {
                         await setDoc(
-                                doc(db, 'users', ownerUid, 'profileWall', postRef.id),
-                                {
-                                    postId:       postRef.id,
-                                    uid:          ownerUid,
-                                    authorName:   userData.displayName || '',
-                                    authorHandle: userData.username    || '',
-                                    authorAvatar: userData.avatar      || '',
-                                    authorBadges: userData.badges      || [],
-                                    authorRole:   userData.role        || 'member',
-                                    text:         caption ? `📸 ${caption}` : '📸 Added a photo to their album',
-                                    mediaUrl:     url,
-                                    mediaUrls:    [url],
-                                    albumPhotoId: photoId,
-                                    isAlbumPost:  true,
-                                    savedAt:      now,
-                                    createdAt:    now,
-                                    likes:        0,
-                                    likedBy:      [],
-                                    wallComments: [],
-                                    savedToAlbum: true,
-                                }
-                            );
+                            doc(db, 'users', ownerUid, 'profileWall', postRef.id),
+                            {
+                                postId:       postRef.id,
+                                uid:          ownerUid,
+                                authorName:   userData.displayName || '',
+                                authorHandle: userData.username    || '',
+                                authorAvatar: userData.avatar      || '',
+                                authorBadges: userData.badges      || [],
+                                authorRole:   userData.role        || 'member',
+                                text:         caption ? `📸 ${caption}` : '📸 Added a photo to their album',
+                                mediaUrl:     url,
+                                mediaUrls:    [url],
+                                albumPhotoId: photoId,
+                                isAlbumPost:  true,
+                                savedAt:      now,
+                                createdAt:    now
+                            }
+                        );
                     } catch (we) {
                         console.warn('[Album] profileWall mirror failed:', we);
                     }
@@ -855,6 +900,9 @@
         statusEl.style.color = '#39FF14';
         statusEl.textContent = `✅ ${uploadedUrls.length} photo${uploadedUrls.length > 1 ? 's' : ''} uploaded successfully!`;
         toast(`📸 ${uploadedUrls.length} photo${uploadedUrls.length > 1 ? 's' : ''} saved to your album!`);
+
+        // Update Photos stat counter on profile header immediately
+        _updatePhotoCountStat();
 
         setTimeout(() => {
             closeUploadModal();
@@ -956,11 +1004,11 @@
         const photo = _viewerPhotos[_viewerIdx];
         if (!photo) return;
 
-        const img        = document.getElementById('snxAvImg');
-        const counter    = document.getElementById('snxAvCounter');
-        const captionEl  = document.getElementById('snxAvCaption');
-        const dateEl     = document.getElementById('snxAvDate');
-        const ownerActs  = document.getElementById('snxAvOwnerActions');
+        const img         = document.getElementById('snxAvImg');
+        const counter     = document.getElementById('snxAvCounter');
+        const captionEl   = document.getElementById('snxAvCaption');
+        const dateEl      = document.getElementById('snxAvDate');
+        const ownerActs   = document.getElementById('snxAvOwnerActions');
         const progressBar = document.getElementById('snxAvProgressBar');
 
         if (img)     { img.src = photo.url; img.style.transform = ''; }
@@ -987,9 +1035,14 @@
                 });
             }
         }
-        // Hide caption editor
+        // Hide caption editor + comment panel when navigating
         const editPanel = document.getElementById('snxAvCaptionEdit');
         if (editPanel) editPanel.classList.remove('visible');
+        const commPanel = document.getElementById('snxAvCommentPanel');
+        if (commPanel) commPanel.style.display = 'none';
+
+        // Load social data (likes + comments) for the newly shown photo
+        _loadPhotoSocialData(photo.id);
     }
 
     function viewerNav(dir) {
@@ -1093,6 +1146,8 @@
                 _activeFilter === 'all' ? _allPhotos : _allPhotos.filter(p => p.type === _activeFilter),
                 document.getElementById('snxAlbumGrid')
             );
+            // Update photo count stat on profile header
+            _updatePhotoCountStat();
         } catch (e) {
             toast('Delete failed: ' + e.message);
         }
@@ -1103,6 +1158,198 @@
         if (!photo) return;
         closeViewer();
         await deletePhoto(photo.id);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       PHOTO SOCIAL FEATURES — Like, Comment, Share, Report
+       ═══════════════════════════════════════════════════════════ */
+
+    /* ── Load like/comment counts for the current photo ─────── */
+    async function _loadPhotoSocialData(photoId) {
+        if (!photoId) return;
+        const likeCountEl    = document.getElementById('snxAvLikeCount');
+        const likeBtn        = document.getElementById('snxAvLikeBtn');
+        const commentCountEl = document.getElementById('snxAvCommentCount');
+
+        // Likes — stored as a field on the albumPhoto doc for speed
+        try {
+            const snap = await getDoc(doc(db, 'albumPhotos', photoId));
+            if (!snap.exists()) return;
+            const d = snap.data();
+            const likes   = d.likeCount || 0;
+            const likedBy = d.likedBy   || [];
+            if (likeCountEl) likeCountEl.textContent = likes;
+            if (likeBtn) {
+                const myUid  = liveUser()?.uid;
+                const liked  = myUid && likedBy.includes(myUid);
+                likeBtn.classList.toggle('liked', !!liked);
+            }
+            // Comment count from sub-collection length (cached on doc)
+            if (commentCountEl) commentCountEl.textContent = d.commentCount || 0;
+        } catch (_) {}
+    }
+
+    /* ── Toggle like on current photo ──────────────────────── */
+    async function togglePhotoLike() {
+        const photo = _viewerPhotos[_viewerIdx];
+        const user  = liveUser();
+        if (!photo || !user) { toast('Sign in to like photos.'); return; }
+
+        const photoRef  = doc(db, 'albumPhotos', photo.id);
+        const likeBtn   = document.getElementById('snxAvLikeBtn');
+        const myUid     = user.uid;
+        const isNowLiked = likeBtn && !likeBtn.classList.contains('liked');
+
+        try {
+            if (isNowLiked) {
+                await updateDoc(photoRef, {
+                    likeCount: increment(1),
+                    likedBy:   arrayUnion(myUid),
+                });
+            } else {
+                await updateDoc(photoRef, {
+                    likeCount: increment(-1),
+                    likedBy:   arrayRemove(myUid),
+                });
+            }
+            if (likeBtn) likeBtn.classList.toggle('liked', isNowLiked);
+            const likeCountEl = document.getElementById('snxAvLikeCount');
+            if (likeCountEl) {
+                likeCountEl.textContent = Math.max(0, parseInt(likeCountEl.textContent || '0') + (isNowLiked ? 1 : -1));
+            }
+        } catch (e) {
+            toast('Could not update like: ' + e.message);
+        }
+    }
+
+    /* ── Toggle comment panel visibility ───────────────────── */
+    async function toggleCommentPanel() {
+        const panel = document.getElementById('snxAvCommentPanel');
+        if (!panel) return;
+        const isOpen = panel.style.display === 'block';
+        panel.style.display = isOpen ? 'none' : 'block';
+        if (!isOpen) {
+            const photo = _viewerPhotos[_viewerIdx];
+            if (photo) await _loadPhotoComments(photo.id);
+        }
+    }
+
+    /* ── Load comments for a photo ─────────────────────────── */
+    async function _loadPhotoComments(photoId) {
+        const list = document.getElementById('snxAvCommentList');
+        if (!list) return;
+        list.innerHTML = '<div style="color:#4a7a9a;font-size:12px;padding:6px 0;">Loading…</div>';
+        try {
+            const q    = query(
+                collection(db, 'albumPhotos', photoId, 'comments'),
+                orderBy('createdAt', 'asc')
+            );
+            const snap = await getDocs(q);
+            if (snap.empty) {
+                list.innerHTML = '<div style="color:#4a7a9a;font-size:12px;padding:6px 0;">No comments yet. Be the first!</div>';
+                return;
+            }
+            list.innerHTML = '';
+            snap.forEach(d => {
+                const c  = d.data();
+                const el = document.createElement('div');
+                el.className = 'snx-av-comment-item';
+                const ts = c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
+                el.innerHTML = `
+                    <span class="snx-av-comment-author">${esc(c.authorName || 'Guest')}</span>
+                    <span class="snx-av-comment-text">${esc(c.text)}</span>
+                    <span class="snx-av-comment-ts">${ts}</span>`;
+                list.appendChild(el);
+            });
+            list.scrollTop = list.scrollHeight;
+        } catch (e) {
+            list.innerHTML = `<div style="color:#ff5577;font-size:12px;">${esc(e.message)}</div>`;
+        }
+    }
+
+    /* ── Submit a comment on the current photo ─────────────── */
+    async function submitPhotoComment() {
+        const photo = _viewerPhotos[_viewerIdx];
+        const user  = liveUser();
+        if (!photo || !user) { toast('Sign in to comment.'); return; }
+
+        const input = document.getElementById('snxAvCommentInput');
+        const text  = (input?.value || '').trim();
+        if (!text) return;
+
+        const userData = window._snxUserData || {};
+        try {
+            await addDoc(collection(db, 'albumPhotos', photo.id, 'comments'), {
+                authorUid:  user.uid,
+                authorName: userData.displayName || user.email?.split('@')[0] || 'Guest',
+                text,
+                createdAt:  Date.now(),
+            });
+            // Increment comment count on the photo doc
+            await updateDoc(doc(db, 'albumPhotos', photo.id), {
+                commentCount: increment(1),
+            });
+            if (input) input.value = '';
+            const countEl = document.getElementById('snxAvCommentCount');
+            if (countEl) countEl.textContent = parseInt(countEl.textContent || '0') + 1;
+            // Reload comments list
+            await _loadPhotoComments(photo.id);
+        } catch (e) {
+            toast('Could not post comment: ' + e.message);
+        }
+    }
+
+    /* ── Share the current photo ────────────────────────────── */
+    function shareCurrentPhoto() {
+        const photo = _viewerPhotos[_viewerIdx];
+        if (!photo) return;
+        const url   = photo.url;
+        const title = photo.caption || 'Check out this photo on Shadow Nexus!';
+        if (navigator.share) {
+            navigator.share({ title, url }).catch(() => {});
+        } else if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(url)
+                .then(() => toast('📋 Photo link copied!'))
+                .catch(() => window.prompt('Copy photo link:', url));
+        } else {
+            window.prompt('Copy photo link:', url);
+        }
+    }
+
+    /* ── Report the current photo ───────────────────────────── */
+    async function reportCurrentPhoto() {
+        const photo = _viewerPhotos[_viewerIdx];
+        const user  = liveUser();
+        if (!photo || !user) return;
+
+        if (!confirm('Report this photo as inappropriate? This will be reviewed by moderators.')) return;
+
+        const userData = window._snxUserData || {};
+        try {
+            await addDoc(collection(db, 'reports'), {
+                type:        'albumPhoto',
+                targetId:    photo.id,
+                targetUrl:   photo.url,
+                ownerUid:    photo.ownerUid || _albumOwnerUid,
+                reportedBy:  user.uid,
+                reporterName: userData.displayName || '',
+                reason:      'Inappropriate content',
+                status:      'pending',
+                createdAt:   Date.now(),
+            });
+            toast('🚩 Report submitted. Thank you.');
+        } catch (e) {
+            toast('Could not submit report: ' + e.message);
+        }
+    }
+
+    /* ── Update the Photos count stat on the profile header ── */
+    function _updatePhotoCountStat() {
+        const el = document.getElementById('cntPhotos');
+        if (!el || !_albumOwnerUid) return;
+        getDocs(query(collection(db, 'albumPhotos'), where('ownerUid', '==', _albumOwnerUid)))
+            .then(s => { el.textContent = s.size; })
+            .catch(() => {});
     }
 
     /* ═══════════════════════════════════════════════════════════
@@ -1259,6 +1506,12 @@
             stopSlideshow,
             openAlbumPrivacyPicker,
             ensureAlbumEntry,
+            // Social features
+            togglePhotoLike,
+            toggleCommentPanel,
+            submitPhotoComment,
+            shareCurrentPhoto,
+            reportCurrentPhoto,
             // Internal helpers exposed for HTML onclick usage
             _handleFileSelect,
             _handleDrop,
