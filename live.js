@@ -619,7 +619,11 @@ async function startLive() {
 
   // ── RTDB users/{uid} presence: mark as online + live in one atomic write ──
   try {
-    await update(ref(_liveDB, 'users/' + _user.uid), { online: true, live: true, lastSeen: rtdbTimestamp() });
+    const _uPresRef = ref(_liveDB, 'users/' + _user.uid);
+    await update(_uPresRef, { online: true, live: true, lastSeen: rtdbTimestamp() });
+    // If the page crashes or network drops, reset live to false (keep online true so they
+    // appear as online once they reconnect — the login flow sets online properly on reconnect).
+    onDisconnect(_uPresRef).update({ live: false, lastSeen: rtdbTimestamp() });
   } catch (_) {}
   // _createLiveFeedPost intentionally omitted — live sessions must not create
   // feed posts; they appear only in the story bar and Live Hub.
@@ -838,8 +842,14 @@ async function endLive() {
     });
   } catch (_) {}
 
-  // ── RTDB users/{uid} presence: mark live ended ──
-  try { await set(ref(_liveDB, 'users/' + _user.uid + '/live'), false); } catch (_) {}
+  // ── RTDB users/{uid} presence: mark live ended, keep online = true ──
+  try {
+    // Cancel the onDisconnect we registered at startLive — we are ending cleanly
+    await onDisconnect(ref(_liveDB, 'users/' + _user.uid)).cancel();
+  } catch (_) {}
+  try {
+    await update(ref(_liveDB, 'users/' + _user.uid), { live: false, online: true, lastSeen: rtdbTimestamp() });
+  } catch (_) {}
 
   /* ── Delete live feed post from main Firestore (safety net for old data) ── */
   if (_feedPostId) {
