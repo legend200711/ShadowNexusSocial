@@ -155,6 +155,9 @@
       <!-- AI Safety active badge (host only) -->
       <div id="aiSafetyBadge" aria-label="AI Safety active">🛡 AI</div>
 
+      <!-- Internet Quality badge (host only) -->
+      <div id="iqBadge" aria-label="Internet quality status"></div>
+
       <!-- Shadow Bot active badge (host only) -->
       <div id="shadowBotBadge" aria-label="Shadow Bot active">🤖 Bot</div>
 
@@ -311,6 +314,18 @@
         </div>
         <label class="lsp-toggle" aria-label="Live Timer toggle">
           <input type="checkbox" id="toggleLiveTimer">
+          <span class="lsp-slider"></span>
+        </label>
+      </div>
+
+      <!-- Internet Quality -->
+      <div class="lsp-row">
+        <div class="lsp-label">
+          <div class="lsp-label-name">📶 Auto Internet Quality</div>
+          <div class="lsp-label-desc">Auto-adjust quality to your connection</div>
+        </div>
+        <label class="lsp-toggle" aria-label="Auto Internet Quality toggle">
+          <input type="checkbox" id="toggleInternetQuality">
           <span class="lsp-slider"></span>
         </label>
       </div>
