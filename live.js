@@ -77,6 +77,10 @@ const _db     = getFirestore(_app);
 const _liveDB = getDatabase(_app);
 
 /* ── WebRTC ICE config ── */
+/* iceCandidatePoolSize pre-allocates ICE candidates so the viewer's
+   connection can start gathering them immediately when the RTCPeerConnection
+   is created — BEFORE the offer/answer round-trip finishes. This shaves
+   hundreds of milliseconds off the time-to-first-frame for viewers. */
 const _ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -85,6 +89,7 @@ const _ICE_SERVERS = {
     { urls: 'turn:openrelay.metered.ca:443',  username: 'openrelayproject', credential: 'openrelayproject' },
     { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 /* ── State ── */
@@ -1038,8 +1043,16 @@ async function _notifyFollowersLive(creatorData) {
 async function _startViewer() {
   let roomData = null;
 
+  // ── Show the stage + "Connecting…" banner immediately so the viewer
+  //    isn't staring at the generic full-screen spinner while we do the
+  //    room fetch + WebRTC handshake. The video replaces the banner the
+  //    instant the first frame arrives. ──
+  _hideLoading();
+  _showStage();
+  _showConnBanner('Connecting\u2026', '');
+
   const _MAX_RETRIES = 8;
-  const _RETRY_MS    = 2000;
+  const _RETRY_MS    = 500;
 
   for (let attempt = 0; attempt < _MAX_RETRIES; attempt++) {
     try {
@@ -1049,19 +1062,15 @@ async function _startViewer() {
         break;
       }
       if (snap.exists() && snap.val().status === 'ended') {
-        _hideLoading();
         _showEndedOverlay(false, 'Stream ended', 'This live stream has already ended.');
         return;
       }
     } catch (e) {
-      _hideLoading();
       toast('Could not connect. Please try again.');
       return;
     }
     if (attempt === 0) {
-      _hideLoading();
-      _showStage();
-      _showConnBanner('Waiting for stream…', '');
+      _showConnBanner('Waiting for stream\u2026', '');
     }
     await new Promise(r => setTimeout(r, _RETRY_MS));
   }
@@ -1071,9 +1080,9 @@ async function _startViewer() {
     return;
   }
 
-  _hideLoading();
-  _showStage();
-  _hideConnBanner();
+  // Stage is already shown; keep the "Connecting…" banner up until the
+  // first video frame arrives (the ontrack handler hides it).
+  _showConnBanner('Connecting\u2026', '');
   _populateCreatorInfo(roomData);
   _setupViewerControls(roomData);
   _subscribeChat();
@@ -1479,11 +1488,17 @@ async function _startViewerWebRTC(roomData) {
     if (typeof D.liveVideo.disableRemotePlayback !== 'undefined') D.liveVideo.disableRemotePlayback = true;
     // Prefer low-latency (Chrome hint)
     try { D.liveVideo.setPreferredQuality && D.liveVideo.setPreferredQuality('auto'); } catch(_) {}
+    // Kick off playback the instant the track arrives. Don't await — just
+    // fire-and-forget so the video element starts decoding the first frame ASAP.
     D.liveVideo.play().catch(() => {});
     _showUnmutePrompt();
     _hideConnBanner();
-    // Safety: hide banner once video actually starts playing
-    D.liveVideo.addEventListener('playing', _hideConnBanner, { once: true });
+    // Hide the "Connecting…" banner the instant ANY frame is ready to show.
+    // 'loadeddata' fires as soon as the first frame is available — usually
+    // earlier than 'playing' — so the banner disappears the moment the viewer
+    // can actually see you.
+    D.liveVideo.addEventListener('loadeddata', _hideConnBanner, { once: true });
+    D.liveVideo.addEventListener('playing',    _hideConnBanner, { once: true });
     // ── If the guest grid is already showing a host cell, attach the stream now ──
     const hostCell = D.guestGrid?.querySelector('.vgc-cell.host-cell');
     if (hostCell && !hostCell.querySelector('video')) {
@@ -1502,44 +1517,57 @@ async function _startViewerWebRTC(roomData) {
     }
   };
 
-  /* ── 2. Wait for the host to write a fresh offer to our node ── */
-  let offerSnap;
+  /* ── 2. Wait for the host to write a fresh offer to our node ──
+     OPTIMISED: We skip the wasteful blocking get() round-trip that used to
+     happen first (it almost always returned "no offer yet" because the host
+     hadn't seen our request yet). Instead we set up the onValue listener
+     IMMEDIATELY and race it against a single get(), so the offer is
+     consumed the very instant the host writes it. This removes one full
+     Firebase round-trip (~150-400ms) from time-to-first-frame. */
+  let offerSnap = null;
+  const waitRef = viewerConnRef;
   try {
-    offerSnap = await get(viewerConnRef);
+    offerSnap = await new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (snap) => { if (!settled) { settled = true; resolve(snap); } };
+      // 12s overall timeout (down from 15s — fail fast, then reconnect).
+      const to = setTimeout(() => { _tmpViewerWaitRef = null; _tmpViewerWaitListener = null; resolve(null); }, 12000);
+      const waitListener = onValue(waitRef, snap => {
+        if (snap.exists() && snap.val().offer) {
+          clearTimeout(to);
+          try { off(waitRef, waitListener); } catch (_) {}
+          finish(snap);
+        }
+      });
+      // Store so we can clean up on early return / error.
+      _tmpViewerWaitRef = waitRef;
+      _tmpViewerWaitListener = waitListener;
+      // In case the host already wrote the offer before the listener attached,
+      // also do a single get() and resolve if it already has an offer. This
+      // covers the rare race where the listener missed the initial event.
+      get(waitRef).then(snap => {
+        if (!settled && snap.exists() && snap.val().offer) {
+          clearTimeout(to);
+          try { off(waitRef, waitListener); } catch (_) {}
+          finish(snap);
+        }
+      }).catch(() => {});
+    });
   } catch (e) {
     _showConnBanner('Waiting for stream\u2026', '');
     return;
   }
 
-  // If no offer yet, subscribe and wait for it (15s timeout).
-  if (!offerSnap.exists() || !offerSnap.val().offer) {
-    const waitRef = ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}`);
-    await new Promise((resolve) => {
-      let settled = false;
-      const finish = () => { if (!settled) { settled = true; resolve(); } };
-      const to = setTimeout(finish, 15000);
-      const waitListener = onValue(waitRef, snap => {
-        if (snap.exists() && snap.val().offer) {
-          clearTimeout(to);
-          finish();
-        }
-      });
-      // Store so we can clean up below.
-      _tmpViewerWaitRef = waitRef;
-      _tmpViewerWaitListener = waitListener;
-    });
-    // Detach the wait listener now that we either got an offer or timed out.
-    if (_tmpViewerWaitRef && _tmpViewerWaitListener) {
-      try { off(_tmpViewerWaitRef, _tmpViewerWaitListener); } catch (_) {}
-      _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
-    }
-    // Re-read the node to get the offer if it arrived.
-    try { offerSnap = await get(viewerConnRef); } catch (e) {}
-    if (!offerSnap || !offerSnap.exists() || !offerSnap.val().offer) {
-      // No offer in time — schedule a reconnect attempt.
-      _scheduleViewerReconnect(roomData);
-      return;
-    }
+  // Detach the wait listener if it's still attached.
+  if (_tmpViewerWaitRef && _tmpViewerWaitListener) {
+    try { off(_tmpViewerWaitRef, _tmpViewerWaitListener); } catch (_) {}
+    _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
+  }
+
+  if (!offerSnap || !offerSnap.exists() || !offerSnap.val().offer) {
+    // No offer in time — schedule a reconnect attempt.
+    _scheduleViewerReconnect(roomData);
+    return;
   }
 
   const offer = offerSnap.val().offer;
