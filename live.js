@@ -53,6 +53,7 @@ import {
 import {
   getDatabase,
   ref, set, get, update, remove, push, onValue, off, onDisconnect,
+  runTransaction,
   serverTimestamp as rtdbTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
@@ -124,6 +125,7 @@ const _MAX_RECONNECT_ATTEMPTS = 5;
 let _chatUnsub        = null;
 let _viewerCountRef   = null;   // RTDB ref for viewer count listener
 let _viewerCountUnsub = null;
+let _viewerCountOdcRef = null;  // RTDB path we registered onDisconnect on, so we can cancel it on a clean leave
 let _roomWatchRef     = null;   // saved RTDB ref so we can call off() on it
 let _toastTimer       = null;
 let _viewerLeftFlag   = false;  // guard: prevent double-decrement on mobile
@@ -1069,12 +1071,19 @@ async function _startViewer() {
   /* ── Attach resize observer so guest grid re-layouts on any screen change ── */
   _attachGuestGridResizeObserver();
 
-  /* ── Increment viewer count in LIVE RTDB (fire-and-forget, non-blocking) ── */
+  /* ── Increment viewer count in LIVE RTDB (atomic, with onDisconnect safety) ──
+     We use runTransaction so concurrent joins don't lose increments, AND
+     we register an onDisconnect that atomically subtracts 1 so the count
+     self-heals even when a viewer closes their tab / loses network without
+     a clean _viewerLeave(). We track the ref so we can cancel the
+     onDisconnect on a clean leave (to avoid a double-decrement). ── */
   (async () => {
     try {
       const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
-      const currentSnap = await get(viewersRef);
-      await set(viewersRef, (currentSnap.val() || 0) + 1);
+      _viewerCountOdcRef = viewersRef;
+      await runTransaction(viewersRef, cur => (cur || 0) + 1);
+      // If the viewer drops without a clean leave, RTDB auto-decrements.
+      onDisconnect(viewersRef).transaction(cur => (cur || 1) - 1);
     } catch (_) {}
   })();
 
@@ -1178,12 +1187,17 @@ async function _viewerLeave() {
     _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
   }
 
-  /* ── Decrement viewer count in LIVE RTDB ── */
+  /* ── Decrement viewer count in LIVE RTDB (atomic) ──
+     Cancel the onDisconnect we registered at join time so RTDB doesn't
+     also decrement (which would double-count the leave), then atomically
+     subtract 1 via a transaction (clamped at 0). ── */
+  if (_viewerCountOdcRef) {
+    try { await onDisconnect(_viewerCountOdcRef).cancel(); } catch(_) {}
+    _viewerCountOdcRef = null;
+  }
   try {
     const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
-    const snap = await get(viewersRef);
-    const cur = snap.val() || 0;
-    await set(viewersRef, Math.max(0, cur - 1));
+    await runTransaction(viewersRef, cur => Math.max(0, (cur || 0) - 1));
   } catch (_) {}
 }
 
@@ -1744,6 +1758,13 @@ function _scheduleViewerReconnect(roomData) {
     if (_user && _roomId) {
       try { await remove(ref(_liveDB, `liveConnections/${_roomId}/${_user.uid}`)); } catch(_) {}
     }
+    // Cancel the old viewer-count onDisconnect so the upcoming re-increment
+    // (inside _startViewerWebRTC) doesn't leave a stale, double-decrementing
+    // onDisconnect behind. The reconnect will register a fresh one.
+    if (_viewerCountOdcRef) {
+      try { await onDisconnect(_viewerCountOdcRef).cancel(); } catch(_) {}
+      _viewerCountOdcRef = null;
+    }
 
     // Verify stream is still live before attempting
     try {
@@ -2019,6 +2040,13 @@ function _showEndedOverlay(wasCreator, title, sub) {
   // reconnect starts clean.
   if (!wasCreator && _user && _roomId) {
     try { remove(ref(_liveDB, `liveConnections/${_roomId}/${_user.uid}`)); } catch(_) {}
+  }
+  // Viewer side: cancel the viewer-count onDisconnect and decrement once
+  // so the count doesn't stay inflated after the stream ends.
+  if (!wasCreator && _viewerCountOdcRef) {
+    try { onDisconnect(_viewerCountOdcRef).cancel(); } catch(_) {}
+    try { runTransaction(_viewerCountOdcRef, cur => Math.max(0, (cur || 0) - 1)); } catch(_) {}
+    _viewerCountOdcRef = null;
   }
   // Creator side: tear down all viewer peers.
   if (wasCreator) _teardownAllCreatorViewerPeers();
