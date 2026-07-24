@@ -353,12 +353,31 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     _user = user;
-    _loadUserData().then(() => {
-      if (D.goLiveBtn) { D.goLiveBtn.disabled = false; }
+
+    // TIKTOK-STYLE INSTANT VIDEO: For viewer mode, start the video
+    // connection IMMEDIATELY without waiting for _loadUserData() (a
+    // Firestore round-trip that adds 200-500ms of delay). The viewer's
+    // video stream only needs uid + roomId, not their profile data.
+    // The profile data loads in the background and is ready for
+    // chat/profile features by the time the user interacts.
+    const hash = location.hash;
+    const isViewerMode = hash.startsWith('#watch=');
+
+    if (isViewerMode) {
+      // Start the viewer stream NOW — don't wait for user data
       _resolveMode();
-      // ── One-time update check per session ──
-      _checkForUpdate();
-    });
+      // Load user data in the background (for chat name, avatar, etc.)
+      _loadUserData().then(() => {
+        _checkForUpdate();
+      });
+    } else {
+      // Creator mode: needs user data for the setup screen
+      _loadUserData().then(() => {
+        if (D.goLiveBtn) { D.goLiveBtn.disabled = false; }
+        _resolveMode();
+        _checkForUpdate();
+      });
+    }
   });
 });
 
@@ -1111,7 +1130,15 @@ async function _startViewer() {
 
   // Stage is already shown; keep the "Connecting…" banner up until the
   // first video frame arrives (the ontrack handler hides it).
-  _showConnBanner('Connecting\u2026', '');
+  _showConnBanner('Connecting…', '');
+
+  // TIKTOK-STYLE: Start the WebRTC video connection FIRST — it's the only
+  // thing that matters for the video to appear. All the social features
+  // (chat, guest grid, layout sync, viewer count, creator info) run in the
+  // background and don't block the video from loading.
+  const _webrtcPromise = _startViewerWebRTC(roomData);
+
+  // Non-critical setup (runs in background, doesn't block video)
   _populateCreatorInfo(roomData);
   _setupViewerControls(roomData);
   _subscribeChat();
@@ -1172,7 +1199,8 @@ async function _startViewer() {
     }
   });
 
-  await _startViewerWebRTC(roomData);
+  // Now await the WebRTC connection (it's already been running in parallel)
+  await _webrtcPromise;
 
   window.addEventListener('beforeunload', _viewerLeave);
   window.addEventListener('pagehide',     _viewerLeave);
@@ -1481,6 +1509,12 @@ async function _startViewerWebRTC(roomData) {
     _rtcSignalRef = null; _rtcSignalUnsub = null;
   }
 
+  // TIKTOK-STYLE: Create the RTCPeerConnection FIRST (local, synchronous)
+  // so ICE candidate gathering starts immediately. Then fire the set()
+  // request and onDisconnect() in parallel — don't block on onDisconnect
+  // since it's just a safety net, not on the critical path.
+  _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
+
   // ── 1. Write a fresh "request" so the host creates a per-viewer offer ──
   // Each (re)connect writes a NEW request node so the host generates a
   // brand-new offer. This is the fix for the black "Waiting for stream…"
@@ -1500,12 +1534,9 @@ async function _startViewerWebRTC(roomData) {
   }
 
   // If the host drops, remove our signaling node so a returning host
-  // gets a clean slate (avoids stale-offer confusion).
-  try {
-    await onDisconnect(viewerConnRef).remove();
-  } catch (_) {}
-
-  _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
+  // gets a clean slate (avoids stale-offer confusion). Fire-and-forget
+  // — don't block the critical path on this safety net.
+  try { onDisconnect(viewerConnRef).remove(); } catch (_) {}
 
   _rtcPc.ontrack = (e) => {
     if (!D.liveVideo) return;
