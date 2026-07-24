@@ -11,20 +11,25 @@
  *
  *  LIVE Firebase (Shadow Nexus Live) — Realtime Database:
  *    - Room status         (liveRooms/{roomId})
- *    - WebRTC offer/answer (liveConnections/{roomId})
- *    - ICE candidates      (liveConnections/{roomId}/creatorCandidates | viewerCandidates)
+ *    - WebRTC offer/answer (liveConnections/{roomId}/{viewerUid})
+ *    - ICE candidates      (liveConnections/{roomId}/{viewerUid}/creatorCandidates | viewerCandidates)
  *
  *  CREATOR:
  *    1. Captures local camera + mic via getUserMedia.
  *    2. Creates liveRooms/{roomId} in RTDB (status: 'live').
- *    3. Creates RTCPeerConnection, writes SDP offer to liveConnections/{roomId} in RTDB.
- *    4. Waits for viewer answer + ICE, then streams directly via WebRTC.
+ *    3. Watches liveConnections/{roomId} for new viewer "request" nodes.
+ *    4. For each viewer: creates a fresh RTCPeerConnection + SDP offer
+ *       written to liveConnections/{roomId}/{viewerUid}, then waits for
+ *       that viewer's answer + ICE. Streams directly via WebRTC.
+ *       (A separate peer per viewer lets the host stream to many viewers
+ *       and lets a returning viewer get a brand-new offer.)
  *
  *  VIEWER:
  *    1. Reads liveRooms/{roomId} from RTDB to confirm stream is live.
- *    2. Reads SDP offer from liveConnections/{roomId} in RTDB.
- *    3. Creates RTCPeerConnection, sends answer + ICE back to RTDB.
- *    4. Receives creator tracks via WebRTC ontrack.
+ *    2. Writes a "request" to liveConnections/{roomId}/{viewerUid} in RTDB.
+ *    3. Waits for the host to write a fresh SDP offer to that same node.
+ *    4. Creates RTCPeerConnection, sends answer + ICE back to its node.
+ *    5. Receives creator tracks via WebRTC ontrack.
  *
  *  Chat + Likes:
  *    Stored in Firestore sub-collections under liveRooms/{roomId}.
@@ -99,10 +104,17 @@ let _layoutRafId  = null;
 /* ── Performance: track if update-check has already run this session ── */
 let _updateChecked = false;
 
-// WebRTC
+// WebRTC — VIEWER side (single peer connection to the host)
 let _rtcPc           = null;   // RTCPeerConnection
 let _rtcSignalUnsub  = null;   // RTDB listener unsubscribe (off ref)
 let _rtcSignalRef    = null;   // RTDB ref being listened to
+
+// WebRTC — CREATOR side: a separate peer connection per viewer.
+// Each viewer joins via liveConnections/{roomId}/{viewerUid}, so the
+// host can stream to many viewers and reconnecting / returning viewers
+// get a fresh offer instead of a stale answer that never connects.
+let _creatorViewerPeers = {};   // { [viewerUid]: { pc, appliedCandKeys:Set, unsub } }
+let _creatorConnUnsub   = null; // listener on liveConnections/{roomId}
 
 // Auto-reconnect for viewers
 let _viewerReconnectTimer   = null;
@@ -766,11 +778,16 @@ async function flipLiveCamera() {
       D.liveVideo.srcObject = newStream;
       D.liveVideo.play().catch(() => {});
     }
-    if (_rtcPc && newStream.getVideoTracks()[0]) {
-      const newVideoTrack = newStream.getVideoTracks()[0];
-      const sender = _rtcPc.getSenders().find(s => s.track && s.track.kind === 'video');
-      if (sender) {
-        await sender.replaceTrack(newVideoTrack).catch(() => {});
+    if (_localStream.getVideoTracks()[0]) {
+      const newVideoTrack = _localStream.getVideoTracks()[0];
+      // Replace the video track on every active viewer peer connection.
+      for (const viewerUid of Object.keys(_creatorViewerPeers)) {
+        const peer = _creatorViewerPeers[viewerUid];
+        if (!peer || !peer.pc) continue;
+        const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) {
+          await sender.replaceTrack(newVideoTrack).catch(() => {});
+        }
       }
     }
   } catch (e) {
@@ -790,6 +807,8 @@ function toggleFullscreen() {
 function _creatorBeforeUnload() {
   if (_creatorEndedFlag || !_roomId) return;
   // Can't do async work in beforeunload; onDisconnect handles the RTDB cleanup.
+  // Synchronously close every viewer peer so streams drop immediately.
+  _teardownAllCreatorViewerPeers();
   if (_localStream) { _localStream.getTracks().forEach(t => t.stop()); _localStream = null; }
 }
 
@@ -812,8 +831,8 @@ async function endLive() {
   _teardownAllGuestPeers();
   if (_guestReqUnsub) { try { _guestReqUnsub(); } catch(_){} _guestReqUnsub = null; }
 
-  if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
-  if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
+  // Close ALL per-viewer peer connections + the viewer-watcher.
+  _teardownAllCreatorViewerPeers();
   if (_chatUnsub)        { _chatUnsub();         _chatUnsub        = null; }
   if (_viewerCountRef && _viewerCountUnsub) { off(_viewerCountRef); _viewerCountRef = null; _viewerCountUnsub = null; }
 
@@ -1147,6 +1166,18 @@ async function _viewerLeave() {
   if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
   if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
 
+  /* ── Remove this viewer's per-viewer signaling node so the host
+     tears down the corresponding peer connection and a returning
+     viewer gets a clean slate. ── */
+  if (_user && _roomId) {
+    try { await remove(ref(_liveDB, `liveConnections/${_roomId}/${_user.uid}`)); } catch(_) {}
+  }
+  // Detach the "wait for offer" listener if it's still attached.
+  if (_tmpViewerWaitRef && _tmpViewerWaitListener) {
+    try { off(_tmpViewerWaitRef, _tmpViewerWaitListener); } catch(_) {}
+    _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
+  }
+
   /* ── Decrement viewer count in LIVE RTDB ── */
   try {
     const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
@@ -1175,121 +1206,182 @@ async function _startCreatorWebRTC() {
     return;
   }
 
-  _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
+  /* ── Per-viewer signaling ────────────────────────────────────────────
+     Each viewer connects via its own node:
+       liveConnections/{roomId}/{viewerUid}
+         ├── request    { createdAt }            — viewer asks for an offer
+         ├── offer       { type, sdp }           — host writes a fresh offer
+         ├── answer      { type, sdp }           — viewer writes its answer
+         ├── creatorCandidates/{key} { ... }     — host ICE candidates
+         └── viewerCandidates/{key}  { ... }     — viewer ICE candidates
 
-  // Add tracks with explicit sendonly direction
-  _localStream.getTracks().forEach(track => {
-    _rtcPc.addTrack(track, _localStream);
-  });
+     The host keeps a separate RTCPeerConnection per viewer so it can
+     stream to many viewers AND so a viewer that leaves and comes back
+     gets a brand-new offer (the old "single shared node" design left a
+     stale answer in RTDB that the host ignored on the second connect,
+     which is exactly why returning viewers saw a black "Waiting for
+     stream…" screen).
+  ─────────────────────────────────────────────────────────────────── */
 
-  // Ensure transceivers are sendonly and set initial encoding to 720p / 3000 kbps CBR
-  _rtcPc.getTransceivers().forEach(tc => {
-    tc.direction = 'sendonly';
-    if (tc.sender && tc.sender.track && tc.sender.track.kind === 'video') {
-      const params = tc.sender.getParameters();
-      if (!params.encodings || !params.encodings.length) {
-        params.encodings = [{}];
-      }
-      // Default tier: MED — 720p, 3000 kbps, 30fps
-      params.encodings[0].maxBitrate           = 3_000_000;
-      params.encodings[0].maxFramerate         = 30;
-      params.encodings[0].scaleResolutionDownBy = 1;
-      tc.sender.setParameters(params).catch(() => {});
-    }
-  });
+  const connRootRef = ref(_liveDB, `liveConnections/${_roomId}`);
 
-  _rtcPc.onconnectionstatechange = () => {
-    if (_rtcPc.connectionState === 'connected') {
-      // Start adaptive quality monitoring (adjust bitrate based on network conditions)
-      _startAdaptiveQuality(_rtcPc);
-    }
-  };
-
-  const connRef = ref(_liveDB, `liveConnections/${_roomId}`);
-  const _pendingCandidates = [];
-  let   _offerWritten      = false;
-
-  // Wire BEFORE createOffer so no early candidates are dropped
-  _rtcPc.onicecandidate = async (e) => {
-    if (!e.candidate) return;
-    if (!_offerWritten) {
-      _pendingCandidates.push(e.candidate.toJSON());
-      return;
-    }
-    try { await push(ref(_liveDB, `liveConnections/${_roomId}/creatorCandidates`), e.candidate.toJSON()); }
-    catch (_) {}
-  };
-
-  // createOffer with a 10-second timeout
-  let offer;
-  try {
-    offer = await Promise.race([
-      _rtcPc.createOffer(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('createOffer timed out after 10s')), 10000)),
-    ]);
-  } catch (e) {
-    toast('Could not start stream. Please try again.');
-    return;
-  }
-
-  try {
-    await _rtcPc.setLocalDescription(offer);
-  } catch (e) {
-    toast('Could not start stream. Please try again.');
-    return;
-  }
-
-  // Write offer to RTDB
-  try {
-    await set(connRef, {
-      offer:             { type: offer.type, sdp: offer.sdp },
-      creatorCandidates: {},
-      viewerCandidates:  {},
-    });
-    _offerWritten = true;
-  } catch (e) {
-    toast('Could not start live. Please try again.');
-    return;
-  }
-
-  // Register onDisconnect AFTER offer is confirmed in RTDB
+  // Register onDisconnect so the room ends if the host drops.
   try {
     await onDisconnect(ref(_liveDB, `liveRooms/${_roomId}`)).update({
       status: 'ended', isLive: false, endedAt: Date.now(),
     });
   } catch (_) {}
 
-  // Flush buffered candidates
-  if (_pendingCandidates.length) {
-    for (const cand of _pendingCandidates) {
-      try { await push(ref(_liveDB, `liveConnections/${_roomId}/creatorCandidates`), cand); } catch (_) {}
-    }
-    _pendingCandidates.length = 0;
-  }
-
-  // Watch for viewer answer + ICE
-  let _appliedViewerCandKeys = new Set();
-  _rtcSignalRef   = connRef;
-  _rtcSignalUnsub = onValue(connRef, async snap => {
-    if (!snap.exists()) return;
-    const d = snap.val();
-
-    if (d.answer && _rtcPc.remoteDescription === null) {
-      try {
-        await _rtcPc.setRemoteDescription(new RTCSessionDescription(d.answer));
-      } catch (_) {}
-    }
-
-    if (_rtcPc.remoteDescription && d.viewerCandidates) {
-      for (const [key, cand] of Object.entries(d.viewerCandidates)) {
-        if (_appliedViewerCandKeys.has(key)) continue;
-        _appliedViewerCandKeys.add(key);
-        try { await _rtcPc.addIceCandidate(new RTCIceCandidate(cand)); } catch (_) {}
+  // Watch for viewers appearing under liveConnections/{roomId}.
+  _creatorConnUnsub = onValue(connRootRef, async snap => {
+    const viewers = snap.val() || {};
+    // Tear down peers for viewers that have left (node removed).
+    for (const viewerUid of Object.keys(_creatorViewerPeers)) {
+      if (!viewers[viewerUid]) {
+        _teardownCreatorViewerPeer(viewerUid);
       }
+    }
+    // Handle viewers that have requested an offer.
+    for (const viewerUid of Object.keys(viewers)) {
+      const vData = viewers[viewerUid];
+      // A viewer with a request but no offer needs a fresh peer.
+      if (!vData || !vData.request || vData.offer) continue;
+      // If we already have a peer for this viewer but they re-requested
+      // (their node was reset via set()), tear it down and rebuild.
+      if (_creatorViewerPeers[viewerUid]) {
+        _teardownCreatorViewerPeer(viewerUid);
+      }
+      _handleViewerConnection(viewerUid).catch(() => {});
     }
   });
 
   toast('Live now');
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Host: create a fresh peer connection + offer for one viewer.
+   ───────────────────────────────────────────────────────────────────── */
+async function _handleViewerConnection(viewerUid) {
+  if (!_localStream || !_roomId) return;
+  // Tear down any previous peer for this viewer (shouldn't exist, but be safe).
+  _teardownCreatorViewerPeer(viewerUid);
+  // Reserve the slot immediately so the watcher doesn't double-handle
+  // this viewer while we're still creating the offer.
+  _creatorViewerPeers[viewerUid] = { pc: null, appliedCandKeys: new Set(), unsub: null };
+
+  const pc = new RTCPeerConnection(_ICE_SERVERS);
+
+  // Add tracks (sendonly) and constrain video encoding.
+  _localStream.getTracks().forEach(track => pc.addTrack(track, _localStream));
+  pc.getTransceivers().forEach(tc => {
+    tc.direction = 'sendonly';
+    if (tc.sender && tc.sender.track && tc.sender.track.kind === 'video') {
+      const params = tc.sender.getParameters();
+      if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+      params.encodings[0].maxBitrate            = 3_000_000;
+      params.encodings[0].maxFramerate          = 30;
+      params.encodings[0].scaleResolutionDownBy = 1;
+      tc.sender.setParameters(params).catch(() => {});
+    }
+  });
+
+  const appliedCandKeys = new Set();
+  const pendingCands    = [];
+  let   offerWritten    = false;
+
+  const viewerConnRef = ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}`);
+
+  // Buffer ICE until the offer is written so none are lost.
+  pc.onicecandidate = async (e) => {
+    if (!e.candidate) return;
+    if (!offerWritten) { pendingCands.push(e.candidate.toJSON()); return; }
+    try { await push(ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}/creatorCandidates`), e.candidate.toJSON()); }
+    catch (_) {}
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'connected') {
+      _startAdaptiveQuality(pc);
+    } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      // Viewer's peer failed/closed — clean it up.
+      if (_creatorViewerPeers[viewerUid] && _creatorViewerPeers[viewerUid].pc === pc) {
+        _teardownCreatorViewerPeer(viewerUid);
+      }
+    }
+  };
+
+  // Create + set local description (offer) with a 10s timeout.
+  let offer;
+  try {
+    offer = await Promise.race([
+      pc.createOffer(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('createOffer timed out after 10s')), 10000)),
+    ]);
+  } catch (e) {
+    _teardownCreatorViewerPeer(viewerUid);
+    return;
+  }
+  try { await pc.setLocalDescription(offer); }
+  catch (e) { _teardownCreatorViewerPeer(viewerUid); return; }
+
+  // Write the per-viewer offer.
+  try {
+    await update(viewerConnRef, {
+      offer: { type: offer.type, sdp: offer.sdp },
+    });
+    offerWritten = true;
+  } catch (e) {
+    _teardownCreatorViewerPeer(viewerUid);
+    return;
+  }
+
+  // Flush buffered candidates.
+  if (pendingCands.length) {
+    for (const cand of pendingCands) {
+      try { await push(ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}/creatorCandidates`), cand); } catch (_) {}
+    }
+    pendingCands.length = 0;
+  }
+
+  // Watch this viewer's node for its answer + ICE candidates.
+  const unsub = onValue(viewerConnRef, async snap => {
+    if (!snap.exists()) return;
+    const d = snap.val();
+    if (d.answer && pc.remoteDescription === null) {
+      try { await pc.setRemoteDescription(new RTCSessionDescription(d.answer)); }
+      catch (_) {}
+    }
+    if (pc.remoteDescription && d.viewerCandidates) {
+      for (const [key, cand] of Object.entries(d.viewerCandidates)) {
+        if (appliedCandKeys.has(key)) continue;
+        appliedCandKeys.add(key);
+        try { await pc.addIceCandidate(new RTCIceCandidate(cand)); } catch (_) {}
+      }
+    }
+  });
+
+  _creatorViewerPeers[viewerUid] = { pc, appliedCandKeys, unsub };
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Host: tear down one viewer's peer connection + listener.
+   ───────────────────────────────────────────────────────────────────── */
+function _teardownCreatorViewerPeer(viewerUid) {
+  const peer = _creatorViewerPeers[viewerUid];
+  if (!peer) return;
+  if (peer.unsub) { try { peer.unsub(); } catch (_) {} }
+  if (peer.pc)    { try { peer.pc.close(); } catch (_) {} }
+  delete _creatorViewerPeers[viewerUid];
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Host: tear down ALL viewer peer connections + the main listener.
+   ───────────────────────────────────────────────────────────────────── */
+function _teardownAllCreatorViewerPeers() {
+  for (const viewerUid of Object.keys(_creatorViewerPeers)) {
+    _teardownCreatorViewerPeer(viewerUid);
+  }
+  if (_creatorConnUnsub) { try { _creatorConnUnsub(); } catch (_) {} _creatorConnUnsub = null; }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1297,32 +1389,47 @@ async function _startCreatorWebRTC() {
    Uses LIVE Realtime Database for signaling.
    ═══════════════════════════════════════════════════ */
 async function _startViewerWebRTC(roomData) {
-  _showConnBanner('Waiting for stream…', '');
+  _showConnBanner('Waiting for stream\u2026', '');
 
-  const connRef = ref(_liveDB, `liveConnections/${_roomId}`);
-
-  /* ── Read offer from LIVE RTDB ── */
-  let connSnap;
-  try {
-    connSnap = await get(connRef);
-  } catch (e) {
-    _showConnBanner('Waiting for stream…', '');
+  if (!_user || !_user.uid) {
+    _showConnBanner('Waiting for stream\u2026', '');
     return;
   }
 
-  if (!connSnap.exists() || !connSnap.val().offer) {
-    _showConnBanner('Waiting for stream…', '');
-    const offerWaitRef = ref(_liveDB, `liveConnections/${_roomId}`);
-    let _offerWaitListener;
-    _offerWaitListener = onValue(offerWaitRef, async snap => {
-      if (!snap.exists() || !snap.val().offer) return;
-      off(offerWaitRef, _offerWaitListener);
-      _startViewerWebRTC(roomData);
-    });
-    return;
-  }
+  const viewerUid   = _user.uid;
+  const viewerConnRef = ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}`);
 
+  // Clean up any previous viewer peer connection + listener.
   if (_rtcPc) { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
+  if (_rtcSignalRef && _rtcSignalUnsub) {
+    try { off(_rtcSignalRef); } catch (_) {}
+    _rtcSignalRef = null; _rtcSignalUnsub = null;
+  }
+
+  // ── 1. Write a fresh "request" so the host creates a per-viewer offer ──
+  // Each (re)connect writes a NEW request node so the host generates a
+  // brand-new offer. This is the fix for the black "Waiting for stream…"
+  // screen that returning viewers used to see: the host now always makes
+  // a fresh peer + offer instead of reusing a stale one.
+  try {
+    await set(viewerConnRef, {
+      request:            { createdAt: Date.now() },
+      offer:              null,
+      answer:             null,
+      creatorCandidates:  null,
+      viewerCandidates:   null,
+    });
+  } catch (e) {
+    _showConnBanner('Waiting for stream\u2026', '');
+    return;
+  }
+
+  // If the host drops, remove our signaling node so a returning host
+  // gets a clean slate (avoids stale-offer confusion).
+  try {
+    await onDisconnect(viewerConnRef).remove();
+  } catch (_) {}
+
   _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
 
   _rtcPc.ontrack = (e) => {
@@ -1353,17 +1460,56 @@ async function _startViewerWebRTC(roomData) {
       _hideConnBanner();
       _viewerReconnectAttempt = 0; // reset on successful connection
     } else if (state === 'disconnected' || state === 'failed') {
-      _showConnBanner('Reconnecting…', '');
+      _showConnBanner('Reconnecting\u2026', '');
       _scheduleViewerReconnect(roomData);
     }
   };
 
-  /* ── Set remote description (offer) ── */
-  const offer = connSnap.val().offer;
+  /* ── 2. Wait for the host to write a fresh offer to our node ── */
+  let offerSnap;
+  try {
+    offerSnap = await get(viewerConnRef);
+  } catch (e) {
+    _showConnBanner('Waiting for stream\u2026', '');
+    return;
+  }
+
+  // If no offer yet, subscribe and wait for it (15s timeout).
+  if (!offerSnap.exists() || !offerSnap.val().offer) {
+    const waitRef = ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}`);
+    await new Promise((resolve) => {
+      let settled = false;
+      const finish = () => { if (!settled) { settled = true; resolve(); } };
+      const to = setTimeout(finish, 15000);
+      const waitListener = onValue(waitRef, snap => {
+        if (snap.exists() && snap.val().offer) {
+          clearTimeout(to);
+          finish();
+        }
+      });
+      // Store so we can clean up below.
+      _tmpViewerWaitRef = waitRef;
+      _tmpViewerWaitListener = waitListener;
+    });
+    // Detach the wait listener now that we either got an offer or timed out.
+    if (_tmpViewerWaitRef && _tmpViewerWaitListener) {
+      try { off(_tmpViewerWaitRef, _tmpViewerWaitListener); } catch (_) {}
+      _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
+    }
+    // Re-read the node to get the offer if it arrived.
+    try { offerSnap = await get(viewerConnRef); } catch (e) {}
+    if (!offerSnap || !offerSnap.exists() || !offerSnap.val().offer) {
+      // No offer in time — schedule a reconnect attempt.
+      _scheduleViewerReconnect(roomData);
+      return;
+    }
+  }
+
+  const offer = offerSnap.val().offer;
   try {
     await _rtcPc.setRemoteDescription(new RTCSessionDescription(offer));
   } catch (e) {
-    _showConnBanner('Waiting for stream…', '');
+    _showConnBanner('Waiting for stream\u2026', '');
     return;
   }
 
@@ -1378,43 +1524,43 @@ async function _startViewerWebRTC(roomData) {
       return;
     }
     try {
-      await push(ref(_liveDB, `liveConnections/${_roomId}/viewerCandidates`), e.candidate.toJSON());
+      await push(ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}/viewerCandidates`), e.candidate.toJSON());
     } catch (_) {}
   };
 
   const answer = await _rtcPc.createAnswer();
   await _rtcPc.setLocalDescription(answer);
 
-  /* ── Write answer to RTDB ── */
+  /* ── Write answer to our per-viewer node in RTDB ── */
   try {
-    await update(connRef, {
+    await update(viewerConnRef, {
       answer: { type: answer.type, sdp: answer.sdp },
     });
     _viewerAnswerWritten = true;
   } catch (e) {
-    _showConnBanner('Waiting for stream…', '');
+    _showConnBanner('Waiting for stream\u2026', '');
     return;
   }
 
   /* ── Flush any viewer ICE candidates buffered before the answer was written ── */
   if (_viewerPendingCands.length) {
     for (const cand of _viewerPendingCands) {
-      try { await push(ref(_liveDB, `liveConnections/${_roomId}/viewerCandidates`), cand); } catch (_) {}
+      try { await push(ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}/viewerCandidates`), cand); } catch (_) {}
     }
     _viewerPendingCands.length = 0;
   }
 
   /* ── Apply existing creator ICE candidates ── */
   let _appliedCreatorCandKeys = new Set();
-  const existingCands = connSnap.val().creatorCandidates || {};
+  const existingCands = offerSnap.val().creatorCandidates || {};
   for (const [key, cand] of Object.entries(existingCands)) {
     _appliedCreatorCandKeys.add(key);
     try { await _rtcPc.addIceCandidate(new RTCIceCandidate(cand)); } catch (_) {}
   }
 
-  /* ── Listen for new creator ICE candidates ── */
-  _rtcSignalRef   = connRef;
-  _rtcSignalUnsub = onValue(connRef, async snap => {
+  /* ── Listen for new creator ICE candidates on our node ── */
+  _rtcSignalRef   = viewerConnRef;
+  _rtcSignalUnsub = onValue(viewerConnRef, async snap => {
     if (!snap.exists()) return;
     const d = snap.val();
     if (d.creatorCandidates) {
@@ -1426,7 +1572,7 @@ async function _startViewerWebRTC(roomData) {
     }
   });
 
-  _showConnBanner('Waiting for stream…', '');
+  _showConnBanner('Waiting for stream\u2026', '');
 
   // ── 3-second safety timeout: if video is already playing, remove banner ──
   setTimeout(() => {
@@ -1437,6 +1583,10 @@ async function _startViewerWebRTC(roomData) {
   }, 3000);
 }
 
+// Temp holders for the viewer's "wait for offer" listener so it can be
+// detached cleanly once the host writes the per-viewer offer.
+let _tmpViewerWaitRef      = null;
+let _tmpViewerWaitListener = null;
 /* ═══════════════════════════════════════════════════
    STREAM QUALITY PROFILES
    Phone sends 720p 30fps 3000 kbps CBR by default.
@@ -1582,6 +1732,17 @@ function _scheduleViewerReconnect(roomData) {
     if (_rtcSignalRef && _rtcSignalUnsub) {
       try { off(_rtcSignalRef); } catch(_) {}
       _rtcSignalRef = null; _rtcSignalUnsub = null;
+    }
+    // Detach the "wait for offer" listener if still attached.
+    if (_tmpViewerWaitRef && _tmpViewerWaitListener) {
+      try { off(_tmpViewerWaitRef, _tmpViewerWaitListener); } catch(_) {}
+      _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
+    }
+    // Remove our previous per-viewer signaling node so the host drops the
+    // stale peer and the fresh request (written by _startViewerWebRTC)
+    // triggers a brand-new offer.
+    if (_user && _roomId) {
+      try { await remove(ref(_liveDB, `liveConnections/${_roomId}/${_user.uid}`)); } catch(_) {}
     }
 
     // Verify stream is still live before attempting
@@ -1850,6 +2011,17 @@ function _showEndedOverlay(wasCreator, title, sub) {
   if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
   if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
   if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
+  if (_tmpViewerWaitRef && _tmpViewerWaitListener) {
+    try { off(_tmpViewerWaitRef, _tmpViewerWaitListener); } catch(_) {}
+    _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
+  }
+  // Remove our per-viewer signaling node (viewer side) so a future
+  // reconnect starts clean.
+  if (!wasCreator && _user && _roomId) {
+    try { remove(ref(_liveDB, `liveConnections/${_roomId}/${_user.uid}`)); } catch(_) {}
+  }
+  // Creator side: tear down all viewer peers.
+  if (wasCreator) _teardownAllCreatorViewerPeers();
   if (_chatUnsub) { _chatUnsub(); _chatUnsub = null; }
 }
 
@@ -4123,15 +4295,21 @@ function _iqSetEnabled(on) {
     _iqHideBadge();
     return;
   }
-  // If live is already running, start immediately
-  if (_iqLiveActive && _rtcPc) {
-    _iqStart(_rtcPc);
+  // If live is already running, start on the first active viewer peer.
+  if (_iqLiveActive) {
+    const firstPeer = Object.values(_creatorViewerPeers)[0];
+    if (firstPeer && firstPeer.pc) _iqStart(firstPeer.pc);
   }
 }
 
 function _iqOnLiveStart() {
   _iqLiveActive = true;
-  if (_iqEnabled && _rtcPc) _iqStart(_rtcPc);
+  // Per-viewer adaptive quality already starts in _handleViewerConnection;
+  // if IQ is enabled, also start the badge monitor on the first peer.
+  if (_iqEnabled) {
+    const firstPeer = Object.values(_creatorViewerPeers)[0];
+    if (firstPeer && firstPeer.pc) _iqStart(firstPeer.pc);
+  }
 }
 
 function _iqOnLiveEnd() {
