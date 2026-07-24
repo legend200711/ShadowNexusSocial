@@ -159,6 +159,11 @@ let _hostWatchdogInterval   = null;  // host: periodic sweep for stale guest pre
 const _HEARTBEAT_INTERVAL_MS = 8000; // every 8 s the guest writes a timestamp
 const _STALE_THRESHOLD_MS    = 18000; // >18 s without heartbeat → guest is gone
 
+// Host presence heartbeat — re-asserts { online: true, live: true } on RTDB
+// every few seconds so a late-firing onDisconnect from the main app
+// (index.html) can't wipe our "live" status while we're still streaming.
+let _hostPresenceInterval = null;
+
 /* ── DOM refs (resolved after DOMContentLoaded) ── */
 let D = {};
 
@@ -632,12 +637,28 @@ async function startLive() {
   } catch (_) {}
 
   // ── RTDB users/{uid} presence: mark as online + live in one atomic write ──
+  // We use set() (full overwrite, not update()) because the main app
+  // (index.html) registers an onDisconnect().set({ online:false, live:false })
+  // on the same RTDB path. When the user navigates from index.html to
+  // live.html, that old onDisconnect can fire *after* we've already written
+  // live:true, wiping our status. Using set() here + a periodic heartbeat
+  // (below) ensures our "live" status survives that race.
   try {
     const _uPresRef = ref(_liveDB, 'users/' + _user.uid);
-    await update(_uPresRef, { online: true, live: true, lastSeen: rtdbTimestamp() });
-    // If the page crashes or network drops, reset live to false (keep online true so they
-    // appear as online once they reconnect — the login flow sets online properly on reconnect).
-    onDisconnect(_uPresRef).update({ live: false, lastSeen: rtdbTimestamp() });
+    await set(_uPresRef, { online: true, live: true, lastSeen: rtdbTimestamp() });
+    // If the page crashes / network drops, clear the whole node so the
+    // friends list shows Offline (not a stale "live" from a dead session).
+    onDisconnect(_uPresRef).set({ online: false, live: false, lastSeen: rtdbTimestamp() });
+
+    // Heartbeat: re-assert { online: true, live: true } every 10 s.
+    // This overwrites any late-firing onDisconnect from the previous
+    // index.html page so friends always see the correct LIVE status.
+    if (_hostPresenceInterval) clearInterval(_hostPresenceInterval);
+    _hostPresenceInterval = setInterval(() => {
+      try {
+        set(_uPresRef, { online: true, live: true, lastSeen: rtdbTimestamp() });
+      } catch (_) {}
+    }, 10000);
   } catch (_) {}
   // _createLiveFeedPost intentionally omitted — live sessions must not create
   // feed posts; they appear only in the story bar and Live Hub.
@@ -864,12 +885,14 @@ async function endLive() {
   } catch (_) {}
 
   // ── RTDB users/{uid} presence: mark live ended, keep online = true ──
+  // Stop the host presence heartbeat first.
+  if (_hostPresenceInterval) { clearInterval(_hostPresenceInterval); _hostPresenceInterval = null; }
   try {
     // Cancel the onDisconnect we registered at startLive — we are ending cleanly
     await onDisconnect(ref(_liveDB, 'users/' + _user.uid)).cancel();
   } catch (_) {}
   try {
-    await update(ref(_liveDB, 'users/' + _user.uid), { live: false, online: true, lastSeen: rtdbTimestamp() });
+    await set(ref(_liveDB, 'users/' + _user.uid), { live: false, online: true, lastSeen: rtdbTimestamp() });
   } catch (_) {}
 
   /* ── Delete live feed post from main Firestore (safety net for old data) ── */
