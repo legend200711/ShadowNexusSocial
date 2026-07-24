@@ -11,6 +11,16 @@
 <link rel="stylesheet" href="live.css">
 <!-- Co-Host feature — remove these two lines to disable entirely -->
 <link rel="stylesheet" href="cohost.css">
+
+<!-- TIKTOK-STYLE: Preconnect to Firebase so the WebSocket connection
+     is warm before live.js even loads. Shaves ~100-200ms off
+     time-to-first-frame by establishing TLS + WebSocket handshake
+     in parallel with page rendering. -->
+<link rel="preconnect" href="https://horr-a08f4-default-rtdb.firebaseio.com">
+<link rel="preconnect" href="https://horr-a08f4.firebaseapp.com">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="dns-prefetch" href="https://horr-a08f4-default-rtdb.firebaseio.com">
+<link rel="dns-prefetch" href="https://firestore.googleapis.com">
 </head>
 <body>
 
