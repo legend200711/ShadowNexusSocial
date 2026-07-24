@@ -1051,30 +1051,59 @@ async function _startViewer() {
   _showStage();
   _showConnBanner('Connecting\u2026', '');
 
-  const _MAX_RETRIES = 8;
-  const _RETRY_MS    = 500;
-
-  for (let attempt = 0; attempt < _MAX_RETRIES; attempt++) {
-    try {
-      const snap = await get(ref(_liveDB, `liveRooms/${_roomId}`));
-      if (snap.exists() && snap.val().status === 'live') {
-        roomData = snap.val();
-        break;
-      }
-      if (snap.exists() && snap.val().status === 'ended') {
-        _showEndedOverlay(false, 'Stream ended', 'This live stream has already ended.');
-        return;
-      }
-    } catch (e) {
-      toast('Could not connect. Please try again.');
-      return;
-    }
-    if (attempt === 0) {
-      _showConnBanner('Waiting for stream\u2026', '');
-    }
-    await new Promise(r => setTimeout(r, _RETRY_MS));
+  /* OPTIMISED: Instead of polling with sequential get() calls (which added
+     up to 4+ seconds of delay), we use an onValue listener on the room ref
+     that fires the INSTANT the room data appears. We race it against a
+     single get() (in case the room already exists) and a 10s timeout.
+     This eliminates all polling delays — the room data is consumed the
+     moment it's available, typically in one Firebase round-trip (~150ms). */
+  const _roomRef = ref(_liveDB, `liveRooms/${_roomId}`);
+  try {
+    roomData = await new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (val) => { if (!settled) { settled = true; resolve(val); } };
+      const to = setTimeout(() => {
+        try { off(_roomRef, listener); } catch(_) {}
+        finish(null);
+      }, 10000);
+      const listener = onValue(_roomRef, snap => {
+        if (snap.exists()) {
+          const d = snap.val();
+          if (d.status === 'live') {
+            clearTimeout(to);
+            try { off(_roomRef, listener); } catch(_) {}
+            finish(d);
+          } else if (d.status === 'ended') {
+            clearTimeout(to);
+            try { off(_roomRef, listener); } catch(_) {}
+            _showEndedOverlay(false, 'Stream ended', 'This live stream has already ended.');
+            finish('ENDED');
+          }
+        }
+      });
+      // Also do a single get() in case the room already exists (race condition guard)
+      get(_roomRef).then(snap => {
+        if (!settled && snap.exists()) {
+          const d = snap.val();
+          if (d.status === 'live') {
+            clearTimeout(to);
+            try { off(_roomRef, listener); } catch(_) {}
+            finish(d);
+          } else if (d.status === 'ended') {
+            clearTimeout(to);
+            try { off(_roomRef, listener); } catch(_) {}
+            _showEndedOverlay(false, 'Stream ended', 'This live stream has already ended.');
+            finish('ENDED');
+          }
+        }
+      }).catch(() => {});
+    });
+  } catch (e) {
+    toast('Could not connect. Please try again.');
+    return;
   }
 
+  if (roomData === 'ENDED') return;  // already showed the ended overlay
   if (!roomData) {
     _showEndedOverlay(false, 'Stream ended', 'This live stream has ended or does not exist.');
     return;
@@ -1361,7 +1390,7 @@ async function _handleViewerConnection(viewerUid) {
   try {
     offer = await Promise.race([
       pc.createOffer(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('createOffer timed out after 10s')), 10000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('createOffer timed out after 5s')), 5000)),
     ]);
   } catch (e) {
     _teardownCreatorViewerPeer(viewerUid);
@@ -1435,10 +1464,10 @@ function _teardownAllCreatorViewerPeers() {
    Uses LIVE Realtime Database for signaling.
    ═══════════════════════════════════════════════════ */
 async function _startViewerWebRTC(roomData) {
-  _showConnBanner('Waiting for stream\u2026', '');
+  _showConnBanner('Connecting\u2026', '');
 
   if (!_user || !_user.uid) {
-    _showConnBanner('Waiting for stream\u2026', '');
+    _showConnBanner('Connecting\u2026', '');
     return;
   }
 
@@ -1466,7 +1495,7 @@ async function _startViewerWebRTC(roomData) {
       viewerCandidates:   null,
     });
   } catch (e) {
-    _showConnBanner('Waiting for stream\u2026', '');
+    _showConnBanner('Connecting\u2026', '');
     return;
   }
 
@@ -1554,7 +1583,7 @@ async function _startViewerWebRTC(roomData) {
       }).catch(() => {});
     });
   } catch (e) {
-    _showConnBanner('Waiting for stream\u2026', '');
+    _showConnBanner('Connecting\u2026', '');
     return;
   }
 
@@ -1574,7 +1603,7 @@ async function _startViewerWebRTC(roomData) {
   try {
     await _rtcPc.setRemoteDescription(new RTCSessionDescription(offer));
   } catch (e) {
-    _showConnBanner('Waiting for stream\u2026', '');
+    _showConnBanner('Connecting\u2026', '');
     return;
   }
 
@@ -1603,7 +1632,7 @@ async function _startViewerWebRTC(roomData) {
     });
     _viewerAnswerWritten = true;
   } catch (e) {
-    _showConnBanner('Waiting for stream\u2026', '');
+    _showConnBanner('Connecting\u2026', '');
     return;
   }
 
@@ -1637,15 +1666,15 @@ async function _startViewerWebRTC(roomData) {
     }
   });
 
-  _showConnBanner('Waiting for stream\u2026', '');
+  _showConnBanner('Connecting\u2026', '');
 
-  // ── 3-second safety timeout: if video is already playing, remove banner ──
+  // ── 1.5-second safety timeout: if video is already playing, remove banner ──
   setTimeout(() => {
     const v = D.liveVideo;
     if (v && v.srcObject && !v.paused && v.readyState >= 2) {
       _hideConnBanner();
     }
-  }, 3000);
+  }, 1500);
 }
 
 // Temp holders for the viewer's "wait for offer" listener so it can be
@@ -1784,7 +1813,7 @@ function _scheduleViewerReconnect(roomData) {
 
   if (_viewerReconnectTimer) clearTimeout(_viewerReconnectTimer);
 
-  const delay = Math.min(2000 * Math.pow(1.5, _viewerReconnectAttempt), 15000);
+  const delay = Math.min(500 * Math.pow(1.6, _viewerReconnectAttempt), 10000);
   _viewerReconnectAttempt++;
   console.log(`[WebRTC] Reconnect attempt ${_viewerReconnectAttempt} in ${delay}ms`);
 
@@ -2044,19 +2073,38 @@ function _showStage() {
   if (D.stage) D.stage.classList.add('active');
 }
 
+let _connBannerPendingTimer = null;
+let _connBannerPendingTitle  = '';
+let _connBannerPendingSub    = '';
+
 function _showConnBanner(title, sub) {
   if (!D.connBanner) return;
   // Don't show the banner if the video is already playing
   const v = D.liveVideo;
   if (v && v.srcObject && !v.paused && v.readyState >= 2) return;
-  if (D.connTitle) D.connTitle.textContent = title;
-  if (D.connSub)   D.connSub.textContent   = sub;
-  D.connBanner.classList.add('visible');
+  // Cancel any pending hide
+  if (_connBannerPendingTimer) { clearTimeout(_connBannerPendingTimer); _connBannerPendingTimer = null; }
+  // Grace period: delay showing the banner by 400ms. If the video arrives
+  // within 400ms (fast connections), the banner never flashes on screen.
+  _connBannerPendingTitle = title;
+  _connBannerPendingSub   = sub;
+  _connBannerPendingTimer = setTimeout(() => {
+    _connBannerPendingTimer = null;
+    // Re-check: video may have arrived during the grace period
+    const v2 = D.liveVideo;
+    if (v2 && v2.srcObject && !v2.paused && v2.readyState >= 2) return;
+    if (D.connTitle) D.connTitle.textContent = _connBannerPendingTitle;
+    if (D.connSub)   D.connSub.textContent   = _connBannerPendingSub;
+    D.connBanner.classList.add('visible');
+  }, 400);
 }
 
 function _hideConnBanner() {
+  if (_connBannerPendingTimer) { clearTimeout(_connBannerPendingTimer); _connBannerPendingTimer = null; }
   if (D.connBanner) D.connBanner.classList.remove('visible');
 }
+
+
 
 function _showUnmutePrompt() {
   const p = D.unmutePrompt;
@@ -2846,7 +2894,7 @@ async function _guestJoinAsViewer() {
   _guestMicOn  = true;
 
   const sigRef = ref(_liveDB, `guestSignaling/${_roomId}/${_user.uid}`);
-  const MAX_WAIT = 10000;
+  const MAX_WAIT = 5000;
   const startedAt = Date.now();
 
   // Wait for offer from host
