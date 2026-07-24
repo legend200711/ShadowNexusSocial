@@ -102,6 +102,9 @@
         _loadSettings();
         _subscribeActiveCohosts();
         _subscribeDeclineNotifications();
+        // Hosts can ALSO receive co-host invites from OTHER streamers,
+        // so always start the invite watcher regardless of role.
+        if (_coHostEnabled) _watchForInvite();
         _writePresence('online');
       } else {
         if (_coHostEnabled) _watchForInvite();
@@ -152,8 +155,10 @@
     const card = document.getElementById('cohostInviteCard');
     if (card && !_coHostEnabled) _hideInviteCard();
 
-    if (_coHostEnabled && !_isHost && _inviteInboxUnsub === null) {
-      // Re-subscribe invite watcher if it was never started (flag was OFF at boot)
+    if (_coHostEnabled && _inviteInboxUnsub === null) {
+      // (Re)subscribe invite watcher if it was never started (flag was OFF at
+      // boot) — applies to BOTH hosts and viewers, because a host of one
+      // stream can still be invited to co-host a different stream.
       _watchForInvite();
     }
   }
