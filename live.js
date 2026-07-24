@@ -395,6 +395,8 @@ async function _loadUserData() {
 async function _resolveMode() {
   const hash = location.hash;
   localStorage.removeItem('snx_live_intent');
+  // Clean up pre-warm sessionStorage (we read it in _startViewerWebRTC
+  // via the RTDB get() check, so we don't need the sessionStorage itself)
 
   if (hash.startsWith('#watch=')) {
     _roomId = hash.slice(7);   // roomId is plain [a-zA-Z0-9_] — no decoding needed
@@ -1515,23 +1517,37 @@ async function _startViewerWebRTC(roomData) {
   // since it's just a safety net, not on the critical path.
   _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
 
-  // ── 1. Write a fresh "request" so the host creates a per-viewer offer ──
-  // Each (re)connect writes a NEW request node so the host generates a
-  // brand-new offer. This is the fix for the black "Waiting for stream…"
-  // screen that returning viewers used to see: the host now always makes
-  // a fresh peer + offer instead of reusing a stale one.
+  // ── PRE-WARM CHECK: If index.html already started the signaling
+  //    handshake (pre-warm), the host may have already written an offer
+  //    to our RTDB node. Check for it FIRST — if there's already an
+  //    offer, we skip the "write request → wait for host" cycle entirely.
+  //    This is what makes the video appear almost instantly on click. ──
+  let _prewarmedOffer = null;
   try {
-    await set(viewerConnRef, {
-      request:            { createdAt: Date.now() },
-      offer:              null,
-      answer:             null,
-      creatorCandidates:  null,
-      viewerCandidates:   null,
-    });
-  } catch (e) {
-    _showConnBanner('Connecting\u2026', '');
-    return;
+    const existingSnap = await get(viewerConnRef);
+    if (existingSnap.exists() && existingSnap.val().offer) {
+      _prewarmedOffer = existingSnap.val();
+    }
+  } catch (_) {}
+
+  if (!_prewarmedOffer) {
+    // No pre-warmed offer — write a fresh request as usual.
+    // ── 1. Write a fresh "request" so the host creates a per-viewer offer ──
+    try {
+      await set(viewerConnRef, {
+        request:            { createdAt: Date.now() },
+        offer:              null,
+        answer:             null,
+        creatorCandidates:  null,
+        viewerCandidates:   null,
+      });
+    } catch (e) {
+      _showConnBanner('Connecting\u2026', '');
+      return;
+    }
   }
+  // else: The pre-warm already wrote the request and the host already
+  // responded with an offer. We'll use it directly below.
 
   // If the host drops, remove our signaling node so a returning host
   // gets a clean slate (avoids stale-offer confusion). Fire-and-forget
@@ -1578,20 +1594,24 @@ async function _startViewerWebRTC(roomData) {
   };
 
   /* ── 2. Wait for the host to write a fresh offer to our node ──
-     OPTIMISED: We skip the wasteful blocking get() round-trip that used to
-     happen first (it almost always returned "no offer yet" because the host
-     hadn't seen our request yet). Instead we set up the onValue listener
-     IMMEDIATELY and race it against a single get(), so the offer is
-     consumed the very instant the host writes it. This removes one full
-     Firebase round-trip (~150-400ms) from time-to-first-frame. */
+     PRE-WARM OPTIMISATION: If we already got the offer from the pre-warm
+     check above, skip the wait entirely. This is the key to instant video:
+     the offer was already waiting in RTDB before the user even clicked.
+     Otherwise, we set up the onValue listener IMMEDIATELY and race it
+     against a single get(), so the offer is consumed the very instant the
+     host writes it — no blocking round-trip. */
   let offerSnap = null;
+  // If the pre-warm already got the offer, use it immediately — don't wait.
+  if (_prewarmedOffer) {
+    offerSnap = { exists: () => true, val: () => _prewarmedOffer };
+  }
   const waitRef = viewerConnRef;
-  try {
+  if (!offerSnap) try {
     offerSnap = await new Promise((resolve, reject) => {
       let settled = false;
       const finish = (snap) => { if (!settled) { settled = true; resolve(snap); } };
-      // 12s overall timeout (down from 15s — fail fast, then reconnect).
-      const to = setTimeout(() => { _tmpViewerWaitRef = null; _tmpViewerWaitListener = null; resolve(null); }, 12000);
+      // 8s overall timeout (reduced from 12s — fail fast, then reconnect).
+      const to = setTimeout(() => { _tmpViewerWaitRef = null; _tmpViewerWaitListener = null; resolve(null); }, 8000);
       const waitListener = onValue(waitRef, snap => {
         if (snap.exists() && snap.val().offer) {
           clearTimeout(to);
@@ -1619,6 +1639,7 @@ async function _startViewerWebRTC(roomData) {
   }
 
   // Detach the wait listener if it's still attached.
+  // (The pre-warm path skips this entirely since offerSnap is already set.)
   if (_tmpViewerWaitRef && _tmpViewerWaitListener) {
     try { off(_tmpViewerWaitRef, _tmpViewerWaitListener); } catch (_) {}
     _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
