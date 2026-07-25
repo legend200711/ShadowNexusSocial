@@ -37,17 +37,22 @@
 
 'use strict';
 
-/* ── Main Firebase imports (Firestore + Auth) ── */
-import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+/* ── Main Firebase imports (Firestore + Auth) ──
+   IMPORTANT: version 10.8.0 is the SAME version index.html uses, so
+   the browser serves these modules from its HTTP cache instantly when a
+   user navigates from the main site to the live page. Using a different
+   version (e.g. 10.12.0) forces a full re-download of all four SDK
+   modules — the #1 cause of the 10-second loading delay. */
+import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import {
-  getAuth, onAuthStateChanged
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+  getAuth, onAuthStateChanged, browserLocalPersistence, setPersistence
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
   getFirestore,
   doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc,
   collection, query, orderBy, limit, onSnapshot,
   serverTimestamp, increment, where, deleteField, arrayUnion
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 /* ── Realtime Database imports (signaling + room status) ── */
 import {
@@ -55,7 +60,7 @@ import {
   ref, set, get, update, remove, push, onValue, off, onDisconnect,
   runTransaction,
   serverTimestamp as rtdbTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 
 /* ════════════════════════════════════════════════════
    MAIN Firebase — live.html is a standalone page.
@@ -73,6 +78,12 @@ const _CFG = {
 
 const _app    = initializeApp(_CFG);
 const _auth   = getAuth(_app);
+/* ── Ensure the live page reads the same persisted session that
+   index.html wrote. browserLocalPersistence is the default for web
+   but we set it explicitly so onAuthStateChanged can resolve the
+   cached token from localStorage WITHOUT a network round-trip to
+   securetoken.googleapis.com — saving 2-5s on the loading spinner. ── */
+setPersistence(_auth, browserLocalPersistence).catch(() => {});
 const _db     = getFirestore(_app);
 const _liveDB = getDatabase(_app);
 
