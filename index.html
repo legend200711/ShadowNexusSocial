@@ -10139,6 +10139,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       // the flag is OFF, so no new invites surface anywhere in the app.
       if (!coHostOn) {
         if (typeof _snxHideCohostInvitePopup === 'function') _snxHideCohostInvitePopup();
+        if (typeof window._snxHideCoHostInviteOverlay === 'function') window._snxHideCoHostInviteOverlay();
         if (window._snxCohostInviteSeen) window._snxCohostInviteSeen.clear();
       }
 
@@ -24864,6 +24865,13 @@ window.switchAdminTab = function(tab) {
       _listenerRef   = inboxRef;
 
       onValue(inboxRef, snap => {
+        // Respect the Founder's Co-Host System toggle. When the feature is
+        // disabled site-wide, never surface this co-host invite overlay to
+        // ANY user — keep it hidden and bail out before showing anything.
+        if (window._snxCoHostEnabled === false) {
+          _hideCard();
+          return;
+        }
         if (!snap.exists()) return;
         const invites = snap.val() || {};
 
@@ -24944,6 +24952,11 @@ window.switchAdminTab = function(tab) {
     const overlay = document.getElementById('snxCoHostInviteOverlay');
     if (overlay) overlay.classList.remove('visible');
   }
+
+  // Expose a live-enforcement hook so the siteSettings/config snapshot can
+  // hide this overlay the instant the Founder disables the Co-Host System.
+  // Without this, the overlay could stay on screen after the flag flips OFF.
+  window._snxHideCoHostInviteOverlay = _hideCard;
 
   function _toast(msg) {
     if (typeof toastNotification === 'function') { toastNotification(msg); return; }
