@@ -8816,7 +8816,7 @@ body.arcade-fs-ios body::after { display:none !important; }
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, browserLocalPersistence, setPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, getDocFromCache, updateDoc, deleteDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment, serverTimestamp, enableNetwork, disableNetwork } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
   import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
-  import { getDatabase as _getRtdb, ref as _rtdbRef, set as _rtdbSet, update as _rtdbUpdate, onDisconnect as _rtdbOnDisconnect, serverTimestamp as _rtdbServerTimestamp, onValue as _rtdbOnValue, off as _rtdbOff } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase as _getRtdb, ref as _rtdbRef, set as _rtdbSet, update as _rtdbUpdate, remove as _rtdbRemove, push as _rtdbPush, get as _rtdbGet, onDisconnect as _rtdbOnDisconnect, serverTimestamp as _rtdbServerTimestamp, onValue as _rtdbOnValue, off as _rtdbOff } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y",
@@ -8851,7 +8851,10 @@ body.arcade-fs-ios body::after { display:none !important; }
   window._snxUpdateDoc  = updateDoc;
 
   // ── Expose RTDB helpers for presence (used by _attachFriendRtdbStatus) ──
-  window._snxRtdbApi = { getDatabase: _getRtdb, ref: _rtdbRef, onValue: _rtdbOnValue, off: _rtdbOff };
+  // Also exposes get/remove/push/set/update so the global co-host invite
+  // listener (runs at all times while the user is logged in) can read,
+  // write, and remove invitation nodes from coHostInvites/{uid}.
+  window._snxRtdbApi = { getDatabase: _getRtdb, ref: _rtdbRef, onValue: _rtdbOnValue, off: _rtdbOff, get: _rtdbGet, remove: _rtdbRemove, push: _rtdbPush, set: _rtdbSet, update: _rtdbUpdate };
 
   // ── Full Firestore namespace for feature scripts ──
   window._snxFirestore = {
@@ -9208,6 +9211,46 @@ body.arcade-fs-ios body::after { display:none !important; }
       window.location.href = 'live.html';
   };
 
+  /* ── PRE-WARM LIVE CONNECTION ─────────────────────────────────────────
+     Called the instant a user taps/clicks a live stream card (from the
+     feed live banner or the Live Hub). It writes a viewer request node to
+     RTDB liveConnections/{roomId}/{viewerUid} BEFORE the navigation to
+     live.html happens. This lets the host start creating a per-viewer
+     WebRTC offer while the live page is still loading, so by the time the
+     viewer's _startViewerWebRTC runs, the offer is often already waiting
+     in RTDB. This is the key optimisation that makes the video appear
+     almost instantly instead of after a 10-second wait.
+
+     The node is shaped exactly like the request live.js writes, so the
+     host's existing onValue handler picks it up immediately. We also
+     register an onDisconnect().remove() so the node self-cleans if the
+     user closes the tab before the page loads (avoids stale offers).
+
+     This is fire-and-forget — we do NOT await it before navigating,
+     because the write is fast (single RTDB set, ~80ms) and we want the
+     navigation to start immediately. The host processes the request in
+     parallel with the page load. */
+  window._snxPreWarmLive = function _snxPreWarmLive(roomId) {
+      if (!roomId) return;
+      const uid = (currentUser && currentUser.uid) || (window._snxCurrentUser && window._snxCurrentUser.uid);
+      if (!uid) return;
+      try {
+          const connRef = _rtdbRef(_presenceRtdb, 'liveConnections/' + roomId + '/' + uid);
+          // Write the viewer request node so the host creates a per-viewer
+          // offer. Shape matches what live.js _startViewerWebRTC writes so
+          // the host's existing handler reacts identically.
+          _rtdbSet(connRef, {
+              request:           { createdAt: Date.now() },
+              offer:             null,
+              answer:            null,
+              creatorCandidates:  null,
+              viewerCandidates:   null,
+          }).catch(() => {});
+          // Self-clean if the user closes the tab before the page loads.
+          try { _rtdbOnDisconnect(connRef).remove(); } catch(_) {}
+      } catch (_) {}
+  };
+
   /* ═══════════════════════════════════════════════
      LIVE HUB PAGE
      Real-time page listing every active stream.
@@ -9273,13 +9316,17 @@ body.arcade-fs-ios body::after { display:none !important; }
           <div class="lhc-title">${title}</div>
           ${category ? `<div class="lhc-category">🏷 ${category}</div>` : ''}
           <button class="lhc-watch-btn"
-            onclick="event.preventDefault();event.stopPropagation();window.open('${watchUrl}','_blank')">
+            onclick="event.preventDefault();event.stopPropagation();if(window._snxPreWarmLive)window._snxPreWarmLive('${roomId}');window.open('${watchUrl}','_blank')">
             ▶ Watch Live
           </button>
         </div>`;
 
       card.addEventListener('click', e => {
         if (e.target.closest('.lhc-watch-btn')) return;
+        // Pre-warm the live connection before opening the stream in a new
+        // tab so the host starts creating the per-viewer WebRTC offer
+        // while the live page is loading.
+        if (window._snxPreWarmLive) window._snxPreWarmLive(room.roomId);
         window.open(watchUrl, '_blank');
         e.preventDefault();
       });
@@ -9472,13 +9519,19 @@ body.arcade-fs-ios body::after { display:none !important; }
         </div>
       `;
 
-      // Clicking anywhere on card navigates — button click does same
+      // Clicking anywhere on card navigates — button click does same.
+      // Pre-warm the live connection BEFORE navigating so the host starts
+      // creating a per-viewer WebRTC offer while the live page loads.
+      // This is the key optimisation that makes the video appear almost
+      // instantly instead of after a 10-second wait.
       card.querySelector('.flc-join-btn').addEventListener('click', e => {
         e.preventDefault();
+        if (window._snxPreWarmLive) window._snxPreWarmLive(room.roomId);
         window.location.href = 'live.html#watch=' + roomId;
       });
       card.addEventListener('click', e => {
         if (e.target.closest('.flc-join-btn')) return;
+        if (window._snxPreWarmLive) window._snxPreWarmLive(room.roomId);
         window.location.href = 'live.html#watch=' + roomId;
       });
 
@@ -9756,6 +9809,38 @@ body.arcade-fs-ios body::after { display:none !important; }
             window._snxAuthReadyQueue = [];
           }
           window._snxAuthResolved = true;
+          // GLOBAL CO-HOST INVITE LISTENER
+          // Runs at ALL times while the user is logged in (not just on the
+          // live page). Listens on RTDB coHostInvites/{uid} for real-time
+          // invitations from any friend who goes live and invites us to
+          // co-host. This fires even if the user is on the main feed, their
+          // own profile, or anywhere else in the app. The invite appears as a
+          // pop-up with Accept / Decline buttons. Accept opens the friend's
+          // live room; Decline removes the invite. Duplicates are prevented
+          // via a per-sender dedup set, and the invite is auto-removed from
+          // RTDB the moment it is handled.
+          (function _snxGlobalCohostInvite(uid) {
+            if (window._snxCohostInviteRef) {
+              try { _rtdbOff(window._snxCohostInviteRef); } catch(_) {}
+            }
+            window._snxCohostInviteRef  = _rtdbRef(_presenceRtdb, 'coHostInvites/' + uid);
+            window._snxCohostInviteSeen = window._snxCohostInviteSeen || new Set();
+            window._snxCohostInviteListener = _rtdbOnValue(window._snxCohostInviteRef, snap => {
+              if (!snap.exists()) { _snxHideCohostInvitePopup(); return; }
+              const invites = snap.val() || {};
+              // Find the most recent pending invite we haven't shown yet.
+              const pending = Object.entries(invites)
+                .filter(([, v]) => v && v.status === 'pending')
+                .sort(([, a], [, b]) => (b.time || 0) - (a.time || 0));
+              if (!pending.length) { _snxHideCohostInvitePopup(); return; }
+              for (const [senderUID, data] of pending) {
+                if (window._snxCohostInviteSeen.has(senderUID)) continue;
+                window._snxCohostInviteSeen.add(senderUID);
+                _snxShowCohostInvitePopup({ senderUID, ...data });
+                break;
+              }
+            });
+          })(user.uid);
           // Start passive invite listener for sidebar badge (deferred so arcade IIFE has loaded)
           setTimeout(() => {
             if (typeof window._snxArcadeSubscribeInvites === 'function') window._snxArcadeSubscribeInvites();
@@ -10003,6 +10088,14 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (presenceUnsubscribe) { presenceUnsubscribe(); presenceUnsubscribe = null; }
           // notifUnsubscribe removed — notifications are now handled inside userDataUnsubscribe
           if (userDataUnsubscribe) { userDataUnsubscribe(); userDataUnsubscribe = null; }
+          // Tear down the global co-host invite listener so it doesn't fire
+          // against a null user after sign-out.
+          if (window._snxCohostInviteRef) {
+              try { _rtdbOff(window._snxCohostInviteRef); } catch(_) {}
+              window._snxCohostInviteRef = null;
+          }
+          _snxHideCohostInvitePopup();
+          if (window._snxCohostInviteSeen) window._snxCohostInviteSeen = new Set();
           // Tear down profile snapshot so it doesn't fire against null currentUser
           if (typeof activeProfileUnsubscribe !== 'undefined' && activeProfileUnsubscribe) {
               activeProfileUnsubscribe(); activeProfileUnsubscribe = null;
@@ -12727,6 +12820,11 @@ body.arcade-fs-ios body::after { display:none !important; }
             if (!isSelf && p.isLive && p.liveRoomId) {
               btnWatchLive.href = `live.html#watch=${encodeURIComponent(p.liveRoomId)}`;
               btnWatchLive.style.display = 'inline-flex';
+              // Pre-warm the live connection on click so the host starts
+              // creating the per-viewer WebRTC offer before the new tab loads.
+              btnWatchLive.onclick = (e) => {
+                if (window._snxPreWarmLive) window._snxPreWarmLive(p.liveRoomId);
+              };
             } else {
               btnWatchLive.style.display = 'none';
             }
@@ -15432,7 +15530,10 @@ body.arcade-fs-ios body::after { display:none !important; }
                   <span class="story-label" style="color:#ff5566;">${escFeed(liveStory.authorName || 'Unknown')}</span>`;
               lvBubble.addEventListener('click', () => {
                   const rid = liveStory.liveRoomId;
-                  if (rid) window.location.href = 'live.html#watch=' + encodeURIComponent(rid);
+                  if (rid) {
+                      if (window._snxPreWarmLive) window._snxPreWarmLive(rid);
+                      window.location.href = 'live.html#watch=' + encodeURIComponent(rid);
+                  }
               });
               // Insert live bubble right after the "Add Story" bubble at position 0
               const addBubble = document.getElementById('storyAddBubble');
@@ -15991,6 +16092,181 @@ document.getElementById("btnForgotPassword").addEventListener("click", function(
 document.getElementById("forgotEmailInput").addEventListener("keydown", function(e) {
     if (e.key === "Enter") { e.preventDefault(); window.sendPasswordReset && window.sendPasswordReset(); }
 });
+
+/* ── Global co-host invite pop-up (runs at all times while logged in) ──
+   These functions are called by the _snxGlobalCohostInvite listener that
+   runs inside onAuthStateChanged. The pop-up is injected lazily into the
+   DOM the first time an invite arrives so it does not add any weight to
+   the initial page load. The pop-up matches the cohost.css invite card
+   style so the experience is consistent with the live page.
+   - Accept  : navigates to the friend's live room (live.html#watch=roomId)
+              and writes the co-host acceptance to RTDB + Firestore so the
+              host sees the co-host join in real time.
+   - Decline : removes the invite from RTDB (host is notified via their
+              own RTDB listener on coHostInvites/{senderUID}).
+   Duplicates are prevented by _snxCohostInviteSeen (a Set of sender UIDs
+   already shown). The invite is auto-removed from RTDB on both Accept and
+   Decline so it never re-appears. */
+function _snxEnsureCohostInvitePopup() {
+    // Inject the styles once (idempotent) so the pop-up looks right without
+    // requiring cohost.css to be loaded on the main app pages.
+    if (!document.getElementById('snxGlobalCohostStyles')) {
+        const st = document.createElement('style');
+        st.id = 'snxGlobalCohostStyles';
+        st.textContent = [
+            '#snxGlobalCohostCard{display:none;position:fixed;top:72px;left:50%;',
+            'transform:translateX(-50%);width:min(300px,calc(100vw - 28px));',
+            'background:rgba(4,10,28,0.97);backdrop-filter:blur(14px);',
+            'border:1.5px solid rgba(160,80,255,0.6);border-radius:16px;',
+            'padding:16px 16px 14px;z-index:9200;text-align:center;',
+            'animation:snxGcCardIn 0.22s ease-out both;}',
+            '#snxGlobalCohostCard.visible{display:block;}',
+            '@keyframes snxGcCardIn{from{opacity:0;transform:translateX(-50%) translateY(-12px);}',
+            'to{opacity:1;transform:translateX(-50%) translateY(0);}}',
+            '.snx-gc-icon{font-size:32px;line-height:1;margin-bottom:8px;}',
+            '.snx-gc-title{font-size:14px;font-weight:800;color:#e8d8ff;margin-bottom:4px;}',
+            '.snx-gc-sub{font-size:12px;color:#8a6ab8;line-height:1.5;margin-bottom:12px;}',
+            '.snx-gc-actions{display:flex;gap:10px;}',
+            '.snx-gc-accept{flex:1;padding:10px;border-radius:10px;',
+            'background:rgba(80,200,100,0.2);border:1.5px solid rgba(60,220,90,0.55);',
+            'color:#60e870;font-size:13px;font-weight:800;cursor:pointer;',
+            'transition:background 0.15s;touch-action:manipulation;}',
+            '.snx-gc-accept:hover{background:rgba(80,200,100,0.38);}',
+            '.snx-gc-deny{flex:1;padding:10px;border-radius:10px;',
+            'background:rgba(180,0,30,0.16);border:1.5px solid rgba(255,50,70,0.4);',
+            'color:#ff5566;font-size:13px;font-weight:800;cursor:pointer;',
+            'transition:background 0.15s;touch-action:manipulation;}',
+            '.snx-gc-deny:hover{background:rgba(220,0,40,0.3);}',
+        ].join('');
+        document.head.appendChild(st);
+    }
+    if (document.getElementById('snxGlobalCohostCard')) return;
+    const card = document.createElement('div');
+    card.id = 'snxGlobalCohostCard';
+    card.innerHTML =
+        '<div class="snx-gc-icon">🎬</div>' +
+        '<div class="snx-gc-title">Co-host Invite</div>' +
+        '<div class="snx-gc-sub" id="snxGlobalCohostSub">Someone wants you to join as a co-host.</div>' +
+        '<div class="snx-gc-actions">' +
+          '<button class="snx-gc-accept" id="snxGlobalCohostAccept">ACCEPT</button>' +
+          '<button class="snx-gc-deny"   id="snxGlobalCohostDeny">DECLINE</button>' +
+        '</div>';
+    document.body.appendChild(card);
+}
+
+function _snxShowCohostInvitePopup(data) {
+    _snxEnsureCohostInvitePopup();
+    const card = document.getElementById('snxGlobalCohostCard');
+    const sub  = document.getElementById('snxGlobalCohostSub');
+    if (!card) return;
+    // data.from is the sender's display name; data.senderUID is their UID.
+    const senderName = data.from || data.fromName || 'Someone';
+    if (sub) sub.textContent = senderName + ' wants you to join as a co-host';
+    card.dataset.senderUid = data.senderUID || '';
+    card.dataset.roomId     = data.roomId    || '';
+    card.classList.add('visible');
+    // Notify the button-wiring logic so Accept/Decline get bound even if the
+    // card was created after the initial wiring interval already cleared.
+    document.dispatchEvent(new CustomEvent('snx:cohostPopupShown'));
+}
+
+function _snxHideCohostInvitePopup() {
+    const card = document.getElementById('snxGlobalCohostCard');
+    if (card) card.classList.remove('visible');
+}
+
+/* Accept the co-host invite.
+   1. Write co-host acceptance to RTDB cohosts/{roomId}/active/{uid} so the
+      host sees the co-host join in real time.
+   2. Write Firestore coHosts/{uid} = { coHost: true } (merge) so the app
+      knows this user is a co-host.
+   3. Remove the invite from RTDB coHostInvites/{uid}/{senderUID} so it
+      never re-appears.
+   4. Navigate to the friend's live room as a viewer/co-host.
+   NOTE: These helpers live in a plain (non-module) script, so they use the
+   window-exposed namespaces (window._snxRtdbApi, window._snxFirestore,
+   window._snxCurrentUser, window._snxUserData) instead of the
+   module-scoped Firebase handles. */
+async function _snxAcceptCohostInvite() {
+    const card = document.getElementById('snxGlobalCohostCard');
+    if (!card) return;
+    const senderUID = card.dataset.senderUid || '';
+    const roomId    = card.dataset.roomId    || '';
+    const myUid     = (window._snxCurrentUser && window._snxCurrentUser.uid) || '';
+    _snxHideCohostInvitePopup();
+    if (!senderUID || !myUid) { toastNotification('Could not accept invite.'); return; }
+    const rtdb = window._snxRtdbApi || {};
+    const rdb  = rtdb.getDatabase ? rtdb.getDatabase(window._snxApp) : null;
+    if (!rdb) { toastNotification('Connection error. Please try again.'); return; }
+    const rRef = rtdb.ref, rSet = rtdb.set, rRemove = rtdb.remove;
+    try {
+        // 1. Add to cohosts/{roomId}/active/ (host sees in real time)
+        if (roomId && rRef && rSet) {
+            await rSet(rRef(rdb, 'cohosts/' + roomId + '/active/' + myUid), {
+                uid: myUid,
+                name: (window._snxUserData && (window._snxUserData.displayName || window._snxUserData.username)) || 'Co-Host',
+                avatar: (window._snxUserData && (window._snxUserData.avatar || window._snxUserData.profilePicture)) || '',
+                role: 'cohost',
+                joinedAt: Date.now(),
+            });
+        }
+        // 2. Firestore coHosts/{uid} = { coHost: true }
+        const fs = window._snxFirestore || {};
+        if (fs.setDoc && fs.doc && fs.db) {
+            try { await fs.setDoc(fs.doc(fs.db, 'coHosts', myUid), { coHost: true }, { merge: true }); } catch(_) {}
+        }
+        // 3. Remove the invite from RTDB
+        if (rRef && rRemove) await rRemove(rRef(rdb, 'coHostInvites/' + myUid + '/' + senderUID));
+        toastNotification('🎥 You are now a co-host!');
+    } catch (e) {
+        console.error('[CoHost] accept error:', e);
+        toastNotification('Could not accept invite. Please try again.');
+    }
+    // 4. Navigate to the friend's live room
+    if (roomId) {
+        setTimeout(() => { window.location.href = 'live.html#watch=' + roomId; }, 350);
+    }
+}
+
+/* Decline the co-host invite.
+   1. Set status to 'denied' (host is notified via their RTDB listener).
+   2. Remove the invite from RTDB so it never re-appears. */
+async function _snxDeclineCohostInvite() {
+    const card = document.getElementById('snxGlobalCohostCard');
+    if (!card) return;
+    const senderUID = card.dataset.senderUid || '';
+    const myUid     = (window._snxCurrentUser && window._snxCurrentUser.uid) || '';
+    _snxHideCohostInvitePopup();
+    if (!senderUID || !myUid) return;
+    const rtdb = window._snxRtdbApi || {};
+    const rdb  = rtdb.getDatabase ? rtdb.getDatabase(window._snxApp) : null;
+    if (!rdb) return;
+    const rRef = rtdb.ref, rUpdate = rtdb.update, rRemove = rtdb.remove;
+    try {
+        if (rRef && rUpdate) await rUpdate(rRef(rdb, 'coHostInvites/' + myUid + '/' + senderUID), { status: 'denied' });
+        if (rRef && rRemove) await rRemove(rRef(rdb, 'coHostInvites/' + myUid + '/' + senderUID));
+    } catch(_) {}
+    toastNotification('Co-host invite declined.');
+}
+
+/* Wire the Accept / Decline buttons once (idempotent). */
+(function _snxWireCohostPopupButtons() {
+    function _wire() {
+        const a = document.getElementById('snxGlobalCohostAccept');
+        const d = document.getElementById('snxGlobalCohostDeny');
+        if (a && !a._snxWired) { a._snxWired = true; a.addEventListener('click', _snxAcceptCohostInvite); }
+        if (d && !d._snxWired) { d._snxWired = true; d.addEventListener('click', _snxDeclineCohostInvite); }
+    }
+    // The buttons are created lazily inside _snxEnsureCohostInvitePopup, so
+    // re-run the wiring on a short interval until they exist. Once wired,
+    // the flags prevent double-binding.
+    const iv = setInterval(() => {
+        if (document.getElementById('snxGlobalCohostAccept')) { _wire(); clearInterval(iv); }
+    }, 800);
+    // Also re-wire whenever the pop-up is shown (covers the case where the
+    // card was created after the interval already cleared).
+    document.addEventListener('snx:cohostPopupShown', () => _wire());
+})();
 
 /* ── Toast with slide-up / fade animation ── */
 function toastNotification(msg) {
@@ -24292,7 +24568,7 @@ window.adminLoadLiveRooms = async function() {
   list.innerHTML = '<div style="color:#4a6a8a;font-size:13px;text-align:center;padding:20px 0;">Loading…</div>';
 
   // Load from RTDB (all rooms — active + ended)
-  const { getDatabase, ref: rtdbRef, get: rtdbGet } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+  const { getDatabase, ref: rtdbRef, get: rtdbGet } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
   const rtdb = getDatabase(window._snxApp);
   let rtdbRooms = {};
   try {
@@ -24353,7 +24629,7 @@ window.adminEndLiveRoom = async function(roomId, hostId, btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'Ending…'; }
   try {
     // RTDB
-    const { getDatabase, ref: rtdbRef, update: rtdbUpdate, remove: rtdbRemove } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+    const { getDatabase, ref: rtdbRef, update: rtdbUpdate, remove: rtdbRemove } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
     const rtdb = getDatabase(window._snxApp);
     await rtdbUpdate(rtdbRef(rtdb, `liveRooms/${roomId}`), { status: 'ended', isLive: false, endedAt: Date.now() });
     await rtdbRemove(rtdbRef(rtdb, `liveConnections/${roomId}`));
@@ -24384,7 +24660,7 @@ window.adminDeleteLiveRoom = async function(roomId, hostId, btn) {
   if (!confirm('Permanently delete this room from the database?')) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
   try {
-    const { getDatabase, ref: rtdbRef, remove: rtdbRemove } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+    const { getDatabase, ref: rtdbRef, remove: rtdbRemove } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
     const rtdb = getDatabase(window._snxApp);
     await rtdbRemove(rtdbRef(rtdb, `liveRooms/${roomId}`));
     await rtdbRemove(rtdbRef(rtdb, `liveConnections/${roomId}`));
@@ -24406,7 +24682,7 @@ window.adminDeleteLiveRoom = async function(roomId, hostId, btn) {
 window.adminPurgeEndedRooms = async function() {
   if (!founderOnly()) return;
   if (!confirm('Delete ALL ended/inactive rooms from both RTDB and Firestore?')) return;
-  const { getDatabase, ref: rtdbRef, get: rtdbGet, remove: rtdbRemove } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+  const { getDatabase, ref: rtdbRef, get: rtdbGet, remove: rtdbRemove } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
   const rtdb = getDatabase(window._snxApp);
   let deleted = 0;
   try {
