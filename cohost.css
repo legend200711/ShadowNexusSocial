@@ -35,6 +35,38 @@
 /* Hide from viewers — host only */
 body.is-viewer #btnCoHost { display: none !important; }
 
+/* ═══════════════════════════════════════════════════════════════
+   GLOBAL CO-HOST DISABLE — when the Founder toggles the Co-Host
+   System OFF site-wide, the JS adds the class `cohost-disabled`
+   to <body>. These rules use !important so NO other CSS or inline
+   style can override them. Every single piece of co-host UI must
+   vanish for every user — host or viewer — so nobody can see or
+   try to use the feature while it is disabled.
+   ═══════════════════════════════════════════════════════════════ */
+body.cohost-disabled #btnCoHost,
+body.cohost-disabled #cohostPanel,
+body.cohost-disabled #cohostInviteCard,
+body.cohost-disabled #cohostSettingsSection,
+body.cohost-disabled .cohost-badge-pill,
+body.cohost-disabled .cohost-invite-overlay,
+body.cohost-disabled #cohostActiveBadge,
+body.cohost-disabled .cohost-user-list,
+body.cohost-disabled .cohost-invite-card,
+body.cohost-disabled .cohost-settings-row,
+body.cohost-disabled #snxGlobalCohostCard,
+body.cohost-disabled #snxGlobalCohostStyles,
+body.cohost-disabled [class*="cohost"],
+body.cohost-disabled [id*="cohost"],
+body.cohost-disabled [id*="CoHost"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
 /* ══════════════════════════════════════════════════════
    CO-HOST SETTINGS PANEL
    Hidden by default. Opened only when host taps the button.
@@ -387,4 +419,4 @@ body.is-viewer #btnCoHost { display: none !important; }
 @media (orientation: landscape) and (max-height: 500px) {
   #btnCoHost { width: 34px; height: 34px; font-size: 14px; }
   #cohostPanel { bottom: 60px; max-height: calc(100vh - 80px); }
-}
+   }
