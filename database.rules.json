@@ -160,6 +160,11 @@
 
     // ── Online / live presence for friends list ───────────────────────
     "users": {
+      // Any authenticated user can read the entire users/ node so the
+      // co-host panel can scan for live:true entries as a fallback when
+      // Firestore isLive queries fail. (Individual users/{uid} reads
+      // were already allowed; this adds the parent-level read.)
+      ".read":  "auth != null",
       "$uid": {
         ".read":  "auth != null",
         ".write": "auth != null && auth.uid == $uid"
