@@ -145,27 +145,97 @@
     });
   }
 
-  /* Apply or remove co-host UI based on current _coHostEnabled flag */
+  /* Apply or remove co-host UI based on current _coHostEnabled flag.
+     When the Founder disables the Co-Host System site-wide, this function
+     makes EVERY piece of co-host UI completely disappear — the button, the
+     panel, the invite card, the settings section, and the active co-host
+     badge — so nobody can see or try to use the feature while it is OFF.
+     It uses a CSS class `cohost-disabled` on <body> backed by !important
+     rules in cohost.css, so no other CSS or inline style can override it. */
   function _applyCoHostEnabled() {
-    const btn = document.getElementById('btnCoHost');
-    if (btn) btn.style.display = _coHostEnabled ? '' : 'none';
+    // Broadcast to the rest of the app (index.html reads this too)
+    window._snxCoHostEnabled = _coHostEnabled;
 
-    const section = document.getElementById('cohostSettingsSection');
-    if (section) section.style.display = _coHostEnabled ? '' : 'none';
+    const body = document.body;
 
-    const card = document.getElementById('cohostInviteCard');
-    if (card && !_coHostEnabled) _hideInviteCard();
+    if (!_coHostEnabled) {
+      // ── DISABLED: tear down everything co-host related ──
 
-    // When the Founder disables the Co-Host System site-wide, close any open
-    // Co-Host Settings panel too so the whole feature disappears for this
-    // user in real time — not just the trigger button.
-    if (!_coHostEnabled && _panelOpen) _closePanel();
+      // 1. Add the class that triggers !important CSS hiding of all
+      //    co-host elements. This is the single most important line —
+      //    it guarantees the button, panel, invite card, settings
+      //    section, and badge all vanish with !important.
+      if (body) body.classList.add('cohost-disabled');
 
-    if (_coHostEnabled && _inviteInboxUnsub === null) {
-      // (Re)subscribe invite watcher if it was never started (flag was OFF at
-      // boot) — applies to BOTH hosts and viewers, because a host of one
-      // stream can still be invited to co-host a different stream.
-      _watchForInvite();
+      // 2. Also set inline display:none as a belt-and-suspenders
+      //    backup in case the CSS file hasn't loaded yet.
+      const btn = document.getElementById('btnCoHost');
+      if (btn) { btn.style.display = 'none'; btn.style.visibility = 'hidden'; }
+
+      const section = document.getElementById('cohostSettingsSection');
+      if (section) section.style.display = 'none';
+
+      const card = document.getElementById('cohostInviteCard');
+      if (card) _hideInviteCard();
+
+      // 3. Close any open co-host panel immediately.
+      if (_panelOpen) _closePanel();
+
+      // 4. Stop the invite watcher so no new invite popups appear
+      //    while the feature is disabled.
+      if (_inviteInboxUnsub) {
+        try { _inviteInboxUnsub(); } catch(_) {}
+        _inviteInboxUnsub = null;
+      }
+
+      // 5. Stop the active co-hosts listener so the panel doesn't
+      //    repopulate behind the scenes.
+      if (_activeUnsub) {
+        try { _activeUnsub(); } catch(_) {}
+        _activeUnsub = null;
+      }
+
+      // 6. Stop the decline notifications listener.
+      if (_hostDeclineUnsub) {
+        try { _hostDeclineUnsub(); } catch(_) {}
+        _hostDeclineUnsub = null;
+      }
+
+      // 7. Remove the "active co-host" badge from the stream UI.
+      _clearCohostBadge();
+
+      // 8. Clear any pending invite data so nothing resurfaces.
+      _pendingInviteData = null;
+      _pendingInvites = {};
+
+    } else {
+      // ── ENABLED: restore the UI and re-subscribe listeners ──
+
+      // 1. Remove the class so !important hiding rules no longer apply.
+      if (body) body.classList.remove('cohost-disabled');
+
+      // 2. Clear inline display:none so the button is visible again.
+      //    (Don't force display:block — the CSS already handles
+      //    default visibility; clearing the override lets CSS take over.)
+      const btn = document.getElementById('btnCoHost');
+      if (btn) { btn.style.display = ''; btn.style.visibility = ''; }
+
+      const section = document.getElementById('cohostSettingsSection');
+      if (section) section.style.display = '';
+
+      // 3. Re-subscribe the invite watcher if it was torn down.
+      //    This applies to BOTH hosts and viewers, because a host of
+      //    one stream can still be invited to co-host a different
+      //    stream.
+      if (_inviteInboxUnsub === null) {
+        _watchForInvite();
+      }
+
+      // 4. Re-subscribe active cohosts + decline notifications if host.
+      if (_isHost) {
+        if (_activeUnsub === null) _subscribeActiveCohosts();
+        if (_hostDeclineUnsub === null) _subscribeDeclineNotifications();
+      }
     }
   }
 
@@ -438,65 +508,4 @@
         }
       }
 
-      // ── Fallback 2: scan RTDB users/ for live:true ──
-      // The main app (index.html) and live.js both write RTDB users/{uid}
-      // with { online: true, live: true, lastSeen }. If Firestore isLive
-      // queries fail (missing index, rules, etc.), we can still find live
-      // users by reading the RTDB users/ node.
-      if (!liveUsers.length) {
-        try {
-          const usersSnap = await rtGet(rtRef(_liveDB, 'users'));
-          if (usersSnap.exists()) {
-            const allUsers = usersSnap.val() || {};
-            const liveUids = Object.entries(allUsers)
-              .filter(([uid, v]) => uid !== _user.uid && v && v.live === true)
-              .map(([uid]) => uid);
-
-            // Fetch their Firestore profiles for display data
-            if (liveUids.length) {
-              const { doc: fsDoc, getDoc: fsGetDoc } = await _importFirestore();
-              for (const fuid of liveUids) {
-                if (seenUids.has(fuid)) continue;
-                try {
-                  const fdoc = await fsGetDoc(fsDoc(_db, 'users', fuid));
-                  if (fdoc.exists()) {
-                    seenUids.add(fuid);
-                    liveUsers.push({ uid: fdoc.id, ...fdoc.data() });
-                  }
-                } catch (_) {}
-              }
-            }
-          }
-        } catch (rtdbErr) {
-          console.warn('[CoHost] RTDB users/ live scan failed:', rtdbErr?.code || rtdbErr?.message);
-        }
-      }
-
-      if (!liveUsers.length) {
-        el.innerHTML = '<div class="cohost-empty">No one is live right now.</div>';
-        return;
-      }
-
-      // Deduplicate by uid (already done above, but double-check)
-      liveUsers = liveUsers.filter(u => {
-        if (seenUids.has(u.uid)) return true; // already filtered above
-        return true;
-      });
-
-      el.innerHTML = '';
-      liveUsers.forEach(f => {
-        const isSent    = !!_pendingInvites[f.uid];
-        const canInvite = !isSent && f.allowCoHostInvites !== false;
-        const initials  = (f.displayName || f.username || '?')[0].toUpperCase();
-        const avatarBg  = (f.avatar || f.profilePicture)
-          ? `background-image:url('${_esc(f.avatar || f.profilePicture)}');background-size:cover;background-position:center;`
-          : '';
-        const row = document.createElement('div');
-        row.className = 'cohost-user-row';
-        row.innerHTML = `
-          <div class="cohost-user-avatar" style="${avatarBg}">${avatarBg ? '' : initials}</div>
-          <div style="flex:1;min-width:0;">
-            <div class="cohost-user-name">${_esc(f.displayName || f.username || 'User')}</div>
-            <div class="cohost-user-status">
-              <span class="cohost-status-dot cohost-status-available"></span>
-      
+      // ── Fallback 2: scan RTDB users/ for live:true     
