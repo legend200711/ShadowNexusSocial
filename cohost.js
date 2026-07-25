@@ -226,6 +226,14 @@
 
       <hr class="cohost-divider">
 
+      <!-- Live Now -->
+      <div class="cohost-section-label">🔴 Live Now</div>
+      <div id="cohostLiveList" class="cohost-user-list">
+        <div class="cohost-empty">No one is live right now.</div>
+      </div>
+
+      <hr class="cohost-divider">
+
       <!-- Friends list -->
       <div class="cohost-section-label">Friends</div>
       <div id="cohostFriendsList" class="cohost-user-list">
@@ -343,8 +351,9 @@
     panel.classList.add('visible');
     btn && btn.classList.add('cohost-active');
     _panelOpen = true;
-    // Load friends list every time the panel opens
+    // Load friends list + live users every time the panel opens
     _loadFriendsList();
+    _loadLiveUsers();
   }
 
   function _closePanel() {
@@ -355,6 +364,112 @@
     btn && btn.classList.remove('cohost-active');
     _panelOpen = false;
   }
+  /* Load users who are currently live (for the "Live Now" section) */
+  async function _loadLiveUsers() {
+    const el = document.getElementById('cohostLiveList');
+    if (!el) return;
+    el.innerHTML = '<div class="cohost-empty">Loading…</div>';
+
+    if (!_db || !_user) {
+      el.innerHTML = '<div class="cohost-empty">Not connected.</div>';
+      return;
+    }
+
+    try {
+      const { collection: fsCol, query: fsQuery, where: fsWhere, getDocs: fsGetDocs } =
+        await _importFirestore();
+
+      let liveUsers = [];
+
+      // Primary approach: query users where isLive == true
+      try {
+        const q = fsQuery(fsCol(_db, 'users'), fsWhere('isLive', '==', true));
+        const snap = await fsGetDocs(q);
+        snap.forEach(d => {
+          if (d.id !== _user.uid) {
+            liveUsers.push({ uid: d.id, ...d.data() });
+          }
+        });
+      } catch (liveErr) {
+        console.warn('[CoHost] live users query failed:', liveErr?.code || liveErr?.message);
+      }
+
+      // Fallback: if the isLive query returned nothing or failed,
+      // try fetching the host's friends and filter for isLive ones.
+      if (!liveUsers.length) {
+        try {
+          const { doc: fsDoc, getDoc: fsGetDoc } = await _importFirestore();
+          const myDoc = await fsGetDoc(fsDoc(_db, 'users', _user.uid));
+          const friendUids = (myDoc.exists() && myDoc.data().friends) || [];
+          if (friendUids.length) {
+            for (const fuid of friendUids) {
+              if (fuid === _user.uid) continue;
+              try {
+                const fdoc = await fsGetDoc(fsDoc(_db, 'users', fuid));
+                if (fdoc.exists() && fdoc.data().isLive) {
+                  liveUsers.push({ uid: fdoc.id, ...fdoc.data() });
+                }
+              } catch (e) {
+                /* skip individual failures */
+              }
+            }
+          }
+        } catch (fallbackErr) {
+          console.warn('[CoHost] live users fallback failed:', fallbackErr?.code || fallbackErr?.message);
+        }
+      }
+
+      if (!liveUsers.length) {
+        el.innerHTML = '<div class="cohost-empty">No one is live right now.</div>';
+        return;
+      }
+
+      // Deduplicate by uid
+      const seen = new Set();
+      liveUsers = liveUsers.filter(u => {
+        if (seen.has(u.uid)) return false;
+        seen.add(u.uid);
+        return true;
+      });
+
+      el.innerHTML = '';
+      liveUsers.forEach(f => {
+        const isSent    = !!_pendingInvites[f.uid];
+        const canInvite = !isSent && f.allowCoHostInvites !== false;
+        const initials  = (f.displayName || f.username || '?')[0].toUpperCase();
+        const avatarBg  = (f.avatar || f.profilePicture)
+          ? `background-image:url('${_esc(f.avatar || f.profilePicture)}');background-size:cover;background-position:center;`
+          : '';
+        const row = document.createElement('div');
+        row.className = 'cohost-user-row';
+        row.innerHTML = `
+          <div class="cohost-user-avatar" style="${avatarBg}">${avatarBg ? '' : initials}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="cohost-user-name">${_esc(f.displayName || f.username || 'User')}</div>
+            <div class="cohost-user-status">
+              <span class="cohost-status-dot cohost-status-available"></span>
+              <span class="cohost-status-label">🔴 Live</span>
+            </div>
+          </div>
+          ${isSent
+            ? `<button class="cohost-invite-btn sent" disabled>✓ Sent</button>`
+            : `<button class="cohost-invite-btn${canInvite ? '' : ' disabled'}"
+                 data-uid="${f.uid}"
+                 ${canInvite ? '' : 'disabled'}
+               >Invite</button>`
+          }
+        `;
+        if (canInvite) {
+          row.querySelector('.cohost-invite-btn').addEventListener('click', () => _sendInvite(f));
+        }
+        el.appendChild(row);
+      });
+    } catch (e) {
+      console.error('[CoHost] loadLiveUsers error:', e?.code, e?.message, e);
+      el.innerHTML = '<div class="cohost-empty">Could not load live users.</div>';
+    }
+  }
+
 
   /* ═══════════════════════════════════════════════════════════════════════════
      FRIENDS LIST — load host's friends, fetch their presence + cohost status
@@ -381,11 +496,6 @@
       const hostData = hostSnap.data();
       const friendIds = hostData.friends || [];
 
-      if (!friendIds.length) {
-        el.innerHTML = '<div class="cohost-empty">No friends found. Add friends to invite co-hosts.</div>';
-        return;
-      }
-
       // Load friend profiles (batch by 10 — Firestore in() limit)
       const { collection: fsCol, query: fsQuery, where: fsWhere, getDocs: fsGetDocs } =
         await _importFirestore();
@@ -405,7 +515,38 @@
               friends.push({ uid: d.id, ...d.data() });
             }
           });
-        } catch (_) {}
+        } catch (batchErr) {
+          // Batch query failed — fall back to individual doc reads
+          console.warn('[CoHost] batch query failed, falling back to individual reads:', batchErr?.code || batchErr?.message);
+          for (const fid of chunk) {
+            if (fid === _user.uid) continue;
+            try {
+              const fSnap = await fsGetDoc(fsDoc(_db, 'users', fid));
+              if (fSnap.exists()) {
+                friends.push({ uid: fSnap.id, ...fSnap.data() });
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      // If no friends found from the friends array, also load users who are
+      // currently live so the host can still invite someone to co-host.
+      if (!friends.length) {
+        try {
+          const liveQ = fsQuery(fsCol(_db, 'users'), fsWhere('isLive', '==', true));
+          const liveSnap = await fsGetDocs(liveQ);
+          liveSnap.forEach(d => {
+            if (d.id !== _user.uid) {
+              friends.push({ uid: d.id, ...d.data() });
+            }
+          });
+          if (friends.length) {
+            console.log('[CoHost] No friends in list; showing ' + friends.length + ' live users as fallback.');
+          }
+        } catch (liveErr) {
+          console.warn('[CoHost] live users fallback query failed:', liveErr?.code || liveErr?.message);
+        }
       }
 
       if (!friends.length) {
@@ -485,7 +626,10 @@
     el.innerHTML = '';
     sorted.forEach(f => {
       const isSent   = !!_pendingInvites[f.uid];
-      const canInvite = (f.status === 'available' || f.status === 'online') && !isSent;
+      // Allow inviting any friend regardless of status — the invite is
+      // delivered via RTDB and the global listener in index.html will
+      // show it to them when they come online or are on the app.
+      const canInvite = !isSent && f.allowCoHostInvites !== false;
       const { label: statusLabel, cls: statusCls } = _statusInfo(f.status);
       const initials  = (f.displayName || f.username || '?')[0].toUpperCase();
       const avatarBg  = (f.avatar || f.profilePicture)
@@ -507,7 +651,7 @@
           ? `<button class="cohost-invite-btn sent" disabled>✓ Sent</button>`
           : `<button class="cohost-invite-btn${canInvite ? '' : ' disabled'}"
                data-uid="${f.uid}"
-               ${canInvite ? '' : 'disabled title="Friend is not available"'}
+               ${canInvite ? '' : 'disabled title="This user has disabled co-host invites"'}
              >Invite</button>`
         }
       `;
