@@ -70,6 +70,7 @@
   let _pendingInvites   = {};     // guestId → requestId  (sent this session)
   let _friendsCache     = [];     // [{uid, displayName, username, avatar, status}]
   let _panelOpen        = false;
+  let _presenceTimer    = null;   // periodic refresh of friends + live lists
 
   // ── Settings defaults ──────────────────────────────────────────────────────
   let _cohostSettings = {
@@ -354,6 +355,18 @@
     // Load friends list + live users every time the panel opens
     _loadFriendsList();
     _loadLiveUsers();
+    // Refresh every 15 s while the panel is open so status dots update
+    // in real time (RTDB presence changes, new live users, etc.)
+    if (_presenceTimer) clearInterval(_presenceTimer);
+    _presenceTimer = setInterval(() => {
+      if (!_panelOpen) {
+        clearInterval(_presenceTimer);
+        _presenceTimer = null;
+        return;
+      }
+      _loadFriendsList();
+      _loadLiveUsers();
+    }, 15000);
   }
 
   function _closePanel() {
@@ -363,6 +376,11 @@
     panel.classList.remove('visible');
     btn && btn.classList.remove('cohost-active');
     _panelOpen = false;
+    // Stop the periodic refresh when the panel closes
+    if (_presenceTimer) {
+      clearInterval(_presenceTimer);
+      _presenceTimer = null;
+    }
   }
   /* Load users who are currently live (for the "Live Now" section) */
   async function _loadLiveUsers() {
@@ -378,15 +396,18 @@
     try {
       const { collection: fsCol, query: fsQuery, where: fsWhere, getDocs: fsGetDocs } =
         await _importFirestore();
+      const { ref: rtRef, get: rtGet } = await _importRTDB();
 
       let liveUsers = [];
+      const seenUids = new Set();
 
-      // Primary approach: query users where isLive == true
+      // ── Primary approach: query Firestore users where isLive == true ──
       try {
         const q = fsQuery(fsCol(_db, 'users'), fsWhere('isLive', '==', true));
         const snap = await fsGetDocs(q);
         snap.forEach(d => {
-          if (d.id !== _user.uid) {
+          if (d.id !== _user.uid && !seenUids.has(d.id)) {
+            seenUids.add(d.id);
             liveUsers.push({ uid: d.id, ...d.data() });
           }
         });
@@ -394,8 +415,7 @@
         console.warn('[CoHost] live users query failed:', liveErr?.code || liveErr?.message);
       }
 
-      // Fallback: if the isLive query returned nothing or failed,
-      // try fetching the host's friends and filter for isLive ones.
+      // ── Fallback 1: check the host's friends for isLive ──
       if (!liveUsers.length) {
         try {
           const { doc: fsDoc, getDoc: fsGetDoc } = await _importFirestore();
@@ -403,19 +423,52 @@
           const friendUids = (myDoc.exists() && myDoc.data().friends) || [];
           if (friendUids.length) {
             for (const fuid of friendUids) {
-              if (fuid === _user.uid) continue;
+              if (fuid === _user.uid || seenUids.has(fuid)) continue;
               try {
                 const fdoc = await fsGetDoc(fsDoc(_db, 'users', fuid));
                 if (fdoc.exists() && fdoc.data().isLive) {
+                  seenUids.add(fuid);
                   liveUsers.push({ uid: fdoc.id, ...fdoc.data() });
                 }
-              } catch (e) {
-                /* skip individual failures */
-              }
+              } catch (e) { /* skip individual failures */ }
             }
           }
         } catch (fallbackErr) {
           console.warn('[CoHost] live users fallback failed:', fallbackErr?.code || fallbackErr?.message);
+        }
+      }
+
+      // ── Fallback 2: scan RTDB users/ for live:true ──
+      // The main app (index.html) and live.js both write RTDB users/{uid}
+      // with { online: true, live: true, lastSeen }. If Firestore isLive
+      // queries fail (missing index, rules, etc.), we can still find live
+      // users by reading the RTDB users/ node.
+      if (!liveUsers.length) {
+        try {
+          const usersSnap = await rtGet(rtRef(_liveDB, 'users'));
+          if (usersSnap.exists()) {
+            const allUsers = usersSnap.val() || {};
+            const liveUids = Object.entries(allUsers)
+              .filter(([uid, v]) => uid !== _user.uid && v && v.live === true)
+              .map(([uid]) => uid);
+
+            // Fetch their Firestore profiles for display data
+            if (liveUids.length) {
+              const { doc: fsDoc, getDoc: fsGetDoc } = await _importFirestore();
+              for (const fuid of liveUids) {
+                if (seenUids.has(fuid)) continue;
+                try {
+                  const fdoc = await fsGetDoc(fsDoc(_db, 'users', fuid));
+                  if (fdoc.exists()) {
+                    seenUids.add(fuid);
+                    liveUsers.push({ uid: fdoc.id, ...fdoc.data() });
+                  }
+                } catch (_) {}
+              }
+            }
+          }
+        } catch (rtdbErr) {
+          console.warn('[CoHost] RTDB users/ live scan failed:', rtdbErr?.code || rtdbErr?.message);
         }
       }
 
@@ -424,11 +477,9 @@
         return;
       }
 
-      // Deduplicate by uid
-      const seen = new Set();
+      // Deduplicate by uid (already done above, but double-check)
       liveUsers = liveUsers.filter(u => {
-        if (seen.has(u.uid)) return false;
-        seen.add(u.uid);
+        if (seenUids.has(u.uid)) return true; // already filtered above
         return true;
       });
 
@@ -448,692 +499,4 @@
             <div class="cohost-user-name">${_esc(f.displayName || f.username || 'User')}</div>
             <div class="cohost-user-status">
               <span class="cohost-status-dot cohost-status-available"></span>
-              <span class="cohost-status-label">🔴 Live</span>
-            </div>
-          </div>
-          ${isSent
-            ? `<button class="cohost-invite-btn sent" disabled>✓ Sent</button>`
-            : `<button class="cohost-invite-btn${canInvite ? '' : ' disabled'}"
-                 data-uid="${f.uid}"
-                 ${canInvite ? '' : 'disabled'}
-               >Invite</button>`
-          }
-        `;
-        if (canInvite) {
-          row.querySelector('.cohost-invite-btn').addEventListener('click', () => _sendInvite(f));
-        }
-        el.appendChild(row);
-      });
-    } catch (e) {
-      console.error('[CoHost] loadLiveUsers error:', e?.code, e?.message, e);
-      el.innerHTML = '<div class="cohost-empty">Could not load live users.</div>';
-    }
-  }
-
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     FRIENDS LIST — load host's friends, fetch their presence + cohost status
-     ═══════════════════════════════════════════════════════════════════════════ */
-  async function _loadFriendsList() {
-    const el = document.getElementById('cohostFriendsList');
-    if (!el) return;
-    el.innerHTML = '<div class="cohost-empty">Loading friends…</div>';
-
-    if (!_db || !_user) {
-      el.innerHTML = '<div class="cohost-empty">Not connected.</div>';
-      return;
-    }
-
-    try {
-      const { doc: fsDoc, getDoc: fsGetDoc } = await _importFirestore();
-
-      // Load host's own profile to get friends list
-      const hostSnap = await fsGetDoc(fsDoc(_db, 'users', _user.uid));
-      if (!hostSnap.exists()) {
-        el.innerHTML = '<div class="cohost-empty">Could not load profile.</div>';
-        return;
-      }
-      const hostData = hostSnap.data();
-      const friendIds = hostData.friends || [];
-
-      // Load friend profiles (batch by 10 — Firestore in() limit)
-      const { collection: fsCol, query: fsQuery, where: fsWhere, getDocs: fsGetDocs } =
-        await _importFirestore();
-
-      const friends = [];
-      // Chunk into groups of 10
-      const chunks = [];
-      for (let i = 0; i < friendIds.length; i += 10) {
-        chunks.push(friendIds.slice(i, i + 10));
-      }
-      for (const chunk of chunks) {
-        try {
-          const q = fsQuery(fsCol(_db, 'users'), fsWhere('__name__', 'in', chunk));
-          const snap = await fsGetDocs(q);
-          snap.forEach(d => {
-            if (d.id !== _user.uid) {
-              friends.push({ uid: d.id, ...d.data() });
-            }
-          });
-        } catch (batchErr) {
-          // Batch query failed — fall back to individual doc reads
-          console.warn('[CoHost] batch query failed, falling back to individual reads:', batchErr?.code || batchErr?.message);
-          for (const fid of chunk) {
-            if (fid === _user.uid) continue;
-            try {
-              const fSnap = await fsGetDoc(fsDoc(_db, 'users', fid));
-              if (fSnap.exists()) {
-                friends.push({ uid: fSnap.id, ...fSnap.data() });
-              }
-            } catch (_) {}
-          }
-        }
-      }
-
-      // If no friends found from the friends array, also load users who are
-      // currently live so the host can still invite someone to co-host.
-      if (!friends.length) {
-        try {
-          const liveQ = fsQuery(fsCol(_db, 'users'), fsWhere('isLive', '==', true));
-          const liveSnap = await fsGetDocs(liveQ);
-          liveSnap.forEach(d => {
-            if (d.id !== _user.uid) {
-              friends.push({ uid: d.id, ...d.data() });
-            }
-          });
-          if (friends.length) {
-            console.log('[CoHost] No friends in list; showing ' + friends.length + ' live users as fallback.');
-          }
-        } catch (liveErr) {
-          console.warn('[CoHost] live users fallback query failed:', liveErr?.code || liveErr?.message);
-        }
-      }
-
-      if (!friends.length) {
-        el.innerHTML = '<div class="cohost-empty">No friends found.</div>';
-        return;
-      }
-
-      // Determine co-host availability for each friend.
-      //
-      // Source of truth for "is this person online right now":
-      //   f.status field on the Firestore user doc — written as 'online' / 'offline'
-      //   by index.html on login and on browser unload.  This is what the whole app
-      //   uses for the green-dot presence system.
-      //
-      // RTDB presence/{uid} is a secondary check only written by cohost.js when a
-      // user is on the live page — treat it as a bonus signal, not a gate.
-      const { ref: rtRef, get: rtGet } = await _importRTDB();
-      const withStatus = await Promise.all(friends.map(async f => {
-        // If the user has explicitly disabled co-host invites → busy
-        if (f.allowCoHostInvites === false) return { ...f, status: 'busy' };
-
-        // Use the Firestore status field (set by index.html) as primary signal
-        const fsStatus = f.status; // 'online' | 'offline' | undefined
-        if (fsStatus === 'offline') return { ...f, status: 'offline' };
-
-        // fsStatus === 'online' or undefined (new accounts / never updated)
-        // Check RTDB presence as secondary — if they're actively on live.html
-        // we can show 'available' (green) instead of just 'online' (blue)
-        let cohostStatus = (fsStatus === 'online') ? 'online' : 'online'; // assume online
-
-        try {
-          const presSnap = await rtGet(rtRef(_liveDB, `presence/${f.uid}`));
-          if (presSnap.exists()) {
-            const p = presSnap.val();
-            const freshEnough = (Date.now() - (p.lastSeen || 0)) < 10 * 60 * 1000; // <10 min
-            if (p.online && freshEnough) {
-              // On live page right now — mark as available
-              cohostStatus = 'available';
-            }
-          }
-        } catch (_) {}
-
-        return { ...f, status: cohostStatus };
-      }));
-
-      _friendsCache = withStatus;
-      _renderFriendsList(withStatus);
-
-    } catch (e) {
-      console.error('[CoHost] loadFriendsList error:', e);
-      el.innerHTML = '<div class="cohost-empty">Could not load friends.</div>';
-    }
-  }
-
-  /* ── Status label + CSS class helper ── */
-  function _statusInfo(status) {
-    switch (status) {
-      case 'available': return { label: 'Available', cls: 'cohost-status-available' };
-      case 'busy':      return { label: 'Busy',      cls: 'cohost-status-busy' };
-      case 'online':    return { label: 'Online',    cls: 'cohost-status-online' };
-      default:          return { label: 'Offline',   cls: 'cohost-status-offline' };
-    }
-  }
-
-  function _renderFriendsList(friends) {
-    const el = document.getElementById('cohostFriendsList');
-    if (!el) return;
-    if (!friends.length) {
-      el.innerHTML = '<div class="cohost-empty">No friends found.</div>';
-      return;
-    }
-
-    // Sort: available first, then online, busy, offline
-    const order = { available: 0, online: 1, busy: 2, offline: 3 };
-    const sorted = [...friends].sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3));
-
-    el.innerHTML = '';
-    sorted.forEach(f => {
-      const isSent   = !!_pendingInvites[f.uid];
-      // Allow inviting any friend regardless of status — the invite is
-      // delivered via RTDB and the global listener in index.html will
-      // show it to them when they come online or are on the app.
-      const canInvite = !isSent && f.allowCoHostInvites !== false;
-      const { label: statusLabel, cls: statusCls } = _statusInfo(f.status);
-      const initials  = (f.displayName || f.username || '?')[0].toUpperCase();
-      const avatarBg  = (f.avatar || f.profilePicture)
-        ? `background-image:url('${_esc(f.avatar || f.profilePicture)}');background-size:cover;background-position:center;`
-        : '';
-
-      const row = document.createElement('div');
-      row.className = 'cohost-user-row';
-      row.innerHTML = `
-        <div class="cohost-user-avatar" style="${avatarBg}">${avatarBg ? '' : initials}</div>
-        <div style="flex:1;min-width:0;">
-          <div class="cohost-user-name">${_esc(f.displayName || f.username || 'User')}</div>
-          <div class="cohost-user-status">
-            <span class="cohost-status-dot ${statusCls}"></span>
-            <span class="cohost-status-label">${statusLabel}</span>
-          </div>
-        </div>
-        ${isSent
-          ? `<button class="cohost-invite-btn sent" disabled>✓ Sent</button>`
-          : `<button class="cohost-invite-btn${canInvite ? '' : ' disabled'}"
-               data-uid="${f.uid}"
-               ${canInvite ? '' : 'disabled title="This user has disabled co-host invites"'}
-             >Invite</button>`
-        }
-      `;
-      if (canInvite) {
-        row.querySelector('.cohost-invite-btn').addEventListener('click', () => _sendInvite(f));
-      }
-      el.appendChild(row);
-    });
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     SEND INVITE
-     Primary path : RTDB  coHostInvites/{friendUID}/{myUID}
-     Secondary    : Firestore coHostInvites/{friendUID}/{myUID} (subcollection)
-     ═══════════════════════════════════════════════════════════════════════════ */
-  async function _sendInvite(friend) {
-    // ── Pre-flight checks ──────────────────────────────────────────────────
-    if (!_coHostEnabled) {
-      _liveToast('Co-host system is currently disabled by the Founder.');
-      return;
-    }
-    if (!_isHost) {
-      _liveToast('Only the host can send co-host invites.');
-      return;
-    }
-    if (!_cohostSettings.allowCohosts) {
-      _liveToast('Co-hosts are disabled in your settings.');
-      return;
-    }
-    if (_cohostSettings.whoCanCohost === 'nobody') {
-      _liveToast('Co-hosting is set to Nobody. Change it in Live Settings.');
-      return;
-    }
-    if (!friend || !friend.uid) {
-      _liveToast('User not found.');
-      return;
-    }
-    if (!_db || !_liveDB || !_roomId || !_user) {
-      _liveToast('Connection error. Please try again.');
-      return;
-    }
-    if (_user.isAnonymous) {
-      _liveToast('Permission denied. Sign in to send co-host invites.');
-      return;
-    }
-
-    // Disable button immediately to prevent double-tap
-    const btns = document.querySelectorAll(`.cohost-invite-btn[data-uid="${friend.uid}"]`);
-    btns.forEach(b => { b.disabled = true; b.textContent = 'Sending…'; });
-
-    try {
-      const { ref: rtRef, get: rtGet, set: rtSet } = await _importRTDB();
-
-      // ── Check: live room still exists ──
-      const roomSnap = await rtGet(rtRef(_liveDB, `liveRooms/${_roomId}`));
-      if (!roomSnap.exists() || roomSnap.val().status !== 'live') {
-        _liveToast('Live room not found. Are you still live?');
-        _resetInviteBtn(btns);
-        return;
-      }
-
-      const fromName = _userData.displayName || _user.email?.split('@')[0] || 'Host';
-
-      // ── PRIMARY: write to RTDB coHostInvites/{friendUID}/{myUID} ──
-      // This is the real-time delivery channel — listener fires immediately.
-      await rtSet(rtRef(_liveDB, `coHostInvites/${friend.uid}/${_user.uid}`), {
-        from:   fromName,
-        status: 'pending',
-        time:   Date.now(),
-        roomId: _roomId,
-      });
-
-      // ── SECONDARY: write to Firestore coHostInvites/{friendUID}/senders/{myUID} ──
-      const { doc: fsDoc, setDoc: fsSetDoc, serverTimestamp: fsST } = await _importFirestore();
-      try {
-        // Path: coHostInvites → doc(receiverUID) → subcollection 'senders' → doc(senderUID)
-        await fsSetDoc(fsDoc(_db, 'coHostInvites', friend.uid, 'senders', _user.uid), {
-          from:   fromName,
-          status: 'pending',
-          time:   fsST(),
-          roomId: _roomId,
-        });
-      } catch (fsErr) {
-        // Firestore write non-fatal — RTDB already delivered the invite.
-        console.warn('[CoHost] Firestore coHostInvites write failed (non-fatal):', fsErr?.code, fsErr?.message);
-      }
-
-      // Mark as sent locally
-      _pendingInvites[friend.uid] = `${friend.uid}/${_user.uid}`;
-      btns.forEach(b => { b.disabled = true; b.textContent = '✓ Sent'; b.classList.add('sent'); });
-      _liveToast(`🎥 Invite sent to ${friend.displayName || 'user'}!`);
-
-    } catch (e) {
-      console.error('[CoHost] sendInvite error — code:', e?.code, '| message:', e?.message, '| full:', e);
-      const code = e?.code || '';
-      if (code === 'permission-denied' || code === 'PERMISSION_DENIED') {
-        _liveToast('Permission denied. Check Firebase rules for coHostInvites/.');
-      } else if (code === 'unavailable' || code === 'network-request-failed') {
-        _liveToast('Connection error. Check your internet and try again.');
-      } else {
-        _liveToast(`Invite error: ${e?.message || 'unknown — check console'}`);
-      }
-      _resetInviteBtn(btns);
-    }
-  }
-
-  function _resetInviteBtn(btns, canRetry = true) {
-    btns.forEach(b => {
-      b.disabled = !canRetry;
-      b.textContent = 'Invite';
-    });
-  }
-
-  /** Update a single friend's displayed status in the panel */
-  function _updateFriendStatus(uid, status) {
-    const idx = _friendsCache.findIndex(f => f.uid === uid);
-    if (idx !== -1) {
-      _friendsCache[idx].status = status;
-      _renderFriendsList(_friendsCache);
-    }
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     HOST — subscribe to active co-hosts list
-     ═══════════════════════════════════════════════════════════════════════════ */
-  async function _subscribeActiveCohosts() {
-    if (!_liveDB || !_roomId) return;
-    const { ref: rtRef, onValue: rtOnValue } = await _importRTDB();
-    _activeUnsub = rtOnValue(rtRef(_liveDB, `cohosts/${_roomId}/active`), snap => {
-      const data = snap.val() || {};
-      _renderActiveList(Object.entries(data).map(([uid, v]) => ({ uid, ...v })));
-    });
-  }
-
-  function _renderActiveList(list) {
-    const el = document.getElementById('cohostActiveList');
-    if (!el) return;
-    if (!list.length) {
-      el.innerHTML = '<div class="cohost-empty">No active co-hosts.</div>';
-      return;
-    }
-    el.innerHTML = '';
-    list.forEach(co => {
-      const initials  = (co.name || '?')[0].toUpperCase();
-      const avatarBg  = co.avatar ? `background-image:url('${co.avatar}');background-size:cover;` : '';
-      const row = document.createElement('div');
-      row.className = 'cohost-active-row';
-      row.innerHTML = `
-        <div class="cohost-user-avatar" style="${avatarBg}">${avatarBg ? '' : initials}</div>
-        <div style="flex:1;min-width:0;">
-          <div class="cohost-active-name">${_esc(co.name || 'Co-Host')}</div>
-          <div class="cohost-active-status">
-            <span class="cohost-status-dot cohost-status-available"></span>
-            <span>Active</span>
-          </div>
-        </div>
-        <button class="cohost-remove-btn" data-uid="${co.uid}">Remove</button>
-      `;
-      row.querySelector('.cohost-remove-btn')
-         .addEventListener('click', () => _removeCohost(co.uid, co.name));
-      el.appendChild(row);
-    });
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     HOST — remove a co-host
-     ═══════════════════════════════════════════════════════════════════════════ */
-  async function _removeCohost(uid, name) {
-    if (!_liveDB || !_roomId) return;
-    const { ref: rtRef, remove: rtRemove, set: rtSet } = await _importRTDB();
-    try {
-      await rtRemove(rtRef(_liveDB, `cohosts/${_roomId}/active/${uid}`));
-      await rtSet(rtRef(_liveDB, `cohosts/${_roomId}/removed/${uid}`), { ts: Date.now() });
-      // Clean up Firestore request too
-      if (_db) {
-        const { doc: fsDoc, updateDoc: fsUpdate } = await _importFirestore();
-        try {
-          await fsUpdate(fsDoc(_db, 'coHostRequests', `${_roomId}_${uid}`), { status: 'declined' });
-        } catch (_) {}
-      }
-      _liveToast(`${name || 'Co-host'} removed.`);
-    } catch (_) {
-      _liveToast('Could not remove co-host. Try again.');
-    }
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     HOST — watch for deny notifications from guests
-     Listens on RTDB coHostInvites/{myUID} for any child with status 'denied'.
-     ═══════════════════════════════════════════════════════════════════════════ */
-  async function _subscribeDeclineNotifications() {
-    if (!_liveDB || !_user) return;
-    const { ref: rtRef, onValue: rtOnValue, remove: rtRemove } = await _importRTDB();
-    const _notifiedSet = new Set();   // track which UIDs we already toasted
-
-    // Watch coHostInvites/{myUID} for any denied replies
-    rtOnValue(rtRef(_liveDB, `coHostInvites/${_user.uid}`), snap => {
-      if (!snap.exists()) return;
-      const data = snap.val() || {};
-      Object.entries(data).forEach(([receiverUID, invite]) => {
-        if (invite.status === 'denied' && !_notifiedSet.has(receiverUID)) {
-          _notifiedSet.add(receiverUID);
-          _liveToast(`${invite.from || 'User'} denied the co-host invite.`);
-          // Clean up the denied invite from RTDB
-          rtRemove(rtRef(_liveDB, `coHostInvites/${_user.uid}/${receiverUID}`)).catch(() => {});
-        }
-      });
-    });
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     INVITEE (VIEWER) — watch for incoming invite
-     Listens on RTDB coHostInvites/{myUID}  for any child with status 'pending'.
-     ═══════════════════════════════════════════════════════════════════════════ */
-  async function _watchForInvite() {
-    if (!_liveDB || !_user) return;
-    const { ref: rtRef, onValue: rtOnValue, off: rtOff } = await _importRTDB();
-
-    // Watch RTDB coHostInvites/{myUID} — fires when any sender writes an invite
-    const inboxRef = rtRef(_liveDB, `coHostInvites/${_user.uid}`);
-    _inviteInboxUnsub = rtOnValue(inboxRef, snap => {
-      // Respect the Founder's Co-Host System toggle. When the feature is
-      // disabled site-wide, never show the invite card on the live page.
-      if (_coHostEnabled === false) {
-        _hideInviteCard();
-        return;
-      }
-      if (!snap.exists()) { _hideInviteCard(); return; }
-      const invites = snap.val() || {};
-      // Show the first pending invite we find (most recent by time)
-      const pending = Object.entries(invites)
-        .filter(([, v]) => v.status === 'pending')
-        .sort(([, a], [, b]) => (b.time || 0) - (a.time || 0));
-      if (!pending.length) {
-        // No pending invites — clear the tracker so a future invite (even
-        // from the same sender) will show again.
-        _hideInviteCard();
-        return;
-      }
-      const [senderUID, data] = pending[0];
-      // If the card is already showing THIS sender's invite, do not re-show
-      // it (avoids flicker). If it is showing a different sender's invite,
-      // or nothing is showing, show the new one.
-      if (_pendingInviteData && _pendingInviteData.senderUID === senderUID) return;
-      _pendingInviteData = { ...data, senderUID };
-      _showInviteCard(_pendingInviteData);
-    });
-
-    // Watch removal signal (existing RTDB cohosts path for host-initiated removal)
-    if (_roomId) {
-      const removedRef = rtRef(_liveDB, `cohosts/${_roomId}/removed/${_user.uid}`);
-      rtOnValue(removedRef, snap => {
-        if (!snap.exists()) return;
-        _isCohostOfRoom = null;
-        _clearCohostBadge();
-        _liveToast('You have been removed as co-host.');
-        rtOff(removedRef);
-      });
-    }
-  }
-
-  /* ── Show invite card ── */
-  function _showInviteCard(data) {
-    const card = document.getElementById('cohostInviteCard');
-    const sub  = document.getElementById('cohostInviteSub');
-    if (!card) return;
-    // data.from is the sender's display name (string)
-    const senderName = data.from || data.fromName || 'Someone';
-    if (sub) sub.textContent = `${_esc(senderName)} wants you to join as a co-host`;
-    card.dataset.inviteFrom      = data.senderUID || data.from || '';
-    card.dataset.inviteSenderUID = data.senderUID || '';
-    card.dataset.inviteRoomId    = data.roomId    || _roomId   || '';
-    card.classList.add('visible');
-  }
-
-  function _hideInviteCard() {
-    const card = document.getElementById('cohostInviteCard');
-    if (card) { card.classList.remove('visible'); }
-    _pendingInviteData = null;
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     ACCEPT CO-HOST INVITE
-     1. Update RTDB coHostInvites/{myUID}/{senderUID} → status: 'accepted'
-     2. Write Firestore coHosts/{myUID} → { coHost: true }
-     3. Also write cohosts/{roomId}/active/ (host's real-time list)
-     4. Delete the invite from RTDB (cleanup)
-     ═══════════════════════════════════════════════════════════════════════════ */
-  async function _acceptInvite() {
-    if (!_liveDB || !_user) {
-      _liveToast('Connection error. Please try again.');
-      return;
-    }
-
-    const inviteData = _pendingInviteData;
-    _hideInviteCard();
-
-    const roomId    = inviteData?.roomId    || _roomId;
-    const senderUID = inviteData?.senderUID || '';
-
-    if (!roomId) {
-      _liveToast('Live room not found.');
-      return;
-    }
-
-    const { ref: rtRef, set: rtSet, update: rtUpdate, remove: rtRemove } = await _importRTDB();
-
-    try {
-      // ── 1. Update RTDB invite status to 'accepted' ──
-      if (senderUID) {
-        await rtUpdate(rtRef(_liveDB, `coHostInvites/${_user.uid}/${senderUID}`), {
-          status: 'accepted',
-        });
-      }
-
-      // ── 2. Write Firestore coHosts/{myUID} → { coHost: true } ──
-      if (_db) {
-        const { doc: fsDoc, setDoc: fsSetDoc } = await _importFirestore();
-        try {
-          await fsSetDoc(fsDoc(_db, 'coHosts', _user.uid), { coHost: true }, { merge: true });
-        } catch (_) {}
-      }
-
-      // ── 3. Add to cohosts/{roomId}/active/ (host sees in real time) ──
-      await rtSet(rtRef(_liveDB, `cohosts/${roomId}/active/${_user.uid}`), {
-        uid:      _user.uid,
-        name:     _userData.displayName || _user.email?.split('@')[0] || 'Co-Host',
-        avatar:   _userData.avatar || _userData.profilePicture || '',
-        role:     'cohost',
-        joinedAt: Date.now(),
-      });
-
-      // ── 4. Delete the invite from RTDB (cleanup) ──
-      if (senderUID) {
-        await rtRemove(rtRef(_liveDB, `coHostInvites/${_user.uid}/${senderUID}`));
-      }
-
-      _isCohostOfRoom = roomId;
-      _showCohostBadge();
-      _liveToast('🎥 You are now a co-host!');
-    } catch (e) {
-      console.error('[CoHost] acceptInvite error:', e);
-      _liveToast('Could not accept invite. Please try again.');
-    }
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     DENY CO-HOST INVITE
-     1. Update RTDB coHostInvites/{myUID}/{senderUID} → status: 'denied'
-     2. Delete the invite from RTDB (cleanup)
-     ═══════════════════════════════════════════════════════════════════════════ */
-  async function _declineInvite() {
-    const inviteData = _pendingInviteData;
-    _hideInviteCard();
-    if (!_liveDB || !_user) return;
-
-    const senderUID = inviteData?.senderUID || '';
-    if (!senderUID) return;
-
-    const { ref: rtRef, update: rtUpdate, remove: rtRemove } = await _importRTDB();
-    try {
-      // ── 1. Set status to 'denied' (host notified via RTDB listener) ──
-      await rtUpdate(rtRef(_liveDB, `coHostInvites/${_user.uid}/${senderUID}`), {
-        status: 'denied',
-      });
-
-      // ── 2. Delete invite from RTDB after a short delay ──
-      setTimeout(async () => {
-        try {
-          await rtRemove(rtRef(_liveDB, `coHostInvites/${_user.uid}/${senderUID}`));
-        } catch (_) {}
-      }, 3000);
-    } catch (_) {}
-    _liveToast('Co-host invite denied.');
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     CO-HOST BADGE — shown to the co-host in the top bar area
-     ═══════════════════════════════════════════════════════════════════════════ */
-  function _showCohostBadge() {
-    if (document.getElementById('_cohostActiveBadge')) return;
-    const badge = document.createElement('div');
-    badge.id        = '_cohostActiveBadge';
-    badge.className = 'cohost-badge-pill';
-    badge.textContent = '🎙️ Co-Host';
-    badge.style.cssText =
-      'position:absolute;top:calc(env(safe-area-inset-top,0) + 10px);left:50%;' +
-      'transform:translateX(-50%);z-index:30;pointer-events:none;';
-    const videoWrap = document.querySelector('.live-video-wrap');
-    if (videoWrap) videoWrap.appendChild(badge);
-  }
-
-  function _clearCohostBadge() {
-    const badge = document.getElementById('_cohostActiveBadge');
-    if (badge) badge.remove();
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     SETTINGS — load / save to RTDB cohosts/{roomId}/settings
-     ═══════════════════════════════════════════════════════════════════════════ */
-  async function _loadSettings() {
-    if (!_liveDB || !_roomId) return;
-    const { ref: rtRef, get: rtGet } = await _importRTDB();
-    try {
-      const snap = await rtGet(rtRef(_liveDB, `cohosts/${_roomId}/settings`));
-      if (snap.exists()) {
-        const s = snap.val();
-        _cohostSettings.allowCohosts = s.allowCohosts !== false;
-        _cohostSettings.whoCanCohost = s.whoCanCohost || 'friends';
-      }
-    } catch (_) {}
-    const toggleAllow = document.getElementById('toggleAllowCohost');
-    if (toggleAllow) toggleAllow.checked = _cohostSettings.allowCohosts;
-    const selectWho = document.getElementById('selectWhoCanCohost');
-    if (selectWho) selectWho.value = _cohostSettings.whoCanCohost;
-  }
-
-  async function _saveSettings() {
-    if (!_liveDB || !_roomId) return;
-    const { ref: rtRef, set: rtSet } = await _importRTDB();
-    try {
-      await rtSet(rtRef(_liveDB, `cohosts/${_roomId}/settings`), {
-        allowCohosts: _cohostSettings.allowCohosts,
-        whoCanCohost: _cohostSettings.whoCanCohost,
-        updatedAt:    Date.now(),
-      });
-    } catch (_) {}
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     CLEANUP — called when the live session ends
-     ═══════════════════════════════════════════════════════════════════════════ */
-  function _cleanup() {
-    if (_activeUnsub)      { try { _activeUnsub();      } catch(_){} _activeUnsub      = null; }
-    if (_inviteInboxUnsub) { try { _inviteInboxUnsub(); } catch(_){} _inviteInboxUnsub = null; }
-    if (_hostDeclineUnsub) { try { _hostDeclineUnsub(); } catch(_){} _hostDeclineUnsub = null; }
-    _closePanel();
-    _hideInviteCard();
-    _clearCohostBadge();
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     HELPERS
-     ═══════════════════════════════════════════════════════════════════════════ */
-  function _esc(str) {
-    return String(str)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  function _liveToast(msg) {
-    const t = document.getElementById('liveToast');
-    if (!t) { console.log('[CoHost]', msg); return; }
-    t.textContent = msg;
-    t.classList.add('visible');
-    clearTimeout(t._cohostTimer);
-    t._cohostTimer = setTimeout(() => t.classList.remove('visible'), 3500);
-  }
-
-  async function _importRTDB() {
-    return await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
-  }
-
-  async function _importFirestore() {
-    return await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-     BOOTSTRAP — wait for live.js to fire snxLiveReady
-     ═══════════════════════════════════════════════════════════════════════════ */
-  window.addEventListener('snxLiveReady', e => {
-    const { db, liveDB, auth, user, userData, roomId, isHost } = e.detail || {};
-    if (!db || !liveDB || !auth || !user || !roomId) {
-      console.error('[CoHost] snxLiveReady missing required data:', {
-        db: !!db, liveDB: !!liveDB, auth: !!auth, user: !!user, roomId
-      });
-      return;
-    }
-    _init(db, liveDB, auth, user, userData, roomId, isHost);
-  });
-
-  // Expose cleanup so live.js can call it on endLive
-  window._cohostCleanup = _cleanup;
-
-})();
+      
