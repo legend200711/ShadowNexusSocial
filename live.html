@@ -21,6 +21,39 @@
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://horr-a08f4-default-rtdb.firebaseio.com">
 <link rel="dns-prefetch" href="https://firestore.googleapis.com">
+
+<!-- ── AUTH FAST-PATH: preconnect to the token refresh + installations
+     endpoints so the TLS handshake completes in parallel with the
+     Firebase SDK download. Without these, onAuthStateChanged waits
+     for a cold TLS connection to securetoken.googleapis.com AFTER the
+     SDK finishes loading — adding 2-5s to the loading spinner. ── -->
+<link rel="preconnect" href="https://securetoken.googleapis.com">
+<link rel="preconnect" href="https://firebaseinstallations.googleapis.com">
+<link rel="dns-prefetch" href="https://securetoken.googleapis.com">
+<link rel="dns-prefetch" href="https://firebaseinstallations.googleapis.com">
+
+<!-- ── MODULE PRELOAD: kick off all four Firebase SDK ESM module
+     downloads the instant the <head> parses, in parallel, instead of
+     waiting for live.js to download + parse + hit each sequential
+     `import` statement. This is the single biggest load-time win:
+     the four SDK modules (app, auth, firestore, database) otherwise
+     download one-after-another, each blocking the next. Preloading
+     them all at once collapses ~4 sequential round-trips into ~1.
+
+     CRITICAL: the version here (10.8.0) MUST match the version in
+     live.js AND index.html. When all three agree, the browser serves
+     the SDK from its HTTP cache instantly — no download at all for
+     users coming from the main site. ── -->
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js">
+
+<!-- ── Preload live.js itself so it starts downloading immediately,
+     in parallel with the Firebase modules above, rather than waiting
+     for the browser to reach the <script> tag at the bottom of <body>. ── -->
+<link rel="modulepreload" href="live.js">
+<link rel="preload" href="snx-net.js" as="script">
 </head>
 <body>
 
