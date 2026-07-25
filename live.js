@@ -1094,10 +1094,14 @@ async function _startViewer() {
     roomData = await new Promise((resolve, reject) => {
       let settled = false;
       const finish = (val) => { if (!settled) { settled = true; resolve(val); } };
+      // Reduced from 10s to 6s — the onValue + get() race consumes the room
+      // data the instant it's available (~150ms typical), so this is purely
+      // a safety net for when the room truly doesn't exist. Failing faster
+      // lets the user see the "ended" overlay sooner instead of waiting.
       const to = setTimeout(() => {
         try { off(_roomRef, listener); } catch(_) {}
         finish(null);
-      }, 10000);
+      }, 6000);
       const listener = onValue(_roomRef, snap => {
         if (snap.exists()) {
           const d = snap.val();
@@ -1520,8 +1524,25 @@ async function _startViewerWebRTC(roomData) {
   const viewerUid   = _user.uid;
   const viewerConnRef = ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}`);
 
-  // Clean up any previous viewer peer connection + listener.
-  if (_rtcPc) { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
+  // ── CONNECTION REUSE: If we already have a healthy RTCPeerConnection
+  //    with an active video track, don't tear it down and start over.
+  //    This prevents redundant connection attempts when the viewer
+  //    re-enters the live room or a spurious reconnect is scheduled
+  //    while the stream is still playing. Only tear down if the
+  //    connection is dead (disconnected/failed/closed) or has no track.
+  if (_rtcPc) {
+    const state = _rtcPc.connectionState;
+    const hasVideoTrack = _rtcPc.getReceivers ? _rtcPc.getReceivers().some(r => r.track && r.track.kind === 'video' && r.track.readyState === 'live') : false;
+    if ((state === 'connected' || state === 'connecting') && hasVideoTrack && D.liveVideo && D.liveVideo.srcObject) {
+      // The stream is already playing — keep the existing connection and
+      // just make sure the banner is hidden.
+      _hideBannerOnFirstFrame();
+      return;
+    }
+    // Otherwise tear down the dead/stale connection before creating a new one.
+    try { _rtcPc.close(); } catch (_) {}
+    _rtcPc = null;
+  }
   if (_rtcSignalRef && _rtcSignalUnsub) {
     try { off(_rtcSignalRef); } catch (_) {}
     _rtcSignalRef = null; _rtcSignalUnsub = null;
@@ -1648,8 +1669,8 @@ async function _startViewerWebRTC(roomData) {
         _frameBannerHidden = true;
         _hideConnBanner();
         clearInterval(_pollInterval);
-      } else if (_pollCount > 40) { // 40 × 200ms = 8 seconds
-        // Safety: if no frame after 8s, hide the banner to avoid
+      } else if (_pollCount > 30) { // 30 × 200ms = 6 seconds
+        // Safety: if no frame after 6s, hide the banner to avoid
         // leaving the user stuck on "Connecting…" forever.
         _frameBannerHidden = true;
         _hideConnBanner();
@@ -1657,13 +1678,15 @@ async function _startViewerWebRTC(roomData) {
       }
     }, 200);
 
-    // Method 5: Absolute safety timeout at 10s.
+    // Method 5: Absolute safety timeout at 7s (reduced from 10s).
+    // The first-frame detection methods above should fire within 1-2s of
+    // the video track arriving. This is just a backstop for edge cases.
     setTimeout(() => {
       if (!_frameBannerHidden) {
         _frameBannerHidden = true;
         _hideConnBanner();
       }
-    }, 10000);
+    }, 7000);
   }
 
   _rtcPc.ontrack = (e) => {
@@ -1725,8 +1748,11 @@ async function _startViewerWebRTC(roomData) {
     offerSnap = await new Promise((resolve, reject) => {
       let settled = false;
       const finish = (snap) => { if (!settled) { settled = true; resolve(snap); } };
-      // 8s overall timeout (reduced from 12s — fail fast, then reconnect).
-      const to = setTimeout(() => { _tmpViewerWaitRef = null; _tmpViewerWaitListener = null; resolve(null); }, 8000);
+      // 5s overall timeout (reduced from 8s — fail fast, then reconnect).
+      // With the pre-warm from index.html, the offer is often already
+      // waiting in RTDB before this code runs, so the timeout rarely fires.
+      // When it does, failing fast lets the reconnect logic kick in sooner.
+      const to = setTimeout(() => { _tmpViewerWaitRef = null; _tmpViewerWaitListener = null; resolve(null); }, 5000);
       const waitListener = onValue(waitRef, snap => {
         if (snap.exists() && snap.val().offer) {
           clearTimeout(to);
