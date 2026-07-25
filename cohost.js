@@ -729,17 +729,31 @@
     // Watch RTDB coHostInvites/{myUID} — fires when any sender writes an invite
     const inboxRef = rtRef(_liveDB, `coHostInvites/${_user.uid}`);
     _inviteInboxUnsub = rtOnValue(inboxRef, snap => {
-      if (!snap.exists()) return;
+      // Respect the Founder's Co-Host System toggle. When the feature is
+      // disabled site-wide, never show the invite card on the live page.
+      if (_coHostEnabled === false) {
+        _hideInviteCard();
+        return;
+      }
+      if (!snap.exists()) { _hideInviteCard(); return; }
       const invites = snap.val() || {};
       // Show the first pending invite we find (most recent by time)
       const pending = Object.entries(invites)
         .filter(([, v]) => v.status === 'pending')
         .sort(([, a], [, b]) => (b.time || 0) - (a.time || 0));
-      if (pending.length && !_pendingInviteData) {
-        const [senderUID, data] = pending[0];
-        _pendingInviteData = { ...data, senderUID };
-        _showInviteCard(_pendingInviteData);
+      if (!pending.length) {
+        // No pending invites — clear the tracker so a future invite (even
+        // from the same sender) will show again.
+        _hideInviteCard();
+        return;
       }
+      const [senderUID, data] = pending[0];
+      // If the card is already showing THIS sender's invite, do not re-show
+      // it (avoids flicker). If it is showing a different sender's invite,
+      // or nothing is showing, show the new one.
+      if (_pendingInviteData && _pendingInviteData.senderUID === senderUID) return;
+      _pendingInviteData = { ...data, senderUID };
+      _showInviteCard(_pendingInviteData);
     });
 
     // Watch removal signal (existing RTDB cohosts path for host-initiated removal)

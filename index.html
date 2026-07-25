@@ -9824,28 +9824,47 @@ body.arcade-fs-ios body::after { display:none !important; }
               try { _rtdbOff(window._snxCohostInviteRef); } catch(_) {}
             }
             window._snxCohostInviteRef  = _rtdbRef(_presenceRtdb, 'coHostInvites/' + uid);
-            window._snxCohostInviteSeen = window._snxCohostInviteSeen || new Set();
+            // Track the sender UID currently shown in the pop-up so we only
+            // show ONE invite at a time. When the current invite is handled
+            // (Accept/Decline removes it from RTDB) the onValue fires again,
+            // the current sender is gone, and the next pending invite shows.
+            // This replaces the old permanent dedup Set which swallowed every
+            // subsequent invite from the same friend forever.
+            window._snxCohostCurrentSender = null;
             window._snxCohostInviteListener = _rtdbOnValue(window._snxCohostInviteRef, snap => {
               // Respect the Founder's Co-Host System toggle. When the feature is
               // disabled site-wide, no co-host invite UI is shown to ANY user —
               // the pop-up is hidden and we bail out before surfacing anything.
               if (window._snxCoHostEnabled === false) {
                 _snxHideCohostInvitePopup();
+                window._snxCohostCurrentSender = null;
                 return;
               }
-              if (!snap.exists()) { _snxHideCohostInvitePopup(); return; }
+              if (!snap.exists()) {
+                _snxHideCohostInvitePopup();
+                window._snxCohostCurrentSender = null;
+                return;
+              }
               const invites = snap.val() || {};
-              // Find the most recent pending invite we haven't shown yet.
+              // Find the most recent pending invite.
               const pending = Object.entries(invites)
                 .filter(([, v]) => v && v.status === 'pending')
                 .sort(([, a], [, b]) => (b.time || 0) - (a.time || 0));
-              if (!pending.length) { _snxHideCohostInvitePopup(); return; }
-              for (const [senderUID, data] of pending) {
-                if (window._snxCohostInviteSeen.has(senderUID)) continue;
-                window._snxCohostInviteSeen.add(senderUID);
-                _snxShowCohostInvitePopup({ senderUID, ...data });
-                break;
+              if (!pending.length) {
+                // No pending invites — hide the pop-up and clear the current
+                // sender so a brand-new invite from the same friend will show
+                // again next time.
+                _snxHideCohostInvitePopup();
+                window._snxCohostCurrentSender = null;
+                return;
               }
+              const [senderUID, data] = pending[0];
+              // If the pop-up is already showing THIS sender's invite, do not
+              // re-show it (avoids flicker). If it is showing a DIFFERENT
+              // sender's invite, or nothing is showing, show the new one.
+              if (window._snxCohostCurrentSender === senderUID) return;
+              window._snxCohostCurrentSender = senderUID;
+              _snxShowCohostInvitePopup({ senderUID, ...data });
             });
           })(user.uid);
           // Start passive invite listener for sidebar badge (deferred so arcade IIFE has loaded)
@@ -10102,7 +10121,7 @@ body.arcade-fs-ios body::after { display:none !important; }
               window._snxCohostInviteRef = null;
           }
           _snxHideCohostInvitePopup();
-          if (window._snxCohostInviteSeen) window._snxCohostInviteSeen = new Set();
+          window._snxCohostCurrentSender = null;
           // Tear down profile snapshot so it doesn't fire against null currentUser
           if (typeof activeProfileUnsubscribe !== 'undefined' && activeProfileUnsubscribe) {
               activeProfileUnsubscribe(); activeProfileUnsubscribe = null;
@@ -10134,13 +10153,13 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (toggleCoHost) toggleCoHost.checked = coHostOn;
       // Live enforcement: the moment the Founder disables the Co-Host System,
       // hide any co-host invite pop-up that is currently on screen for this
-      // user, and clear the dedup set so nothing re-appears. The global
-      // RTDB listener (see _snxGlobalCohostInvite) also short-circuits while
-      // the flag is OFF, so no new invites surface anywhere in the app.
+      // user, and clear the current-sender tracker so nothing re-appears. The
+      // global RTDB listener (see _snxGlobalCohostInvite) also short-circuits
+      // while the flag is OFF, so no new invites surface anywhere in the app.
       if (!coHostOn) {
         if (typeof _snxHideCohostInvitePopup === 'function') _snxHideCohostInvitePopup();
         if (typeof window._snxHideCoHostInviteOverlay === 'function') window._snxHideCoHostInviteOverlay();
-        if (window._snxCohostInviteSeen) window._snxCohostInviteSeen.clear();
+        window._snxCohostCurrentSender = null;
       }
 
       // AI moderation sync
@@ -16121,9 +16140,11 @@ document.getElementById("forgotEmailInput").addEventListener("keydown", function
               host sees the co-host join in real time.
    - Decline : removes the invite from RTDB (host is notified via their
               own RTDB listener on coHostInvites/{senderUID}).
-   Duplicates are prevented by _snxCohostInviteSeen (a Set of sender UIDs
-   already shown). The invite is auto-removed from RTDB on both Accept and
-   Decline so it never re-appears. */
+   Duplicates are prevented by _snxCohostCurrentSender (tracks the sender
+   UID currently shown) so only one invite is on screen at a time. The
+   invite is auto-removed from RTDB on both Accept and Decline so it never
+   re-appears, and the tracker is cleared so a brand-new invite from the
+   same friend will show again. */
 function _snxEnsureCohostInvitePopup() {
     // Inject the styles once (idempotent) so the pop-up looks right without
     // requiring cohost.css to be loaded on the main app pages.
@@ -16190,6 +16211,12 @@ function _snxShowCohostInvitePopup(data) {
 function _snxHideCohostInvitePopup() {
     const card = document.getElementById('snxGlobalCohostCard');
     if (card) card.classList.remove('visible');
+    // Clear the current-sender tracker so the next invite (even from the
+    // same friend) will show again instead of being swallowed by a stale
+    // dedup entry.
+    if (window._snxCohostCurrentSender !== undefined) {
+        window._snxCohostCurrentSender = null;
+    }
 }
 
 /* Accept the co-host invite.
@@ -24872,16 +24899,41 @@ window.switchAdminTab = function(tab) {
           _hideCard();
           return;
         }
-        if (!snap.exists()) return;
+        // This overlay is a FALLBACK. The primary co-host invite pop-up is
+        // the snxGlobalCohostCard managed by the main IIFE's
+        // _snxGlobalCohostInvite listener (which has full Accept/Decline +
+        // navigation logic). To avoid two competing popups on the same
+        // page, this second overlay only shows if the primary system has
+        // NOT already surfaced the invite (tracked via
+        // window._snxCohostCurrentSender). If the primary system is
+        // already showing the same sender's invite, we stay hidden.
+        if (!snap.exists()) { _hideCard(); return; }
         const invites = snap.val() || {};
 
-        // Pick the most-recent pending invite not already shown
+        // Pick the most-recent pending invite
         const pending = Object.entries(invites)
           .filter(([, v]) => v.status === 'pending')
           .sort(([, a], [, b]) => (b.time || 0) - (a.time || 0));
 
-        if (pending.length && !_activeInvite) {
-          const [senderUID, data] = pending[0];
+        if (!pending.length) {
+          // No pending invites — reset so a future invite can show.
+          _hideCard();
+          return;
+        }
+
+        const [senderUID, data] = pending[0];
+
+        // If the primary system already has this sender's invite on screen,
+        // do not show this competing overlay.
+        if (window._snxCohostCurrentSender === senderUID) {
+          _hideCard();
+          return;
+        }
+
+        // Only show this overlay if the primary system is NOT showing
+        // anything at all (primary may not have loaded yet or may have
+        // missed the event). This is the fallback path.
+        if (!_activeInvite || _activeInvite.senderUID !== senderUID) {
           _activeInvite = { senderUID, ...data };
           _showCard(data.from || 'Someone');
         }
