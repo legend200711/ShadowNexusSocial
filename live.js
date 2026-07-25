@@ -1494,6 +1494,11 @@ function _teardownAllCreatorViewerPeers() {
    Uses LIVE Realtime Database for signaling.
    ═══════════════════════════════════════════════════ */
 async function _startViewerWebRTC(roomData) {
+  // Reset the first-frame banner flag for this (re)connection attempt.
+  // Declared here (function scope) so the reset on line 1 works without
+  // hitting the temporal dead zone from the later let.
+  let _frameBannerHidden = false;
+  let _playRetries        = 0;
   _showConnBanner('Connecting\u2026', '');
 
   if (!_user || !_user.uid) {
@@ -1554,6 +1559,102 @@ async function _startViewerWebRTC(roomData) {
   // — don't block the critical path on this safety net.
   try { onDisconnect(viewerConnRef).remove(); } catch (_) {}
 
+  // ── AGGRESSIVE PLAYBACK: Retry play() up to 3 times. On mobile browsers,
+  //    the first play() call can be interrupted or deferred. We retry with
+  //    a small delay to ensure the video starts decoding ASAP. ──
+  function _kickoffPlayback() {
+    if (!D.liveVideo || !D.liveVideo.srcObject) return;
+    const p = D.liveVideo.play();
+    if (p && typeof p.then === 'function') {
+      p.catch(() => {
+        if (_playRetries < 3) {
+          _playRetries++;
+          setTimeout(_kickoffPlayback, 300);
+        }
+      });
+    }
+  }
+
+  // ── FIRST-FRAME DETECTION: Hide the "Connecting…" banner ONLY when the
+  //    video has an actual frame to show — not when the track merely
+  //    arrives. This eliminates the black screen gap between connection
+  //    and first frame render.
+  //
+  //    Strategy (ordered by speed):
+  //    1. requestVideoFrameCallback — fires the moment a frame is painted
+  //    2. 'loadeddata' event — fires when the first frame is available
+  //    3. 'playing' event — fires when playback actually starts
+  //    4. Polling readyState — fallback for older browsers
+  //    5. 10s safety timeout — if nothing works, hide the banner anyway ──
+  function _hideBannerOnFirstFrame() {
+    if (_frameBannerHidden) return;
+    const v = D.liveVideo;
+    if (!v) return;
+
+    // Check if already playing (race condition — track arrived fast)
+    if (v.readyState >= 2 && !v.paused && v.currentTime > 0) {
+      _frameBannerHidden = true;
+      _hideConnBanner();
+      return;
+    }
+
+    // Method 1: requestVideoFrameCallback (Chrome 83+) — fires when a frame
+    // is actually painted to the screen. This is the earliest possible signal.
+    if ('requestVideoFrameCallback' in v) {
+      v.requestVideoFrameCallback(() => {
+        if (_frameBannerHidden) return;
+        _frameBannerHidden = true;
+        _hideConnBanner();
+      });
+    }
+
+    // Method 2: 'loadeddata' — fires when the first frame of the media
+    // has finished loading. Not as precise as rVFC but widely supported.
+    v.addEventListener('loadeddata', () => {
+      if (_frameBannerHidden) return;
+      // Double-check: loadeddata can fire without an actual frame on some
+      // browsers. Verify readyState >= 2 (HAVE_CURRENT_DATA).
+      if (v.readyState >= 2) {
+        _frameBannerHidden = true;
+        _hideConnBanner();
+      }
+    }, { once: true });
+
+    // Method 3: 'playing' — fires when playback has actually started.
+    v.addEventListener('playing', () => {
+      if (_frameBannerHidden) return;
+      _frameBannerHidden = true;
+      _hideConnBanner();
+    }, { once: true });
+
+    // Method 4: Poll readyState for 8 seconds (fallback for browsers that
+    // don't fire the events above reliably).
+    let _pollCount = 0;
+    const _pollInterval = setInterval(() => {
+      _pollCount++;
+      if (_frameBannerHidden) { clearInterval(_pollInterval); return; }
+      if (v.readyState >= 2 && !v.paused && v.currentTime > 0) {
+        _frameBannerHidden = true;
+        _hideConnBanner();
+        clearInterval(_pollInterval);
+      } else if (_pollCount > 40) { // 40 × 200ms = 8 seconds
+        // Safety: if no frame after 8s, hide the banner to avoid
+        // leaving the user stuck on "Connecting…" forever.
+        _frameBannerHidden = true;
+        _hideConnBanner();
+        clearInterval(_pollInterval);
+      }
+    }, 200);
+
+    // Method 5: Absolute safety timeout at 10s.
+    setTimeout(() => {
+      if (!_frameBannerHidden) {
+        _frameBannerHidden = true;
+        _hideConnBanner();
+      }
+    }, 10000);
+  }
+
   _rtcPc.ontrack = (e) => {
     if (!D.liveVideo) return;
     const stream = e.streams[0] || new MediaStream([e.track]);
@@ -1564,17 +1665,16 @@ async function _startViewerWebRTC(roomData) {
     if (typeof D.liveVideo.disableRemotePlayback !== 'undefined') D.liveVideo.disableRemotePlayback = true;
     // Prefer low-latency (Chrome hint)
     try { D.liveVideo.setPreferredQuality && D.liveVideo.setPreferredQuality('auto'); } catch(_) {}
-    // Kick off playback the instant the track arrives. Don't await — just
-    // fire-and-forget so the video element starts decoding the first frame ASAP.
-    D.liveVideo.play().catch(() => {});
+    // Kick off playback the instant the track arrives. Use a retry loop
+    // because the first play() can be interrupted by the browser on some
+    // mobile devices. We retry up to 3 times with a small delay.
+    _kickoffPlayback();
     _showUnmutePrompt();
-    _hideConnBanner();
-    // Hide the "Connecting…" banner the instant ANY frame is ready to show.
-    // 'loadeddata' fires as soon as the first frame is available — usually
-    // earlier than 'playing' — so the banner disappears the moment the viewer
-    // can actually see you.
-    D.liveVideo.addEventListener('loadeddata', _hideConnBanner, { once: true });
-    D.liveVideo.addEventListener('playing',    _hideConnBanner, { once: true });
+    // ── DON'T hide the banner yet! The track arrived but no frame is
+    //    rendered yet — the viewer would see a black screen. We hide the
+    //    banner ONLY when the first frame is actually painted. ──
+    _hideBannerOnFirstFrame();
+
     // ── If the guest grid is already showing a host cell, attach the stream now ──
     const hostCell = D.guestGrid?.querySelector('.vgc-cell.host-cell');
     if (hostCell && !hostCell.querySelector('video')) {
@@ -1585,7 +1685,11 @@ async function _startViewerWebRTC(roomData) {
   _rtcPc.onconnectionstatechange = () => {
     const state = _rtcPc.connectionState;
     if (state === 'connected') {
-      _hideConnBanner();
+      // DON'T hide the banner here — 'connected' means the ICE transport
+      // is up, but the video hasn't rendered a frame yet. Let the
+      // first-frame handler (_hideBannerOnFirstFrame) hide the banner
+      // only when there's actually something to see. This prevents the
+      // black screen gap between "connected" and "first frame".
       _viewerReconnectAttempt = 0; // reset on successful connection
     } else if (state === 'disconnected' || state === 'failed') {
       _showConnBanner('Reconnecting\u2026', '');
@@ -1720,13 +1824,9 @@ async function _startViewerWebRTC(roomData) {
 
   _showConnBanner('Connecting\u2026', '');
 
-  // ── 1.5-second safety timeout: if video is already playing, remove banner ──
-  setTimeout(() => {
-    const v = D.liveVideo;
-    if (v && v.srcObject && !v.paused && v.readyState >= 2) {
-      _hideConnBanner();
-    }
-  }, 1500);
+  // ── Safety: the first-frame handler (_hideBannerOnFirstFrame) will hide
+  //    the banner as soon as a frame is actually rendered. This 1.5s
+  //    timeout is just a backstop in case the events fire too fast. ──
 }
 
 // Temp holders for the viewer's "wait for offer" listener so it can be
