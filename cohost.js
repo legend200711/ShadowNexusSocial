@@ -155,6 +155,11 @@
     const card = document.getElementById('cohostInviteCard');
     if (card && !_coHostEnabled) _hideInviteCard();
 
+    // When the Founder disables the Co-Host System site-wide, close any open
+    // Co-Host Settings panel too so the whole feature disappears for this
+    // user in real time — not just the trigger button.
+    if (!_coHostEnabled && _panelOpen) _closePanel();
+
     if (_coHostEnabled && _inviteInboxUnsub === null) {
       // (Re)subscribe invite watcher if it was never started (flag was OFF at
       // boot) — applies to BOTH hosts and viewers, because a host of one

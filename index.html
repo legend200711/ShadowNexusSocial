@@ -9826,6 +9826,13 @@ body.arcade-fs-ios body::after { display:none !important; }
             window._snxCohostInviteRef  = _rtdbRef(_presenceRtdb, 'coHostInvites/' + uid);
             window._snxCohostInviteSeen = window._snxCohostInviteSeen || new Set();
             window._snxCohostInviteListener = _rtdbOnValue(window._snxCohostInviteRef, snap => {
+              // Respect the Founder's Co-Host System toggle. When the feature is
+              // disabled site-wide, no co-host invite UI is shown to ANY user —
+              // the pop-up is hidden and we bail out before surfacing anything.
+              if (window._snxCoHostEnabled === false) {
+                _snxHideCohostInvitePopup();
+                return;
+              }
               if (!snap.exists()) { _snxHideCohostInvitePopup(); return; }
               const invites = snap.val() || {};
               // Find the most recent pending invite we haven't shown yet.
@@ -10125,6 +10132,15 @@ body.arcade-fs-ios body::after { display:none !important; }
       window._snxCoHostEnabled = coHostOn;
       const toggleCoHost = document.getElementById('toggleCoHost');
       if (toggleCoHost) toggleCoHost.checked = coHostOn;
+      // Live enforcement: the moment the Founder disables the Co-Host System,
+      // hide any co-host invite pop-up that is currently on screen for this
+      // user, and clear the dedup set so nothing re-appears. The global
+      // RTDB listener (see _snxGlobalCohostInvite) also short-circuits while
+      // the flag is OFF, so no new invites surface anywhere in the app.
+      if (!coHostOn) {
+        if (typeof _snxHideCohostInvitePopup === 'function') _snxHideCohostInvitePopup();
+        if (window._snxCohostInviteSeen) window._snxCohostInviteSeen.clear();
+      }
 
       // AI moderation sync
       const isOn = cfg.aiModerationEnabled !== false;
