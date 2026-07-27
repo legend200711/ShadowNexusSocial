@@ -2648,6 +2648,128 @@ img.post-media-preview::before {
     .support-room-btn .srb-icon { font-size: 22px; }
     .support-room-btn .srb-name { font-size: 13px; }
 }
+
+/* ============================================================
+   DEDICATED INBOX PAGE  — conversation card styles
+   ============================================================ */
+#inboxPage .section-card { max-width: 720px; margin: 0 auto; }
+.inbox-conv-card {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; margin-bottom: 8px;
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(0,174,239,0.16);
+    border-radius: 12px; cursor: pointer;
+    transition: background .15s, border-color .15s;
+}
+.inbox-conv-card:hover { background: rgba(0,174,239,0.10); border-color: rgba(0,174,239,0.4); }
+.inbox-conv-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    object-fit: cover; flex-shrink: 0;
+    background: #0d2240; border: 1px solid rgba(0,174,239,0.3);
+}
+.inbox-conv-body { flex: 1; min-width: 0; }
+.inbox-conv-name { font-weight: 700; color: #e6f3ff; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inbox-conv-preview { font-size: 12.5px; color: #8ab4d8; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inbox-conv-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.inbox-conv-time { font-size: 11px; color: #5a7a9a; white-space: nowrap; }
+.inbox-conv-unread {
+    background: #00aeef; color: #021628; font-size: 11px; font-weight: 800;
+    border-radius: 10px; padding: 2px 7px; min-width: 18px; text-align: center;
+}
+.inbox-conv-unread.zero { display: none; }
+
+/* ── Who's Online in Inbox ── */
+.inbox-online-dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #6a90b8; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(2,22,40,0.85);
+    transition: background .2s;
+}
+.inbox-online-dot.online   { background: #39FF14; box-shadow: 0 0 6px rgba(57,255,20,0.7), 0 0 0 2px rgba(2,22,40,0.85); animation: greenPulse 1.6s ease-in-out infinite; }
+.inbox-online-dot.live    { background: #ff3344; box-shadow: 0 0 6px rgba(255,51,68,0.7), 0 0 0 2px rgba(2,22,40,0.85); animation: snxLiveDot 1s ease-in-out infinite; }
+.inbox-status-pill {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.3px;
+    padding: 1px 7px; border-radius: 8px; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 4px;
+}
+.inbox-status-pill.online { color: #39FF14; background: rgba(57,255,20,0.10); border: 1px solid rgba(57,255,20,0.35); }
+.inbox-status-pill.live   { color: #ff5566; background: rgba(255,51,68,0.12); border: 1px solid rgba(255,51,68,0.4); }
+.inbox-status-pill.offline{ color: #6a90b8; background: rgba(106,144,184,0.08); border: 1px solid rgba(106,144,184,0.25); }
+.inbox-conv-card .inbox-conv-avatar-wrap { position: relative; flex-shrink: 0; }
+.inbox-conv-card .inbox-conv-status-dot {
+    position: absolute; right: -1px; bottom: -1px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #6a90b8; border: 2px solid #0d2240;
+}
+.inbox-conv-card .inbox-conv-status-dot.online { background: #39FF14; animation: greenPulse 1.6s ease-in-out infinite; }
+.inbox-conv-card .inbox-conv-status-dot.live   { background: #ff3344; animation: snxLiveDot 1s ease-in-out infinite; }
+
+/* Online Now section */
+#inboxOnlineWrap { margin-bottom: 16px; }
+#inboxOnlineWrap .online-now-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; flex-wrap: wrap; gap: 8px;
+}
+#inboxOnlineWrap .online-now-title {
+    font-size: 14px; font-weight: 700; color: #e6f3ff;
+    display: flex; align-items: center; gap: 8px;
+}
+#inboxOnlineWrap .online-now-title .live-pip {
+    width: 8px; height: 8px; border-radius: 50%; background: #39FF14;
+    box-shadow: 0 0 8px rgba(57,255,20,0.8); animation: greenPulse 1.6s ease-in-out infinite;
+}
+#inboxOnlineWrap .online-now-count { font-size: 12px; color: #5a7a9a; font-weight: 600; }
+#inboxOnlineGrid {
+    display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px;
+    scrollbar-width: thin;
+}
+#inboxOnlineGrid::-webkit-scrollbar { height: 6px; }
+#inboxOnlineGrid::-webkit-scrollbar-thumb { background: rgba(0,174,239,0.3); border-radius: 4px; }
+.inbox-online-card {
+    flex: 0 0 auto; width: 84px; display: flex; flex-direction: column;
+    align-items: center; gap: 6px; padding: 10px 6px; cursor: pointer;
+    background: rgba(0,174,239,0.08); border: 1px solid rgba(0,174,239,0.22);
+    border-radius: 12px; transition: background .15s, border-color .15s, transform .12s;
+    text-align: center;
+}
+.inbox-online-card:hover { background: rgba(0,174,239,0.18); border-color: rgba(0,174,239,0.5); transform: translateY(-2px); }
+.inbox-online-card .inbox-online-avatar-wrap { position: relative; }
+.inbox-online-card .inbox-online-avatar {
+    width: 48px; height: 48px; border-radius: 50%; object-fit: cover;
+    background: #0d2240; border: 2px solid rgba(0,174,239,0.35);
+}
+.inbox-online-card .inbox-online-dot-abs {
+    position: absolute; right: 0; bottom: 0;
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid #0a1a2a;
+}
+.inbox-online-card .inbox-online-dot-abs.online { background: #39FF14; animation: greenPulse 1.6s ease-in-out infinite; }
+.inbox-online-card .inbox-online-dot-abs.live   { background: #ff3344; animation: snxLiveDot 1s ease-in-out infinite; }
+.inbox-online-card .inbox-online-name {
+    font-size: 11.5px; font-weight: 600; color: #e6f3ff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 76px;
+}
+.inbox-online-card .inbox-online-label {
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+.inbox-online-card .inbox-online-label.online { color: #39FF14; }
+.inbox-online-card .inbox-online-label.live   { color: #ff5566; }
+.inbox-online-empty { font-size: 12px; color: #5a7a9a; padding: 14px 4px; text-align: center; }
+
+/* Compose modal online dot on friend rows */
+.inbox-compose-row { position: relative; }
+.inbox-compose-row .inbox-compose-dot {
+    position: absolute; left: 46px; bottom: 4px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #6a90b8; border: 2px solid #0d1a2e;
+}
+.inbox-compose-row .inbox-compose-dot.online { background: #39FF14; animation: greenPulse 1.6s ease-in-out infinite; }
+.inbox-compose-row .inbox-compose-dot.live   { background: #ff3344; animation: snxLiveDot 1s ease-in-out infinite; }
+.inbox-compose-status-text { font-size: 11px; font-weight: 600; }
+.inbox-compose-status-text.online { color: #39FF14; }
+.inbox-compose-status-text.live   { color: #ff5566; }
+.inbox-compose-status-text.offline{ color: #6a90b8; }
 </style>
 
 <style id="responsive-patch">
@@ -5900,6 +6022,10 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="nav-item" id="navSearch" onclick="navTo('searchPage')">
             <span class="nav-icon">🔍</span> Search
         </button>
+        <button class="nav-item" id="navInbox" onclick="navTo('inboxPage')" title="Message Inbox — all your direct messages">
+            <span class="nav-icon">💬</span> Inbox
+            <span class="nav-badge" id="sidebarInboxBadge"></span>
+        </button>
         <button class="nav-item" id="navNotifs" onclick="navTo('notificationsPage')" title="Notification Center — messages, likes, followers, system alerts">
             <span class="nav-icon">🔔</span> Notifications
             <span class="nav-badge" id="sidebarNotifBadge"></span>
@@ -6839,6 +6965,66 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div style="font-size:28px;margin-bottom:10px;">🔔</div>
             No notifications yet.
         </div></div>
+    </div>
+</div>
+
+<!-- ============================================================
+     DEDICATED INBOX PAGE  — Message Inbox
+     Lists every conversation the current user is part of (from the
+     `chats` Firestore collection). Sorted by most recent message.
+     Clicking a conversation opens the existing ipcModal chat window.
+     ============================================================ -->
+<div class="page" id="inboxPage">
+    <h2 class="eclipse-title">💬 Message Inbox</h2>
+    <div class="section-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:13px;color:#3a6a9a;font-weight:600;">All your direct messages in one place</span>
+            <button id="inboxComposeBtn" class="notif-mark-all" title="Start a new message">✏️ New Message</button>
+        </div>
+
+        <div class="search-bar-row" style="margin-bottom:12px;">
+            <input id="inboxSearchInput" placeholder="Search conversations by name…" autocomplete="off">
+            <button onclick="filterInboxConversations()" style="border-radius:8px;">Search</button>
+        </div>
+
+        <div id="inboxOnlineWrap" style="display:none;">
+            <div class="online-now-header">
+                <div class="online-now-title"><span class="live-pip"></span> Online Now</div>
+                <div id="inboxOnlineCount" class="online-now-count">0 online</div>
+            </div>
+            <div id="inboxOnlineGrid"></div>
+        </div>
+
+        <div id="inboxConvList">
+            <div class="empty-state" id="inboxEmptyState">
+                <div style="font-size:28px;margin-bottom:10px;">💬</div>
+                Loading your conversations…
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     "NEW MESSAGE" COMPOSE MODAL  — pick a friend / user to message
+     ============================================================ -->
+<div id="inboxComposeModal" role="dialog" aria-modal="true" aria-label="New message" style="display:none;position:fixed;inset:0;z-index:8200;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);">
+    <div class="ipc-modal-card" role="document" style="max-width:480px;width:92vw;max-height:80vh;display:flex;flex-direction:column;">
+        <div class="ipc-modal-header">
+            <div class="ipc-modal-info">
+                <div class="ipc-modal-name">✏️ New Message</div>
+                <div class="ipc-modal-sub">Pick someone to start a conversation</div>
+            </div>
+            <div class="ipc-modal-header-btns">
+                <button class="ipc-modal-btn" title="Close" aria-label="Close" style="font-size:20px;color:#ff5566;" onclick="closeInboxComposeModal()">✕</button>
+            </div>
+        </div>
+        <div style="padding:12px 16px;border-bottom:1px solid rgba(0,174,239,0.14);">
+            <input id="inboxComposeSearchInput" placeholder="Search friends by name…" autocomplete="off"
+                style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(0,174,239,0.25);border-radius:10px;color:#e6f3ff;padding:11px 14px;font-size:14px;outline:none;">
+        </div>
+        <div id="inboxComposeResults" class="ipc-modal-messages" style="flex:1;min-height:0;overflow-y:auto;">
+            <div class="ipc-modal-loading"><span>Search your friends to start a chat.</span></div>
+        </div>
     </div>
 </div>
 
@@ -15966,6 +16152,386 @@ body.arcade-fs-ios body::after { display:none !important; }
       _cleanExpiredStories();
       setInterval(_cleanExpiredStories, 5 * 60 * 1000);
   };
+  /* ============================================================
+     DEDICATED INBOX  — real-time conversation list + compose modal
+     Lives inside the module so it can use the bare Firebase helpers
+     (collection, query, where, onSnapshot, getDoc, doc).
+     Chat docs use: messages[] (array of {sender, type, text, timestamp}),
+     lastMsgTs, unread_<uid>, readReceipt, participants[].
+     ============================================================ */
+  let _inboxUnsub = null;
+  let _inboxAllConv = [];
+  const _inboxUserCache = {};
+  // ── Who's Online: RTDB presence for inbox + compose modal ──
+  const _inboxPresenceListeners = {};   // uid -> unsubscribe fn
+  const _inboxPresenceState    = {};    // uid -> { online, live, lastSeen }
+  const _inboxFriendsCache     = [];    // cached friends list [{uid, displayName, avatar}]
+  let   _inboxOnlineSectionShown = false;
+
+  function _inboxRtdb() {
+    const api = window._snxRtdbApi;
+    if (!api || !window._snxApp) return null;
+    try { return api.getDatabase(window._snxApp); } catch (_) { return null; }
+  }
+
+  // Attach (or refresh) a presence listener for a uid. Returns nothing.
+  // Safe to call multiple times — reuses the existing listener.
+  function _inboxAttachPresence(uid) {
+    if (!uid) return;
+    if (_inboxPresenceListeners[uid]) return;            // already listening
+    const api = window._snxRtdbApi;
+    const rtdb = _inboxRtdb();
+    if (!api || !rtdb) return;
+    const nodeRef = api.ref(rtdb, 'users/' + uid);
+    const handler = (snap) => {
+      const s = snap ? snap.val() : null;
+      const prev = _inboxPresenceState[uid];
+      _inboxPresenceState[uid] = {
+        online: !!(s && s.online),
+        live:   !!(s && s.live),
+        lastSeen: (s && s.lastSeen) || 0
+      };
+      // Update any card pill for this uid
+      _inboxApplyStatusToCard(uid);
+      _inboxApplyStatusToOnlineCard(uid);
+      // If the compose modal is open, refresh its rows too
+      const cm = document.getElementById('inboxComposeModal');
+      if (cm && cm.style.display !== 'none') {
+        const dot = cm.querySelector('.inbox-compose-row[data-uid="' + uid + '"] .inbox-compose-dot');
+        const txt = cm.querySelector('.inbox-compose-row[data-uid="' + uid + '"] .inbox-compose-status-text');
+        if (dot || txt) { _inboxApplyDotAndText(dot, txt, _inboxPresenceState[uid]); }
+      }
+      void prev;
+    };
+    api.onValue(nodeRef, handler);
+    _inboxPresenceListeners[uid] = () => { try { api.off(nodeRef, handler); } catch (_) {} };
+  }
+
+  function _inboxDetachAllPresence() {
+    for (const uid in _inboxPresenceListeners) {
+      try { _inboxPresenceListeners[uid](); } catch (_) {}
+    }
+    for (const k in _inboxPresenceListeners) delete _inboxPresenceListeners[k];
+  }
+
+  function _inboxStatusLabel(state) {
+    if (!state) return { cls: 'offline', text: 'Offline' };
+    if (state.live)   return { cls: 'live',    text: 'LIVE' };
+    if (state.online) return { cls: 'online',  text: 'Online' };
+    return { cls: 'offline', text: 'Offline' };
+  }
+
+  function _inboxApplyDotAndText(dotEl, txtEl, state) {
+    const lbl = _inboxStatusLabel(state);
+    if (dotEl) { dotEl.classList.remove('online','live'); dotEl.classList.add(lbl.cls); }
+    if (txtEl) { txtEl.textContent = lbl.text; txtEl.className = 'inbox-compose-status-text ' + lbl.cls; }
+  }
+
+  // Update the small status pill / dot on an inbox conversation card
+  function _inboxApplyStatusToCard(uid) {
+    const card = document.querySelector('.inbox-conv-card[data-uid="' + uid + '"]');
+    if (!card) return;
+    const dot = card.querySelector('.inbox-conv-status-dot');
+    const pill = card.querySelector('.inbox-status-pill');
+    const state = _inboxPresenceState[uid];
+    const lbl = _inboxStatusLabel(state);
+    if (dot) { dot.classList.remove('online','live'); dot.classList.add(lbl.cls); }
+    if (pill) {
+      pill.classList.remove('online','live','offline');
+      pill.classList.add(lbl.cls);
+      pill.textContent = lbl.text;
+    }
+  }
+
+  // Update the status of an online-now card (and re-sort the grid if needed)
+  function _inboxApplyStatusToOnlineCard(uid) {
+    _inboxRenderOnlineGrid();
+  }
+
+  // Build the "Online Now" section from the friends list + presence state.
+  // Only friends that are online (online:true or live:true) are shown.
+  async function _inboxLoadFriends() {
+    if (!currentUser || !currentUser.uid) { _inboxFriendsCache.length = 0; return; }
+    try {
+      const myS = await getDoc(doc(db, 'users', currentUser.uid));
+      if (!myS.exists()) { _inboxFriendsCache.length = 0; return; }
+      const friends = myS.data().friends || [];
+      if (!friends.length) { _inboxFriendsCache.length = 0; return; }
+      const fDocs = await Promise.all(friends.map(u => getDoc(doc(db, 'users', u))));
+      _inboxFriendsCache.length = 0;
+      fDocs.forEach((d, i) => {
+        if (d.exists()) {
+          const dd = d.data();
+          _inboxFriendsCache.push({ uid: friends[i], displayName: dd.displayName || dd.name || ('User ' + friends[i].substring(0,6)), avatar: dd.avatar || '' });
+        } else {
+          _inboxFriendsCache.push({ uid: friends[i], displayName: 'User ' + friends[i].substring(0,6), avatar: '' });
+        }
+      });
+      // Attach presence listeners for every friend so we know who's online
+      _inboxFriendsCache.forEach((f) => _inboxAttachPresence(f.uid));
+    } catch (e) { console.warn('[inbox] load friends error', e); }
+  }
+
+  function _inboxRenderOnlineGrid() {
+    const wrap = document.getElementById('inboxOnlineWrap');
+    const grid = document.getElementById('inboxOnlineGrid');
+    const countEl = document.getElementById('inboxOnlineCount');
+    if (!wrap || !grid) return;
+    // Determine which friends are online or live
+    const online = _inboxFriendsCache.filter((f) => {
+      const s = _inboxPresenceState[f.uid];
+      return s && (s.online || s.live);
+    });
+    if (!online.length) {
+      wrap.style.display = 'none';
+      _inboxOnlineSectionShown = false;
+      return;
+    }
+    wrap.style.display = '';
+    _inboxOnlineSectionShown = true;
+    // Sort: LIVE first, then online
+    online.sort((a, b) => {
+      const sa = _inboxPresenceState[a.uid] || {};
+      const sb = _inboxPresenceState[b.uid] || {};
+      if (sa.live && !sb.live) return -1;
+      if (!sa.live && sb.live) return 1;
+      return (a.displayName || '').localeCompare(b.displayName || '');
+    });
+    if (countEl) countEl.textContent = online.length + ' online';
+    grid.innerHTML = online.map((f) => {
+      const s = _inboxPresenceState[f.uid] || {};
+      const lbl = _inboxStatusLabel(s);
+      const avatar = f.avatar
+        ? '<img class="inbox-online-avatar" src="' + _escapeInboxHtml(f.avatar) + '" alt="">'
+        : '<div class="inbox-online-avatar" style="display:flex;align-items:center;justify-content:center;font-size:22px;color:#00aeef;">👤</div>';
+      return '<div class="inbox-online-card" data-uid="' + _escapeInboxHtml(f.uid) + '" onclick="if(typeof window.ipcOpen===\'function\')window.ipcOpen(\'' + _escapeInboxHtml(f.uid) + '\')">'
+        + '<div class="inbox-online-avatar-wrap">'
+        + avatar
+        + '<span class="inbox-online-dot-abs ' + lbl.cls + '"></span>'
+        + '</div>'
+        + '<div class="inbox-online-name">' + _escapeInboxHtml(f.displayName || 'User') + '</div>'
+        + '<div class="inbox-online-label ' + lbl.cls + '">' + (lbl.cls === 'live' ? 'LIVE' : 'Online') + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  window.renderInboxOnlineSection = function() {
+    // Kick off friends load + presence, then render the grid.
+    // The grid re-renders itself whenever presence state changes.
+    _inboxLoadFriends().then(() => _inboxRenderOnlineGrid());
+  };
+
+
+
+  async function _inboxFetchUser(uid) {
+    if (!uid || _inboxUserCache[uid]) return _inboxUserCache[uid];
+    try {
+      const d = await getDoc(doc(db, 'users', uid));
+      if (d.exists()) { _inboxUserCache[uid] = d.data(); return d.data(); }
+    } catch (_) {}
+    return null;
+  }
+
+  window.renderInboxPage = function() {
+    if (!currentUser || !currentUser.uid) {
+      const list = document.getElementById('inboxConvList');
+      if (list) list.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">\xf0\x9f\x94\x92</div>Sign in to view your messages.</div>';
+      return;
+    }
+    if (_inboxUnsub) { _inboxUnsub(); _inboxUnsub = null; }
+    if (typeof renderInboxOnlineSection === 'function') renderInboxOnlineSection();
+    const list = document.getElementById('inboxConvList');
+    if (list) list.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">\xf0\x9f\x92\xac</div>Loading your conversations\u2026</div>';
+    try {
+      const q = query(collection(db, 'chats'), where('participants', 'array-contains', currentUser.uid));
+      _inboxUnsub = onSnapshot(q, (snap) => {
+        _inboxAllConv = [];
+        snap.forEach((d) => { _inboxAllConv.push({ id: d.id, ...d.data() }); });
+        _inboxAllConv.sort((a, b) => {
+          const aT = (a.lastMsgTs) || (a.messages && a.messages.length ? a.messages[a.messages.length-1].timestamp : 0) || 0;
+          const bT = (b.lastMsgTs) || (b.messages && b.messages.length ? b.messages[b.messages.length-1].timestamp : 0) || 0;
+          return bT - aT;
+        });
+        _renderInboxList();
+        _updateInboxBadge();
+        _inboxAllConv.forEach((conv) => {
+          const other = _inboxOtherUid(conv);
+          if (other && !_inboxUserCache[other]) {
+            _inboxFetchUser(other).then(() => { if (document.getElementById('inboxConvList')) _renderInboxList(); });
+          }
+          if (other) _inboxAttachPresence(other);
+        });
+      }, (err) => {
+        console.warn('[inbox] snapshot error', err);
+        if (list) list.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">\xe2\x9a\xa0\xef\xb8\x8f</div>Could not load conversations.</div>';
+      });
+    } catch (e) { console.warn('[inbox] render error', e); }
+  };
+
+  function _inboxOtherUid(conv) {
+    if (!conv.participants || !currentUser) return null;
+    return conv.participants.find((p) => p !== currentUser.uid) || null;
+  }
+
+  function _escapeInboxHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"').replace(/'/g, '&#39;');
+  }
+
+  function _inboxTimeStr(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  function _renderInboxList() {
+    const list = document.getElementById('inboxConvList');
+    if (!list) return;
+    if (!_inboxAllConv.length) {
+      list.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">\xf0\x9f\x92\xac</div>No conversations yet. Tap "New Message" to start one!</div>';
+      return;
+    }
+    const searchInp = document.getElementById('inboxSearchInput');
+    const term = (searchInp && searchInp.value || '').trim().toLowerCase();
+    const cards = [];
+    for (const conv of _inboxAllConv) {
+      const otherUid = _inboxOtherUid(conv);
+      if (!otherUid) continue;
+      const cached = _inboxUserCache[otherUid];
+      const name = (cached && (cached.displayName || cached.name)) || 'User';
+      const photo = (cached && cached.avatar) || '';
+      const msgs = conv.messages || [];
+      const lastMsgObj = msgs.length ? msgs[msgs.length - 1] : null;
+      let lastMsg = '';
+      if (lastMsgObj) {
+        if (lastMsgObj.type === 'media' || lastMsgObj.type === 'image') lastMsg = '\xf0\x9f\x93\xb7 Photo';
+        else if (lastMsgObj.type === 'audio') lastMsg = '\xf0\x9f\x8e\xb5 Audio';
+        else lastMsg = lastMsgObj.text || '';
+      }
+      const ts = (conv.lastMsgTs) || (lastMsgObj && lastMsgObj.timestamp) || 0;
+      const unread = (conv['unread_' + currentUser.uid]) || 0;
+      cards.push({ uid: otherUid, name, photo, lastMsg, unread, ts });
+    }
+    if (!cards.length) {
+      list.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">\xf0\x9f\x92\xac</div>No conversations yet. Tap "New Message" to start one!</div>';
+      return;
+    }
+    list.innerHTML = cards.map((cc) => {
+      const st = _inboxPresenceState[cc.uid] || {};
+      const lbl = _inboxStatusLabel(st);
+      const avatar = cc.photo
+        ? '<img class="inbox-conv-avatar" src="' + _escapeInboxHtml(cc.photo) + '" alt="">'
+        : '<div class="inbox-conv-avatar" style="display:flex;align-items:center;justify-content:center;font-size:20px;color:#00aeef;">\xf0\x91\xa4</div>';
+      // ensure a presence listener is attached for this conversation partner
+      _inboxAttachPresence(cc.uid);
+      return '<div class="inbox-conv-card" data-uid="' + cc.uid + '" onclick="if(typeof window.ipcOpen===\'function\')window.ipcOpen(\'' + cc.uid + '\')">'
+        + '<div class="inbox-conv-avatar-wrap">'
+        + avatar
+        + '<span class="inbox-conv-status-dot ' + lbl.cls + '"></span>'
+        + '</div>'
+        + '<div class="inbox-conv-body">'
+        + '<div class="inbox-conv-name">' + _escapeInboxHtml(cc.name) + '</div>'
+        + '<div class="inbox-conv-preview">' + _escapeInboxHtml(cc.lastMsg) + '</div>'
+        + '</div>'
+        + '<div class="inbox-conv-meta">'
+        + '<div class="inbox-status-pill ' + lbl.cls + '">' + lbl.text + '</div>'
+        + '<div class="inbox-conv-time">' + _escapeInboxHtml(_inboxTimeStr(cc.ts)) + '</div>'
+        + '<div class="inbox-conv-unread ' + (cc.unread > 0 ? '' : 'zero') + '">' + cc.unread + '</div>'
+        + '</div></div>';
+    }).join('');
+    if (term) {
+      list.querySelectorAll('.inbox-conv-card').forEach((card) => {
+        const nm = (card.querySelector('.inbox-conv-name') || {}).textContent || '';
+        card.style.display = (nm.toLowerCase().indexOf(term) !== -1) ? '' : 'none';
+      });
+    }
+  }
+
+  function _updateInboxBadge() {
+    let total = 0;
+    for (const conv of _inboxAllConv) {
+      total += (conv['unread_' + (currentUser ? currentUser.uid : '')] || 0);
+    }
+    const badge = document.getElementById('sidebarInboxBadge');
+    if (badge) {
+      if (total > 0) { badge.textContent = total > 99 ? '99+' : total; badge.style.display = 'inline-block'; }
+      else { badge.style.display = 'none'; }
+    }
+  }
+
+  window.filterInboxConversations = function() {
+    _renderInboxList();
+  };
+
+  document.addEventListener('input', function (e) {
+    if (e.target && e.target.id === 'inboxSearchInput') filterInboxConversations();
+    if (e.target && e.target.id === 'inboxComposeSearchInput') _searchInboxCompose();
+  });
+
+  window.openInboxComposeModal = function() {
+    const m = document.getElementById('inboxComposeModal');
+    if (m) { m.style.display = 'flex'; _searchInboxCompose(); }
+  };
+  window.closeInboxComposeModal = function() {
+    const m = document.getElementById('inboxComposeModal');
+    if (m) m.style.display = 'none';
+  };
+
+  async function _searchInboxCompose() {
+    const inp = document.getElementById('inboxComposeSearchInput');
+    const res = document.getElementById('inboxComposeResults');
+    if (!res) return;
+    const term = (inp && inp.value || '').trim().toLowerCase();
+    res.innerHTML = '<div class="ipc-modal-loading"><span>Loading friends\u2026</span></div>';
+    try {
+      if (!currentUser) return;
+      const myS = await getDoc(doc(db, 'users', currentUser.uid));
+      if (!myS.exists()) { res.innerHTML = '<div class="ipc-modal-loading"><span>Could not load your friends.</span></div>'; return; }
+      const friends = (myS.data().friends) || [];
+      if (!friends.length) {
+        res.innerHTML = '<div class="ipc-modal-loading"><span>You haven\'t added any friends yet. Use Search to find people!</span></div>';
+        return;
+      }
+      const fDocs = await Promise.all(friends.map(u => getDoc(doc(db, 'users', u))));
+      let users = fDocs.map((d, i) => d.exists() ? d.data() : { uid: friends[i], displayName: friends[i].substring(0, 8) });
+      if (term) {
+        users = users.filter((u) => ((u.displayName || u.name || '').toLowerCase().indexOf(term) !== -1));
+      }
+      if (!users.length) {
+        res.innerHTML = '<div class="ipc-modal-loading"><span>No friends match that name.</span></div>';
+        return;
+      }
+      res.innerHTML = users.map((f) => {
+        const st = _inboxPresenceState[f.uid] || {};
+        const lbl = _inboxStatusLabel(st);
+        // ensure a presence listener is attached for this friend
+        _inboxAttachPresence(f.uid);
+        const photo = f.avatar
+          ? '<img style="width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;" src="' + _escapeInboxHtml(f.avatar) + '">'
+          : '<div style="width:38px;height:38px;border-radius:50%;background:#0d2240;display:flex;align-items:center;justify-content:center;font-size:18px;color:#00aeef;flex-shrink:0;">\xf0\x91\xa4</div>';
+        return '<div class="inbox-compose-row" data-uid="' + _escapeInboxHtml(f.uid) + '" style="cursor:pointer;padding:10px 12px;border-radius:10px;display:flex;align-items:center;gap:10px;border:1px solid transparent;" onmouseover="this.style.borderColor=\'rgba(0,174,239,0.3)\'" onmouseout="this.style.borderColor=\'transparent\'" onclick="closeInboxComposeModal();if(typeof window.ipcOpen===\'function\')window.ipcOpen(\'' + f.uid + '\')">'
+          + '<div style="position:relative;flex-shrink:0;">'
+          + photo
+          + '<span class="inbox-compose-dot ' + lbl.cls + '"></span>'
+          + '</div>'
+          + '<div style="flex:1;min-width:0;"><div style="font-weight:600;color:#e6f3ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _escapeInboxHtml(f.displayName || f.name || 'User') + '</div>'
+          + '<div class="inbox-compose-status-text ' + lbl.cls + '">' + lbl.text + '</div></div>'
+          + '<div style="color:#00aeef;font-size:18px;flex-shrink:0;">\xf0\x9f\x92\xac</div></div>';
+      }).join('');
+    } catch (e) {
+      console.warn('[inbox compose] search error', e);
+      res.innerHTML = '<div class="ipc-modal-loading"><span>Could not load friends list.</span></div>';
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    if (e.target && e.target.id === 'inboxComposeBtn') openInboxComposeModal();
+    if (e.target && e.target.id === 'inboxComposeModal') closeInboxComposeModal();
+  });
 
 </script>
 
@@ -16041,7 +16607,7 @@ function navTo(pageId) {
     const map = {
         feed:'navHome', profile:'navProfile',
         searchPage:'navSearch', friendsPage:'navFriends',
-        notificationsPage:'navNotifs', settingsPage:'navSettings',
+        notificationsPage:'navNotifs', inboxPage:'navInbox', settingsPage:'navSettings',
         stormRoomsPage:'navStorm', adminPage:'navAdmin',
         moderatorPage:'navMod', administratorPage:'navAdminOfficer',
         communityPage:'navCommunity', supportRoomsPage:'navSupport',
@@ -16052,6 +16618,8 @@ function navTo(pageId) {
     if (navEl) navEl.classList.add('active-nav');
     // Render friends page data on navigation
     if (pageId === 'friendsPage' && typeof renderFriendsPage === 'function') renderFriendsPage();
+    // Render inbox page conversations on navigation
+    if (pageId === 'inboxPage' && typeof renderInboxPage === 'function') renderInboxPage();
     // Render admin panel on navigation (re-fetches latest data each time)
     if (pageId === 'adminPage' && typeof renderAdminPanel === 'function') {
         renderAdminPanel();

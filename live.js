@@ -2755,7 +2755,16 @@ function _startViewerGuestGrid() {
 /* ── Attach the host's live video stream into a viewer-side host cell ──
    The host stream arrives via WebRTC on #liveVideo. We create a <video>
    element in the host cell that reads from the same MediaStream so the
-   host camera is always visible, even when the guest grid is shown. */
+   host camera is always visible, even when the guest grid is shown.
+
+   ── BLACK-SCREEN FIX ──
+   The host cell video MUST start muted so autoplay is allowed by every
+   browser (Chrome / Safari / Firefox block unmuted autoplay without a
+   user gesture, which left the host cell stuck on a black screen). The
+   avatar + "Camera is loading…" placeholder stays visible until the
+   first frame is actually painted, so the cell never goes black while
+   the stream is still connecting. Audio is un-muted on the first user
+   tap (same gesture that unmutes the main video). */
 function _attachHostVideoToCell(cell) {
   const _tryAttach = (attempts) => {
     const liveVid = D.liveVideo;
@@ -2768,21 +2777,65 @@ function _attachHostVideoToCell(cell) {
     }
     // Don't add a second video if one already exists
     if (cell.querySelector('video')) return;
+
     const vid = document.createElement('video');
-    vid.autoplay   = true;
-    vid.muted      = false;   // viewers should hear the host
+    vid.autoplay    = true;
+    vid.muted       = true;    // MUST start muted for autoplay to work
     vid.playsInline = true;
-    vid.srcObject  = stream;
-    vid.play().catch(() => {});
+    vid.srcObject   = stream;
     // Insert before the name label so it sits behind the overlay elements
     const nameEl = cell.querySelector('.vgc-name, .guest-cell-name');
     cell.insertBefore(vid, nameEl || null);
-    // Hide avatar once video is attached
-    const avatar = cell.querySelector('.vgc-avatar');
-    if (avatar) avatar.style.display = 'none';
-    // Hide cam-off overlay (host cam state already reflects in the card)
-    const camOff = cell.querySelector('.vgc-cam-off');
-    if (camOff) camOff.classList.remove('vgc-cam-off--visible');
+
+    // Keep the avatar visible until the first frame actually paints, so
+    // the cell never shows a black gap while the stream is still loading.
+    const _hideAvatar = () => {
+      const avatar = cell.querySelector('.vgc-avatar');
+      if (avatar) avatar.style.display = 'none';
+      const camOff = cell.querySelector('.vgc-cam-off');
+      if (camOff) camOff.classList.remove('vgc-cam-off--visible');
+    };
+
+    // First-frame detection — hide the avatar ONLY when a frame is painted.
+    let _frameShown = false;
+    const _onFrame = () => {
+      if (_frameShown) return;
+      if (vid.readyState >= 2 && !vid.paused && vid.currentTime > 0) {
+        _frameShown = true;
+        _hideAvatar();
+      }
+    };
+    if ('requestVideoFrameCallback' in vid) {
+      vid.requestVideoFrameCallback(() => { _onFrame(); });
+    }
+    vid.addEventListener('loadeddata', _onFrame, { once: true });
+    vid.addEventListener('playing',   () => { _frameShown = true; _hideAvatar(); }, { once: true });
+    // Polling fallback for browsers that don't fire the events reliably.
+    let _poll = 0;
+    const _pollInt = setInterval(() => {
+      if (_frameShown) { clearInterval(_pollInt); return; }
+      _onFrame();
+      if (++_poll > 30) {  // 30 × 200ms = 6s safety
+        _frameShown = true; _hideAvatar(); clearInterval(_pollInt);
+      }
+    }, 200);
+
+    // Kick off playback with a retry loop (mobile play() can be deferred).
+    const _kick = (n) => {
+      const p = vid.play();
+      if (p && typeof p.then === 'function') {
+        p.catch(() => { if (n > 0) setTimeout(() => _kick(n - 1), 300); });
+      }
+    };
+    _kick(3);
+
+    // Un-mute the host cell on the first user gesture (tap anywhere on
+    // the stage), mirroring the main video's unmute flow.
+    const _unmuteHostCell = () => {
+      vid.muted = false;
+      if (D.stage) D.stage.removeEventListener('click', _unmuteHostCell);
+    };
+    if (D.stage) D.stage.addEventListener('click', _unmuteHostCell, { once: true });
   };
   _tryAttach(30);
 }
@@ -3237,7 +3290,11 @@ async function _guestJoinAsViewer() {
 }
 
 /* ── Attach the guest's own live stream to their cell in the RTDB-driven grid ──
-   The RTDB onValue callback may render the cell asynchronously; retry until found. */
+   The RTDB onValue callback may render the cell asynchronously; retry until found.
+
+   ── BLACK-SCREEN FIX ──
+   Keep the avatar visible until the first frame actually paints, so the
+   self-preview cell never shows a black gap while the stream is loading. */
 function _attachGuestSelfStream(stream) {
   const uid = _user?.uid;
   if (!uid || !stream) return;
@@ -3260,10 +3317,31 @@ function _attachGuestSelfStream(stream) {
         cell.insertBefore(vid, nameEl || null);
       }
       vid.srcObject = stream;
+
+      // Keep the avatar visible until the first frame paints (no black gap).
+      let _frameShown = false;
+      const _hideAvatar = () => {
+        if (_frameShown) return;
+        if (vid.readyState >= 2 && !vid.paused && vid.currentTime > 0) {
+          _frameShown = true;
+          const camOff = cell.querySelector('.vgc-cam-off');
+          if (camOff) camOff.classList.remove('vgc-cam-off--visible');
+        }
+      };
+      if ('requestVideoFrameCallback' in vid) {
+        vid.requestVideoFrameCallback(() => { _hideAvatar(); });
+      }
+      vid.addEventListener('loadeddata', _hideAvatar, { once: true });
+      vid.addEventListener('playing',   () => { _frameShown = true; const camOff = cell.querySelector('.vgc-cam-off'); if (camOff) camOff.classList.remove('vgc-cam-off--visible'); }, { once: true });
+      // Polling fallback (6s safety)
+      let _poll = 0;
+      const _pollInt = setInterval(() => {
+        if (_frameShown) { clearInterval(_pollInt); return; }
+        _hideAvatar();
+        if (++_poll > 30) { _frameShown = true; const camOff = cell.querySelector('.vgc-cam-off'); if (camOff) camOff.classList.remove('vgc-cam-off--visible'); clearInterval(_pollInt); }
+      }, 200);
+
       vid.play().catch(() => {});
-      // Hide camera-off overlay since stream is live
-      const camOff = cell.querySelector('.vgc-cam-off');
-      if (camOff) camOff.classList.remove('vgc-cam-off--visible');
       return; // done
     }
     // Cell not yet rendered — retry up to 20 times (2 seconds total)

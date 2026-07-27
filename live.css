@@ -1033,6 +1033,30 @@ body.is-viewer #shadowBotBadge     { display: none !important; }
   opacity: 0; pointer-events: none;
 }
 
+/* ── BLACK-SCREEN FIX ──
+   Give the host cell a subtle animated gradient backdrop so it never
+   appears as a flat black rectangle while the stream is still
+   connecting (before the <video> first frame paints). The avatar +
+   name label sit on top of this, so the cell reads as "connecting"
+   instead of "broken / black". */
+.vgc-cell.host-cell {
+  background: linear-gradient(135deg, #0B1F3A 0%, #0d2240 50%, #0B1F3A 100%);
+  background-size: 200% 200%;
+  animation: vgcHostLoading 2.4s ease-in-out infinite;
+}
+@keyframes vgcHostLoading {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+/* Once the host cell has a live video element with a frame, stop the
+   shimmer and let the video cover the cell. */
+.vgc-cell.host-cell:has(video[style*="display: none"]),
+.vgc-cell.host-cell:has(video:not([srcObject])) {
+  background: #0B1F3A;
+  animation: none;
+}
+
 /* ── viewer: hide layout btn and request queue ── */
 body.is-viewer .guest-layout-btn      { display: none !important; }
 body.is-viewer .guest-request-queue   { display: none !important; }
