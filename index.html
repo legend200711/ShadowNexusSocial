@@ -14257,8 +14257,10 @@ body.arcade-fs-ios body::after { display:none !important; }
           const isOn = u.status === 'online';
           // Check RTDB state first (more accurate), fall back to Firestore
           const rtdbState = _inboxPresenceState[capturedTgtUid] || {};
-          const finalIsOn  = (rtdbState.online || isOn);
-          const finalIsLive = rtdbState.live || false;
+          // LIVE if RTDB says live OR Firestore isLive is true
+          const finalIsLive = rtdbState.live || !!(u.isLive);
+          // Online if RTDB/FS says online OR the person is LIVE (live people are online)
+          const finalIsOn  = (rtdbState.online || isOn || finalIsLive);
           _mUpdateStatusDisplay(finalIsOn, finalIsLive, u.mood);
       });
 
@@ -16460,6 +16462,7 @@ body.arcade-fs-ios body::after { display:none !important; }
   // Safe to call multiple times — reuses the existing listener.
   // Uses BOTH RTDB users/{uid} (real-time) AND Firestore status (fallback)
   // so the inbox cards stay in sync with the chat modal status.
+  // LIVE status is detected from RTDB users/{uid}.live OR Firestore isLive.
   function _inboxAttachPresence(uid) {
     if (!uid) return;
     if (_inboxPresenceListeners[uid]) return;            // already listening
@@ -16468,14 +16471,18 @@ body.arcade-fs-ios body::after { display:none !important; }
 
     // Raw states — RTDB and Firestore are tracked separately to avoid feedback loops
     let _rawRtdb  = { online: false, live: false, lastSeen: 0 };
-    let _rawFs    = { status: 'offline', lastSeen: 0 };
+    let _rawFs    = { status: 'offline', isLive: false, lastSeen: 0 };
 
     // Helper: merge RTDB + Firestore status and update the card
     function _refreshCard() {
-      // Online if EITHER RTDB says online OR Firestore status is "online"
+      // LIVE if RTDB says live OR Firestore isLive is true
+      const isLive = _rawRtdb.live || _rawFs.isLive;
+      // Online if RTDB says online OR Firestore status is "online"
+      // (LIVE people are always online too)
+      const isOnline = _rawRtdb.online || (_rawFs.status === 'online') || isLive;
       const merged = {
-        online: _rawRtdb.online || (_rawFs.status === 'online'),
-        live:   _rawRtdb.live,
+        online: isOnline,
+        live:   isLive,
         lastSeen: _rawRtdb.lastSeen || _rawFs.lastSeen || 0
       };
       _inboxPresenceState[uid] = merged;
@@ -16491,12 +16498,13 @@ body.arcade-fs-ios body::after { display:none !important; }
     }
 
     // Firestore listener — backup status source (used by chat modal too)
+    // Also watches isLive so we can detect LIVE even if RTDB hasn't synced
     let _fsUnsub = null;
     try {
       _fsUnsub = onSnapshot(doc(db, 'users', uid), (snap) => {
-        if (!snap.exists()) { _rawFs = { status: 'offline', lastSeen: 0 }; _refreshCard(); return; }
+        if (!snap.exists()) { _rawFs = { status: 'offline', isLive: false, lastSeen: 0 }; _refreshCard(); return; }
         const u = snap.data();
-        _rawFs = { status: u.status || 'offline', lastSeen: u.lastSeen || 0 };
+        _rawFs = { status: u.status || 'offline', isLive: !!(u.isLive), lastSeen: u.lastSeen || 0 };
         _refreshCard();
       }, () => { /* ignore errors */ });
     } catch(_) {}

@@ -685,7 +685,10 @@ async function startLive() {
   _iqOnLiveStart();
 
   // ── Non-critical side-work (fire-and-forget, doesn't block) ──
-  updateDoc(doc(_db, 'users', _user.uid), { isLive: true, liveRoomId: _roomId }).catch(()=>{});
+  // Also set Firestore status to "online" so the inbox/chat presence
+  // (which falls back to Firestore status) shows the host as online/LIVE
+  // even if the RTDB listener hasn't synced yet.
+  updateDoc(doc(_db, 'users', _user.uid), { isLive: true, liveRoomId: _roomId, status: 'online', lastSeen: Date.now() }).catch(()=>{});
 
   // ── RTDB users/{uid} presence: mark as online + live (fire-and-forget) ──
   (async () => {
@@ -697,6 +700,9 @@ async function startLive() {
       _hostPresenceInterval = setInterval(() => {
         try {
           set(_uPresRef, { online: true, live: true, lastSeen: rtdbTimestamp() });
+          // Also refresh Firestore status so inbox/chat presence (Firestore fallback)
+          // keeps showing the host as online while they are live.
+          updateDoc(doc(_db, 'users', _user.uid), { status: 'online', lastSeen: Date.now() }).catch(() => {});
         } catch (_) {}
       }, 10000);
     } catch (_) {}
@@ -922,6 +928,8 @@ async function endLive() {
     await updateDoc(doc(_db, 'users', _user.uid), {
       isLive:     deleteField(),
       liveRoomId: deleteField(),
+      status:     'online',
+      lastSeen:   Date.now(),
     });
   } catch (_) {}
 
