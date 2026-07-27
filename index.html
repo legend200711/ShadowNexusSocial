@@ -32,14 +32,14 @@
 <meta property="og:title"       content="Shadow Nexus Social">
 <meta property="og:description" content="Connect, post, message, and share. No judgment. Stay legendary. 🌑🔥">
 <meta property="og:type"        content="website">
-<meta property="og:url"         content="https://legend200711.github.io/TEST/">
-<meta property="og:image"       content="https://legend200711.github.io/TEST/icon-512.png">
+<meta property="og:url"         content="https://legend200711.github.io/ShadowNexusSocial/">
+<meta property="og:image"       content="https://legend200711.github.io/ShadowNexusSocial/icon-512.png">
 
 <!-- ── Twitter Card ── -->
 <meta name="twitter:card"        content="summary">
 <meta name="twitter:title"       content="Shadow Nexus Social">
 <meta name="twitter:description" content="Connect, post, message, and share. No judgment. Stay legendary.">
-<meta name="twitter:image"       content="https://legend200711.github.io/TEST/icon-512.png">
+<meta name="twitter:image"       content="https://legend200711.github.io/ShadowNexusSocial/icon-512.png">
 
 <!-- ── Shared stylesheet ── -->
 <link rel="stylesheet" href="style.css">
@@ -9085,9 +9085,11 @@ body.arcade-fs-ios body::after { display:none !important; }
 
     // ── Step 1: Derive the correct scope from the page URL ──
     // The FCM SW must be registered under the same scope as the app.
-    // Using '/' when the app lives at /TEST/ causes a SecurityError.
-    const isGH    = location.pathname.startsWith('/TEST');
-    const swScope = isGH ? '/TEST/' : './';
+    // Derive the base path dynamically from the current URL so this works
+    // on GitHub Pages (/ShadowNexusSocial/), any sub-path, or localhost (/).
+    // A relative './' scope works in most cases, but when the page is the
+    // directory index (no trailing file) we want the directory as the scope.
+    const swScope = (location.pathname.endsWith('/') ? location.pathname : location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1)) || '/';
     const swPath  = swScope + 'firebase-messaging-sw.js';
 
     let swReg = null;
@@ -9095,7 +9097,9 @@ body.arcade-fs-ios body::after { display:none !important; }
       // Use an existing registration if one already controls the scope to avoid
       // redundant registrations and the "scope already claimed" error.
       const existing = await navigator.serviceWorker.getRegistrations();
-      swReg = existing.find(r => r.scope && r.scope.includes(swScope.replace('./', '')));
+      // Match any existing registration whose scope is the same directory we're registering into.
+      const _scopeMatch = swScope.replace(/^\.\//, '').replace(/\/$/, '');
+      swReg = existing.find(r => r.scope && (r.scope.replace(/\/$/, '') === (_scopeMatch ? swScope.replace(/\/$/, '') : swScope) || r.scope.includes(_scopeMatch)));
       if (!swReg) {
         swReg = await navigator.serviceWorker.register(swPath, { scope: swScope });
         console.log('[FCM-SW] Registered, scope:', swReg.scope);
@@ -9254,6 +9258,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
 
       // Write to the target user's pushQueue — their device picks it up via onSnapshot
+      // (this is the "pull" path that works when the app is OPEN)
       await updateDoc(doc(db, 'users', targetUid), {
           pushQueue: arrayUnion({
               id:      `${type}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
@@ -9267,6 +9272,31 @@ body.arcade-fs-ios body::after { display:none !important; }
               read:    false
           })
       });
+
+      // ── Also send a real FCM push via the Cloudflare Worker so the
+      // notification arrives even when the app is CLOSED ──
+      // The Worker signs a Google service-account JWT and calls the
+      // FCM HTTP v1 API to deliver the push to the target's stored tokens.
+      const _fcmTokens = Array.isArray(uData.fcmTokens) ? uData.fcmTokens : [];
+      if (_fcmTokens.length > 0) {
+        try {
+          await fetch('https://yellow-term-11e6.nthntjrn.workers.dev/send-push', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tokens:  _fcmTokens,
+              title,
+              body,
+              type:    type   || 'announcement',
+              fromUid: fromUid || '',
+              roomId:  roomId  || '',
+            }),
+          });
+        } catch (pushErr) {
+          // Non-fatal: the pushQueue write above still delivers when app is open.
+          console.warn('[SNX Push] FCM Worker delivery failed (non-fatal):', pushErr.message);
+        }
+      }
     } catch(e) {
       console.error('[SNX Push] sendPushToUser failed for', targetUid, ':', e.message);
     }
@@ -9842,10 +9872,36 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (e.target === this) window.closeForgotPasswordModal();
   });
 
+  // ── Presence sync helper: write offline to BOTH Firestore + RTDB ──
+  // Called on tab close, navigation away, and tab-hidden so the presence
+  // strip (Firestore) and the friends list (RTDB) both go offline promptly.
+  function _snxMarkOffline() {
+      if (!currentUser) return;
+      // RTDB: set users/{uid} online:false (the authoritative real-time source)
+      try { _rtdbSet(_rtdbRef(_presenceRtdb, 'users/' + currentUser.uid), { online: false, live: false, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
+      // Firestore: also flip status so the presence strip cleans up
+      try { updateDoc(doc(db, 'users', currentUser.uid), { status: 'offline', lastSeen: Date.now() }); } catch(_) {}
+  }
+
   // Mark offline when the tab is closed / navigated away (best-effort)
-  window.addEventListener('beforeunload', () => {
-      if (currentUser) {
-          try { updateDoc(doc(db, "users", currentUser.uid), { status: "offline", lastSeen: Date.now() }); } catch(_) {}
+  window.addEventListener('beforeunload', () => { _snxMarkOffline(); });
+
+  // pagehide fires reliably on mobile when the tab is backgrounded or swiped away
+  // (beforeunload does NOT fire on mobile in many cases). Mark offline here too.
+  window.addEventListener('pagehide', () => { _snxMarkOffline(); });
+
+  // visibilitychange: when the tab is hidden (user switched tabs / minimized /
+  // locked the phone) we proactively mark the user offline so friends see them
+  // go offline within ~2 s instead of waiting for the 30 s heartbeat to expire.
+  // When the tab becomes visible again we restore the online status immediately.
+  document.addEventListener('visibilitychange', () => {
+      if (!currentUser) return;
+      if (document.visibilityState === 'hidden') {
+          _snxMarkOffline();
+      } else if (document.visibilityState === 'visible') {
+          // Tab is back in focus — restore presence (RTDB + Firestore)
+          try { _rtdbUpdate(_rtdbRef(_presenceRtdb, 'users/' + currentUser.uid), { online: true, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
+          try { updateDoc(doc(db, 'users', currentUser.uid), { status: 'online', lastSeen: Date.now() }); } catch(_) {}
       }
   });
 
@@ -9857,11 +9913,21 @@ body.arcade-fs-ios body::after { display:none !important; }
       console.log('[SNX] Network reconnected — restoring presence');
       await new Promise(r => setTimeout(r, 800));
       if (currentUser) {
-          try { updateDoc(doc(db, "users", currentUser.uid), { status: "online", lastSeen: Date.now() }); } catch(_) {}
+          // Restore both Firestore status + RTDB presence (RTDB drives the friends list)
+          try { updateDoc(doc(db, 'users', currentUser.uid), { status: 'online', lastSeen: Date.now() }); } catch(_) {}
+          try { _rtdbSet(_rtdbRef(_presenceRtdb, 'users/' + currentUser.uid), { online: true, live: false, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
           // Re-open the profile chat modal if it was open when network dropped
           if (typeof window._m_tgtUid !== 'undefined' && window._m_tgtUid && typeof window.ipcOpen === 'function') {
               window.ipcOpen(window._m_tgtUid);
           }
+      }
+  });
+
+  // ── Offline (network lost) — flip to offline so friends see it immediately ──
+  window.addEventListener('offline', () => {
+      if (currentUser) {
+          try { updateDoc(doc(db, 'users', currentUser.uid), { status: 'offline', lastSeen: Date.now() }); } catch(_) {}
+          try { _rtdbSet(_rtdbRef(_presenceRtdb, 'users/' + currentUser.uid), { online: false, live: false, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
       }
   });
 
@@ -9972,11 +10038,18 @@ body.arcade-fs-ios body::after { display:none !important; }
           // ── Heartbeat: keep RTDB presence alive every 30 s ──
           // Use update() (not set()) so we only refresh online+lastSeen without
           // overwriting the `live` field that live.js manages independently.
-          setInterval(() => {
+          // ALSO refresh the Firestore status/lastSeen so the presence strip
+          // (which queries Firestore where status=="online") stays accurate and
+          // stale "online" users (who crashed/closed without firing beforeunload)
+          // get cleaned up by the 90-second staleness check in initPresenceStrip.
+          const _presenceHeartbeat = setInterval(() => {
               if (auth.currentUser) {
                   try { _rtdbUpdate(_rtdbRef(_presenceRtdb, 'users/' + auth.currentUser.uid), { online: true, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
+                  try { updateDoc(doc(db, 'users', auth.currentUser.uid), { status: 'online', lastSeen: Date.now() }); } catch(_) {}
               }
           }, 30000);
+          // Store the interval so we can clear it on logout / auth change
+          window._snxPresenceHeartbeat = _presenceHeartbeat;
 
           // Save email to Firestore so username login works for existing accounts
           try {
@@ -10133,7 +10206,8 @@ body.arcade-fs-ios body::after { display:none !important; }
               _queue.forEach(n => _seenPushIds.add(n.id));
 
               // Resolve absolute icon paths once (SW context needs full path, not relative)
-              const _snxBase   = location.pathname.startsWith('/TEST') ? '/TEST/' : '/';
+              // Derive the base path dynamically so icons load correctly on GitHub Pages.
+              const _snxBase   = (location.pathname.endsWith('/') ? location.pathname : location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1)) || '/';
               const _iconPath  = _snxBase + 'icon-192.png';
               const _badgePath = _snxBase + 'favicon-32x32.png';
 
@@ -10295,6 +10369,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           }
           // Explicit logout path — tear down listeners below.
           currentUser = null; userData = null;
+          // Clear the presence heartbeat interval so it stops firing after logout
+          if (window._snxPresenceHeartbeat) { clearInterval(window._snxPresenceHeartbeat); window._snxPresenceHeartbeat = null; }
           // ── Tear down EVERY real-time listener so nothing fires against a null user ──
           if (feedUnsubscribe)     { feedUnsubscribe();     feedUnsubscribe     = null; }
           if (presenceUnsubscribe) { presenceUnsubscribe(); presenceUnsubscribe = null; }
@@ -10616,18 +10692,41 @@ body.arcade-fs-ios body::after { display:none !important; }
       const q = query(collection(db, "users"), where("status", "==", "online"));
       const unsub = onSnapshot(q, (snap) => {
           // Collect online users, deduplicate by uid, sort by lastSeen desc
+          // Stale users (no heartbeat in 90 s — crashed/closed without firing
+          // beforeunload) are treated as offline and cleaned up in Firestore.
+          const STALE_MS = 90 * 1000; // 90 seconds — more than 2 missed 30 s heartbeats
+          const now = Date.now();
+          const staleUids = [];
           const seenUids = new Set();
           const onlineUsers = [];
           snap.forEach(uDoc => {
               const u = uDoc.data();
               if (!u.uid || u.uid === currentUser.uid) return;
               if (!u.displayName) return; // skip incomplete registrations
+              // Staleness check: if lastSeen is older than STALE_MS, the user
+              // almost certainly closed their tab/crashed without a clean logout.
+              // Treat them as offline and clean up their Firestore status.
+              if (u.lastSeen && (now - u.lastSeen) > STALE_MS) {
+                  staleUids.push(u.uid);
+                  return; // don't show as online
+              }
               if (seenUids.has(u.uid)) return; // deduplicate
               seenUids.add(u.uid);
               onlineUsers.push(u);
           });
           // Sort by most recently active (lastSeen field, fallback joinedAt)
           onlineUsers.sort((a, b) => (b.lastSeen || b.joinedAt || 0) - (a.lastSeen || a.joinedAt || 0));
+
+          // ── Clean up stale "online" users in Firestore ──
+          // Their status field says "online" but their lastSeen is >90 s old,
+          // meaning their tab crashed or they lost connectivity without a clean
+          // logout. Flip them to offline so the next snapshot won't return them.
+          // (Best-effort, non-blocking — runs once per snapshot that finds stale users.)
+          if (staleUids.length) {
+              staleUids.forEach(staleUid => {
+                  try { updateDoc(doc(db, 'users', staleUid), { status: 'offline', lastSeen: now }).catch(()=>{}); } catch(_) {}
+              });
+          }
 
           // Expose online UIDs globally so story bubbles can show green rings
           window._snxOnlineUids = seenUids;
