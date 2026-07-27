@@ -1434,7 +1434,7 @@ img.post-media-preview::before {
     width: 11px;
     height: 11px;
     border-radius: 50%;
-    background: #444;
+    background: #555;
     border: 2px solid #0B1F3A;
     position: absolute;
     bottom: 1px;
@@ -1444,6 +1444,15 @@ img.post-media-preview::before {
     background: #00ff88;
     box-shadow: 0 0 8px rgba(0,255,136,0.8);
     animation: greenPulse 2s infinite;
+}
+.ipc-modal-status-dot.live {
+    background: #ff3344;
+    box-shadow: 0 0 8px rgba(255,51,68,0.8);
+    animation: snxLiveDot 1s infinite;
+}
+.ipc-modal-status-dot.offline {
+    background: #555;
+    box-shadow: none;
 }
 .ipc-modal-info { flex: 1; min-width: 0; }
 .ipc-modal-name {
@@ -1459,6 +1468,52 @@ img.post-media-preview::before {
     font-size: 11px;
     color: #3a6a8a;
     margin-top: 2px;
+}
+/* ── Prominent status badge shown next to the name in chat header ── */
+.ipc-modal-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 20px;
+    margin-left: 8px;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.ipc-modal-status-badge.online {
+    color: #00ff88;
+    background: rgba(0,255,136,0.12);
+    border: 1px solid rgba(0,255,136,0.35);
+}
+.ipc-modal-status-badge.offline {
+    color: #6a8aaa;
+    background: rgba(106,138,170,0.12);
+    border: 1px solid rgba(106,138,170,0.3);
+}
+.ipc-modal-status-badge.live {
+    color: #ff5566;
+    background: rgba(255,51,68,0.12);
+    border: 1px solid rgba(255,51,68,0.35);
+    animation: snxLiveDot 1.5s infinite;
+}
+.ipc-modal-status-badge .ipc-modal-status-pip {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.ipc-modal-status-badge.online .ipc-modal-status-pip {
+    background: #00ff88;
+    box-shadow: 0 0 6px rgba(0,255,136,0.9);
+}
+.ipc-modal-status-badge.offline .ipc-modal-status-pip {
+    background: #6a8aaa;
+}
+.ipc-modal-status-badge.live .ipc-modal-status-pip {
+    background: #ff3344;
+    box-shadow: 0 0 6px rgba(255,51,68,0.9);
 }
 .ipc-modal-header-btns {
     display: flex;
@@ -13628,6 +13683,7 @@ body.arcade-fs-ios body::after { display:none !important; }
   let _m_ready     = false;  // true once the channel is initialised and safe to send
   let _m_msgUnsub  = null;   // real-time messages listener unsubscribe
   let _m_stUnsub   = null;   // real-time status listener unsubscribe
+  let _m_rtdbUnsub = null;   // RTDB presence listener unsubscribe
   let _m_typTimer  = null;   // debounce timer for typing indicator
   let _m_inpHandler = null;  // input event handler (kept for cleanup)
 
@@ -13663,6 +13719,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       // Stop real-time listeners
       if (_m_msgUnsub)  { _m_msgUnsub();  _m_msgUnsub  = null; }
       if (_m_stUnsub)   { _m_stUnsub();   _m_stUnsub   = null; }
+      if (_m_rtdbUnsub) { _m_rtdbUnsub(); _m_rtdbUnsub = null; }
       clearTimeout(_m_typTimer);
 
       // Clear typing flag in Firestore (best-effort)
@@ -14079,7 +14136,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       // Store UID so clicking avatar/name opens that person's profile
       window._ipcModalUid = targetUid;
 
-      if (nameEl)  nameEl.innerHTML = escapeHtml(_m_tgtData.displayName || 'User') + buildBadgeHtml(_m_tgtData.badges||[], _m_tgtData.role||'member') + buildMoodChipHtml(_m_tgtData.profileCustom?.moodType || '', _m_tgtData.profileCustom?.moodValue || '');
+      if (nameEl)  nameEl.innerHTML = escapeHtml(_m_tgtData.displayName || 'User') + buildBadgeHtml(_m_tgtData.badges||[], _m_tgtData.role||'member') + buildMoodChipHtml(_m_tgtData.profileCustom?.moodType || '', _m_tgtData.profileCustom?.moodValue || '') + '<span class="ipc-modal-status-badge offline" id="ipcModalStatusBadge"><span class="ipc-modal-status-pip"></span><span id="ipcModalStatusBadgeText">Offline</span></span>';
       if (subEl)   subEl.textContent  = _m_tgtData.status === 'online' ? '🟢 Online now' : (_m_tgtData.mood || '⚫ Offline');
 
       if (avatarEl) {
@@ -14097,15 +14154,65 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
 
       // ── Step 4: Live online-status listener for header ──
+      // Uses BOTH Firestore status AND RTDB presence (more accurate) to determine
+      // whether the chat partner is online or offline.
+      // The status badge next to the name shows a clear Online / Offline / LIVE label.
+      function _mUpdateStatusDisplay(isOn, isLive, mood) {
+          if (_m_chId !== capturedChId) return;
+          const dot     = document.getElementById('ipcModalStatusDot');
+          const sub     = document.getElementById('ipcModalSub');
+          const badge   = document.getElementById('ipcModalStatusBadge');
+          const badgeTx = document.getElementById('ipcModalStatusBadgeText');
+          if (isLive) {
+              if (dot)     dot.className = 'ipc-modal-status-dot live';
+              if (sub)     sub.textContent = '🔴 LIVE now';
+              if (badge)   badge.className = 'ipc-modal-status-badge live';
+              if (badgeTx) badgeTx.textContent = 'LIVE';
+          } else if (isOn) {
+              if (dot)     dot.className = 'ipc-modal-status-dot online';
+              if (sub)     sub.textContent = '🟢 Online now';
+              if (badge)   badge.className = 'ipc-modal-status-badge online';
+              if (badgeTx) badgeTx.textContent = 'Online';
+          } else {
+              if (dot)     dot.className = 'ipc-modal-status-dot offline';
+              if (sub)     sub.textContent = mood || '⚫ Offline';
+              if (badge)   badge.className = 'ipc-modal-status-badge offline';
+              if (badgeTx) badgeTx.textContent = 'Offline';
+          }
+      }
+      // Initial display from the loaded profile data
+      _mUpdateStatusDisplay(_m_tgtData.status === 'online', false, _m_tgtData.mood);
+
+      // Firestore listener (updates mood + backup status)
       _m_stUnsub = onSnapshot(doc(db, 'users', capturedTgtUid), uSnap => {
           if (_m_chId !== capturedChId || !uSnap.exists()) return;
           const u    = uSnap.data();
           const isOn = u.status === 'online';
-          const dot  = document.getElementById('ipcModalStatusDot');
-          const sub  = document.getElementById('ipcModalSub');
-          if (dot) dot.className = 'ipc-modal-status-dot' + (isOn ? ' online' : '');
-          if (sub) sub.textContent = isOn ? '🟢 Online now' : (u.mood || '⚫ Offline');
+          // Check RTDB state first (more accurate), fall back to Firestore
+          const rtdbState = _inboxPresenceState[capturedTgtUid] || {};
+          const finalIsOn  = (rtdbState.online || isOn);
+          const finalIsLive = rtdbState.live || false;
+          _mUpdateStatusDisplay(finalIsOn, finalIsLive, u.mood);
       });
+
+      // RTDB presence listener (real-time online/offline — more accurate than Firestore)
+      // Reuses the inbox presence system so the chat status updates instantly.
+      _inboxAttachPresence(capturedTgtUid);
+      if (window._snxRtdbApi && _inboxRtdb()) {
+          const api = window._snxRtdbApi;
+          const rtdb = _inboxRtdb();
+          const nodeRef = api.ref(rtdb, 'users/' + capturedTgtUid);
+          _m_rtdbUnsub = () => { try { api.off(nodeRef, _mRtdbHandler); } catch(_) {} };
+          function _mRtdbHandler(snap) {
+              if (_m_chId !== capturedChId) return;
+              const s = snap ? snap.val() : null;
+              const isOn  = !!(s && s.online);
+              const isLive = !!(s && s.live);
+              const mood = (_m_tgtData && _m_tgtData.mood) || '';
+              _mUpdateStatusDisplay(isOn, isLive, mood);
+          }
+          api.onValue(nodeRef, _mRtdbHandler);
+      }
 
       // ── Step 5: Live messages listener ──
       // Track first delivery so we always scroll to bottom on open
