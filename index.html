@@ -10817,6 +10817,32 @@ body.arcade-fs-ios body::after { display:none !important; }
      the entire users collection on every presence change.
      Guard: tear down existing listener before re-creating so we never accumulate
      duplicate presence snapshots. */
+  // ─────────────────────────────────────────────────────────────
+  //  SINGLE SOURCE OF TRUTH for online/offline — used EVERYWHERE
+  //  (profiles, friends list, user cards, message modal, admin panel,
+  //   presence strip). A user is considered online only if their
+  //   Firestore status says "online" (or they are live) AND their
+  //   lastSeen heartbeat is fresh. A stale heartbeat means the tab
+  //   crashed/closed without firing beforeunload → treat as offline.
+  //  Heartbeat fires every 30 s, so 75 s = two missed beats + slack.
+  // ─────────────────────────────────────────────────────────────
+  window.SNX_PRESENCE_STALE_MS = 75 * 1000; // 75 seconds
+  window._snxIsUserOnline = function (u) {
+      if (!u) return false;
+      // Live users are always considered online (their stream keeps them active).
+      if (u.isLive === true) return true;
+      if (u.status !== 'online') return false;
+      // Normalise lastSeen (may be a number ms, a Firestore Timestamp, or missing).
+      let ls = u.lastSeen;
+      if (ls && typeof ls === 'object' && typeof ls.toMillis === 'function') ls = ls.toMillis();
+      if (typeof ls !== 'number') {
+          // No usable heartbeat but status says online — accept it (legacy accounts)
+          // rather than falsely hiding a genuinely-online user.
+          return true;
+      }
+      return (Date.now() - ls) <= window.SNX_PRESENCE_STALE_MS;
+  };
+
   function initPresenceStrip() {
       if (presenceUnsubscribe) { presenceUnsubscribe(); presenceUnsubscribe = null; }
       const q = query(collection(db, "users"), where("status", "==", "online"));
@@ -10824,7 +10850,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Collect online users, deduplicate by uid, sort by lastSeen desc
           // Stale users (no heartbeat in 90 s — crashed/closed without firing
           // beforeunload) are treated as offline and cleaned up in Firestore.
-          const STALE_MS = 90 * 1000; // 90 seconds — more than 2 missed 30 s heartbeats
+          const STALE_MS = window.SNX_PRESENCE_STALE_MS; // single source of truth
           const now = Date.now();
           const staleUids = [];
           const seenUids = new Set();
@@ -10833,10 +10859,10 @@ body.arcade-fs-ios body::after { display:none !important; }
               const u = uDoc.data();
               if (!u.uid || u.uid === currentUser.uid) return;
               if (!u.displayName) return; // skip incomplete registrations
-              // Staleness check: if lastSeen is older than STALE_MS, the user
-              // almost certainly closed their tab/crashed without a clean logout.
-              // Treat them as offline and clean up their Firestore status.
-              if (u.lastSeen && (now - u.lastSeen) > STALE_MS) {
+              // Staleness check (shared rule): if the user is not online per the
+              // global helper, their tab almost certainly crashed/closed without a
+              // clean logout. Treat them as offline and clean up their Firestore status.
+              if (!window._snxIsUserOnline(u)) {
                   staleUids.push(u.uid);
                   return; // don't show as online
               }
@@ -12367,7 +12393,7 @@ body.arcade-fs-ios body::after { display:none !important; }
               : `background:#0B1F3A;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;color:#00AEEF;`;
           const avatarContent = u.avatar ? '' : (u.displayName||'?')[0].toUpperCase();
           card.innerHTML = `
-            <div class="user-card-avatar" style="${avatarStyle}" data-uid="${u.uid}">${avatarContent}<div class="online-pip ${u.status==='online'?'on':''}"></div></div>
+            <div class="user-card-avatar" style="${avatarStyle}" data-uid="${u.uid}">${avatarContent}<div class="online-pip ${window._snxIsUserOnline(u)?'on':''}"></div></div>
             <div class="user-card-info">
                 <div class="user-card-name" style="cursor:pointer;display:flex;align-items:center;gap:4px;flex-wrap:wrap;" onclick="viewProfile('${u.uid}')">${escFeed(u.displayName)}${buildBadgeHtml(u.badges||[],u.role||'member')}</div>
                 <div class="user-card-handle">@${escFeed(u.username||'')}</div>
@@ -13247,7 +13273,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
           // Online badge
           const onlineBadge = document.getElementById("profileOnlineBadge");
-          if (onlineBadge) onlineBadge.style.display = p.status === 'online' ? 'inline-flex' : 'none';
+          if (onlineBadge) onlineBadge.style.display = window._snxIsUserOnline(p) ? 'inline-flex' : 'none';
 
           // LIVE NOW badge — link to the active stream room
           const liveBadge = document.getElementById("profileLiveBadge");
@@ -14204,7 +14230,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       window._ipcModalUid = targetUid;
 
       if (nameEl)  nameEl.innerHTML = escapeHtml(_m_tgtData.displayName || 'User') + buildBadgeHtml(_m_tgtData.badges||[], _m_tgtData.role||'member') + buildMoodChipHtml(_m_tgtData.profileCustom?.moodType || '', _m_tgtData.profileCustom?.moodValue || '') + '<span class="ipc-modal-status-badge offline" id="ipcModalStatusBadge"><span class="ipc-modal-status-pip"></span><span id="ipcModalStatusBadgeText">Offline</span></span>';
-      if (subEl)   subEl.textContent  = _m_tgtData.status === 'online' ? '🟢 Online now' : (_m_tgtData.mood || '⚫ Offline');
+      if (subEl)   subEl.textContent  = window._snxIsUserOnline(_m_tgtData) ? '🟢 Online now' : (_m_tgtData.mood || '⚫ Offline');
 
       if (avatarEl) {
           // Clear any previous initial / background from the last conversation
@@ -14248,13 +14274,13 @@ body.arcade-fs-ios body::after { display:none !important; }
           }
       }
       // Initial display from the loaded profile data
-      _mUpdateStatusDisplay(_m_tgtData.status === 'online', false, _m_tgtData.mood);
+      _mUpdateStatusDisplay(window._snxIsUserOnline(_m_tgtData), false, _m_tgtData.mood);
 
       // Firestore listener (updates mood + backup status)
       _m_stUnsub = onSnapshot(doc(db, 'users', capturedTgtUid), uSnap => {
           if (_m_chId !== capturedChId || !uSnap.exists()) return;
           const u    = uSnap.data();
-          const isOn = u.status === 'online';
+          const isOn = window._snxIsUserOnline(u); // shared staleness-aware rule
           // Check RTDB state first (more accurate), fall back to Firestore
           const rtdbState = _inboxPresenceState[capturedTgtUid] || {};
           // LIVE if RTDB says live OR Firestore isLive is true
@@ -15131,20 +15157,20 @@ body.arcade-fs-ios body::after { display:none !important; }
               if (u.uid === currentUser.uid) return;
               users.push(u);
           });
-          if (filterMode==='online')        users = users.filter(u=>u.status==='online');
+          if (filterMode==='online')        users = users.filter(u=>window._snxIsUserOnline(u));
           if (filterMode==='suspended')     users = users.filter(u=>u.suspended);
           if (filterMode==='founder')       users = users.filter(u=>u.role==='founder');
           if (filterMode==='moderator')     users = users.filter(u=>u.role==='moderator');
           if (filterMode==='administrator') users = users.filter(u=>u.role==='administrator');
           if (filter) users = users.filter(u=>(u.displayName||'').toLowerCase().includes(filter)||(u.username||'').toLowerCase().includes(filter));
-          users.sort((a,b)=>{ if(a.status==='online'&&b.status!=='online')return -1; if(b.status==='online'&&a.status!=='online')return 1; return(a.displayName||'').localeCompare(b.displayName||''); });
+          users.sort((a,b)=>{ const ao=window._snxIsUserOnline(a),bo=window._snxIsUserOnline(b); if(ao&&!bo)return -1; if(bo&&!ao)return 1; return(a.displayName||'').localeCompare(b.displayName||''); });
 
           // Update dashboard stats
           const allUsers = snap.docs.map(d=>d.data()).filter(u=>u.uid&&u.displayName);
           const todayMs  = new Date(new Date().setHours(0,0,0,0)).getTime();
           const _s = (id,v)=>{ const el=document.getElementById(id); if(el)el.textContent=v; };
           _s('adminStatTotal',   allUsers.length);
-          _s('adminStatOnline',  allUsers.filter(u=>u.status==='online').length);
+          _s('adminStatOnline',  allUsers.filter(u=>window._snxIsUserOnline(u)).length);
           _s('adminStatBadged',  allUsers.filter(u=>(u.badges||[]).length>0).length);
           _s('adminStatNewToday',allUsers.filter(u=>u.joinedAt&&u.joinedAt>=todayMs).length);
           try{ const ps=await getDocs(query(collection(db,'posts'),where('createdAt','>=',todayMs))); _s('adminStatPosts',ps.size); }catch(_){}
@@ -15161,10 +15187,11 @@ body.arcade-fs-ios body::after { display:none !important; }
               av.className='admin-user-avatar';
               if(u.avatar)av.style.backgroundImage=`url('${u.avatar}')`;
               else av.textContent=(u.displayName||'?')[0].toUpperCase();
-              if(u.status==='online'){av.style.borderColor='rgba(0,255,136,0.75)';av.style.boxShadow='0 0 10px rgba(0,255,136,0.45)';}
+              const _admOnline=window._snxIsUserOnline(u);
+              if(_admOnline){av.style.borderColor='rgba(0,255,136,0.75)';av.style.boxShadow='0 0 10px rgba(0,255,136,0.45)';}
               const info = document.createElement('div'); info.className='admin-user-info';
               const joined=u.joinedAt?new Date(u.joinedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'—';
-              const statusTag=u.suspended?'<span style="color:#ff4466;font-size:10px;margin-left:6px;">🚫 Suspended</span>':u.status==='online'?'<span style="color:#39FF14;font-size:10px;margin-left:6px;">● Online</span>':'';
+              const statusTag=u.suspended?'<span style="color:#ff4466;font-size:10px;margin-left:6px;">🚫 Suspended</span>':_admOnline?'<span style="color:#39FF14;font-size:10px;margin-left:6px;">● Online</span>':'';
               const nameRow=document.createElement('div');
               nameRow.style.cssText='display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px;';
               nameRow.innerHTML=`<span class="admin-user-name">${escFeed(u.displayName)}</span>${buildBadgeHtml(u.badges||[],u.role||'member')}${statusTag}`;
@@ -15811,9 +15838,9 @@ body.arcade-fs-ios body::after { display:none !important; }
               const card = document.createElement('div'); card.className = 'profile-fl-card';
               const avStyle = u.avatar ? `background-image:url('${u.avatar}');background-size:cover;background-position:center;` : '';
               const avLetter = u.avatar ? '' : escFeed((u.displayName||u.username||'?')[0].toUpperCase());
-              const onlineDot = u.status === 'online'
+              const onlineDot = window._snxIsUserOnline(u)
                   ? '<div style="position:absolute;bottom:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#39FF14;border:2px solid #0d2444;box-shadow:0 0 6px rgba(57,255,20,0.8);"></div>' : '';
-              const onlineLabel = u.status === 'online' ? '<span style="color:#39FF14;font-size:10px;margin-left:4px;">● Online</span>' : '';
+              const onlineLabel = window._snxIsUserOnline(u) ? '<span style="color:#39FF14;font-size:10px;margin-left:4px;">● Online</span>' : '';
               card.innerHTML = `
                   <div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')" title="View profile" data-uid="${u.uid}">${avLetter}${onlineDot}</div>
                   <div class="profile-fl-meta" onclick="viewProfile('${u.uid}')">
@@ -15888,9 +15915,9 @@ body.arcade-fs-ios body::after { display:none !important; }
               const card = document.createElement('div'); card.className = 'profile-fl-card';
               const avStyle = u.avatar ? `background-image:url('${u.avatar}');background-size:cover;background-position:center;` : '';
               const avLetter = u.avatar ? '' : escFeed((u.displayName||u.username||'?')[0].toUpperCase());
-              const onlineDot = u.status === 'online'
+              const onlineDot = window._snxIsUserOnline(u)
                   ? '<div style="position:absolute;bottom:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#39FF14;border:2px solid #0d2444;box-shadow:0 0 6px rgba(57,255,20,0.8);"></div>' : '';
-              const onlineLabel = u.status === 'online' ? '<span style="color:#39FF14;font-size:10px;margin-left:4px;">● Online</span>' : '';
+              const onlineLabel = window._snxIsUserOnline(u) ? '<span style="color:#39FF14;font-size:10px;margin-left:4px;">● Online</span>' : '';
               card.innerHTML = `
                   <div class="profile-fl-avatar" style="${avStyle}position:relative;" onclick="viewProfile('${u.uid}')" title="View profile" data-uid="${u.uid}">${avLetter}${onlineDot}</div>
                   <div class="profile-fl-meta" onclick="viewProfile('${u.uid}')">
@@ -16477,9 +16504,12 @@ body.arcade-fs-ios body::after { display:none !important; }
     function _refreshCard() {
       // LIVE if RTDB says live OR Firestore isLive is true
       const isLive = _rawRtdb.live || _rawFs.isLive;
-      // Online if RTDB says online OR Firestore status is "online"
-      // (LIVE people are always online too)
-      const isOnline = _rawRtdb.online || (_rawFs.status === 'online') || isLive;
+      // Online if RTDB says online OR Firestore (staleness-checked) says online.
+      // RTDB is the primary trusted signal (onDisconnect); the Firestore fallback
+      // uses the shared staleness rule so a crashed tab isn't shown online forever.
+      // (LIVE people are always online too.)
+      const fsOnline = window._snxIsUserOnline({ status: _rawFs.status, isLive: _rawFs.isLive, lastSeen: _rawFs.lastSeen });
+      const isOnline = _rawRtdb.online || fsOnline || isLive;
       const merged = {
         online: isOnline,
         live:   isLive,
@@ -20974,7 +21004,7 @@ function _supportStopCanvas() {
           const users = usersSnap.docs.map(d=>d.data()).filter(u=>u.uid&&u.displayName);
           const _s = (id,v) => { const el=document.getElementById(id); if(el)el.textContent=v; };
           _s('admStatTotal',    users.length);
-          _s('admStatOnline',   users.filter(u=>u.status==='online').length);
+          _s('admStatOnline',   users.filter(u=>window._snxIsUserOnline(u)).length);
           _s('admStatSuspended',users.filter(u=>u.suspended).length);
           try {
               const rSnap = await getDocs(query(collection(db,'reports'),where('status','==','open')));
@@ -21005,7 +21035,7 @@ function _supportStopCanvas() {
           let users = snap.docs.map(d=>d.data()).filter(u=>u.uid&&u.displayName&&u.uid!==window._snxCurrentUser?.uid);
           // Never allow operating on founder accounts
           users = users.filter(u=>u.role !== 'founder');
-          if (filt === 'online')    users = users.filter(u=>u.status==='online');
+          if (filt === 'online')    users = users.filter(u=>window._snxIsUserOnline(u));
           if (filt === 'suspended') users = users.filter(u=>u.suspended);
           if (q_str) users = users.filter(u=>(u.displayName||'').toLowerCase().includes(q_str)||(u.username||'').toLowerCase().includes(q_str));
           users.sort((a,b)=>(a.displayName||'').localeCompare(b.displayName||''));
