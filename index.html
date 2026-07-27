@@ -975,7 +975,7 @@ input:focus, textarea:focus, select:focus {
 .profile-stat { cursor:pointer; transition:background 0.15s, transform 0.12s; border-radius:8px; padding:4px 8px; }
 .profile-stat:hover { background:rgba(0,174,239,0.1); transform:scale(1.04); }
 
-/* ── Chat header: only avatar is clickable ── */
+/* ── Chat header: avatar + name are clickable to view profile ── */
 .ipc-modal-avatar {
     cursor: pointer;
     /* Larger mobile tap area without changing visual size */
@@ -983,9 +983,20 @@ input:focus, textarea:focus, select:focus {
     margin: -8px;
     box-sizing: content-box;
     -webkit-tap-highlight-color: transparent;
+    border-radius: 50%;
+    transition: box-shadow 0.15s, transform 0.12s;
 }
-/* username is plain text — tapping avatar opens profile, not the name */
-.ipc-modal-name   { cursor: default; }
+.ipc-modal-avatar:hover {
+    box-shadow: 0 0 0 3px rgba(0,174,239,0.45);
+    transform: scale(1.06);
+}
+/* name is also clickable to open profile */
+.ipc-modal-name {
+    cursor: pointer;
+    transition: color 0.15s;
+}
+.ipc-modal-name:hover { color: #00AEEF; }
+.ipc-modal-info { cursor: pointer; }
 
 /* ── R2 Upload UI ── */
 .snx-upload-btn {
@@ -6929,11 +6940,13 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="ipc-modal-avatar" id="ipcModalAvatar" onclick="if(window._ipcModalUid){window.ipcModalClose&&window.ipcModalClose();viewProfile(window._ipcModalUid);}" title="View profile">
                 <div class="ipc-modal-status-dot" id="ipcModalStatusDot"></div>
             </div>
-            <div class="ipc-modal-info">
+            <div class="ipc-modal-info" onclick="if(window._ipcModalUid){window.ipcModalClose&&window.ipcModalClose();viewProfile(window._ipcModalUid);}" title="View profile">
                 <div class="ipc-modal-name" id="ipcModalName">Loading…</div>
                 <div class="ipc-modal-sub"  id="ipcModalSub">Connecting…</div>
             </div>
             <div class="ipc-modal-header-btns">
+                <!-- View Profile button -->
+                <button class="ipc-modal-btn" title="View profile" onclick="if(window._ipcModalUid){window.ipcModalClose&&window.ipcModalClose();viewProfile(window._ipcModalUid);}" aria-label="View profile" style="font-size:14px;color:#00AEEF;">👤</button>
                 <!-- Close button -->
                 <button class="ipc-modal-btn" title="Close chat" onclick="window.ipcModalClose && window.ipcModalClose()" aria-label="Close chat" style="font-size:20px;color:#ff5566;">✕</button>
             </div>
@@ -16432,7 +16445,8 @@ body.arcade-fs-ios body::after { display:none !important; }
   const _inboxUserCache = {};
   // ── Who's Online: RTDB presence for inbox + compose modal ──
   const _inboxPresenceListeners = {};   // uid -> unsubscribe fn
-  const _inboxPresenceState    = {};    // uid -> { online, live, lastSeen }
+  const _inboxPresenceState    = {};    // uid -> { online, live, lastSeen } (merged RTDB + Firestore)
+  const _inboxFSStatus         = {};    // uid -> { status, lastSeen } (Firestore fallback status)
   const _inboxFriendsCache     = [];    // cached friends list [{uid, displayName, avatar}]
   let   _inboxOnlineSectionShown = false;
 
@@ -16444,22 +16458,27 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   // Attach (or refresh) a presence listener for a uid. Returns nothing.
   // Safe to call multiple times — reuses the existing listener.
+  // Uses BOTH RTDB users/{uid} (real-time) AND Firestore status (fallback)
+  // so the inbox cards stay in sync with the chat modal status.
   function _inboxAttachPresence(uid) {
     if (!uid) return;
     if (_inboxPresenceListeners[uid]) return;            // already listening
     const api = window._snxRtdbApi;
     const rtdb = _inboxRtdb();
-    if (!api || !rtdb) return;
-    const nodeRef = api.ref(rtdb, 'users/' + uid);
-    const handler = (snap) => {
-      const s = snap ? snap.val() : null;
-      const prev = _inboxPresenceState[uid];
-      _inboxPresenceState[uid] = {
-        online: !!(s && s.online),
-        live:   !!(s && s.live),
-        lastSeen: (s && s.lastSeen) || 0
+
+    // Raw states — RTDB and Firestore are tracked separately to avoid feedback loops
+    let _rawRtdb  = { online: false, live: false, lastSeen: 0 };
+    let _rawFs    = { status: 'offline', lastSeen: 0 };
+
+    // Helper: merge RTDB + Firestore status and update the card
+    function _refreshCard() {
+      // Online if EITHER RTDB says online OR Firestore status is "online"
+      const merged = {
+        online: _rawRtdb.online || (_rawFs.status === 'online'),
+        live:   _rawRtdb.live,
+        lastSeen: _rawRtdb.lastSeen || _rawFs.lastSeen || 0
       };
-      // Update any card pill for this uid
+      _inboxPresenceState[uid] = merged;
       _inboxApplyStatusToCard(uid);
       _inboxApplyStatusToOnlineCard(uid);
       // If the compose modal is open, refresh its rows too
@@ -16467,12 +16486,38 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (cm && cm.style.display !== 'none') {
         const dot = cm.querySelector('.inbox-compose-row[data-uid="' + uid + '"] .inbox-compose-dot');
         const txt = cm.querySelector('.inbox-compose-row[data-uid="' + uid + '"] .inbox-compose-status-text');
-        if (dot || txt) { _inboxApplyDotAndText(dot, txt, _inboxPresenceState[uid]); }
+        if (dot || txt) { _inboxApplyDotAndText(dot, txt, merged); }
       }
-      void prev;
+    }
+
+    // Firestore listener — backup status source (used by chat modal too)
+    let _fsUnsub = null;
+    try {
+      _fsUnsub = onSnapshot(doc(db, 'users', uid), (snap) => {
+        if (!snap.exists()) { _rawFs = { status: 'offline', lastSeen: 0 }; _refreshCard(); return; }
+        const u = snap.data();
+        _rawFs = { status: u.status || 'offline', lastSeen: u.lastSeen || 0 };
+        _refreshCard();
+      }, () => { /* ignore errors */ });
+    } catch(_) {}
+
+    // RTDB listener — primary real-time presence source
+    if (!api || !rtdb) { _refreshCard(); return; }
+    const nodeRef = api.ref(rtdb, 'users/' + uid);
+    const handler = (snap) => {
+      const s = snap ? snap.val() : null;
+      _rawRtdb = {
+        online: !!(s && s.online),
+        live:   !!(s && s.live),
+        lastSeen: (s && s.lastSeen) || 0
+      };
+      _refreshCard();
     };
     api.onValue(nodeRef, handler);
-    _inboxPresenceListeners[uid] = () => { try { api.off(nodeRef, handler); } catch (_) {} };
+    _inboxPresenceListeners[uid] = () => {
+      try { api.off(nodeRef, handler); } catch (_) {}
+      if (_fsUnsub) { try { _fsUnsub(); } catch (_) {} }
+    };
   }
 
   function _inboxDetachAllPresence() {
