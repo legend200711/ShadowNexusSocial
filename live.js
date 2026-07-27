@@ -96,12 +96,46 @@ const _ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'turn:openrelay.metered.ca:80',   username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443',  username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    // TURN over UDP, TCP and TLS/443. The TCP + TLS/443 relays are the key
+    // to surviving restrictive firewalls & mobile carrier NAT that silently
+    // drop UDP after ~30-60 s — the cause of streams going black after a
+    // minute. Multiple transports give the browser a working fallback.
+    { urls: 'turn:openrelay.metered.ca:80',                 username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:80?transport=tcp',   username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',                username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp',  username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
   ],
   iceCandidatePoolSize: 10,
 };
+
+/* ── ICE recovery watchdog ───────────────────────────────────────────
+   Attaches to any RTCPeerConnection. When ICE drops to `disconnected`
+   (a transient blip — the usual precursor to a black screen), we give it
+   a few seconds to self-heal; if it's still down we call restartIce() so
+   the browser re-gathers candidates (incl. TURN relay) on the EXISTING
+   connection — no teardown, no black flash. Only a hard `failed` is left
+   to the connection's own failure handler. This is the single biggest
+   guard against "stream goes black after a minute". */
+function _attachIceWatchdog(pc, label) {
+  if (!pc) return;
+  pc._iceWatchTimer = null;
+  pc.addEventListener('iceconnectionstatechange', () => {
+    const st = pc.iceConnectionState;
+    if (st === 'disconnected') {
+      if (pc._iceWatchTimer) clearTimeout(pc._iceWatchTimer);
+      pc._iceWatchTimer = setTimeout(() => {
+        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          console.warn(`[WebRTC][${label||'pc'}] ICE stalled — restartIce()`);
+          try { pc.restartIce && pc.restartIce(); } catch (_) {}
+        }
+      }, 4000);
+    } else if (st === 'connected' || st === 'completed') {
+      if (pc._iceWatchTimer) { clearTimeout(pc._iceWatchTimer); pc._iceWatchTimer = null; }
+    }
+  });
+}
 
 /* ── State ── */
 let _user         = null;   // Firebase Auth user
@@ -1402,6 +1436,7 @@ async function _handleViewerConnection(viewerUid) {
   _creatorViewerPeers[viewerUid] = { pc: null, appliedCandKeys: new Set(), unsub: null };
 
   const pc = new RTCPeerConnection(_ICE_SERVERS);
+  _attachIceWatchdog(pc, `host→viewer:${viewerUid}`);
 
   // Add tracks (sendonly) and constrain video encoding.
   _localStream.getTracks().forEach(track => pc.addTrack(track, _localStream));
@@ -1565,6 +1600,7 @@ async function _startViewerWebRTC(roomData) {
   // request and onDisconnect() in parallel — don't block on onDisconnect
   // since it's just a safety net, not on the critical path.
   _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
+  _attachIceWatchdog(_rtcPc, 'viewer→host');
 
   // ── PRE-WARM CHECK: If index.html already started the signaling
   //    handshake (pre-warm), the host may have already written an offer
@@ -3166,6 +3202,7 @@ async function _guestJoinAsViewer() {
   catch (e) { toast('Host did not respond in time.'); guestStream.getTracks().forEach(t=>t.stop()); return; }
 
   const guestPc = new RTCPeerConnection(_ICE_SERVERS);
+  _attachIceWatchdog(guestPc, 'guestbox→host');
 
   // Add local tracks
   guestStream.getTracks().forEach(t => guestPc.addTrack(t, guestStream));
@@ -3518,6 +3555,7 @@ async function _hostAcceptGuest(req) {
 
   // Create peer connection for this guest
   const guestPc = new RTCPeerConnection(_ICE_SERVERS);
+  _attachIceWatchdog(guestPc, `host→guestbox:${guestUid}`);
 
   // Receive guest's video track
   guestPc.ontrack = (e) => {

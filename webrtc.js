@@ -11,12 +11,27 @@
  * Signaling is done via Firebase Realtime Database (see firebase-live.js).
  */
 
-/* ── ICE server config (STUN only; add TURN for production) ─────────── */
+/* ── ICE server config ──────────────────────────────────────────────
+   STUN + TURN. TURN is REQUIRED, not optional: without a relay, peers on
+   symmetric / carrier-grade NAT (most mobile networks) establish a direct
+   path that survives only until the NAT mapping expires (~30-60 s), then
+   the video freezes to black. That was the "boxes go black after a minute"
+   bug. We include TURN over UDP, TCP, and TLS/443 so the media keeps
+   flowing even through firewalls that drop UDP. Kept identical to the list
+   used by live.js so every peer path behaves the same. */
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
-  ]
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    // Metered OpenRelay — free TURN with UDP / TCP / TLS transports.
+    { urls: 'turn:openrelay.metered.ca:80',                 username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:80?transport=tcp',   username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',                username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp',  username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  ],
+  iceCandidatePoolSize: 10,
 };
 
 /* ── Max guests per room (host = 1, guests = 7, total 8 boxes) ───────── */
@@ -127,8 +142,33 @@ export function createPeerConnection(onTrack, onIce, onState, peerId) {
     if (onState) onState(pc.connectionState, peerId);
   };
 
+  /* ── ICE-level recovery ──────────────────────────────────────────
+     A `disconnected` ICE state is usually TRANSIENT — the browser can
+     often recover on its own within a few seconds. We give it a grace
+     window, and if it hasn't recovered we trigger an ICE restart
+     (renegotiation with fresh candidates) instead of tearing the box
+     down. This is what stops the "box goes black and never comes back"
+     symptom. Only a real `failed` state is treated as needing teardown
+     (handled by onconnectionstatechange in the managers). */
+  pc._iceRecoverTimer = null;
   pc.oniceconnectionstatechange = () => {
-    console.log(`[WebRTC][${peerId}] ICE state: ${pc.iceConnectionState}`);
+    const st = pc.iceConnectionState;
+    console.log(`[WebRTC][${peerId}] ICE state: ${st}`);
+    if (st === 'disconnected') {
+      if (pc._iceRecoverTimer) clearTimeout(pc._iceRecoverTimer);
+      pc._iceRecoverTimer = setTimeout(() => {
+        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          console.warn(`[WebRTC][${peerId}] ICE still down — restarting ICE`);
+          if (typeof pc._onIceRestartNeeded === 'function') {
+            pc._onIceRestartNeeded();
+          } else {
+            try { pc.restartIce && pc.restartIce(); } catch (_) {}
+          }
+        }
+      }, 4000); // 4s grace for self-recovery before forcing a restart
+    } else if (st === 'connected' || st === 'completed') {
+      if (pc._iceRecoverTimer) { clearTimeout(pc._iceRecoverTimer); pc._iceRecoverTimer = null; }
+    }
   };
 
   return pc;
@@ -139,12 +179,15 @@ export function createPeerConnection(onTrack, onIce, onState, peerId) {
 ════════════════════════════════════════════════ */
 
 export class HostPeerManager {
-  constructor({ onGuestStream, onGuestLeave, onIceForGuest, onStateChange }) {
+  constructor({ onGuestStream, onGuestLeave, onIceForGuest, onStateChange, onRenegotiate }) {
     this._peers        = {};   // guestUid → RTCPeerConnection
     this._onGuestStream = onGuestStream;
     this._onGuestLeave  = onGuestLeave;
     this._onIceForGuest = onIceForGuest;
     this._onStateChange = onStateChange;
+    // Optional: called with (guestUid, offerSdp) when the host needs to send a
+    // fresh ICE-restart offer to a guest whose connection stalled.
+    this._onRenegotiate = onRenegotiate;
   }
 
   get peerCount() { return Object.keys(this._peers).length; }
@@ -165,13 +208,32 @@ export class HostPeerManager {
       (cand)   => this._onIceForGuest(guestUid, cand),
       (state)  => {
         this._onStateChange(state, guestUid);
-        if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+        // Only a real failure or explicit close tears the box down.
+        // `disconnected` is transient and handled by ICE restart below —
+        // tearing down on `disconnected` was what made boxes go black.
+        if (state === 'failed' || state === 'closed') {
           this._cleanup(guestUid);
           this._onGuestLeave(guestUid);
         }
       },
       guestUid
     );
+
+    // When ICE stalls, renegotiate with a fresh ICE-restart offer to this guest
+    // instead of dropping them. Requires the caller to relay the offer via
+    // onRenegotiate (falls back to a local restartIce() if not provided).
+    pc._onIceRestartNeeded = async () => {
+      try {
+        if (!this._peers[guestUid]) return;
+        const offer = await pc.createOffer({ iceRestart: true });
+        await pc.setLocalDescription(offer);
+        if (typeof this._onRenegotiate === 'function') {
+          this._onRenegotiate(guestUid, offer.sdp);
+        }
+      } catch (e) {
+        console.warn('[HostPeer] ICE restart failed:', e.message);
+      }
+    };
 
     this._peers[guestUid] = pc;
 
@@ -180,6 +242,15 @@ export class HostPeerManager {
     await pc.setLocalDescription(answer);
 
     return answer.sdp;
+  }
+
+  /** Apply a guest's answer to a host-initiated ICE-restart offer. */
+  async applyGuestAnswer(guestUid, answerSdp) {
+    const pc = this._peers[guestUid];
+    if (pc && answerSdp) {
+      try { await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp }); }
+      catch (e) { console.warn('[HostPeer] applyGuestAnswer failed:', e.message); }
+    }
   }
 
   /** Add ICE candidate sent by a specific guest. */
@@ -226,15 +297,34 @@ export class GuestPeerManager {
    * Returns the offer SDP string.
    */
   async createOffer() {
+    this._reconnecting = false;
     this._pc = createPeerConnection(
       (stream) => this._onHostStream(stream),
       (cand)   => this._onIceForHost(cand),
       (state)  => {
         this._onStateChange(state);
+        // `failed` = hard failure → full reconnect. `disconnected` is handled
+        // by the ICE-restart hook below (softer, keeps the box alive).
         if (state === 'failed') this._tryReconnect();
       },
       'host'
     );
+
+    // When ICE stalls, first try a lightweight ICE restart (keeps the same
+    // peer connection & video element — no black flash). Only fall back to a
+    // full teardown+reconnect if the restart itself can't be created.
+    this._pc._onIceRestartNeeded = async () => {
+      try {
+        if (!this._pc) return;
+        const offer = await this._pc.createOffer({ iceRestart: true });
+        await this._pc.setLocalDescription(offer);
+        if (this._onReconnectOffer) this._onReconnectOffer(offer.sdp);
+        console.warn('[GuestPeer] Sent ICE-restart offer');
+      } catch (e) {
+        console.warn('[GuestPeer] ICE restart failed, doing full reconnect:', e.message);
+        this._tryReconnect();
+      }
+    };
 
     const offer = await this._pc.createOffer();
     await this._pc.setLocalDescription(offer);
@@ -260,14 +350,25 @@ export class GuestPeerManager {
   }
 
   _tryReconnect() {
-    /* Simple back-off retry after 3 s */
-    console.warn('[GuestPeer] Connection failed — will retry in 3 s');
+    /* Full teardown + fresh offer with bounded exponential back-off.
+       Guarded so overlapping state events don't spawn multiple reconnects. */
+    if (this._reconnecting) return;
+    this._reconnecting = true;
+    this._retryCount = (this._retryCount || 0) + 1;
+    if (this._retryCount > 6) {
+      console.warn('[GuestPeer] Giving up after 6 reconnect attempts');
+      this._reconnecting = false;
+      return;
+    }
+    const delay = Math.min(1000 * Math.pow(1.6, this._retryCount - 1), 8000);
+    console.warn(`[GuestPeer] Connection failed — retry #${this._retryCount} in ${Math.round(delay)}ms`);
     setTimeout(() => {
       this.close();
       this.createOffer().then(sdp => {
+        this._reconnecting = false;
         if (this._onReconnectOffer) this._onReconnectOffer(sdp);
-      });
-    }, 3000);
+      }).catch(() => { this._reconnecting = false; });
+    }, delay);
   }
 
   /** Optionally set a callback for reconnect offers. */
