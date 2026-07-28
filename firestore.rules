@@ -194,7 +194,13 @@ service cloud.firestore {
                  .affectedKeys().hasOnly(['comments'])
             // Any signed-in user may increment repost count
             || request.resource.data.diff(resource.data)
-                 .affectedKeys().hasOnly(['repostCount']));
+                 .affectedKeys().hasOnly(['repostCount'])
+            // A tagged user may remove themselves from taggedUsers
+            || request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['taggedUsers'])
+            // postId back-fill — written immediately after addDoc by the author
+            || request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['postId']));
       allow delete: if isSignedIn()
         && (resource.data.uid == request.auth.uid
             || resource.data.authorUid == request.auth.uid

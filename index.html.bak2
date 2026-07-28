@@ -6485,8 +6485,6 @@ body.arcade-fs-ios body::after { display:none !important; }
         </label>
 
         <button id="btnBroadcast" style="margin-top:10px; width:100%; border-radius:10px; padding:11px; background:linear-gradient(135deg,#003d99,#0077dd); border-color:rgba(0,174,239,0.65); color:#fff; font-size:14px; box-shadow:0 0 20px rgba(0,174,239,0.40);">⚡ Post to the Eclipse</button>
-        <!-- Inline post error/status — hidden until a post attempt fails -->
-        <div id="postStatusMsg" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(255,30,50,0.10);border:1px solid rgba(255,60,80,0.45);border-radius:8px;font-size:13px;color:#ffaabb;line-height:1.55;"></div>
     </div>
 
     <div id="feedPosts"></div>
@@ -11347,15 +11345,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           });
           const finalOrderedIds = orderedIds;
 
-          // Empty feed state — show only when Firestore confirms zero posts AND there are
-          // no existing DOM posts (protects against a transient snapshot wiping live posts)
+          // Empty feed state — show only when Firestore confirms zero posts
           if (incomingIds.size === 0) {
-              const _existingPosts = container.querySelectorAll('.postBox[id^="post-"]');
-              if (_existingPosts.length > 0) {
-                  // Firestore returned empty but DOM has posts — transient blip, don't wipe
-                  console.warn('[Feed] Empty snapshot but DOM has posts — skipping wipe.');
-                  return;
-              }
               container.innerHTML = `
                 <div style="text-align:center;padding:48px 20px;color:#3a5a7a;">
                     <div style="font-size:40px;margin-bottom:14px;">🌑</div>
@@ -11999,25 +11990,6 @@ body.arcade-fs-ios body::after { display:none !important; }
   // Track whether a media upload is still in progress (shared via window for non-module access)
   window._postUploadInProgress = false;
 
-  /* ── Helper: show inline error in the post composer with optional retry button ── */
-  function _showPostError(msg, allowRetry) {
-      const el = document.getElementById('postStatusMsg');
-      if (!el) { toastNotification('❌ ' + msg); return; }
-      el.innerHTML = '❌ ' + msg + (allowRetry
-          ? ' <button onclick="document.getElementById(\'btnBroadcast\').click();document.getElementById(\'postStatusMsg\').style.display=\'none\';" '
-            + 'style="margin-left:10px;padding:4px 12px;border-radius:6px;border:1px solid rgba(255,100,120,0.55);'
-            + 'background:rgba(255,30,50,0.18);color:#ff9aaa;font-size:12px;cursor:pointer;">🔄 Retry</button>'
-          : '');
-      el.style.display = 'block';
-      // Also show in toast for visibility
-      toastNotification('❌ ' + msg.replace(/<[^>]+>/g, ''));
-  }
-
-  function _clearPostError() {
-      const el = document.getElementById('postStatusMsg');
-      if (el) { el.style.display = 'none'; el.innerHTML = ''; }
-  }
-
   document.getElementById("btnBroadcast").onclick = async () => {
       if (_postBusy) return;
 
@@ -12030,57 +12002,22 @@ body.arcade-fs-ios body::after { display:none !important; }
       const text = document.getElementById("postText").value.trim();
       const mediaUrl = document.getElementById("postMediaUrl").value.trim();
 
-      // ── Diagnostic log — visible in browser console on every post attempt ──
-      console.log('[SNX Post] Post attempt:', {
-          hasText: !!text, textLen: text.length,
-          hasMedia: !!mediaUrl,
-          currentUserReady: !!currentUser,
-          userDataReady: !!userData,
-          uploadInProgress: !!window._postUploadInProgress,
-      });
-
       if (!text && !mediaUrl) { toastNotification("Write something first!"); return; }
       if (text.length > 500) { toastNotification("Post is too long — max 500 characters."); return; }
 
       // ── Guard: a file was picked but URL is blank (upload failed/cleared) ──
       const mediaFileInput = document.getElementById("postMediaFile");
       if (mediaFileInput && mediaFileInput.files && mediaFileInput.files.length > 0 && !mediaUrl) {
-          _showPostError("Image upload didn't complete. Please tap 📎 to re-select your photo.", false);
+          toastNotification("⚠️ Image upload didn't complete. Please re-select your photo.");
           return;
       }
 
-      // ── Auth guard ──
-      if (!currentUser) {
-          _showPostError("You must be logged in to post. Please sign in and try again.", false);
-          return;
-      }
-
-      // ── Profile-data guard: wait up to 4 s for userData to arrive from Firestore ──
-      // This prevents "failed to post" when the user refreshes the page and posts quickly
-      // before the onSnapshot listener has returned the user's profile document.
+      // ── Auth + profile guards ──
+      if (!currentUser) { toastNotification("You must be logged in to post."); return; }
       if (!userData) {
-          console.warn('[SNX Post] userData not ready — waiting up to 4 s for Firestore snapshot…');
-          const _btn = document.getElementById("btnBroadcast");
-          if (_btn) { _btn.disabled = true; _btn.textContent = "⏳ Loading profile…"; }
-          let _waited = 0;
-          while (!userData && _waited < 4000) {
-              await new Promise(r => setTimeout(r, 250));
-              _waited += 250;
-          }
-          if (_btn) { _btn.disabled = false; _btn.textContent = "⚡ Post to the Eclipse"; }
-          if (!userData) {
-              console.error('[SNX Post] userData still null after 4 s — uid:', currentUser?.uid);
-              _showPostError(
-                  "Your profile couldn't load in time. Please wait a moment and try again.",
-                  true
-              );
-              return;
-          }
-          console.log('[SNX Post] userData arrived after', _waited, 'ms — proceeding.');
+          toastNotification("⏳ Your profile is still loading — please wait a moment and try again.");
+          return;
       }
-
-      // ── Clear any previous inline error ──
-      _clearPostError();
 
       // ── AI Safety scan ──
       if (text && typeof window.snxAIScan === 'function') {
@@ -12255,8 +12192,6 @@ body.arcade-fs-ios body::after { display:none !important; }
           const destinations = [];
           if (saveToAlbum) destinations.push('Photo Album');
           if (saveToWall)  destinations.push('Profile Wall');
-          // Clear inline error on successful post
-          _clearPostError();
           toastNotification(destinations.length
               ? `⚡ Post published & saved to: ${destinations.join(' + ')}!`
               : "⚡ Post published to the Eclipse!");
@@ -12264,31 +12199,23 @@ body.arcade-fs-ios body::after { display:none !important; }
           console.error('[SNX Post] Failed to create post:', e);
           // Provide a specific, actionable error message for each known failure mode
           let msg;
-          let allowRetry = false;
           const code = e?.code || '';
           if (code === 'permission-denied') {
               msg = "Permission denied — your session may have expired. Please sign out and sign back in.";
-              allowRetry = false;
           } else if (code === 'unavailable' || code === 'deadline-exceeded') {
-              msg = "Network issue — could not reach Firebase after 3 attempts. Check your connection.";
-              allowRetry = true;
+              msg = "Network issue — could not reach the server after 3 attempts. Check your connection and try again.";
           } else if (code === 'resource-exhausted') {
-              msg = "Server is busy — please wait a moment.";
-              allowRetry = true;
+              msg = "Server is busy — please wait a moment and try again.";
           } else if (code === 'unauthenticated') {
               msg = "You are not signed in — please sign in and try again.";
-              allowRetry = false;
           } else if (code === 'not-found') {
-              msg = "Post save failed (not-found) — please refresh the page.";
-              allowRetry = false;
+              msg = "Post save failed (not-found) — please refresh the page and try again.";
           } else if (e?.message) {
               msg = "Post failed: " + e.message;
-              allowRetry = true;
           } else {
               msg = "Post failed — please try again.";
-              allowRetry = true;
           }
-          _showPostError(msg, allowRetry);
+          toastNotification("❌ " + msg);
       } finally {
           _postBusy = false;
           const _btn2 = document.getElementById("btnBroadcast");
