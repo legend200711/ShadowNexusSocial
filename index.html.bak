@@ -10109,48 +10109,26 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
   })();
 
-  // ── visualViewport: keep modals and inputs visible above the mobile keyboard ──
-  // Handles iOS Safari and Android Chrome. Covers: DM chat modal, comment box,
-  // post textarea, reply fields — any focused input element.
+  // ── visualViewport: resize ipcModal when mobile keyboard appears/disappears ──
+  // Keeps the send button visible above the software keyboard on all phones.
   if (window.visualViewport) {
       const _vvHandler = () => {
           const vvh    = window.visualViewport.height;
           const vvTop  = window.visualViewport.offsetTop;
-          const winH   = window.innerHeight;
-          const kbH    = Math.max(0, winH - vvh - vvTop);
-
-          // ── DM chat modal ──
           const modal  = document.getElementById('ipcModal');
           const card   = document.querySelector('.ipc-modal-card');
-          if (card && modal && modal.classList.contains('open')) {
-              card.style.maxHeight = vvh + 'px';
-              modal.style.top    = vvTop + 'px';
-              modal.style.height = vvh + 'px';
-              const msgBox = document.getElementById('ipcModalMessages');
-              if (msgBox) setTimeout(() => { msgBox.scrollTop = msgBox.scrollHeight; }, 60);
-          }
-
-          // ── Any focused text input/textarea: scroll it into view ──
-          const active = document.activeElement;
-          if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && kbH > 30) {
-              // Shift the element's closest scrollable parent so the input
-              // stays above the keyboard. Works for comment boxes, post area, etc.
-              setTimeout(() => { try { active.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch(e){} }, 80);
-          }
+          if (!card || !modal || !modal.classList.contains('open')) return;
+          // Shrink card height to exactly the visible viewport
+          card.style.maxHeight = vvh + 'px';
+          // Shift the modal wrapper to track the visible viewport (handles iOS Safari)
+          modal.style.top    = vvTop + 'px';
+          modal.style.height = vvh + 'px';
+          // Scroll the messages area to keep newest message above keyboard
+          const msgBox = document.getElementById('ipcModalMessages');
+          if (msgBox) setTimeout(() => { msgBox.scrollTop = msgBox.scrollHeight; }, 60);
       };
-      window.visualViewport.addEventListener('resize', _vvHandler, { passive: true });
-      window.visualViewport.addEventListener('scroll', _vvHandler, { passive: true });
-
-      // ── iOS-specific: prevent readonly hack that blocks keyboard on some forms ──
-      // Some iOS versions refuse to show the keyboard for inputs set to
-      // readonly. This listener removes readonly on touchstart so the keyboard
-      // opens reliably every time the user taps a text field.
-      document.addEventListener('touchstart', (e) => {
-          const el = e.target;
-          if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.readOnly) {
-              el.readOnly = false;
-          }
-      }, { passive: true });
+      window.visualViewport.addEventListener('resize', _vvHandler);
+      window.visualViewport.addEventListener('scroll', _vvHandler);
   }
 
   onAuthStateChanged(auth, async (user) => {
@@ -10187,21 +10165,19 @@ body.arcade-fs-ios body::after { display:none !important; }
               _rtdbOnDisconnect(_uStatusRef).set({ online: false, live: false, lastSeen: _rtdbServerTimestamp() });
           } catch(_) {}
 
-          // ── Heartbeat: keep RTDB presence alive every 15 s ──
-          // Reduced from 30 s so ghost users (crashed tabs) are detected within
-          // ~15 s instead of ~30 s. Uses update() (not set()) so we only
-          // refresh online+lastSeen without overwriting the `live` field that
-          // live.js manages independently.
+          // ── Heartbeat: keep RTDB presence alive every 30 s ──
+          // Use update() (not set()) so we only refresh online+lastSeen without
+          // overwriting the `live` field that live.js manages independently.
           // ALSO refresh the Firestore status/lastSeen so the presence strip
-          // (which queries Firestore where status=="online") stays accurate.
-          // Ghost users (crashed without beforeunload) are cleaned up by the
-          // 90-second staleness check in initPresenceStrip.
+          // (which queries Firestore where status=="online") stays accurate and
+          // stale "online" users (who crashed/closed without firing beforeunload)
+          // get cleaned up by the 90-second staleness check in initPresenceStrip.
           const _presenceHeartbeat = setInterval(() => {
               if (auth.currentUser) {
                   try { _rtdbUpdate(_rtdbRef(_presenceRtdb, 'users/' + auth.currentUser.uid), { online: true, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
                   try { updateDoc(doc(db, 'users', auth.currentUser.uid), { status: 'online', lastSeen: Date.now() }); } catch(_) {}
               }
-          }, 15000);
+          }, 30000);
           // Store the interval so we can clear it on logout / auth change
           window._snxPresenceHeartbeat = _presenceHeartbeat;
 
@@ -10848,10 +10824,9 @@ body.arcade-fs-ios body::after { display:none !important; }
   //   Firestore status says "online" (or they are live) AND their
   //   lastSeen heartbeat is fresh. A stale heartbeat means the tab
   //   crashed/closed without firing beforeunload → treat as offline.
-  //  Heartbeat fires every 15 s, so 45 s = three missed beats + slack.
-  //  Ghost users (crashed tabs) will be removed within ~45 s.
+  //  Heartbeat fires every 30 s, so 75 s = two missed beats + slack.
   // ─────────────────────────────────────────────────────────────
-  window.SNX_PRESENCE_STALE_MS = 45 * 1000; // 45 seconds (was 75 s with 30 s heartbeat)
+  window.SNX_PRESENCE_STALE_MS = 75 * 1000; // 75 seconds
   window._snxIsUserOnline = function (u) {
       if (!u) return false;
       // Live users are always considered online (their stream keeps them active).
@@ -10898,16 +10873,14 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Sort by most recently active (lastSeen field, fallback joinedAt)
           onlineUsers.sort((a, b) => (b.lastSeen || b.joinedAt || 0) - (a.lastSeen || a.joinedAt || 0));
 
-          // ── Clean up stale "online" ghost users ──
-          // Their status says "online" but their lastSeen is stale,
-          // meaning their tab crashed without a clean logout.
-          // Flip them to offline in BOTH Firestore AND RTDB.
+          // ── Clean up stale "online" users in Firestore ──
+          // Their status field says "online" but their lastSeen is >90 s old,
+          // meaning their tab crashed or they lost connectivity without a clean
+          // logout. Flip them to offline so the next snapshot won't return them.
+          // (Best-effort, non-blocking — runs once per snapshot that finds stale users.)
           if (staleUids.length) {
               staleUids.forEach(staleUid => {
-                  // Firestore: flip status to offline
                   try { updateDoc(doc(db, 'users', staleUid), { status: 'offline', lastSeen: now }).catch(()=>{}); } catch(_) {}
-                  // RTDB: mark online:false so friends list clears immediately
-                  try { _rtdbUpdate(_rtdbRef(_presenceRtdb, 'users/' + staleUid), { online: false, lastSeen: now }).catch(()=>{}); } catch(_) {}
               });
           }
 

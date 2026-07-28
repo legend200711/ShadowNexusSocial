@@ -1027,11 +1027,38 @@ body.is-viewer #shadowBotBadge     { display: none !important; }
   .vgc-avatar      { width: 72px; height: 72px; font-size: 28px; }
 }
 
-/* Hide main #liveVideo when grid is showing (grid renders its own host cell) */
+/* Hide main #liveVideo when grid is showing (grid renders its own host cell).
+   We use visibility:hidden instead of opacity:0 so it is fully removed from
+   the compositing layer — this prevents the black-screen "ghost" flash that
+   appeared briefly when guest boxes opened while the host cell was still
+   waiting for its first video frame. */
 .guest-grid.has-guests ~ * #liveVideo,
 .live-video-wrap:has(.guest-grid.has-guests) > #liveVideo {
-  opacity: 0; pointer-events: none;
+  visibility: hidden; pointer-events: none;
 }
+
+/* ── "Reconnecting..." overlay inside a guest cell ── */
+.guest-cell-reconnecting {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.72);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px; z-index: 4;
+  font-size: 11px; font-weight: 700; color: #00AEEF;
+  letter-spacing: 0.4px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s;
+}
+.guest-cell.is-reconnecting .guest-cell-reconnecting {
+  opacity: 1; pointer-events: auto;
+}
+.guest-cell-reconnecting .gcr-spinner {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid rgba(0,174,239,0.22);
+  border-top-color: #00AEEF;
+  animation: gcrSpin 0.7s linear infinite;
+}
+@keyframes gcrSpin { to { transform: rotate(360deg); } }
 
 /* ── BLACK-SCREEN FIX ──
    Give the host cell a subtle animated gradient backdrop so it never

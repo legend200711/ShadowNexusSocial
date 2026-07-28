@@ -3526,18 +3526,6 @@ function _hostShowRequestCard(req) {
 /* ── HOST: Accept guest ── */
 async function _hostAcceptGuest(req) {
   if (!_roomId || !_localStream) return;
-  // Wrap entire accept flow in a top-level try/catch so a failure for one
-  // guest (bad network, ICE error, race condition) cannot crash the entire
-  // livestream or prevent other guests from joining.
-  try {
-    await _hostAcceptGuestImpl(req);
-  } catch (e) {
-    console.error('[BoxRequest] Guest accept failed (isolated):', e && e.message);
-    toast('⚠️ Could not connect guest — please try again.');
-  }
-}
-async function _hostAcceptGuestImpl(req) {
-  if (!_roomId || !_localStream) return;
 
   // ── Cap: respect _MAX_GUESTS limit ──
   if (Object.keys(_guestPeers).length >= _MAX_GUESTS) {
@@ -3676,20 +3664,12 @@ function _hostAddGuestCell(uid, name, avatar, stream, pc) {
   cell.className = 'guest-cell';
   cell.dataset.uid = uid;
 
-  // ── "Reconnecting..." overlay — shown when this guest's ICE drops ──
-  const reconnEl = document.createElement('div');
-  reconnEl.className = 'guest-cell-reconnecting';
-  reconnEl.innerHTML = '<div class="gcr-spinner"></div><span>Reconnecting\u2026</span>';
-  cell.appendChild(reconnEl);
-
   const vid = document.createElement('video');
   vid.autoplay = true;
   vid.muted = false;
   vid.playsInline = true;
   vid.srcObject = stream;
-  // Retry play() up to 3 times — mobile browsers can defer the first play()
-  const _kickVid = (n) => { const p = vid.play(); if (p && p.catch) p.catch(() => { if (n > 0) setTimeout(() => _kickVid(n-1), 300); }); };
-  _kickVid(3);
+  vid.play().catch(()=>{});
   cell.appendChild(vid);
 
   const nameEl = document.createElement('div');
@@ -3716,31 +3696,25 @@ function _hostAddGuestCell(uid, name, avatar, stream, pc) {
   _applyGuestLayout();
 
   // ── Fast disconnect detection: connectionstatechange fires within ~1-2 s ──
-  // When ICE drops we show "Reconnecting..." instead of immediately removing
-  // the cell — this keeps the grid stable during brief network blips.
   let _dcTimer = null;
   pc.onconnectionstatechange = () => {
     const state = pc.connectionState;
     if (state === 'disconnected') {
-      // Show "Reconnecting..." overlay immediately
-      cell.classList.add('is-reconnecting');
-      // Give a 5 s grace period — ICE restart may recover without teardown
+      // Give a 1.5 s grace period — WebRTC may briefly disconnect then recover
       if (!_dcTimer) {
         _dcTimer = setTimeout(() => {
           _dcTimer = null;
+          // Only remove if still disconnected (not reconnected or already removed)
           if (pc.connectionState !== 'connected' && _guestPeers[uid]) {
             _hostDoRemoveGuest(uid);
           }
-        }, 5000);
+        }, 1500);
       }
     } else if (state === 'failed' || state === 'closed') {
       if (_dcTimer) { clearTimeout(_dcTimer); _dcTimer = null; }
-      // Show reconnecting briefly, then remove
-      cell.classList.add('is-reconnecting');
-      setTimeout(() => { if (_guestPeers[uid]) _hostDoRemoveGuest(uid); }, 400);
+      _hostDoRemoveGuest(uid);
     } else if (state === 'connected') {
-      // Recovered — hide reconnecting overlay, cancel pending removal
-      cell.classList.remove('is-reconnecting');
+      // Recovered — cancel any pending removal
       if (_dcTimer) { clearTimeout(_dcTimer); _dcTimer = null; }
     }
   };

@@ -451,74 +451,11 @@
 <script src="snx-net.js"></script>
 
 <!-- ══════════════════════════════════════════════
-     MOBILE KEYBOARD FIX
-     Keeps the chat input row visible when the software keyboard
-     appears on any phone. Works for both iOS Safari and Android Chrome.
-     ══════════════════════════════════════════════ -->
-<script>
-(function () {
-  'use strict';
-  if (!window.visualViewport) return;
-
-  var _chatPanel = null;
-  var _chatInput = null;
-
-  function _getEls() {
-    if (!_chatPanel) _chatPanel = document.querySelector('.live-chat-panel');
-    if (!_chatInput) _chatInput = document.getElementById('liveChatInput');
-  }
-
-  function _onVV() {
-    _getEls();
-    var vvh = window.visualViewport.height;
-    var vvTop = window.visualViewport.offsetTop;
-
-    // Shift the chat panel so it stays just above the keyboard
-    if (_chatPanel) {
-      var winH = window.innerHeight;
-      var kb = Math.max(0, winH - vvh - vvTop);
-      _chatPanel.style.transform = kb > 30
-        ? 'translateY(-' + kb + 'px)'
-        : '';
-    }
-
-    // Scroll chat messages to bottom when keyboard opens
-    if (_chatInput && document.activeElement === _chatInput) {
-      var msgs = document.getElementById('liveChatMessages');
-      if (msgs) setTimeout(function() { msgs.scrollTop = msgs.scrollHeight; }, 60);
-    }
-  }
-
-  window.visualViewport.addEventListener('resize', _onVV, { passive: true });
-  window.visualViewport.addEventListener('scroll', _onVV, { passive: true });
-
-  // Ensure input taps on iOS always open the keyboard
-  document.addEventListener('DOMContentLoaded', function () {
-    var inp = document.getElementById('liveChatInput');
-    if (!inp) return;
-    inp.setAttribute('readonly', 'readonly');
-    inp.addEventListener('touchstart', function () {
-      inp.removeAttribute('readonly');
-      inp.focus();
-    }, { passive: true });
-    // Make the Send button work on mobile without closing the keyboard
-    var sendBtn = document.getElementById('liveChatSend');
-    if (sendBtn) {
-      sendBtn.addEventListener('touchend', function (e) {
-        e.preventDefault(); // stop focus shift that closes keyboard
-        if (typeof sendChat === 'function') sendChat();
-      }, { passive: false });
-    }
-  });
-})();
-</script>
-
-<!-- ══════════════════════════════════════════════
      LIVE ENGINE (ES module)
      ══════════════════════════════════════════════ -->
 <script type="module" src="live.js"></script>
 
-<!-- Co-Host add-on — remove to disable entirely -->
+<!-- Co-Host add-on (ES module) — remove to disable entirely -->
 <script type="module" src="cohost.js"></script>
 
 </body>
