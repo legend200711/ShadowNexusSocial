@@ -118,6 +118,23 @@
       }
     },
 
+
+    // ── Viewer presence seats — each viewer owns their own seat ──────────
+    //
+    //  liveViewers/{roomId}/{uid}  { joinedAt, active: true }
+    //    - Each viewer writes and owns only their own seat.
+    //    - Any authenticated user (host/viewers) can read the full subtree.
+    //    - onDisconnect auto-removes the seat so count self-heals on drop.
+    "liveViewers": {
+      "$roomId": {
+        ".read":  "auth != null",
+        "$uid": {
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      }
+    },
+
+
     // ── Guest presence in live rooms ──────────────────────────────────
     "liveGuests": {
       "$roomId": {

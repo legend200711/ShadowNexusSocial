@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",    "order": "ASCENDING"  },
+        { "fieldPath": "nextRunAt", "order": "ASCENDING"  }
+      ]
+    },
+    {
       "collectionGroup": "liveRooms",
       "queryScope": "COLLECTION",
       "fields": [

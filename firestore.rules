@@ -622,6 +622,23 @@ service cloud.firestore {
       allow delete: if isOwner(userUID) || isFounder();
     }
 
+    // ── Storm Room Messages ────────────────────────────────────────────────────
+    //
+    //   /stormRoomMessages/{docId}
+    //     roomId, senderUid, senderName, text, timestamp
+    //
+    // Any signed-in user can read and create messages in storm rooms.
+    // Only the sender or a Founder can delete.
+
+    match /stormRoomMessages/{docId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.senderUid == request.auth.uid;
+      allow update: if false;
+      allow delete: if isSignedIn()
+        && (resource.data.senderUid == request.auth.uid || isFounder());
+    }
+
     // ── Wall Post Comments ─────────────────────────────────────────────────────
     //
     //   /wallPostComments/{wallDocId}/comments/{commentId}

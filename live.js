@@ -228,12 +228,11 @@ let _viewerReconnectAttempt = 0;
 const _MAX_RECONNECT_ATTEMPTS = 5;
 
 let _chatUnsub        = null;
-let _viewerCountRef   = null;   // RTDB ref for viewer count listener
-let _viewerCountUnsub = null;
-let _viewerCountOdcRef = null;  // RTDB path we registered onDisconnect on, so we can cancel it on a clean leave
+let _viewerCountRef   = null;   // RTDB ref (liveViewers/{roomId}) the host watches with onValue
+let _viewerCountUnsub = null;   // off() handle returned by that onValue
 let _viewerPresenceRef = null;  // RTDB ref for this viewer's per-user presence seat
 let _viewerPresenceOdc = null;  // onDisconnect handle for the presence seat
-let _viewerPresenceJoined = false; // true once the presence seat is written (prevents double-join)
+let _viewerPresenceJoined = false; // true once the presence seat is live (cleared on leave/reconnect)
 let _roomWatchRef     = null;   // saved RTDB ref so we can call off() on it
 let _toastTimer       = null;
 let _viewerLeftFlag   = false;  // guard: prevent double-decrement on mobile
@@ -942,20 +941,39 @@ function _populateCreatorInfo(data) {
       Also mirrors viewer count to Firestore liveRooms doc so the Live Hub
       stays in real-time sync without an extra Firestore write on every tick. ── */
 function _subscribeViewerCount() {
-  // ── Listen to the per-user presence subtree for accurate real-time count ──
-  // Count distinct active seats; write the total back to liveRooms for the
-  // viewer-facing listener AND mirror to Firestore for the Live Hub cards.
+  /* ══════════════════════════════════════════════════════════════════════
+     HOST-side viewer count — single source of truth.
+
+     Strategy:
+       • Watch liveViewers/{roomId} with onValue so every join/leave by
+         any viewer fires this callback in real time.
+       • Count only seats where active === true AND uid !== host uid
+         (the host never writes a seat, but defensive check prevents
+         double-counting if anything ever changes).
+       • Write the canonical count back to liveRooms/{roomId}/viewers so
+         every viewer's room-watch listener picks it up instantly.
+       • Mirror to Firestore uid-keyed doc so Live Hub cards stay fresh.
+       • Uses off() on the stored ref for clean teardown on endLive().
+     ══════════════════════════════════════════════════════════════════════ */
   const presenceRoot = ref(_liveDB, `liveViewers/${_roomId}`);
   _viewerCountRef    = presenceRoot;
   let _lastMirroredViewers = -1;
+
   _viewerCountUnsub = onValue(presenceRoot, snap => {
-    const count = snap.exists()
-      ? Object.values(snap.val() || {}).filter(v => v && v.active).length
-      : 0;
+    let count = 0;
+    if (snap.exists()) {
+      const seats = snap.val() || {};
+      for (const [uid, seat] of Object.entries(seats)) {
+        // Exclude the host's own uid and any inactive / malformed seats
+        if (uid === _user?.uid) continue;
+        if (seat && seat.active === true) count++;
+      }
+    }
+    // Update host UI immediately
     if (D.viewerCount) D.viewerCount.textContent = '👁 ' + count;
-    // Write the canonical viewer count back to liveRooms so viewers see it too
+    // Broadcast canonical count to all viewers via liveRooms
     set(ref(_liveDB, `liveRooms/${_roomId}/viewers`), count).catch(() => {});
-    // Mirror to Firestore (uid-keyed doc) so Live Hub cards update in real time
+    // Mirror to Firestore for Live Hub cards (throttled by value change)
     if (count !== _lastMirroredViewers && _roomId && _user) {
       _lastMirroredViewers = count;
       updateDoc(doc(_db, 'liveRooms', _user.uid), { viewers: count }).catch(() => {});
@@ -1360,36 +1378,44 @@ async function _startViewer() {
   /* ── Attach resize observer so guest grid re-layouts on any screen change ── */
   _attachGuestGridResizeObserver();
 
-  /* ── Viewer presence seat + deduplication ─────────────────────────
-     Each viewer holds a per-user node at:
+  /* ── Viewer presence seat ────────────────────────────────────────────
+     Each viewer holds exactly ONE seat at:
        liveViewers/{roomId}/{uid}  = { joinedAt, active: true }
-     An onValue listener on that subtree counts distinct active keys
-     and writes the total to liveRooms/{roomId}/viewers atomically.
-     onDisconnect removes the seat so the count self-heals even when
-     the viewer closes the tab without calling _viewerLeave().
-     A rapid refresh only replaces the existing seat — no inflation.
+
+     Rules:
+       • Viewers only — the host never writes a seat (host UID is never
+         stored here so the host-side onValue count skips it naturally).
+       • Idempotent set() — replacing an existing seat for the same UID
+         does NOT inflate the count; it just updates the timestamp.
+       • onDisconnect(remove) fires if the tab closes / network drops,
+         so the host's onValue listener recomputes and the count heals.
+       • On a clean leave (_viewerLeave) we cancel the onDisconnect
+         first (to avoid a redundant remove) then delete the seat
+         ourselves and let the host's listener recount.
+       • _viewerPresenceJoined is cleared in _viewerLeave so a reconnect
+         after a network drop correctly re-registers the seat.
   ── */
   (async () => {
-    if (_viewerPresenceJoined || !_user) return;
+    // Guard: never run for the host, never run without a valid user
+    if (!_user || _mode === 'creator') return;
+    // Guard: if already joined this session, skip (prevents double-write
+    // on spurious re-entry of _startViewer while the seat is still live)
+    if (_viewerPresenceJoined) return;
     try {
       _viewerPresenceRef = ref(_liveDB, `liveViewers/${_roomId}/${_user.uid}`);
-      _viewerCountOdcRef = _viewerPresenceRef; // kept for legacy cancel path
-      // Write presence seat — idempotent (replaces existing for this uid)
+      // Register onDisconnect BEFORE the set() so a disconnect that
+      // occurs between set() and the next await is still caught.
+      _viewerPresenceOdc = onDisconnect(_viewerPresenceRef);
+      await _viewerPresenceOdc.remove();
+      // Write the presence seat — idempotent; replaces any stale seat
+      // from a previous session for this UID in this room.
       await set(_viewerPresenceRef, { joinedAt: Date.now(), active: true });
       _viewerPresenceJoined = true;
-      // Auto-remove on disconnect so count self-heals
-      try {
-        _viewerPresenceOdc = onDisconnect(_viewerPresenceRef);
-        _viewerPresenceOdc.remove();
-      } catch(_) {}
-      // Count all active viewers for this room and write the total
-      const presenceRoot = ref(_liveDB, `liveViewers/${_roomId}`);
-      get(presenceRoot).then(snap => {
-        if (!snap.exists()) return;
-        const count = Object.values(snap.val() || {}).filter(v => v && v.active).length;
-        const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
-        set(viewersRef, count).catch(() => {});
-      }).catch(() => {});
+      // NOTE: The host's _subscribeViewerCount() already watches
+      // liveViewers/{roomId} with onValue, so it will recount and push
+      // the updated number to liveRooms/{roomId}/viewers automatically.
+      // We do NOT do a manual get()+set() here — that one-shot snapshot
+      // races with other viewers and can produce stale counts.
     } catch (_) {}
   })();
 
@@ -1494,29 +1520,24 @@ async function _viewerLeave() {
     _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
   }
 
-  /* ── Remove viewer presence seat and recount ──────────────────────
-     Cancel the onDisconnect (we're doing it ourselves) so RTDB doesn't
-     double-remove. Then delete the per-user seat and recalculate the
-     viewer count from the remaining active seats. ── */
+  /* ── Remove viewer presence seat ──────────────────────────────────
+     1. Cancel the onDisconnect so RTDB doesn't double-remove after we
+        explicitly delete the seat ourselves.
+     2. Delete the seat — this triggers the host's liveViewers onValue
+        listener which automatically recounts and updates liveRooms.
+     3. Clear _viewerPresenceJoined so a subsequent reconnect can
+        re-register a fresh seat without being blocked by the guard.
+  ── */
   if (_viewerPresenceOdc) {
-    try { _viewerPresenceOdc.cancel(); } catch(_) {}
+    try { await _viewerPresenceOdc.cancel(); } catch(_) {}
     _viewerPresenceOdc = null;
   }
-  _viewerPresenceJoined = false;
+  _viewerPresenceJoined = false;  // allow re-registration on reconnect
   if (_viewerPresenceRef && _user) {
-    try {
-      await remove(_viewerPresenceRef);
-      // Recount remaining active viewers
-      const presenceRoot = ref(_liveDB, `liveViewers/${_roomId}`);
-      get(presenceRoot).then(snap => {
-        const count = snap.exists()
-          ? Object.values(snap.val() || {}).filter(v => v && v.active).length
-          : 0;
-        set(ref(_liveDB, `liveRooms/${_roomId}/viewers`), Math.max(0, count)).catch(() => {});
-      }).catch(() => {});
-    } catch (_) {}
+    try { await remove(_viewerPresenceRef); } catch (_) {}
     _viewerPresenceRef = null;
-    _viewerCountOdcRef = null;
+    // The host's _subscribeViewerCount onValue listener automatically
+    // recounts when the seat node disappears — no manual get()+set() needed.
   }
 }
 
@@ -2243,13 +2264,14 @@ function _scheduleViewerReconnect(roomData) {
     if (_user && _roomId) {
       try { await remove(ref(_liveDB, `liveConnections/${_roomId}/${_user.uid}`)); } catch(_) {}
     }
-    // Cancel the old viewer-count onDisconnect so the upcoming re-increment
-    // (inside _startViewerWebRTC) doesn't leave a stale, double-decrementing
-    // onDisconnect behind. The reconnect will register a fresh one.
-    if (_viewerCountOdcRef) {
-      try { await onDisconnect(_viewerCountOdcRef).cancel(); } catch(_) {}
-      _viewerCountOdcRef = null;
+    // Cancel the old presence-seat onDisconnect so a stale remove()
+    // doesn't fire after the reconnect writes a fresh seat.
+    // Clear _viewerPresenceJoined so _startViewer can re-register the seat.
+    if (_viewerPresenceOdc) {
+      try { await _viewerPresenceOdc.cancel(); } catch(_) {}
+      _viewerPresenceOdc = null;
     }
+    _viewerPresenceJoined = false;
 
     // Verify stream is still live before attempting
     try {
@@ -2545,12 +2567,16 @@ function _showEndedOverlay(wasCreator, title, sub) {
   if (!wasCreator && _user && _roomId) {
     try { remove(ref(_liveDB, `liveConnections/${_roomId}/${_user.uid}`)); } catch(_) {}
   }
-  // Viewer side: cancel the viewer-count onDisconnect and decrement once
-  // so the count doesn't stay inflated after the stream ends.
-  if (!wasCreator && _viewerCountOdcRef) {
-    try { onDisconnect(_viewerCountOdcRef).cancel(); } catch(_) {}
-    try { runTransaction(_viewerCountOdcRef, cur => Math.max(0, (cur || 0) - 1)); } catch(_) {}
-    _viewerCountOdcRef = null;
+  // Viewer side: clean up presence seat so the count self-heals when
+  // the stream ends or the host navigates away.
+  if (!wasCreator && _viewerPresenceRef && !_viewerLeftFlag) {
+    if (_viewerPresenceOdc) {
+      try { _viewerPresenceOdc.cancel(); } catch(_) {}
+      _viewerPresenceOdc = null;
+    }
+    _viewerPresenceJoined = false;
+    try { remove(_viewerPresenceRef); } catch(_) {}
+    _viewerPresenceRef = null;
   }
   // Creator side: tear down all viewer peers.
   if (wasCreator) _teardownAllCreatorViewerPeers();
