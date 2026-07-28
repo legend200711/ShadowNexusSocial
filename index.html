@@ -11311,14 +11311,16 @@ body.arcade-fs-ios body::after { display:none !important; }
 
       const qElements = query(collection(db, "posts"), orderBy("timestamp", "desc"), limit(scrollLimit));
       feedUnsubscribe = onSnapshot(qElements, (snapshot) => {
+          try {
           const container = document.getElementById("feedPosts");
+          if (!container) return;
           const nowMs = Date.now();
 
           // Clear loading state on first real snapshot
           const loadingEl = container.querySelector('#feedLoadingState');
           if (loadingEl) loadingEl.remove();
 
-          // Filter out expired posts (48h TTL) and live-session posts.
+          // Filter out expired posts (48h TTL), hidden posts, and live-session posts.
           // Live sessions are shown only in the story bar and Live Hub —
           // they must never appear in the main feed scroll.
           const incomingIds = new Set();
@@ -11326,12 +11328,14 @@ body.arcade-fs-ios body::after { display:none !important; }
               const p = pDoc.data();
               // Skip live/live_share posts — they belong in the Live Hub, not the feed
               if (p.type === 'live' || p.type === 'live_share') return;
+              // Skip mod-hidden posts so they don't appear in regular users' feeds
+              if (p.hidden === true) return;
               // Legacy posts (no expiresAt) remain visible indefinitely
               if (p.expiresAt && p.expiresAt < nowMs) return;
               incomingIds.add(pDoc.id);
           });
 
-          // Remove DOM nodes for posts no longer in the snapshot (deleted by owner/mod)
+          // Remove DOM nodes for posts no longer in the snapshot (deleted/hidden/expired)
           container.querySelectorAll('.postBox[id^="post-"]').forEach(el => {
               const id = el.id.replace('post-', '');
               if (!incomingIds.has(id)) {
@@ -11346,6 +11350,16 @@ body.arcade-fs-ios body::after { display:none !important; }
               if (incomingIds.has(pDoc.id)) orderedIds.push(pDoc.id);
           });
           const finalOrderedIds = orderedIds;
+
+          // If new posts are arriving after the empty state was shown, clear it
+          // so stale "The Eclipse is empty" text doesn't linger alongside real posts
+          if (incomingIds.size > 0) {
+              const staleEmpty = container.querySelector(':not(.postBox)');
+              if (staleEmpty && !staleEmpty.id?.startsWith('post-')) {
+                  // Only remove non-postBox top-level children (loading/empty states)
+                  container.querySelectorAll(':scope > :not(.postBox)').forEach(el => el.remove());
+              }
+          }
 
           // Empty feed state — show only when Firestore confirms zero posts AND there are
           // no existing DOM posts (protects against a transient snapshot wiping live posts)
@@ -11489,9 +11503,11 @@ body.arcade-fs-ios body::after { display:none !important; }
                       container.insertBefore(existingEl, ref);
                   }
               } else {
-                  // Guard: don't render a post that's already in the DOM (prevents duplicates
-                  // that can appear when the onSnapshot fires before the DOM is settled)
-                  if (_renderedPostIds.has(pDoc.id)) return;
+                  // Guard: use DOM as the authoritative source — if the element is already
+                  // in the DOM (possibly inserted by a previous snapshot callback), skip it.
+                  // Using document.getElementById is safer than _renderedPostIds which can
+                  // become stale after DOM operations outside of this loop.
+                  if (document.getElementById(`post-${pDoc.id}`)) return;
                   _renderedPostIds.add(pDoc.id);
 
                   // New post — build the full element
@@ -11633,6 +11649,13 @@ body.arcade-fs-ios body::after { display:none !important; }
                   if (cb) cb.dataset.count = (post.comments || []).length;
               }
           });
+          } catch (_feedCbErr) {
+              // Catch any unexpected error inside the snapshot callback so it doesn't
+              // silently kill the Firestore listener or leave the feed in a broken state.
+              console.error('[Feed] Unexpected error in snapshot callback:', _feedCbErr);
+              // Re-init the stream after a short delay so the feed recovers automatically
+              setTimeout(() => { if (currentUser) initTimelineStream(); }, 2000);
+          }
       }, (feedErr) => {
           // ── Firestore error handler ──
           // Fires on permission denial, missing index, or network failure.
@@ -11679,11 +11702,15 @@ body.arcade-fs-ios body::after { display:none !important; }
                     <div style="font-size:36px;margin-bottom:14px;">${isPermission ? '🔒' : '📡'}</div>
                     <div style="font-size:14px;font-weight:700;color:#ff6680;margin-bottom:8px;">${_feedErrLabel}</div>
                     <div style="font-size:12px;color:#3a5a7a;margin-bottom:16px;">${(feedErr.message || _feedErrCode || 'Unknown error').replace(/</g,'&lt;')}</div>
-                    <button onclick="initTimelineStream()" style="padding:8px 20px;border-radius:20px;border:1px solid rgba(0,174,239,0.5);background:rgba(0,30,70,0.7);color:#00AEEF;font-size:12px;cursor:pointer;">🔄 Retry</button>
+                    <button onclick="window._snxInitTimelineStream&&window._snxInitTimelineStream()" style="padding:8px 20px;border-radius:20px;border:1px solid rgba(0,174,239,0.5);background:rgba(0,30,70,0.7);color:#00AEEF;font-size:12px;cursor:pointer;">🔄 Retry</button>
                 </div>`;
           }
       });
   }
+
+  // Expose feed stream control to non-module scripts (e.g. navTo in regular <script>)
+  window._snxInitTimelineStream = () => initTimelineStream();
+  window._snxGetFeedUnsubscribe = () => feedUnsubscribe;
 
   // XSS escape for feed content
   function escFeed(str) {
@@ -12260,6 +12287,21 @@ body.arcade-fs-ios body::after { display:none !important; }
           toastNotification(destinations.length
               ? `⚡ Post published & saved to: ${destinations.join(' + ')}!`
               : "⚡ Post published to the Eclipse!");
+
+          // ── Ensure the feed listener is active and shows the new post ──
+          // If the onSnapshot listener died for any reason, re-init it now so the
+          // user doesn't have to refresh the page to see their new post.
+          if (!feedUnsubscribe) {
+              console.log('[SNX Post] Feed listener was inactive — restarting stream after post.');
+              initTimelineStream();
+          }
+          // Scroll the feed container to the top so the new post is immediately visible
+          const _feedEl = document.getElementById('feedPosts');
+          if (_feedEl) _feedEl.scrollTo({ top: 0, behavior: 'smooth' });
+          // Also scroll the page to the feed section
+          const _feedPage = document.getElementById('feed');
+          if (_feedPage) _feedPage.scrollTo({ top: 0, behavior: 'smooth' });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch(e) {
           console.error('[SNX Post] Failed to create post:', e);
           // Provide a specific, actionable error message for each known failure mode
@@ -17652,6 +17694,16 @@ function navTo(pageId) {
         && typeof currentUser !== 'undefined' && currentUser
         && typeof initPresenceStrip === 'function') {
         presenceUnsubscribe = initPresenceStrip();
+    }
+    // ── Feed stream recovery: if navigating back to feed and the listener died,
+    //    restart it so posts load without requiring a full page refresh.
+    if (pageId === 'feed'
+        && typeof window._snxGetFeedUnsubscribe === 'function'
+        && !window._snxGetFeedUnsubscribe()
+        && typeof window._snxCurrentUser !== 'undefined' && window._snxCurrentUser
+        && typeof window._snxInitTimelineStream === 'function') {
+        console.log('[Feed] Stream was inactive — restarting on feed navigation.');
+        window._snxInitTimelineStream();
     }
     // Auto-close sidebar on mobile after navigation
     closeSidebar();
