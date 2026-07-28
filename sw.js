@@ -1,4 +1,4 @@
-/**
+ /**
  * Shadow Nexus Social — Service Worker
  *
  * Strategy:
