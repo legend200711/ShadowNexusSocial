@@ -57,7 +57,14 @@ body.cohost-disabled #snxGlobalCohostCard,
 body.cohost-disabled #snxGlobalCohostStyles,
 body.cohost-disabled [class*="cohost"],
 body.cohost-disabled [id*="cohost"],
-body.cohost-disabled [id*="CoHost"] {
+body.cohost-disabled [id*="CoHost"],
+/* Fallback overlay on index.html / live.html */
+body.cohost-disabled #snxCoHostInviteOverlay,
+body.cohost-disabled #snxCoHostInviteCard,
+/* Guest-box controls — shown when a co-host is inside a guest box */
+body.cohost-disabled #btnGuestCam,
+body.cohost-disabled #btnGuestMic,
+body.cohost-disabled #btnLeaveBox {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;

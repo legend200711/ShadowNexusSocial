@@ -6276,7 +6276,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <span class="feed-live-dot-pulse"></span> LIVE NOW
                 <span id="feedLiveCount" style="background:rgba(255,40,70,0.15);border:1px solid rgba(255,40,70,0.45);color:#ff6677;font-size:10px;padding:1px 7px;border-radius:20px;"></span>
             </span>
-            <a href="live.html" style="font-size:11px;color:#3a6a9a;text-decoration:none;padding:3px 10px;border:1px solid rgba(0,174,239,0.22);border-radius:12px;transition:color .15s,border-color .15s;" onmouseover="this.style.color='#00aeef';this.style.borderColor='rgba(0,174,239,0.55)'" onmouseout="this.style.color='#3a6a9a';this.style.borderColor='rgba(0,174,239,0.22)'">See all →</a>
+            <button onclick="navTo('liveHubPage')" style="font-size:11px;color:#3a6a9a;background:none;border:1px solid rgba(0,174,239,0.22);border-radius:12px;padding:3px 10px;cursor:pointer;transition:color .15s,border-color .15s;" onmouseover="this.style.color='#00aeef';this.style.borderColor='rgba(0,174,239,0.55)'" onmouseout="this.style.color='#3a6a9a';this.style.borderColor='rgba(0,174,239,0.22)'">See all →</button>
         </div>
         <div id="feedLiveCards" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
             <!-- Cards injected by JS -->
@@ -6369,9 +6369,9 @@ body.arcade-fs-ios body::after { display:none !important; }
                     <div class="profile-online-dot"></div> Online now
                 </div>
                 <!-- LIVE NOW badge — shown when the user is currently streaming -->
-                <a id="profileLiveBadge" href="live.html" class="profile-live-badge" style="display:none;" target="_blank" rel="noopener">
+                <span id="profileLiveBadge" class="profile-live-badge" style="display:none;cursor:pointer;">
                     <span class="profile-live-badge-dot"></span> LIVE NOW
-                </a>
+                </span>
                 <div class="profile-joined-text" id="profileJoinedText"></div>
 
                 <!-- Stats -->
@@ -6404,7 +6404,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                     <button id="btnMessageAction">💬 Message</button>
                     <button id="btnEditProfile" style="display:none;" onclick="openEditProfileModal()">✏️ Edit Profile</button>
                     <!-- Watch Live — shown on OTHER user's profile when they are streaming -->
-                    <a id="btnWatchLive" href="live.html" target="_blank" rel="noopener" style="display:none;background:linear-gradient(135deg,#880020,#dd1133);border:1px solid rgba(255,34,68,0.7);color:#fff;font-weight:800;letter-spacing:0.5px;box-shadow:0 0 16px rgba(255,30,60,0.45);padding:7px 16px;border-radius:20px;font-size:13px;text-decoration:none;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:#fff;display:inline-block;animation:snxLiveDot 1s ease-in-out infinite;flex-shrink:0;"></span>Watch Live</a>
+                    <button id="btnWatchLive" style="display:none;background:linear-gradient(135deg,#880020,#dd1133);border:1px solid rgba(255,34,68,0.7);color:#fff;font-weight:800;letter-spacing:0.5px;box-shadow:0 0 16px rgba(255,30,60,0.45);padding:7px 16px;border-radius:20px;font-size:13px;cursor:pointer;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:#fff;display:inline-block;animation:snxLiveDot 1s ease-in-out infinite;flex-shrink:0;"></span>Watch Live</button>
                 </div>
 
                 <div class="badge-container" id="profileBadges"></div>
@@ -9638,13 +9638,12 @@ body.arcade-fs-ios body::after { display:none !important; }
       const watchUrl = 'live.html#watch=' + roomId;
       const tsRaw    = room.createdAt ? (room.createdAt.toMillis ? room.createdAt.toMillis() : room.createdAt) : '';
 
-      const card = document.createElement('a');
+      const card = document.createElement('div');
       card.className   = 'live-hub-card';
-      card.href        = watchUrl;
-      card.target      = '_blank';
-      card.rel         = 'noopener';
       card.dataset.rid = room.roomId;
       card.dataset.hid = room.hostId || '';
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
       card.setAttribute('aria-label', `Watch ${name} live`);
 
       const avatarStyle = avatar ? `background-image:url('${_esc(avatar)}');` : '';
@@ -9661,21 +9660,20 @@ body.arcade-fs-ios body::after { display:none !important; }
           ${handle   ? `<div class="lhc-handle">${handle}</div>` : ''}
           <div class="lhc-title">${title}</div>
           ${category ? `<div class="lhc-category">🏷 ${category}</div>` : ''}
-          <button class="lhc-watch-btn"
-            onclick="event.preventDefault();event.stopPropagation();if(window._snxPreWarmLive)window._snxPreWarmLive('${roomId}');window.open('${watchUrl}','_blank')">
-            ▶ Watch Live
-          </button>
+          <button class="lhc-watch-btn">▶ Watch Live</button>
         </div>`;
 
-      card.addEventListener('click', e => {
-        if (e.target.closest('.lhc-watch-btn')) return;
-        // Pre-warm the live connection before opening the stream in a new
-        // tab so the host starts creating the per-viewer WebRTC offer
-        // while the live page is loading.
-        if (window._snxPreWarmLive) window._snxPreWarmLive(room.roomId);
-        window.open(watchUrl, '_blank');
+      // Navigate inside the app — no external browser redirect
+      function _openLiveRoom(e) {
         e.preventDefault();
+        if (window._snxPreWarmLive) window._snxPreWarmLive(room.roomId);
+        window.location.href = watchUrl;
+      }
+      card.addEventListener('click', e => {
+        if (!e.target.closest('.lhc-watch-btn')) _openLiveRoom(e);
       });
+      card.querySelector('.lhc-watch-btn').addEventListener('click', _openLiveRoom);
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') _openLiveRoom(e); });
       return card;
     }
 
@@ -10428,7 +10426,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                           const _lh = () => {
                               _lt.removeEventListener('click', _lh);
                               _lt.style.cursor = '';
-                              window.open('live.html#watch=' + encodeURIComponent(n.roomId), '_blank');
+                              window.location.href = 'live.html#watch=' + encodeURIComponent(n.roomId);
                           };
                           _lt.addEventListener('click', _lh);
                           setTimeout(() => { _lt.removeEventListener('click', _lh); _lt.style.cursor = ''; }, 5000);
@@ -12924,10 +12922,10 @@ body.arcade-fs-ios body::after { display:none !important; }
               icon = '🔴';
               text = `<b>${escFeed(n.fromName)}</b> is live${n.roomTitle ? `: <i>"${escFeed(n.roomTitle)}"</i>` : ''}`;
               actHtml = `<div class="notif-actions" style="margin-top:6px;">
-                  <button class="btn-accept" style="font-size:11px;" onclick="event.stopPropagation();window.open('live.html#watch=${escFeed(n.roomId||'')}','_blank')">🔴 Watch Live</button>
+                  <button class="btn-accept" style="font-size:11px;" onclick="event.stopPropagation();if(window._snxPreWarmLive)window._snxPreWarmLive('${escFeed(n.roomId||'')}');window.location.href='live.html#watch=${escFeed(n.roomId||'')}'">🔴 Watch Live</button>
                   <button class="notif-mark-all" style="font-size:11px;" onclick="event.stopPropagation();markNotifRead(${origIdx})">✓ Dismiss</button>
               </div>`;
-              navFn = n.roomId ? `window.open('live.html#watch=${escFeed(n.roomId)}','_blank')` : `goLiveOrWatch()`;
+              navFn = n.roomId ? `if(window._snxPreWarmLive)window._snxPreWarmLive('${escFeed(n.roomId)}');window.location.href='live.html#watch=${escFeed(n.roomId)}'` : `goLiveOrWatch()`;
           } else if (n.type === 'announcement') {
               icon = '📢';
               text = `<b>Admin</b>: ${escFeed(n.body || 'New announcement')}`;
@@ -13306,7 +13304,10 @@ body.arcade-fs-ios body::after { display:none !important; }
           const liveBadge = document.getElementById("profileLiveBadge");
           if (liveBadge) {
             if (p.isLive && p.liveRoomId) {
-              liveBadge.href = `live.html#watch=${encodeURIComponent(p.liveRoomId)}`;
+              liveBadge.onclick = () => {
+                if (window._snxPreWarmLive) window._snxPreWarmLive(p.liveRoomId);
+                window.location.href = `live.html#watch=${encodeURIComponent(p.liveRoomId)}`;
+              };
               liveBadge.style.display = 'inline-flex';
             } else {
               liveBadge.style.display = 'none';
@@ -13322,12 +13323,11 @@ body.arcade-fs-ios body::after { display:none !important; }
           const isSelf = currentUser && uid === currentUser.uid;
           if (btnWatchLive) {
             if (!isSelf && p.isLive && p.liveRoomId) {
-              btnWatchLive.href = `live.html#watch=${encodeURIComponent(p.liveRoomId)}`;
               btnWatchLive.style.display = 'inline-flex';
-              // Pre-warm the live connection on click so the host starts
-              // creating the per-viewer WebRTC offer before the new tab loads.
-              btnWatchLive.onclick = (e) => {
+              // Navigate inside the app — no external browser tab
+              btnWatchLive.onclick = () => {
                 if (window._snxPreWarmLive) window._snxPreWarmLive(p.liveRoomId);
+                window.location.href = `live.html#watch=${encodeURIComponent(p.liveRoomId)}`;
               };
             } else {
               btnWatchLive.style.display = 'none';
@@ -17232,6 +17232,7 @@ function _snxHideCohostInvitePopup() {
    window._snxCurrentUser, window._snxUserData) instead of the
    module-scoped Firebase handles. */
 async function _snxAcceptCohostInvite() {
+    if (window._snxCoHostEnabled === false) { _snxHideCohostInvitePopup(); toastNotification('Co-Hosting is currently unavailable.'); return; }
     const card = document.getElementById('snxGlobalCohostCard');
     if (!card) return;
     const senderUID = card.dataset.senderUid || '';
@@ -17268,7 +17269,7 @@ async function _snxAcceptCohostInvite() {
     }
     // 4. Navigate to the friend's live room
     if (roomId) {
-        setTimeout(() => { window.location.href = 'live.html#watch=' + roomId; }, 350);
+        setTimeout(() => { window.location.href = 'live.html#watch=' + encodeURIComponent(roomId); }, 350);
     }
 }
 
@@ -25942,6 +25943,7 @@ window.switchAdminTab = function(tab) {
       // ── ACCEPT ────────────────────────────────────────────────────────────
       document.getElementById('snxCoHostAcceptBtn').onclick = async () => {
         if (!_activeInvite) return;
+        if (window._snxCoHostEnabled === false) { _hideCard(); _toast('Co-Hosting is currently unavailable.'); return; }
         const inv = _activeInvite;
         _hideCard();
         try {
@@ -25959,7 +25961,7 @@ window.switchAdminTab = function(tab) {
           await remove(ref(_liveDB, `coHostInvites/${user.uid}/${inv.senderUID}`));
           // 4. Navigate to the live room
           if (inv.roomId) {
-            window.location.href = `live.html?room=${encodeURIComponent(inv.roomId)}`;
+            window.location.href = `live.html#watch=${encodeURIComponent(inv.roomId)}`;
           } else {
             _toast('🎥 Co-host invite accepted!');
           }

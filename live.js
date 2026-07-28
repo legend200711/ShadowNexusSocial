@@ -231,6 +231,9 @@ let _chatUnsub        = null;
 let _viewerCountRef   = null;   // RTDB ref for viewer count listener
 let _viewerCountUnsub = null;
 let _viewerCountOdcRef = null;  // RTDB path we registered onDisconnect on, so we can cancel it on a clean leave
+let _viewerPresenceRef = null;  // RTDB ref for this viewer's per-user presence seat
+let _viewerPresenceOdc = null;  // onDisconnect handle for the presence seat
+let _viewerPresenceJoined = false; // true once the presence seat is written (prevents double-join)
 let _roomWatchRef     = null;   // saved RTDB ref so we can call off() on it
 let _toastTimer       = null;
 let _viewerLeftFlag   = false;  // guard: prevent double-decrement on mobile
@@ -939,18 +942,30 @@ function _populateCreatorInfo(data) {
       Also mirrors viewer count to Firestore liveRooms doc so the Live Hub
       stays in real-time sync without an extra Firestore write on every tick. ── */
 function _subscribeViewerCount() {
-  _viewerCountRef = ref(_liveDB, `liveRooms/${_roomId}`);
+  // ── Listen to the per-user presence subtree for accurate real-time count ──
+  // Count distinct active seats; write the total back to liveRooms for the
+  // viewer-facing listener AND mirror to Firestore for the Live Hub cards.
+  const presenceRoot = ref(_liveDB, `liveViewers/${_roomId}`);
+  _viewerCountRef    = presenceRoot;
   let _lastMirroredViewers = -1;
-  _viewerCountUnsub = onValue(_viewerCountRef, snap => {
-    const d = snap.val() || {};
-    if (D.viewerCount) D.viewerCount.textContent = '👁 ' + (d.viewers || 0);
-    if (D.likeCount)   D.likeCount.textContent   = '❤️ ' + (d.likes   || 0);
-    // Mirror viewer count to Firestore (uid-keyed doc) so Live Hub cards update in real time
-    const v = d.viewers || 0;
-    if (v !== _lastMirroredViewers && _roomId && _user) {
-      _lastMirroredViewers = v;
-      updateDoc(doc(_db, 'liveRooms', _user.uid), { viewers: v }).catch(() => {});
+  _viewerCountUnsub = onValue(presenceRoot, snap => {
+    const count = snap.exists()
+      ? Object.values(snap.val() || {}).filter(v => v && v.active).length
+      : 0;
+    if (D.viewerCount) D.viewerCount.textContent = '👁 ' + count;
+    // Write the canonical viewer count back to liveRooms so viewers see it too
+    set(ref(_liveDB, `liveRooms/${_roomId}/viewers`), count).catch(() => {});
+    // Mirror to Firestore (uid-keyed doc) so Live Hub cards update in real time
+    if (count !== _lastMirroredViewers && _roomId && _user) {
+      _lastMirroredViewers = count;
+      updateDoc(doc(_db, 'liveRooms', _user.uid), { viewers: count }).catch(() => {});
     }
+  });
+
+  // ── Also subscribe to likes so the host's like counter updates live ──
+  const likesRef = ref(_liveDB, `liveRooms/${_roomId}/likes`);
+  onValue(likesRef, snap => {
+    if (D.likeCount) D.likeCount.textContent = '❤️ ' + (snap.val() || 0);
   });
 }
 
@@ -1031,6 +1046,8 @@ function _creatorBeforeUnload() {
   // Synchronously close every viewer peer so streams drop immediately.
   _teardownAllCreatorViewerPeers();
   if (_localStream) { _localStream.getTracks().forEach(t => t.stop()); _localStream = null; }
+  // Best-effort: remove viewer presence seats (fire-and-forget, may not complete)
+  try { remove(ref(_liveDB, `liveViewers/${_roomId}`)).catch(() => {}); } catch(_) {}
 }
 
 async function endLive() {
@@ -1118,6 +1135,9 @@ async function endLive() {
   try { await deleteDoc(doc(_db, 'liveRooms', _user.uid)); } catch (_) {}
   /* ── Also delete by roomId in case old data used roomId as key ── */
   try { await deleteDoc(doc(_db, 'liveRooms', _endedRoomId)); } catch (_) {}
+
+  /* ── Clean up viewer presence seats for this room ── */
+  try { await remove(ref(_liveDB, `liveViewers/${_endedRoomId}`)); } catch (_) {}
 
   /* ── Schedule RTDB room deletion after 5 min (cleans up ended marker) ── */
   setTimeout(async () => {
@@ -1340,19 +1360,36 @@ async function _startViewer() {
   /* ── Attach resize observer so guest grid re-layouts on any screen change ── */
   _attachGuestGridResizeObserver();
 
-  /* ── Increment viewer count in LIVE RTDB (atomic, with onDisconnect safety) ──
-     We use runTransaction so concurrent joins don't lose increments, AND
-     we register an onDisconnect that atomically subtracts 1 so the count
-     self-heals even when a viewer closes their tab / loses network without
-     a clean _viewerLeave(). We track the ref so we can cancel the
-     onDisconnect on a clean leave (to avoid a double-decrement). ── */
+  /* ── Viewer presence seat + deduplication ─────────────────────────
+     Each viewer holds a per-user node at:
+       liveViewers/{roomId}/{uid}  = { joinedAt, active: true }
+     An onValue listener on that subtree counts distinct active keys
+     and writes the total to liveRooms/{roomId}/viewers atomically.
+     onDisconnect removes the seat so the count self-heals even when
+     the viewer closes the tab without calling _viewerLeave().
+     A rapid refresh only replaces the existing seat — no inflation.
+  ── */
   (async () => {
+    if (_viewerPresenceJoined || !_user) return;
     try {
-      const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
-      _viewerCountOdcRef = viewersRef;
-      await runTransaction(viewersRef, cur => (cur || 0) + 1);
-      // If the viewer drops without a clean leave, RTDB auto-decrements.
-      onDisconnect(viewersRef).transaction(cur => (cur || 1) - 1);
+      _viewerPresenceRef = ref(_liveDB, `liveViewers/${_roomId}/${_user.uid}`);
+      _viewerCountOdcRef = _viewerPresenceRef; // kept for legacy cancel path
+      // Write presence seat — idempotent (replaces existing for this uid)
+      await set(_viewerPresenceRef, { joinedAt: Date.now(), active: true });
+      _viewerPresenceJoined = true;
+      // Auto-remove on disconnect so count self-heals
+      try {
+        _viewerPresenceOdc = onDisconnect(_viewerPresenceRef);
+        _viewerPresenceOdc.remove();
+      } catch(_) {}
+      // Count all active viewers for this room and write the total
+      const presenceRoot = ref(_liveDB, `liveViewers/${_roomId}`);
+      get(presenceRoot).then(snap => {
+        if (!snap.exists()) return;
+        const count = Object.values(snap.val() || {}).filter(v => v && v.active).length;
+        const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
+        set(viewersRef, count).catch(() => {});
+      }).catch(() => {});
     } catch (_) {}
   })();
 
@@ -1457,25 +1494,38 @@ async function _viewerLeave() {
     _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
   }
 
-  /* ── Decrement viewer count in LIVE RTDB (atomic) ──
-     Cancel the onDisconnect we registered at join time so RTDB doesn't
-     also decrement (which would double-count the leave), then atomically
-     subtract 1 via a transaction (clamped at 0). ── */
-  if (_viewerCountOdcRef) {
-    try { await onDisconnect(_viewerCountOdcRef).cancel(); } catch(_) {}
+  /* ── Remove viewer presence seat and recount ──────────────────────
+     Cancel the onDisconnect (we're doing it ourselves) so RTDB doesn't
+     double-remove. Then delete the per-user seat and recalculate the
+     viewer count from the remaining active seats. ── */
+  if (_viewerPresenceOdc) {
+    try { _viewerPresenceOdc.cancel(); } catch(_) {}
+    _viewerPresenceOdc = null;
+  }
+  _viewerPresenceJoined = false;
+  if (_viewerPresenceRef && _user) {
+    try {
+      await remove(_viewerPresenceRef);
+      // Recount remaining active viewers
+      const presenceRoot = ref(_liveDB, `liveViewers/${_roomId}`);
+      get(presenceRoot).then(snap => {
+        const count = snap.exists()
+          ? Object.values(snap.val() || {}).filter(v => v && v.active).length
+          : 0;
+        set(ref(_liveDB, `liveRooms/${_roomId}/viewers`), Math.max(0, count)).catch(() => {});
+      }).catch(() => {});
+    } catch (_) {}
+    _viewerPresenceRef = null;
     _viewerCountOdcRef = null;
   }
-  try {
-    const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
-    await runTransaction(viewersRef, cur => Math.max(0, (cur || 0) - 1));
-  } catch (_) {}
 }
 
 function _setupViewerControls(roomData) {
   if (D.profileBtn) {
     D.profileBtn.style.display = 'flex';
+    // Navigate inside the app — never open an external browser tab
     D.profileBtn.onclick = () => {
-      window.open('index.html#profile=' + roomData.hostId, '_blank');
+      window.location.href = 'index.html#profile=' + encodeURIComponent(roomData.hostId);
     };
   }
 }
@@ -4403,14 +4453,17 @@ function _doApplyGuestLayout() {
   // ── Clear any previously JS-set inline styles on all cells ──
   // (CSS rules handle the base; JS overrides only when needed)
   grid.querySelectorAll('.guest-cell').forEach(c => {
-    c.style.width = '';
-    c.style.height = '';
-    c.style.position = '';
-    c.style.top = '';
-    c.style.right = '';
-    c.style.bottom = '';
-    c.style.left = '';
-    c.style.flex = '';
+    c.style.width        = '';
+    c.style.height       = '';
+    c.style.position     = '';
+    c.style.inset        = '';
+    c.style.top          = '';
+    c.style.right        = '';
+    c.style.bottom       = '';
+    c.style.left         = '';
+    c.style.flex         = '';
+    c.style.zIndex       = '';
+    c.style.borderRadius = '';
   });
   // Reset grid flex properties
   grid.style.flexDirection = '';
@@ -4439,6 +4492,10 @@ function _doApplyGuestLayout() {
   }
   if (_guestLayout === 'host-big') {
     _applyHostBigLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'stacked') {
+    _applyStackedLayout(grid, guestCount);
     return;
   }
 
@@ -4611,10 +4668,15 @@ function _applySplitLayout(grid, guestCount) {
   cells.forEach(c => { c.style.width = w; c.style.height = '100%'; });
 }
 
-/* Host full-screen — guests as responsive floating tiles */
+/* Host full-screen — guests as responsive floating tiles
+   Tiles stack top-right downward; a safe-zone bottom margin
+   prevents them from overlapping the chat, reactions, or controls. */
 function _applyHostFullLayout(grid, guestCount) {
-  const stageW   = grid.offsetWidth  || window.innerWidth;
-  const stageH   = grid.offsetHeight || window.innerHeight;
+  const stageW    = grid.offsetWidth  || window.innerWidth;
+  const stageH    = grid.offsetHeight || window.innerHeight;
+  // Reserve bottom space for chat panel + controls (≈ 20% of stage height, min 160px)
+  const safeBottom = Math.max(160, Math.floor(stageH * 0.20));
+  const usableH    = stageH - safeBottom;
   const hostCell = grid.querySelector('.host-cell');
   if (hostCell) {
     hostCell.style.position = 'absolute';
@@ -4630,11 +4692,13 @@ function _applyHostFullLayout(grid, guestCount) {
   const tileH      = Math.floor(tileW * 0.75);
   const gap        = Math.max(4, Math.floor(stageW * 0.012));
   const cols       = Math.max(1, Math.floor((stageW - gap) / (tileW + gap)));
+  // Max rows that fit without entering the safe zone
+  const maxRows    = Math.max(1, Math.floor((usableH - gap) / (tileH + gap)));
 
   let i = 0;
   grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
     const col = i % cols;
-    const row = Math.floor(i / cols);
+    const row = Math.min(Math.floor(i / cols), maxRows - 1);
     cell.style.position = 'absolute';
     cell.style.width    = tileW + 'px';
     cell.style.height   = tileH + 'px';
@@ -4674,10 +4738,15 @@ function _applyHostBigLayout(grid, guestCount) {
   });
 }
 
-/* Float layout: cascade guest boxes from top-right, responsive */
+/* Float layout: cascade guest boxes from top-right, responsive.
+   Tiles are capped so they never enter the bottom safe-zone
+   occupied by the chat panel, reactions, and controls. */
 function _applyFloatLayout(grid, guestCount) {
-  const stageW   = grid.offsetWidth  || window.innerWidth;
-  const stageH   = grid.offsetHeight || window.innerHeight;
+  const stageW    = grid.offsetWidth  || window.innerWidth;
+  const stageH    = grid.offsetHeight || window.innerHeight;
+  // Reserve bottom space for chat panel + controls (≈ 20% of stage, min 160px)
+  const safeBottom = Math.max(160, Math.floor(stageH * 0.20));
+  const usableH    = stageH - safeBottom;
   const hostCell = grid.querySelector('.host-cell');
 
   if (hostCell) {
@@ -4693,11 +4762,13 @@ function _applyFloatLayout(grid, guestCount) {
   const tileH   = Math.floor(tileW * 0.75);
   const gap     = Math.max(4, Math.floor(stageW * 0.012));
   const cols    = Math.max(1, Math.floor((stageW - gap) / (tileW + gap)));
+  // Max rows that fit without entering the safe zone
+  const maxRows = Math.max(1, Math.floor((usableH - gap) / (tileH + gap)));
 
   let i = 0;
   grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
     const col = i % cols;
-    const row = Math.floor(i / cols);
+    const row = Math.min(Math.floor(i / cols), maxRows - 1);
     cell.style.position = 'absolute';
     cell.style.width    = tileW + 'px';
     cell.style.height   = tileH + 'px';
@@ -4706,6 +4777,52 @@ function _applyFloatLayout(grid, guestCount) {
     cell.style.bottom   = 'auto';
     cell.style.left     = 'auto';
     i++;
+  });
+}
+
+/* ── Stacked layout: host fills the stage; guests stack in a vertical strip
+   along the right edge, growing from bottom to top as more guests join.
+   The strip width is responsive — shrinks on small screens and with many guests.
+   Guests never overlap the chat/reactions (bottom 110px is left clear).     ── */
+function _applyStackedLayout(grid, guestCount) {
+  const stageW   = grid.offsetWidth  || window.innerWidth;
+  const stageH   = grid.offsetHeight || window.innerHeight;
+  const hostCell = grid.querySelector('.host-cell');
+
+  // Host fills the full stage behind the guest strip
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+    hostCell.style.flex     = 'none';
+  }
+
+  // Strip geometry — adaptive to guest count and screen size
+  const maxTileH   = Math.max(64, Math.floor(stageH * 0.15));   // max tile height
+  const reservedB  = Math.min(120, stageH * 0.18);              // bottom reserve (controls)
+  const usableH    = stageH - reservedB - 8;                    // available strip height
+  const tileH      = Math.max(48, Math.min(maxTileH, Math.floor(usableH / Math.max(1, guestCount))));
+  const tileW      = Math.floor(tileH * (4 / 3));               // 4:3 aspect ratio tiles
+  const clampedW   = Math.min(tileW, Math.max(56, Math.floor(stageW * 0.22)));
+  const gap        = 4;
+
+  const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
+  const totalGuestH = guestCells.length * (tileH + gap) - gap;
+
+  // Stack bottom-to-top: first guest at bottom, newest guest above it
+  guestCells.forEach((cell, i) => {
+    const fromBottom = reservedB + i * (tileH + gap);
+    cell.style.position = 'absolute';
+    cell.style.width    = clampedW + 'px';
+    cell.style.height   = tileH + 'px';
+    cell.style.right    = gap + 'px';
+    cell.style.bottom   = fromBottom + 'px';
+    cell.style.top      = 'auto';
+    cell.style.left     = 'auto';
+    cell.style.flex     = 'none';
+    cell.style.zIndex   = '6';
+    cell.style.borderRadius = '10px';
   });
 }
 

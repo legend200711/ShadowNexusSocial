@@ -111,6 +111,16 @@
       if (btn) { btn.style.display = 'none'; btn.style.visibility = 'hidden'; }
       var sec = document.getElementById('cohostSettingsSection');
       if (sec) sec.style.display = 'none';
+      // Hide guest-box co-host controls (cam/mic/leave shown when co-host is in a box)
+      var gCam = document.getElementById('btnGuestCam');
+      var gMic = document.getElementById('btnGuestMic');
+      var gLeave = document.getElementById('btnLeaveBox');
+      if (gCam)   { gCam.style.display   = 'none'; }
+      if (gMic)   { gMic.style.display   = 'none'; }
+      if (gLeave) { gLeave.style.display = 'none'; }
+      // Hide fallback co-host invite overlay (index.html overlay, not managed by cohost.css)
+      var overlay = document.getElementById('snxCoHostInviteOverlay');
+      if (overlay) overlay.classList.remove('visible');
       _hideInviteCard(); if (_panelOpen) _closePanel();
       if (_inviteInboxUnsub) { try { _inviteInboxUnsub(); } catch(e){} _inviteInboxUnsub = null; }
       if (_activeUnsub) { try { _activeUnsub(); } catch(e){} _activeUnsub = null; }
@@ -122,6 +132,10 @@
       if (btn2) { btn2.style.display = ''; btn2.style.visibility = ''; }
       var sec2 = document.getElementById('cohostSettingsSection');
       if (sec2) sec2.style.display = '';
+      // Guest-box controls are restored by live.js when the viewer enters a box;
+      // we do not force-show them here — we only need to ensure they are not
+      // stuck hidden if they were hidden by the feature-disable path above.
+      // live.js sets display:flex on these when the user actually joins a box.
       if (!_inviteInboxUnsub) _watchForInvite();
       if (_isHost) {
         if (!_activeUnsub) _subscribeActiveCohosts();
@@ -589,6 +603,7 @@
 
   async function _sendInvite(user, btn) {
     if (!_db || !_liveDB || !_user || !_roomId) return;
+    if (!_coHostEnabled) { _toast('Co-Hosting is currently unavailable.'); return; }
     if (!_cohostSettings.allowCohosts) { _toast('Co-Hosting is disabled in Live Settings.'); return; }
     if (_cohostSettings.whoCanCohost === 'nobody') { _toast('Co-Hosting is set to nobody.'); return; }
     if (_pendingInvites[user.uid]) { _toast('Invite already sent to ' + (user.displayName||'this user')); return; }
@@ -696,6 +711,7 @@
 
   async function _acceptInvite() {
     if (!_pendingInviteData) return;
+    if (!_coHostEnabled) { _hideInviteCard(); _pendingInviteData = null; _toast('Co-Hosting is currently unavailable.'); return; }
     var inv = _pendingInviteData; _pendingInviteData = null; _hideInviteCard();
     try {
       var fs   = await _importFS();
