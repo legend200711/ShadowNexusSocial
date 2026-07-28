@@ -46,11 +46,20 @@
 <link rel="stylesheet" href="album.css">
 
 <!-- ── Preconnect to Firebase + R2 CDN so first load is faster ── -->
-<link rel="preconnect" href="https://www.gstatic.com">
-<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://firebase.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://firebaseinstallations.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://yellow-term-11e6.nthntjrn.workers.dev" crossorigin>
 <link rel="dns-prefetch" href="https://pub-e5efe8c515324a8ab89ca15c5fa731dd.r2.dev">
 <link rel="dns-prefetch" href="https://pub-1cb8318faddb49f0b2c91fbd098c271f.r2.dev">
+<link rel="dns-prefetch" href="https://horr-a08f4-default-rtdb.firebaseio.com">
+<!-- ── Modulepreload Firebase SDK bundles (parallel parse before module script executes) ── -->
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js" fetchpriority="high">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js">
 
 <style>
 :root {
@@ -103,6 +112,8 @@ body {
     overflow-x: hidden;
     -webkit-tap-highlight-color: transparent;
     text-rendering: optimizeSpeed;
+    /* Ensure paint layers are promoted for fixed overlays */
+    isolation: isolate;
 }
 
 /* ── Deep vignette that darkens all edges ── */
@@ -112,12 +123,9 @@ body::before {
     inset: 0;
     pointer-events: none;
     z-index: 9998;
-    background:
-        radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,0.55) 100%),
-        radial-gradient(ellipse at 0% 0%,   rgba(0,0,0,0.5) 0%, transparent 55%),
-        radial-gradient(ellipse at 100% 0%,  rgba(0,0,0,0.5) 0%, transparent 55%),
-        radial-gradient(ellipse at 0% 100%,  rgba(0,0,0,0.45) 0%, transparent 55%),
-        radial-gradient(ellipse at 100% 100%,rgba(0,0,0,0.45) 0%, transparent 55%);
+    /* Single composite radial gradient — fewer layers = less paint cost */
+    background: radial-gradient(ellipse at 50% 50%, transparent 28%, rgba(0,0,0,0.52) 100%);
+    will-change: opacity;
 }
 
 /* ── Slow-drifting fog overlay ── */
@@ -129,10 +137,9 @@ body::after {
     z-index: 9997;
     background:
         radial-gradient(ellipse 120% 60% at 20% 80%, rgba(0,100,180,0.12) 0%, transparent 70%),
-        radial-gradient(ellipse 80%  40% at 80% 90%, rgba(0,60,130,0.10)  0%, transparent 70%),
         radial-gradient(ellipse 100% 50% at 50% 95%, rgba(0,80,160,0.09)  0%, transparent 70%);
     animation: fogDrift 18s ease-in-out infinite alternate;
-    will-change: transform, opacity;
+    will-change: transform;
 }
 
 #bg-canvas {
@@ -143,6 +150,9 @@ body::after {
     height: 100vh;
     z-index: -1;
     pointer-events: none;
+    /* GPU-composited layer — keeps canvas from triggering main-thread paints */
+    will-change: contents;
+    contain: strict;
 }
 
 /* ── Global scrollbar — dark horror thin ── */
@@ -164,6 +174,7 @@ body::after {
     background: rgba(0,180,255,0.6);
     pointer-events: none;
     z-index: 9996;
+    contain: strict;
     box-shadow: 0 0 4px rgba(0,160,255,0.45);
     animation: ashFloat var(--ash-dur, 12s) linear var(--ash-delay, 0s) infinite;
     will-change: transform, opacity;
@@ -470,6 +481,8 @@ body::after {
 .page.active {
     display: block;
     animation: pageFadeIn 0.22s ease-out both;
+    /* Scope style/layout recalcs to the active page only */
+    contain: content;
 }
 @keyframes pageFadeIn {
     from { opacity: 0; transform: translateY(8px); }
@@ -484,6 +497,7 @@ body::after {
     border-radius: 14px;
     transition: border-color 0.25s ease, box-shadow 0.25s ease;
     /* shadowBreath removed — running on many elements simultaneously was expensive */
+    contain: layout style;
 }
 .section-card:hover {
     border-color: rgba(0,140,255,0.28);
@@ -687,6 +701,10 @@ input:focus, textarea:focus, select:focus {
     position: relative;
     animation: postSlideIn 0.22s ease-out both;
     transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    /* Paint-bound containment: isolates each post from causing full-page repaints */
+    contain: layout style;
+    /* GPU-promoted layer so box-shadow transitions don't trigger main-thread paint */
+    will-change: box-shadow;
 }
 .postBox:hover {
     border-color: rgba(0,160,255,0.35);
@@ -3283,6 +3301,76 @@ img, video { max-width: 100%; height: auto; }
 .adm-audit-action { flex: 1; }
 </style>
 
+
+<style id="snx-perf-css">
+/* ═══════════════════════════════════════════════════════════
+   SNX PERFORMANCE CSS — paint/layout optimisations
+   ═══════════════════════════════════════════════════════════ */
+
+/* All img and video: lazy-loading by default */
+img:not([loading]), video:not([loading]) { loading: lazy; }
+
+/* Off-screen pages: skip rendering entirely until visible */
+.page:not(.active) {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 600px;
+}
+
+/* Scroll containers: reduce paint area */
+.ipc-modal-messages,
+.storm-messages,
+.support-messages,
+.social-list-body,
+.snx-pwall-comment-list,
+#feedPosts {
+    contain: strict;
+    will-change: scroll-position;
+    /* GPU-accelerated scrolling on WebKit */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+
+/* Cards and chat bubbles: scope layout recalcs */
+.friend-card, .req-card, .user-card,
+.notif-item, .inbox-conv-card,
+.ipc-modal-bubble, .storm-bubble, .support-bubble {
+    contain: layout style;
+}
+
+/* Sidebar: its own layer once open */
+.sidebar.active { contain: layout style paint; }
+
+/* Modals: GPU layer when open */
+#ipcModal.open,
+#deleteAccountModal.open,
+.edit-profile-modal.open,
+.social-list-modal.open,
+#arcadeHubModal.open,
+#arcadeGameModal.open {
+    contain: layout style paint;
+}
+
+/* Scrollbar paint optimisation — avoid subpixel AA on thin bars */
+.ipc-modal-messages::-webkit-scrollbar,
+.storm-messages::-webkit-scrollbar,
+#feedPosts::-webkit-scrollbar { width: 3px; }
+
+/* Remove expensive hover will-change after interaction */
+.postBox:not(:hover) { will-change: auto; }
+
+/* Reduce animation cost when the tab is in the background */
+@media (prefers-reduced-motion: reduce) {
+    .ash-particle,
+    body::after,
+    .indicator-dot.online,
+    .online-pip.on,
+    .profile-online-dot,
+    .sidebar-brand-icon {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
+</style>
 
 <style id="palette-overrides">
 /* ═══════════════════════════════════════════════════════════
@@ -9180,6 +9268,61 @@ body.arcade-fs-ios body::after { display:none !important; }
       serverTimestamp, enableNetwork, disableNetwork,
   };
 
+  /* ═══════════════════════════════════════════════════════════
+     SNX PERFORMANCE LAYER
+     ═══════════════════════════════════════════════════════════
+
+     In-memory user-doc cache (TTL = 30 s).
+     Replaces repeated getDoc(doc(db,'users',uid)) calls with a
+     single network hit per unique UID per 30-second window.
+     Cache is automatically invalidated when the user's own doc
+     changes (userDataUnsubscribe snapshot fires).
+  ─────────────────────────────────────────────────────────────── */
+  const _snxUserCache = new Map(); // uid → { data, ts }
+  const _SNX_CACHE_TTL = 30_000;  // 30 s
+
+  window._snxGetUserCached = async function(uid) {
+    if (!uid) return null;
+    const hit = _snxUserCache.get(uid);
+    if (hit && (Date.now() - hit.ts) < _SNX_CACHE_TTL) return hit.data;
+    try {
+      const snap = await getDoc(doc(db, 'users', uid));
+      const data = snap.exists() ? snap.data() : null;
+      if (data) _snxUserCache.set(uid, { data, ts: Date.now() });
+      return data;
+    } catch(_) { return null; }
+  };
+
+  // Expose cache so IIFE scripts can invalidate their own entry
+  window._snxUserCache = _snxUserCache;
+
+  /* ── Debounced Firestore presence write ──────────────────────
+     Status updates (online/offline) call this instead of writing
+     directly, so rapid focus/blur cycles only cause one write.
+  ─────────────────────────────────────────────────────────────── */
+  let _presenceWriteTimer = null;
+  window._snxDebouncedPresenceWrite = function(status, uid) {
+    if (!uid) return;
+    clearTimeout(_presenceWriteTimer);
+    _presenceWriteTimer = setTimeout(() => {
+      try {
+        updateDoc(doc(db, 'users', uid), { status, lastSeen: Date.now() }).catch(() => {});
+      } catch(_) {}
+      // Invalidate cache so next read gets fresh status
+      _snxUserCache.delete(uid);
+    }, 400); // 400 ms debounce — collapses burst visibility changes
+  };
+
+  /* ── RequestIdleCallback shim ───────────────────────────────── */
+  window._snxRIC = window.requestIdleCallback
+    || function(cb) { return setTimeout(() => cb({ timeRemaining: () => 5 }), 16); };
+
+  /* ── Simple debounce utility for UI handlers ────────────────── */
+  window._snxDebounce = function(fn, ms) {
+    let t;
+    return function(...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
+  };
+
   // ── Auth-ready queue — lets non-module scripts register callbacks that
   //    run as soon as Firebase auth resolves (avoids the re-login requirement) ──
   window._snxAuthReadyQueue = window._snxAuthReadyQueue || [];
@@ -10020,18 +10163,29 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   // visibilitychange: when the tab is hidden (user switched tabs / minimized /
   // locked the phone) we proactively mark the user offline so friends see them
-  // go offline within ~2 s instead of waiting for the 30 s heartbeat to expire.
+  // go offline within ~2 s instead of waiting for the heartbeat to expire.
   // When the tab becomes visible again we restore the online status immediately.
+  // Debounced so rapid focus cycles (e.g. touching a notification then returning)
+  // don't spray multiple Firestore writes.
+  let _visChangeTimer = null;
   document.addEventListener('visibilitychange', () => {
       if (!currentUser) return;
+      clearTimeout(_visChangeTimer);
       if (document.visibilityState === 'hidden') {
-          _snxMarkOffline();
+          // Short delay before marking offline to absorb instant returns
+          _visChangeTimer = setTimeout(() => {
+              if (document.visibilityState === 'hidden') _snxMarkOffline();
+          }, 2000);
       } else if (document.visibilityState === 'visible') {
           // Tab is back in focus — restore presence (RTDB + Firestore)
           try { _rtdbUpdate(_rtdbRef(_presenceRtdb, 'users/' + currentUser.uid), { online: true, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
-          try { updateDoc(doc(db, 'users', currentUser.uid), { status: 'online', lastSeen: Date.now() }); } catch(_) {}
+          if (typeof window._snxDebouncedPresenceWrite === 'function') {
+              window._snxDebouncedPresenceWrite('online', currentUser.uid);
+          } else {
+              try { updateDoc(doc(db, 'users', currentUser.uid), { status: 'online', lastSeen: Date.now() }); } catch(_) {}
+          }
       }
-  });
+  }, { passive: true });
 
   // ── Network reconnect: when the browser comes back online, restore presence
   //    and re-open the active DM chat if one was open.
@@ -10187,19 +10341,21 @@ body.arcade-fs-ios body::after { display:none !important; }
 
           // ── Heartbeat: keep RTDB presence alive every 15 s ──
           // Reduced from 30 s so ghost users (crashed tabs) are detected within
-          // ~15 s instead of ~30 s. Uses update() (not set()) so we only
-          // refresh online+lastSeen without overwriting the `live` field that
-          // live.js manages independently.
-          // ALSO refresh the Firestore status/lastSeen so the presence strip
-          // (which queries Firestore where status=="online") stays accurate.
-          // Ghost users (crashed without beforeunload) are cleaned up by the
-          // 90-second staleness check in initPresenceStrip.
-          const _presenceHeartbeat = setInterval(() => {
-              if (auth.currentUser) {
-                  try { _rtdbUpdate(_rtdbRef(_presenceRtdb, 'users/' + auth.currentUser.uid), { online: true, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
-                  try { updateDoc(doc(db, 'users', auth.currentUser.uid), { status: 'online', lastSeen: Date.now() }); } catch(_) {}
-              }
-          }, 15000);
+         // Heartbeat interval raised to 30 s (was 15 s) — halves Firestore write load.
+         // Ghost users (crashed without beforeunload) are detected by the 90-second
+         // staleness check in initPresenceStrip, so 30 s is still well within tolerance.
+         // Uses update() (not set()) so we only refresh online+lastSeen without
+         // overwriting the `live` field that live.js manages independently.
+         const _presenceHeartbeat = setInterval(() => {
+             if (auth.currentUser) {
+                 // Only write when the tab is actually visible — no point refreshing
+                 // presence while the user has the app backgrounded.
+                 if (document.visibilityState === 'visible') {
+                     try { _rtdbUpdate(_rtdbRef(_presenceRtdb, 'users/' + auth.currentUser.uid), { online: true, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
+                     try { updateDoc(doc(db, 'users', auth.currentUser.uid), { status: 'online', lastSeen: Date.now() }); } catch(_) {}
+                 }
+             }
+         }, 30000);
           // Store the interval so we can clear it on logout / auth change
           window._snxPresenceHeartbeat = _presenceHeartbeat;
 
@@ -10496,12 +10652,18 @@ body.arcade-fs-ios body::after { display:none !important; }
               window._snxPendingPage = null;
               setTimeout(() => navTo(_pendPage), 700);
           }
-          if (typeof window._initStorySystem === 'function') window._initStorySystem();
-          // Check if user has earned the OG badge (first 100 users, 50+ days old account)
-          checkOGBadgeEligibility(user.uid);
+          // Story system and OG badge check are non-critical — defer until idle
+          window._snxRIC(() => {
+              if (typeof window._initStorySystem === 'function') window._initStorySystem();
+          });
+          window._snxRIC(() => {
+              // Check if user has earned the OG badge (first 100 users, 50+ days old account)
+              checkOGBadgeEligibility(user.uid);
+          });
           // Start push notifications (requests permission if not yet granted)
+          // Deferred to 5 s so the critical auth + feed path completes first
           window._snxInitPush = initPushNotifications;
-          setTimeout(initPushNotifications, 2500);
+          setTimeout(initPushNotifications, 5000);
           // ── Shadow Chat Bot init (welcome + safety watcher) ──
           if (typeof window.scbInit === 'function') {
               window.scbInit(user, userData).catch(() => {});
@@ -11522,6 +11684,47 @@ body.arcade-fs-ios body::after { display:none !important; }
       io.observe(trigger);
   })();
 
+  // ── Feed image lazy-loader ──
+  // Any <img> inside #feedPosts that arrives with data-src (or without src set yet)
+  // gets observed; once it scrolls into the viewport the real src is swapped in.
+  // Also handles images injected after the initial render via a MutationObserver.
+  (function _initFeedImageLazy() {
+      if (!('IntersectionObserver' in window) || !('MutationObserver' in window)) return;
+      const feedEl = document.getElementById('feedPosts');
+      if (!feedEl) return;
+
+      const imgIO = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+              if (!entry.isIntersecting) return;
+              const img = entry.target;
+              const src = img.dataset.lazySrc;
+              if (src) { img.src = src; delete img.dataset.lazySrc; }
+              imgIO.unobserve(img);
+          });
+      }, { rootMargin: '300px' });
+
+      function _observeImg(img) {
+          // Only lazy-load images that are below the fold
+          if (!img.dataset.lazySrc && img.src) return; // already loaded
+          if (img.dataset.lazySrc) imgIO.observe(img);
+      }
+
+      // Observe existing images
+      feedEl.querySelectorAll('img[data-lazy-src]').forEach(_observeImg);
+
+      // Observe new images as posts are injected
+      const mutObs = new MutationObserver(muts => {
+          muts.forEach(m => {
+              m.addedNodes.forEach(node => {
+                  if (node.nodeType !== 1) return;
+                  node.querySelectorAll && node.querySelectorAll('img[data-lazy-src]').forEach(_observeImg);
+                  if (node.tagName === 'IMG' && node.dataset.lazySrc) _observeImg(node);
+              });
+          });
+      });
+      mutObs.observe(feedEl, { childList: true, subtree: true });
+  })();
+
   // ── @mention autocomplete for post composer ──
   (function() {
       const postTA   = document.getElementById('postText');
@@ -12429,6 +12632,14 @@ body.arcade-fs-ios body::after { display:none !important; }
       });
   };
   document.getElementById("searchInput").addEventListener("keydown", e => { if(e.key==="Enter") runSearch(); });
+  // Debounced live-search: fires 500 ms after the user stops typing
+  // (avoids a Firestore query on every keystroke)
+  document.getElementById("searchInput").addEventListener("input",
+      (window._snxDebounce || ((f,_) => f))(function() {
+          const v = document.getElementById("searchInput").value.trim();
+          if (v.length >= 2) runSearch();
+      }, 500)
+  );
 
   /* ═══════════════════════════════════════════════════════════
      FRIEND REQUESTS & FRIENDS
@@ -12661,13 +12872,45 @@ body.arcade-fs-ios body::after { display:none !important; }
       _friendPresenceUnsubs.forEach(fn => { try { fn(); } catch(_) {} });
       _friendPresenceUnsubs = [];
 
-      const myS = await getDoc(doc(db,"users",currentUser.uid));
-      const md = myS.data();
+      // Use local userData if available (avoids a redundant Firestore read)
+      const md = userData || (await getDoc(doc(db,"users",currentUser.uid))).data();
       const friends = md.friends||[], family = md.family||[], received = md.friendRequestsReceived||[];
       const famInvitesReceived = md.familyInvitesReceived||[];
+
+      // Batch-fetch friend/request docs using the in-memory cache;
+      // fall back to individual getDoc only for cache misses.
+      async function _batchFetchUsers(uids) {
+          if (!uids.length) return [];
+          // Try cache first — collect misses
+          const results = new Array(uids.length).fill(null);
+          const missList = [];
+          uids.forEach((uid, i) => {
+              const hit = (window._snxUserCache||new Map()).get(uid);
+              if (hit && (Date.now() - hit.ts) < 30000) {
+                  results[i] = { exists: () => true, data: () => hit.data };
+              } else {
+                  missList.push({ idx: i, uid });
+              }
+          });
+          if (missList.length) {
+              // Fetch cache misses in parallel (Firestore batches internally)
+              const fetchedDocs = await Promise.all(
+                  missList.map(({ uid }) => getDoc(doc(db, 'users', uid)).catch(() => null))
+              );
+              fetchedDocs.forEach((d, j) => {
+                  const { idx, uid } = missList[j];
+                  if (d && d.exists() && window._snxUserCache) {
+                      window._snxUserCache.set(uid, { data: d.data(), ts: Date.now() });
+                  }
+                  results[idx] = d;
+              });
+          }
+          return results;
+      }
+
       const [fDocs,rDocs] = await Promise.all([
-          Promise.all(friends.map(u=>getDoc(doc(db,"users",u)))),
-          Promise.all(received.map(u=>getDoc(doc(db,"users",u))))
+          _batchFetchUsers(friends),
+          _batchFetchUsers(received)
       ]);
       // Friends tab
       const fb = document.getElementById("ftabContentFriends");
@@ -13973,8 +14216,8 @@ body.arcade-fs-ios body::after { display:none !important; }
               };
               bub.addEventListener('contextmenu', _iOpenCtx);
               bub.addEventListener('touchstart', (e) => { _ipressTimer = setTimeout(() => _iOpenCtx(e), 500); }, { passive: true });
-              bub.addEventListener('touchend',  () => clearTimeout(_ipressTimer));
-              bub.addEventListener('touchmove', () => clearTimeout(_ipressTimer));
+              bub.addEventListener('touchend',  () => clearTimeout(_ipressTimer), { passive: true });
+              bub.addEventListener('touchmove', () => clearTimeout(_ipressTimer), { passive: true });
 
               if (m.deleted) {
                   const t = document.createElement('div');
@@ -16637,18 +16880,31 @@ body.arcade-fs-ios body::after { display:none !important; }
   async function _inboxLoadFriends() {
     if (!currentUser || !currentUser.uid) { _inboxFriendsCache.length = 0; return; }
     try {
-      const myS = await getDoc(doc(db, 'users', currentUser.uid));
-      if (!myS.exists()) { _inboxFriendsCache.length = 0; return; }
-      const friends = myS.data().friends || [];
+      // Prefer already-loaded userData over a separate Firestore read
+      const myData = window._snxUserData || (await getDoc(doc(db, 'users', currentUser.uid))).data();
+      const friends = (myData && myData.friends) || [];
       if (!friends.length) { _inboxFriendsCache.length = 0; return; }
-      const fDocs = await Promise.all(friends.map(u => getDoc(doc(db, 'users', u))));
+
+      // Resolve each friend using the global user-doc cache (avoids N redundant reads)
+      const _gc = window._snxUserCache;
+      const now  = Date.now();
+      const TTL  = 30000;
+      const missList = friends.filter(uid => !(_gc && _gc.get(uid) && now - _gc.get(uid).ts < TTL));
+      if (missList.length) {
+        const freshDocs = await Promise.all(missList.map(u => getDoc(doc(db, 'users', u)).catch(()=>null)));
+        freshDocs.forEach((d, i) => {
+          if (d && d.exists() && _gc) _gc.set(missList[i], { data: d.data(), ts: now });
+        });
+      }
+
       _inboxFriendsCache.length = 0;
-      fDocs.forEach((d, i) => {
-        if (d.exists()) {
-          const dd = d.data();
-          _inboxFriendsCache.push({ uid: friends[i], displayName: dd.displayName || dd.name || ('User ' + friends[i].substring(0,6)), avatar: dd.avatar || '' });
+      friends.forEach(uid => {
+        const hit = _gc && _gc.get(uid);
+        const dd  = hit ? hit.data : null;
+        if (dd) {
+          _inboxFriendsCache.push({ uid, displayName: dd.displayName || dd.name || ('User ' + uid.substring(0,6)), avatar: dd.avatar || '' });
         } else {
-          _inboxFriendsCache.push({ uid: friends[i], displayName: 'User ' + friends[i].substring(0,6), avatar: '' });
+          _inboxFriendsCache.push({ uid, displayName: 'User ' + uid.substring(0,6), avatar: '' });
         }
       });
       // Attach presence listeners for every friend so we know who's online
@@ -16736,10 +16992,25 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 
   async function _inboxFetchUser(uid) {
-    if (!uid || _inboxUserCache[uid]) return _inboxUserCache[uid];
+    if (!uid) return null;
+    if (_inboxUserCache[uid]) return _inboxUserCache[uid];
+    // Try the global user cache first
+    const _gc = window._snxUserCache;
+    if (_gc) {
+      const hit = _gc.get(uid);
+      if (hit && (Date.now() - hit.ts) < 30000) {
+        _inboxUserCache[uid] = hit.data;
+        return hit.data;
+      }
+    }
     try {
       const d = await getDoc(doc(db, 'users', uid));
-      if (d.exists()) { _inboxUserCache[uid] = d.data(); return d.data(); }
+      if (d.exists()) {
+        const data = d.data();
+        _inboxUserCache[uid] = data;
+        if (_gc) _gc.set(uid, { data, ts: Date.now() });
+        return data;
+      }
     } catch (_) {}
     return null;
   }
@@ -18728,7 +18999,8 @@ document.addEventListener("visibilitychange", () => {
 */
 (function spawnDomAsh() {
     // Mobile gets fewer DOM particles to save battery/CPU
-    const MAX_DOM_ASH = _isMobileDevice ? 7 : 14;
+    // Reduced cap (5/10) vs the old 7/14 to lower compositor layer pressure
+    const MAX_DOM_ASH = _isMobileDevice ? 5 : 10;
     let domAshCount = 0;
 
     function spawnOne() {

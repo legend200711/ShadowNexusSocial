@@ -10,7 +10,7 @@
  * GitHub Pages (/ShadowNexusSocial/) and any local dev server (/).
  */
 
-const CACHE_VERSION = 'v14';
+const CACHE_VERSION = 'v15';
 const CACHE_NAME    = `shadow-nexus-${CACHE_VERSION}`;
 const MEDIA_CACHE   = `shadow-nexus-media-${CACHE_VERSION}`;
 
@@ -28,6 +28,7 @@ const SHELL_FILES = [
   'album.css',
   'script.js',
   'snx-net.js',
+  'upload-worker.js',
   'manifest.json',
   'icon-192.png',
   'icon-512.png',
@@ -35,16 +36,16 @@ const SHELL_FILES = [
   'favicon.ico',
   'favicon-32x32.png',
   'favicon-16x16.png',
-  // live.html / live.js / live.css intentionally excluded — always network-fresh
+  // live.html / live.js / live.css / cohost.js intentionally excluded — always network-fresh
 ];
 
 /** Max entries for the media cache (CDN images / avatars). */
-const MEDIA_CACHE_MAX = 100;
-/** Max age for media cache entries (24 hours). */
-const MEDIA_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const MEDIA_CACHE_MAX = 200;
+/** Max age for media cache entries (48 hours). */
+const MEDIA_CACHE_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
 /** Paths that must always go to the network (never served from cache) */
-const NETWORK_FIRST_PATHS = ['live.html', 'live.js', 'live.css'];
+const NETWORK_FIRST_PATHS = ['live.html', 'live.js', 'live.css', 'cohost.js'];
 
 const PRECACHE_URLS = SHELL_FILES.map(f => BASE + f);
 
@@ -257,9 +258,9 @@ self.addEventListener('message', (event) => {
     if (_snxDataSaver) {
       caches.open(MEDIA_CACHE).then(cache => {
         cache.keys().then(keys => {
-          // Keep only the 30 most-recently-cached items when bandwidth is tight
-          if (keys.length > 30) {
-            keys.slice(0, keys.length - 30).forEach(k => cache.delete(k));
+          // Keep only the 20 most-recently-cached items when bandwidth is tight
+          if (keys.length > 20) {
+            keys.slice(0, keys.length - 20).forEach(k => cache.delete(k));
           }
         });
       }).catch(() => {});
