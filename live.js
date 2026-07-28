@@ -3061,6 +3061,9 @@ function _attachHostVideoToCell(cell) {
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── VIEWER: Request a Box ── */
+// Expose for co-host accept auto-request (cohost.js calls window._viewerRequestBox())
+window._viewerRequestBox = async function() { return _viewerRequestBox(); };
+
 async function _viewerRequestBox() {
   console.log('[BoxRequest] Request button clicked');
 
