@@ -1,5 +1,5 @@
-﻿/**
- * Shadow Nexus Live - cohost.js  (v3)
+/**
+ * Shadow Nexus Live - cohost.js  (v4)
  *
  * Co-Host feature - completely self-contained.
  * Does NOT touch live.js internals, chat, feed, guest boxes,
@@ -11,6 +11,7 @@
  *              cohosts/{liveId}/settings
  *              cohosts/{liveId}/removed/{uid}
  *              coHostInvites/{guestUid}/{hostUid}
+ *              liveRooms/{roomId}  (read-only — written by live.js)
  */
 
 'use strict';
@@ -21,10 +22,15 @@
   var _userData = null, _roomId = null, _isHost = false;
   var _coHostEnabled = true;
   var _activeUnsub = null, _inviteInboxUnsub = null, _hostDeclineUnsub = null;
-  var _pendingInvites = {}, _panelOpen = false, _presenceTimer = null;
+  // Real-time live-user listeners
+  var _rtdbLiveUnsub = null;   // RTDB liveRooms onValue unsubscribe
+  var _fsLiveUnsub   = null;   // Firestore users onSnapshot unsubscribe
+  var _pendingInvites = {}, _panelOpen = false;
   var _cohostSettings = { allowCohosts: true, whoCanCohost: 'everyone' };
   var _pendingInviteData = null;
   var _searchQuery = '', _cachedLiveUsers = [];
+  // Merged live-user map: uid → user object (union of RTDB + FS sources)
+  var _liveUserMap = {};
 
   function _importFS()   { return import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'); }
   function _importRTDB() { return import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js'); }
@@ -48,6 +54,9 @@
         _writePresence('online');
       }
       _subscribeCoHostFlag();
+      // Start real-time live-users listeners immediately (not just when panel opens)
+      _subscribeRtdbLiveRooms();
+      _subscribeFsLiveUsers();
       window._cohostCleanup = _cleanup;
     });
   }
@@ -99,6 +108,9 @@
         if (!_activeUnsub) _subscribeActiveCohosts();
         if (!_hostDeclineUnsub) _subscribeDeclineNotifications();
       }
+      // Re-start real-time listeners if they were stopped
+      if (!_rtdbLiveUnsub) _subscribeRtdbLiveRooms();
+      if (!_fsLiveUnsub) _subscribeFsLiveUsers();
     }
   }
 
@@ -225,12 +237,11 @@
     var btn = document.getElementById('btnCoHost');
     if (!panel) return;
     panel.classList.add('visible'); if (btn) btn.classList.add('cohost-active');
-    _panelOpen = true; _loadFriendsList(); _loadLiveUsers();
-    if (_presenceTimer) clearInterval(_presenceTimer);
-    _presenceTimer = setInterval(function() {
-      if (!_panelOpen) { clearInterval(_presenceTimer); _presenceTimer = null; return; }
-      _loadFriendsList(); _loadLiveUsers();
-    }, 15000);
+    _panelOpen = true;
+    // Immediately render whatever is already in the live map (real-time listeners
+    // have been running since init, so the cache may already be populated).
+    _flushLiveMap();
+    _loadFriendsList();
   }
 
   function _closePanel() {
@@ -239,53 +250,106 @@
     if (!panel) return;
     panel.classList.remove('visible'); if (btn) btn.classList.remove('cohost-active');
     _panelOpen = false;
-    if (_presenceTimer) { clearInterval(_presenceTimer); _presenceTimer = null; }
   }
 
-  async function _loadLiveUsers() {
-    var el = document.getElementById('cohostLiveList');
-    if (!el) return;
-    el.innerHTML = '<div class="cohost-empty">Loading...</div>';
-    if (!_db || !_user) { el.innerHTML = '<div class="cohost-empty">Not connected.</div>'; return; }
-    try {
-      var fs = await _importFS();
-      var rtdb = await _importRTDB();
-      var liveUsers = [], seenUids = new Set();
+  /* ── Real-time RTDB listener on liveRooms ──
+     Fires instantly when any stream starts or ends. */
+  function _subscribeRtdbLiveRooms() {
+    if (!_liveDB) return;
+    if (_rtdbLiveUnsub) { try { _rtdbLiveUnsub(); } catch(e){} _rtdbLiveUnsub = null; }
+    _importRTDB().then(function(rtdb) {
+      var roomsRef = rtdb.ref(_liveDB, 'liveRooms');
+      var listener = rtdb.onValue(roomsRef, function(snap) {
+        // Remove all RTDB-sourced entries first, keep FS-sourced ones
+        var newMap = {};
+        Object.keys(_liveUserMap).forEach(function(uid) {
+          if (_liveUserMap[uid]._src === 'fs') newMap[uid] = _liveUserMap[uid];
+        });
+        if (snap.exists()) {
+          snap.forEach(function(child) {
+            var r = child.val();
+            if (!r) return;
+            // Only include rooms that are currently live
+            if (r.status !== 'live' && !r.isLive) return;
+            if (!r.hostId) return;
+            if (_user && r.hostId === _user.uid) return; // exclude self
+            // Merge with any existing FS entry (FS data takes priority for profile)
+            var existing = newMap[r.hostId] || {};
+            newMap[r.hostId] = Object.assign({}, existing, {
+              uid:        r.hostId,
+              displayName: existing.displayName || r.hostName || 'Someone',
+              username:    existing.username    || r.hostUsername || '',
+              avatar:      existing.avatar      || r.hostAvatar  || '',
+              isLive:      true,
+              liveRoomId:  child.key,
+              liveTitle:   r.title || '',
+              _src:        existing._src === 'fs' ? 'fs' : 'rtdb',
+            });
+          });
+        }
+        _liveUserMap = newMap;
+        _flushLiveMap();
+      }, function(err) {
+        console.warn('[CoHost] RTDB liveRooms listener error:', err && err.message);
+      });
+      _rtdbLiveUnsub = function() { try { rtdb.off(roomsRef, listener); } catch(e){} };
+    }).catch(function(e) { console.warn('[CoHost] _subscribeRtdbLiveRooms:', e && e.message); });
+  }
+
+  /* ── Real-time Firestore listener on users where isLive == true ──
+     Catches Firestore-side changes that RTDB may not reflect yet. */
+  function _subscribeFsLiveUsers() {
+    if (!_db) return;
+    if (_fsLiveUnsub) { try { _fsLiveUnsub(); } catch(e){} _fsLiveUnsub = null; }
+    _importFS().then(function(fs) {
       try {
         var q = fs.query(fs.collection(_db, 'users'), fs.where('isLive', '==', true));
-        var snap = await fs.getDocs(q);
-        snap.forEach(function(d) {
-          if (d.id !== _user.uid && !seenUids.has(d.id)) {
-            seenUids.add(d.id); liveUsers.push(Object.assign({ uid: d.id }, d.data()));
-          }
-        });
-      } catch(e) { console.warn('[CoHost] FS live query:', e && e.message); }
-      if (!liveUsers.length) {
-        try {
-          var rsnap = await rtdb.get(rtdb.ref(_liveDB, 'liveRooms'));
-          if (rsnap.exists()) {
-            rsnap.forEach(function(child) {
-              var r = child.val();
-              if (r && r.status === 'live' && r.hostId && r.hostId !== _user.uid && !seenUids.has(r.hostId)) {
-                seenUids.add(r.hostId);
-                liveUsers.push({ uid: r.hostId, displayName: r.hostName || 'Someone',
-                  username: r.hostUsername || '', avatar: r.hostAvatar || '',
-                  isLive: true, liveRoomId: child.key, liveTitle: r.title || '' });
-              }
+        _fsLiveUnsub = fs.onSnapshot(q, function(snap) {
+          // Remove all FS-sourced entries, keep RTDB-sourced ones
+          var newMap = {};
+          Object.keys(_liveUserMap).forEach(function(uid) {
+            if (_liveUserMap[uid]._src !== 'fs') newMap[uid] = _liveUserMap[uid];
+          });
+          snap.forEach(function(d) {
+            if (_user && d.id === _user.uid) return; // exclude self
+            var data = d.data();
+            // Merge with any RTDB entry
+            var existing = newMap[d.id] || _liveUserMap[d.id] || {};
+            newMap[d.id] = Object.assign({}, existing, {
+              uid:        d.id,
+              displayName: data.displayName || data.username || existing.displayName || 'Someone',
+              username:    data.username    || existing.username    || '',
+              avatar:      data.avatar      || data.profilePicture || existing.avatar || '',
+              isLive:      true,
+              liveRoomId:  data.liveRoomId  || existing.liveRoomId || '',
+              liveTitle:   data.liveTitle   || existing.liveTitle  || '',
+              _src:        'fs',
             });
-          }
-        } catch(e) { console.warn('[CoHost] RTDB liveRooms:', e && e.message); }
-      }
-      _cachedLiveUsers = liveUsers; _renderLiveList(liveUsers);
-    } catch(e) {
-      var el2 = document.getElementById('cohostLiveList');
-      if (el2) el2.innerHTML = '<div class="cohost-empty">Could not load live users.</div>';
-    }
+          });
+          _liveUserMap = newMap;
+          _flushLiveMap();
+        }, function(err) {
+          console.warn('[CoHost] FS live users listener error:', err && err.message);
+        });
+      } catch(e) { console.warn('[CoHost] _subscribeFsLiveUsers:', e && e.message); }
+    }).catch(function(e) { console.warn('[CoHost] _subscribeFsLiveUsers import:', e && e.message); });
+  }
+
+  /* ── Convert the live-user map to a sorted array and render ── */
+  function _flushLiveMap() {
+    _cachedLiveUsers = Object.keys(_liveUserMap).map(function(uid) { return _liveUserMap[uid]; });
+    // Sort by displayName for consistent ordering
+    _cachedLiveUsers.sort(function(a, b) {
+      return (a.displayName || '').localeCompare(b.displayName || '');
+    });
+    _renderLiveList(_cachedLiveUsers);
   }
 
   function _renderLiveList(users) {
     var el = document.getElementById('cohostLiveList');
     if (!el) return;
+    // If panel is not open, don't bother rendering (will render on open)
+    if (!_panelOpen) return;
     var q = _searchQuery;
     var filtered = q ? users.filter(function(u) {
       return (u.displayName||'').toLowerCase().indexOf(q) > -1 || (u.username||'').toLowerCase().indexOf(q) > -1;
@@ -337,21 +401,44 @@
   function _renderRow(u, container, isLive) {
     var sent = !!_pendingInvites[u.uid];
     var row = document.createElement('div'); row.className = 'cohost-user-row';
+
+    // ── Avatar (profile picture) ──
     var av = document.createElement('div'); av.className = 'cohost-user-avatar';
     var avUrl = u.avatar || u.profilePicture || '';
-    if (avUrl) av.style.backgroundImage = "url('" + _esc(avUrl) + "')";
-    else av.textContent = (u.displayName || '?')[0].toUpperCase();
+    if (avUrl) {
+      var img = document.createElement('img');
+      img.src = avUrl;
+      img.alt = '';
+      img.style.cssText = 'width:100%;height:100%;border-radius:50%;object-fit:cover;';
+      img.onerror = function() { av.removeChild(img); av.textContent = (u.displayName || '?')[0].toUpperCase(); };
+      av.appendChild(img);
+    } else {
+      av.textContent = (u.displayName || '?')[0].toUpperCase();
+    }
+
+    // ── Status dot + label ──
     var dotClass = 'cohost-status-offline', label = 'Offline';
-    if (isLive || u._isLive) { dotClass = 'cohost-status-available'; label = 'LIVE'; }
-    else if (u._isOnline) { dotClass = 'cohost-status-online'; label = 'Online'; }
-    var th = u.liveTitle ? '<span style="color:#5a7a9a;font-size:9px;margin-left:4px;">' + _esc(u.liveTitle.slice(0,24)) + '</span>' : '';
+    if (isLive || u._isLive || u.isLive) {
+      dotClass = 'cohost-status-available'; label = 'Live Now';
+    } else if (u._isOnline) {
+      dotClass = 'cohost-status-online'; label = 'Online';
+    }
+
+    // ── "LIVE NOW" pill for live users ──
+    var liveNowPill = (isLive || u._isLive || u.isLive)
+      ? '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(220,0,60,0.22);border:1px solid rgba(255,50,80,0.55);border-radius:6px;padding:1px 6px;font-size:9px;font-weight:800;color:#ff6680;letter-spacing:0.4px;text-transform:uppercase;margin-left:4px;">● LIVE NOW</span>'
+      : '';
+
+    var th = u.liveTitle ? '<span style="color:#5a7a9a;font-size:9px;margin-left:4px;">' + _esc(u.liveTitle.slice(0,28)) + '</span>' : '';
     var info = document.createElement('div'); info.style.cssText = 'flex:1;min-width:0;';
-    info.innerHTML = '<div class="cohost-user-name">' + _esc(u.displayName||'Unknown') + '</div>'
+    info.innerHTML = '<div class="cohost-user-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">'
+      + _esc(u.displayName || 'Unknown') + liveNowPill + '</div>'
       + '<div class="cohost-user-status"><span class="cohost-status-dot ' + dotClass + '"></span>'
       + '<span class="cohost-status-label">' + label + '</span>' + th + '</div>';
+
     var invBtn = document.createElement('button');
     invBtn.className = 'cohost-invite-btn' + (sent ? ' sent' : '');
-    invBtn.textContent = sent ? 'Sent' : 'Invite'; invBtn.disabled = sent;
+    invBtn.textContent = sent ? 'Sent ✓' : 'Invite'; invBtn.disabled = sent;
     if (!sent) { (function(user, btn) { btn.addEventListener('click', function() { _sendInvite(user, btn); }); })(u, invBtn); }
     row.appendChild(av); row.appendChild(info); row.appendChild(invBtn);
     container.appendChild(row);
@@ -400,7 +487,8 @@
         } else if (status === 'declined') {
           unsub(); _toast((snap.data().guestName || 'User') + ' declined your invite.');
           delete _pendingInvites[guestId];
-          _loadFriendsList(); _loadLiveUsers();
+          _loadFriendsList();
+          // Live list is real-time; invite button state refreshes on next _flushLiveMap call
           setTimeout(function() { try { fs.deleteDoc(fs.doc(_db, 'coHostRequests', requestId)); } catch(e){} }, 3000);
         }
       }, function() { unsub(); });
@@ -430,8 +518,23 @@
 
   function _showInviteCard(inv) {
     var card = document.getElementById('cohostInviteCard');
-    var sub = document.getElementById('cohostInviteSub');
+    var sub  = document.getElementById('cohostInviteSub');
+    var icon = card && card.querySelector('.cohost-invite-icon');
     if (!card) return;
+    // Show host avatar if available
+    if (icon) {
+      var avUrl = inv.hostAvatar || '';
+      if (avUrl) {
+        icon.innerHTML = '';
+        var img = document.createElement('img');
+        img.src = avUrl; img.alt = '';
+        img.style.cssText = 'width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid rgba(160,80,255,0.6);';
+        img.onerror = function() { icon.innerHTML = '🎥'; };
+        icon.appendChild(img);
+      } else {
+        icon.textContent = '🎥';
+      }
+    }
     if (sub) sub.textContent = (inv.hostName || 'Someone') + ' invited you to co-host their live stream.';
     card.classList.add('visible');
   }
@@ -567,10 +670,12 @@
   }
 
   function _cleanup() {
-    if (_activeUnsub) { try { _activeUnsub(); } catch(e){} _activeUnsub = null; }
+    if (_activeUnsub)      { try { _activeUnsub(); }      catch(e){} _activeUnsub      = null; }
     if (_inviteInboxUnsub) { try { _inviteInboxUnsub(); } catch(e){} _inviteInboxUnsub = null; }
     if (_hostDeclineUnsub) { try { _hostDeclineUnsub(); } catch(e){} _hostDeclineUnsub = null; }
-    if (_presenceTimer) { clearInterval(_presenceTimer); _presenceTimer = null; }
+    if (_rtdbLiveUnsub)    { try { _rtdbLiveUnsub(); }    catch(e){} _rtdbLiveUnsub    = null; }
+    if (_fsLiveUnsub)      { try { _fsLiveUnsub(); }      catch(e){} _fsLiveUnsub      = null; }
+    _liveUserMap = {}; _cachedLiveUsers = [];
     _pendingInvites = {}; _pendingInviteData = null; _hideInviteCard(); _clearCohostBadge();
     if (_liveDB && _roomId && _user) {
       _importRTDB().then(function(rtdb) {

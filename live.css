@@ -1027,14 +1027,21 @@ body.is-viewer #shadowBotBadge     { display: none !important; }
   .vgc-avatar      { width: 72px; height: 72px; font-size: 28px; }
 }
 
-/* Hide main #liveVideo when grid is showing (grid renders its own host cell).
-   We use visibility:hidden instead of opacity:0 so it is fully removed from
-   the compositing layer — this prevents the black-screen "ghost" flash that
-   appeared briefly when guest boxes opened while the host cell was still
-   waiting for its first video frame. */
-.guest-grid.has-guests ~ * #liveVideo,
-.live-video-wrap:has(.guest-grid.has-guests) > #liveVideo {
-  visibility: hidden; pointer-events: none;
+/* Hide main #liveVideo for viewers when the grid is showing — the grid
+   renders its own host cell so the raw stream element is redundant.
+   IMPORTANT:
+   • We use opacity:0 (NOT visibility:hidden) so the element stays on the
+     compositing layer.  visibility:hidden removes it from compositing, which
+     causes the browser to stop delivering frames to the video element — that
+     is exactly the "screen goes black after 1-2 minutes" bug.  With
+     opacity:0 the decoder keeps running and our health watchdog can detect
+     and recover frozen frames.
+   • We explicitly exclude body.is-creator — the host's #liveVideo is their
+     own camera preview and must NEVER be hidden.  The host's cell in the
+     guest grid reads from _localStream directly, not from #liveVideo. */
+body:not(.is-creator) .guest-grid.has-guests ~ * #liveVideo,
+body:not(.is-creator) .live-video-wrap:has(.guest-grid.has-guests) > #liveVideo {
+  opacity: 0; pointer-events: none;
 }
 
 /* ── "Reconnecting..." overlay inside a guest cell ── */
