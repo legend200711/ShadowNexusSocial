@@ -1050,15 +1050,25 @@ input:focus, textarea:focus, select:focus {
 .psp-handle { font-size:11px; color:#6a90b8; display:flex; align-items:center; gap:5px; }
 .psp-online-label { color:#39FF14; font-size:10px; }
 .psp-empty  { padding:28px; text-align:center; color:#3a5a7a; font-size:13px; }
+@media (max-width:900px) {
+    /* Tablet: slightly shorter list so it doesn't dominate the viewport */
+    .psp-list { max-height:280px; }
+}
 @media (max-width:600px) {
-    .psp-list { max-height:260px; }
+    .psp-list { max-height:240px; }
     .psp-avatar { width:36px; height:36px; font-size:13px; }
     .psp-item { padding:8px 12px; gap:10px; }
+    /* Ensure the panel fills the column on small screens */
+    .profile-social-panel { border-radius:10px; }
 }
 
 /* ── Profile stat boxes — make them look tappable ── */
-.profile-stat { cursor:pointer; transition:background 0.15s, transform 0.12s; border-radius:8px; padding:4px 8px; }
+.profile-stat { cursor:pointer; transition:background 0.15s, transform 0.12s; border-radius:8px; padding:4px 8px; -webkit-tap-highlight-color:transparent; user-select:none; }
 .profile-stat:hover { background:rgba(0,174,239,0.1); transform:scale(1.04); }
+/* Active state: shows which list is currently open */
+.profile-stat.psp-active { background:rgba(0,174,239,0.18); box-shadow:0 0 0 2px rgba(0,174,239,0.55); }
+.profile-stat.psp-active .stat-num { color:#00AEEF; text-shadow:0 0 10px rgba(0,174,239,0.7); }
+.profile-stat.psp-active .stat-label { color:#00AEEF; }
 
 /* ── Chat header: avatar + name are clickable to view profile ── */
 .ipc-modal-avatar {
@@ -7299,15 +7309,15 @@ body.arcade-fs-ios body::after { display:none !important; }
                         <div class="stat-num" id="cntPosts">0</div>
                         <div class="stat-label">Posts</div>
                     </div>
-                    <div class="profile-stat" onclick="openSocialList('followers')" title="View followers">
+                    <div class="profile-stat" id="statFollowers" role="button" aria-expanded="false" onclick="openSocialList('followers')" title="Tap to view followers list">
                         <div class="stat-num" id="cntFollowers">0</div>
                         <div class="stat-label">Followers</div>
                     </div>
-                    <div class="profile-stat" onclick="openSocialList('following')" title="View following">
+                    <div class="profile-stat" id="statFollowing" role="button" aria-expanded="false" onclick="openSocialList('following')" title="Tap to view following list">
                         <div class="stat-num" id="cntFollowing">0</div>
                         <div class="stat-label">Following</div>
                     </div>
-                    <div class="profile-stat" onclick="openSocialList('friends')" title="View friends">
+                    <div class="profile-stat" id="statFriends" role="button" aria-expanded="false" onclick="openSocialList('friends')" title="Tap to view friends list">
                         <div class="stat-num" id="cntFriends">0</div>
                         <div class="stat-label">Friends</div>
                     </div>
@@ -12356,6 +12366,20 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
   }
 
+  // Map type → stat button id
+  const _pspStatIds = { followers:'statFollowers', following:'statFollowing', friends:'statFriends' };
+
+  // Set / clear the active highlight on the three social stat buttons
+  function _pspSetActiveStat(type) {
+      ['followers','following','friends'].forEach(t => {
+          const el = document.getElementById(_pspStatIds[t]);
+          if (!el) return;
+          const isActive = t === type;
+          el.classList.toggle('psp-active', isActive);
+          el.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+      });
+  }
+
   window.openSocialList = async function(type) {
       const uid = activeProfileUid || (currentUser && currentUser.uid);
       if (!uid) return;
@@ -12381,6 +12405,9 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (searchEl) searchEl.value = '';
           _pspAllUsers = [];
           panel.style.display = '';
+
+          // Mark the tapped stat button as active, clear the others
+          _pspSetActiveStat(type);
 
           // Scroll the panel into view smoothly
           panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -12464,6 +12491,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (searchEl) searchEl.value = '';
           _pspAllUsers = [];
       }
+      // Clear active state from all social stat buttons
+      _pspSetActiveStat(null);
       // Detach real-time listener
       if (_pspUnsub) { _pspUnsub(); _pspUnsub = null; }
       // Also close legacy overlay if open
