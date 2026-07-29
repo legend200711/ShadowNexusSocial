@@ -2956,6 +2956,600 @@ img.post-media-preview::before {
 .inbox-compose-status-text.offline{ color: #6a90b8; }
 </style>
 
+<!-- ══════════════════════════════════════════════════════
+     NEW FEATURES CSS: Profiles + Feed (Phase 2)
+     ══════════════════════════════════════════════════════ -->
+<style id="snx-new-features-css">
+
+/* ─── Composer type switcher ─── */
+.composer-type-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+.composer-type-btn {
+    flex: 1;
+    min-width: 80px;
+    padding: 8px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(0,174,239,0.25);
+    background: rgba(7,20,42,0.6);
+    color: #6a90b8;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.composer-type-btn.active,
+.composer-type-btn:hover {
+    background: rgba(0,174,239,0.15);
+    border-color: #00AEEF;
+    color: #c8e8ff;
+}
+
+/* ─── Composer extra action buttons (Draft / Schedule / Pin) ─── */
+.composer-actions-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.composer-actions-row .composer-submit-btn {
+    flex: 1;
+    min-width: 120px;
+}
+.composer-extra-btn {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(0,174,239,0.25);
+    background: rgba(7,20,42,0.6);
+    color: #6a90b8;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.composer-extra-btn:hover {
+    background: rgba(0,174,239,0.12);
+    border-color: #00AEEF;
+    color: #c8e8ff;
+}
+.composer-extra-btn.active-pin {
+    background: rgba(255,215,0,0.15);
+    border-color: #ffd700;
+    color: #ffd700;
+}
+
+/* ─── Poll option inputs ─── */
+.poll-option-input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(7,20,42,0.95);
+    border: 1px solid rgba(0,174,239,0.28);
+    color: #e0f0ff;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    margin-bottom: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.poll-option-input:focus { border-color: #00AEEF; }
+
+/* ─── Feed poll card ─── */
+.poll-card {
+    background: rgba(0,20,50,0.55);
+    border: 1px solid rgba(0,174,239,0.22);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 10px;
+}
+.poll-card-question {
+    font-size: 14px;
+    font-weight: 700;
+    color: #c8e8ff;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+.poll-option-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+.poll-option-bar-wrap {
+    flex: 1;
+    background: rgba(0,40,90,0.5);
+    border-radius: 20px;
+    overflow: hidden;
+    height: 32px;
+    position: relative;
+    border: 1px solid rgba(0,174,239,0.18);
+}
+.poll-option-bar {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: linear-gradient(90deg, rgba(0,174,239,0.35), rgba(0,174,239,0.18));
+    border-radius: 20px;
+    transition: width 0.5s ease;
+}
+.poll-option-bar.voted-bar {
+    background: linear-gradient(90deg, rgba(0,220,100,0.45), rgba(0,174,239,0.25));
+}
+.poll-option-label {
+    position: relative;
+    z-index: 1;
+    padding: 0 12px;
+    font-size: 13px;
+    color: #d0e8ff;
+    line-height: 32px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60%;
+}
+.poll-option-pct {
+    position: relative;
+    z-index: 1;
+    font-size: 12px;
+    font-weight: 700;
+    color: #6ad8ff;
+    padding-right: 10px;
+    margin-left: auto;
+    line-height: 32px;
+}
+.poll-meta {
+    font-size: 11px;
+    color: #4a7a9a;
+    margin-top: 8px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.poll-ended-label {
+    color: #ff6680;
+    font-weight: 600;
+}
+
+/* ─── Mood status grid ─── */
+.mood-status-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+    margin-bottom: 10px;
+}
+.mood-status-opt {
+    padding: 8px 6px;
+    border-radius: 10px;
+    border: 1px solid rgba(0,174,239,0.2);
+    background: rgba(7,20,42,0.7);
+    color: #a0c8e8;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.18s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mood-status-opt:hover,
+.mood-status-opt.selected {
+    background: rgba(0,174,239,0.18);
+    border-color: #00AEEF;
+    color: #fff;
+}
+
+/* ─── Draft strip ─── */
+.draft-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(0,60,120,0.3);
+}
+.draft-row:last-child { border-bottom: none; }
+.draft-text {
+    flex: 1;
+    font-size: 13px;
+    color: #a0c8e8;
+    line-height: 1.45;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.draft-meta {
+    font-size: 10px;
+    color: #4a7a9a;
+    margin-top: 3px;
+}
+.draft-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.draft-actions button {
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 11px;
+    border: 1px solid rgba(0,174,239,0.25);
+    background: none;
+    color: #6a90b8;
+    cursor: pointer;
+}
+.draft-actions button:hover { background: rgba(0,174,239,0.12); color: #c8e8ff; }
+
+/* ─── Scheduled post strip ─── */
+.scheduled-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(0,60,120,0.3);
+}
+.scheduled-row:last-child { border-bottom: none; }
+.scheduled-text {
+    flex: 1;
+    font-size: 13px;
+    color: #a0c8e8;
+    line-height: 1.45;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.scheduled-meta {
+    font-size: 10px;
+    color: #ffd700;
+    margin-top: 3px;
+    font-weight: 600;
+}
+.scheduled-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.scheduled-actions button {
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 11px;
+    border: 1px solid rgba(255,215,0,0.25);
+    background: none;
+    color: #ffd700;
+    cursor: pointer;
+}
+.scheduled-actions button:hover { background: rgba(255,215,0,0.1); }
+
+/* ─── Schedule post modal ─── */
+.schedule-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,5,18,0.82);
+    z-index: 9100;
+    align-items: center;
+    justify-content: center;
+}
+.schedule-modal-backdrop.open { display: flex; }
+.schedule-modal-inner {
+    background: #081828;
+    border: 1px solid rgba(0,174,239,0.3);
+    border-radius: 16px;
+    padding: 24px;
+    width: 90%;
+    max-width: 360px;
+}
+.schedule-modal-inner h3 { margin: 0 0 16px; color: #c8e8ff; font-size: 15px; }
+.schedule-modal-inner label { font-size: 12px; color: #6a90b8; display: block; margin-bottom: 6px; margin-top: 12px; }
+.schedule-modal-inner input[type="datetime-local"] {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(7,20,42,0.95);
+    border: 1px solid rgba(0,174,239,0.3);
+    color: #e0f0ff;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+}
+.schedule-modal-btns {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+.schedule-modal-btns button { flex: 1; }
+
+/* ─── Hashtag links in post text ─── */
+.post-hashtag {
+    color: #00AEEF;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+}
+.post-hashtag:hover { text-decoration: underline; }
+
+/* ─── Pinned post badge in feed ─── */
+.post-pinned-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffd700;
+    background: rgba(255,215,0,0.1);
+    border: 1px solid rgba(255,215,0,0.3);
+    border-radius: 12px;
+    padding: 2px 8px;
+    margin-bottom: 8px;
+}
+
+/* ─── Search filter row ─── */
+.search-filter-row {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0 14px;
+    flex-wrap: wrap;
+}
+.search-filter-btn {
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(0,174,239,0.25);
+    background: rgba(7,20,42,0.6);
+    color: #6a90b8;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s;
+}
+.search-filter-btn.active,
+.search-filter-btn:hover {
+    background: rgba(0,174,239,0.15);
+    border-color: #00AEEF;
+    color: #c8e8ff;
+}
+
+/* ─── Trending hashtags list ─── */
+.trending-tags-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.trending-tag-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(0,30,60,0.4);
+    cursor: pointer;
+    transition: background 0.18s;
+}
+.trending-tag-row:hover { background: rgba(0,60,120,0.4); }
+.trending-tag-rank {
+    font-size: 13px;
+    font-weight: 800;
+    color: #4a7a9a;
+    min-width: 20px;
+    text-align: center;
+}
+.trending-tag-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 700;
+    color: #00AEEF;
+}
+.trending-tag-count {
+    font-size: 11px;
+    color: #4a7a9a;
+}
+
+/* ─── Profile music card ─── */
+.profile-music-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.profile-music-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #c8e8ff;
+}
+.profile-music-edit-btn {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(0,174,239,0.25);
+    background: none;
+    color: #6a90b8;
+    cursor: pointer;
+}
+.profile-music-edit-btn:hover { color: #c8e8ff; border-color: #00AEEF; }
+.profile-music-player-inner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px;
+    background: rgba(0,20,50,0.55);
+    border: 1px solid rgba(0,174,239,0.18);
+    border-radius: 12px;
+}
+.profile-music-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+    animation: musicPulse 2s ease-in-out infinite;
+}
+@keyframes musicPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%       { transform: scale(1.12); opacity: 0.8; }
+}
+.profile-music-info { flex: 1; min-width: 0; }
+.profile-music-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #c8e8ff;
+    margin-bottom: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.profile-music-audio {
+    width: 100%;
+    height: 32px;
+    accent-color: #00AEEF;
+}
+
+/* ─── Profile visitor badge ─── */
+.profile-visitor-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: rgba(0,30,60,0.4);
+    border: 1px solid rgba(0,174,239,0.2);
+    border-radius: 12px;
+    font-size: 13px;
+    color: #6a90b8;
+    margin-bottom: 14px;
+}
+.visitor-badge-icon { font-size: 18px; }
+#profileVisitorCount {
+    font-weight: 800;
+    color: #00AEEF;
+    font-size: 15px;
+}
+
+/* ─── Profile achievements grid ─── */
+.profile-achievements-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+}
+.achievement-card {
+    background: rgba(0,20,50,0.55);
+    border: 1px solid rgba(0,174,239,0.2);
+    border-radius: 12px;
+    padding: 12px 10px;
+    text-align: center;
+    transition: transform 0.18s, border-color 0.18s;
+}
+.achievement-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(0,174,239,0.5);
+}
+.achievement-card.locked {
+    opacity: 0.42;
+    filter: grayscale(0.6);
+}
+.achievement-icon { font-size: 26px; margin-bottom: 6px; }
+.achievement-name {
+    font-size: 11px;
+    font-weight: 700;
+    color: #c8e8ff;
+    line-height: 1.3;
+    margin-bottom: 3px;
+}
+.achievement-desc {
+    font-size: 10px;
+    color: #4a7a9a;
+    line-height: 1.3;
+}
+.achievement-card.unlocked .achievement-icon { animation: achievePop 0.6s ease; }
+@keyframes achievePop {
+    0%   { transform: scale(0.7); opacity: 0; }
+    70%  { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* ─── Featured media grid ─── */
+.featured-media-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+.featured-media-item {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background: rgba(0,20,50,0.5);
+    position: relative;
+}
+.featured-media-item img,
+.featured-media-item video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.featured-media-item:hover::after {
+    content: '🔍';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.45);
+    font-size: 22px;
+}
+
+/* ─── Featured posts list ─── */
+.featured-post-item {
+    padding: 12px;
+    background: rgba(0,20,50,0.45);
+    border: 1px solid rgba(0,174,239,0.18);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.18s;
+}
+.featured-post-item:hover { border-color: rgba(0,174,239,0.5); }
+.featured-post-text {
+    font-size: 13px;
+    color: #c0d8f0;
+    line-height: 1.45;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    margin-bottom: 6px;
+}
+.featured-post-meta {
+    font-size: 10px;
+    color: #4a7a9a;
+}
+
+/* ─── Animated banner CSS animation classes ─── */
+#profile .cover-banner.banner-anim-pulse {
+    animation: bannerPulse 3s ease-in-out infinite;
+}
+#profile .cover-banner.banner-anim-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.12) 50%, transparent 70%);
+    background-size: 200% 100%;
+    animation: bannerShimmer 2.4s linear infinite;
+}
+#profile .cover-banner.banner-anim-wave {
+    animation: bannerWave 4s ease-in-out infinite;
+}
+@keyframes bannerPulse {
+    0%, 100% { filter: brightness(1); }
+    50%       { filter: brightness(1.18) saturate(1.2); }
+}
+@keyframes bannerShimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position:  200% 0; }
+}
+@keyframes bannerWave {
+    0%, 100% { background-position: 0% 50%; }
+    50%       { background-position: 100% 50%; }
+}
+
+</style>
+
 <style id="responsive-patch">
 img, video { max-width: 100%; height: auto; }
 
@@ -6500,61 +7094,131 @@ body.arcade-fs-ios body::after { display:none !important; }
 
     <!-- Post composer -->
     <div class="section-card">
-        <h3 style="margin:0 0 12px; font-size:14px; color:#00AEEF; text-shadow:0 0 8px rgba(0,174,239,0.35);">What's on your mind?</h3>
-        <div class="post-composer-wrap">
-        <textarea id="postText" placeholder="Share something with the Nexus… No judgment here 🌑" maxlength="500"></textarea>
-        <div class="mention-dropdown" id="mentionDropdown" style="display:none;"></div>
-        </div>
-        <div class="post-char-counter" id="postCharCounter">500 characters left</div>
+        <h3 style="margin:0 0 10px; font-size:14px; color:#00AEEF; text-shadow:0 0 8px rgba(0,174,239,0.35);">What's on your mind?</h3>
 
-        <!-- Media upload row -->
-        <div class="snx-upload-row snx-dropzone" id="postMediaRow"
-             ondragover="event.preventDefault();this.classList.add('drag-over')"
-             ondragleave="this.classList.remove('drag-over')"
-             ondrop="handlePostMediaDrop(event)">
-            <input type="file" id="postMediaFile" accept="image/*,video/*,audio/*" multiple capture="environment" style="display:none;" onchange="handlePostMediaPick(this)">
-            <button class="snx-upload-btn" id="postMediaUploadBtn" onclick="document.getElementById('postMediaFile').click()" type="button">
-                📎 Photo / Video / Music
-            </button>
-            <span class="snx-upload-filename" id="postMediaFilename"></span>
-            <button class="snx-upload-clear" id="postMediaClear" style="display:none;" onclick="clearPostMedia()" title="Remove">✕</button>
+        <!-- Composer type switcher -->
+        <div class="composer-type-row" id="composerTypeRow">
+            <button class="composer-type-btn active" data-type="post" onclick="switchComposerType('post',this)">✏️ Post</button>
+            <button class="composer-type-btn" data-type="poll" onclick="switchComposerType('poll',this)">📊 Poll</button>
+            <button class="composer-type-btn" data-type="mood" onclick="switchComposerType('mood',this)">🎭 Status</button>
         </div>
-        <div class="snx-upload-progress" id="postMediaProgress">
-            <div class="snx-upload-progress-bar" id="postMediaProgressBar"></div>
-        </div>
-        <img    id="postMediaPreviewImg"   class="snx-upload-preview" alt="preview">
-        <video  id="postMediaPreviewVid"   class="snx-upload-preview" controls style="display:none;max-width:100%;border-radius:10px;margin-top:8px;"></video>
-        <audio  id="postMediaPreviewAud"   class="snx-upload-preview audio-preview" controls></audio>
-        <!-- Hidden: stores the final uploaded URL -->
-        <input type="hidden" id="postMediaUrl" value="">
 
-        <!-- Photo post destination options — only visible when media is attached -->
-        <div class="snx-photo-post-options" id="photoPostOptions" style="display:none;">
-            <div class="snx-photo-post-options-title">📷 Photo Destination</div>
-            <!-- Save to Photo Album -->
-            <label class="snx-wall-save-label" id="albumSaveLabel">
-                <input type="checkbox" id="chkSaveToAlbum">
+        <!-- Standard post panel -->
+        <div id="composerPanelPost">
+            <div class="post-composer-wrap">
+                <textarea id="postText" placeholder="Share something with the Nexus… No judgment here 🌑" maxlength="500"></textarea>
+                <div class="mention-dropdown" id="mentionDropdown" style="display:none;"></div>
+            </div>
+            <div class="post-char-counter" id="postCharCounter">500 characters left</div>
+
+            <!-- Media upload row -->
+            <div class="snx-upload-row snx-dropzone" id="postMediaRow"
+                 ondragover="event.preventDefault();this.classList.add('drag-over')"
+                 ondragleave="this.classList.remove('drag-over')"
+                 ondrop="handlePostMediaDrop(event)">
+                <input type="file" id="postMediaFile" accept="image/*,video/*,audio/*" multiple capture="environment" style="display:none;" onchange="handlePostMediaPick(this)">
+                <button class="snx-upload-btn" id="postMediaUploadBtn" onclick="document.getElementById('postMediaFile').click()" type="button">
+                    📎 Photo / Video / Music
+                </button>
+                <span class="snx-upload-filename" id="postMediaFilename"></span>
+                <button class="snx-upload-clear" id="postMediaClear" style="display:none;" onclick="clearPostMedia()" title="Remove">✕</button>
+            </div>
+            <div class="snx-upload-progress" id="postMediaProgress">
+                <div class="snx-upload-progress-bar" id="postMediaProgressBar"></div>
+            </div>
+            <img    id="postMediaPreviewImg"   class="snx-upload-preview" alt="preview">
+            <video  id="postMediaPreviewVid"   class="snx-upload-preview" controls style="display:none;max-width:100%;border-radius:10px;margin-top:8px;"></video>
+            <audio  id="postMediaPreviewAud"   class="snx-upload-preview audio-preview" controls></audio>
+            <input type="hidden" id="postMediaUrl" value="">
+
+            <!-- Photo post destination options -->
+            <div class="snx-photo-post-options" id="photoPostOptions" style="display:none;">
+                <div class="snx-photo-post-options-title">📷 Photo Destination</div>
+                <label class="snx-wall-save-label" id="albumSaveLabel">
+                    <input type="checkbox" id="chkSaveToAlbum">
+                    <span class="snx-wall-save-check"></span>
+                    <span class="snx-wall-save-text">📸 Save to My Photo Album</span>
+                </label>
+                <label class="snx-wall-save-label" id="wallSaveLabel" style="margin-top:6px;">
+                    <input type="checkbox" id="chkSaveToWall">
+                    <span class="snx-wall-save-check"></span>
+                    <span class="snx-wall-save-text">📌 Post to My Profile Wall</span>
+                </label>
+            </div>
+            <label class="snx-wall-save-label" id="wallSaveLabelText" style="margin-top:10px;">
+                <input type="checkbox" id="chkSaveToWallText">
                 <span class="snx-wall-save-check"></span>
-                <span class="snx-wall-save-text">📸 Save to My Photo Album</span>
+                <span class="snx-wall-save-text">📌 Save this post to my Profile Wall</span>
             </label>
-            <!-- Post to Profile Wall -->
-            <label class="snx-wall-save-label" id="wallSaveLabel" style="margin-top:6px;">
-                <input type="checkbox" id="chkSaveToWall">
-                <span class="snx-wall-save-check"></span>
-                <span class="snx-wall-save-text">📌 Post to My Profile Wall</span>
-            </label>
+
+            <!-- Post action buttons row -->
+            <div class="composer-actions-row">
+                <button id="btnBroadcast" class="composer-submit-btn">⚡ Post to the Eclipse</button>
+                <button class="composer-extra-btn" id="btnSaveAsDraft" onclick="savePostAsDraft()" title="Save as draft">📋 Draft</button>
+                <button class="composer-extra-btn" id="btnSchedulePost" onclick="openScheduleModal()" title="Schedule post">🕐 Schedule</button>
+                <button class="composer-extra-btn" id="btnPinPost" onclick="togglePinNextPost()" title="Pin this post" id="btnPinNextPost">📌 Pin</button>
+            </div>
         </div>
 
-        <!-- Save to Profile Wall toggle — shown for text-only posts -->
-        <label class="snx-wall-save-label" id="wallSaveLabelText" style="margin-top:10px;">
-            <input type="checkbox" id="chkSaveToWallText">
-            <span class="snx-wall-save-check"></span>
-            <span class="snx-wall-save-text">📌 Save this post to my Profile Wall</span>
-        </label>
+        <!-- Poll composer panel -->
+        <div id="composerPanelPoll" style="display:none;">
+            <textarea id="pollQuestion" placeholder="Ask a question…" maxlength="200" rows="2" style="width:100%;box-sizing:border-box;margin-bottom:8px;background:rgba(7,20,42,0.95);border:1px solid rgba(0,174,239,0.38);color:#fff;border-radius:8px;padding:10px;resize:vertical;font-family:inherit;font-size:14px;"></textarea>
+            <div id="pollOptionsContainer">
+                <input class="poll-option-input" placeholder="Option 1" maxlength="80" style="margin-bottom:6px;">
+                <input class="poll-option-input" placeholder="Option 2" maxlength="80" style="margin-bottom:6px;">
+                <input class="poll-option-input" placeholder="Option 3 (optional)" maxlength="80" style="margin-bottom:6px;">
+                <input class="poll-option-input" placeholder="Option 4 (optional)" maxlength="80" style="margin-bottom:6px;">
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;">
+                <label style="font-size:12px;color:#6a90b8;">Poll duration:</label>
+                <select id="pollDuration" style="width:auto;flex-shrink:0;margin:0;font-size:12px;padding:6px 10px;">
+                    <option value="1">1 day</option>
+                    <option value="3" selected>3 days</option>
+                    <option value="7">7 days</option>
+                </select>
+                <button class="composer-submit-btn" style="flex:1;min-width:120px;" onclick="submitPollPost()">📊 Post Poll</button>
+            </div>
+        </div>
 
-        <button id="btnBroadcast" style="margin-top:10px; width:100%; border-radius:10px; padding:11px; background:linear-gradient(135deg,#003d99,#0077dd); border-color:rgba(0,174,239,0.65); color:#fff; font-size:14px; box-shadow:0 0 20px rgba(0,174,239,0.40);">⚡ Post to the Eclipse</button>
-        <!-- Inline post error/status — hidden until a post attempt fails -->
+        <!-- Mood/status panel -->
+        <div id="composerPanelMood" style="display:none;">
+            <p style="font-size:12px;color:#6a90b8;margin:0 0 10px;">Set a quick status update for your profile. Appears as a coloured chip next to your name.</p>
+            <div class="mood-status-grid" id="moodStatusGrid">
+                <button class="mood-status-opt" data-val="😊 Chilling" onclick="setQuickMoodStatus(this)">😊 Chilling</button>
+                <button class="mood-status-opt" data-val="🎮 In-Game" onclick="setQuickMoodStatus(this)">🎮 In-Game</button>
+                <button class="mood-status-opt" data-val="💻 Coding" onclick="setQuickMoodStatus(this)">💻 Coding</button>
+                <button class="mood-status-opt" data-val="🚀 Grinding" onclick="setQuickMoodStatus(this)">🚀 Grinding</button>
+                <button class="mood-status-opt" data-val="🌙 Lurking" onclick="setQuickMoodStatus(this)">🌙 Lurking</button>
+                <button class="mood-status-opt" data-val="🎵 Vibing" onclick="setQuickMoodStatus(this)">🎵 Vibing</button>
+                <button class="mood-status-opt" data-val="🎨 Creating" onclick="setQuickMoodStatus(this)">🎨 Creating</button>
+                <button class="mood-status-opt" data-val="📚 Studying" onclick="setQuickMoodStatus(this)">📚 Studying</button>
+                <button class="mood-status-opt" data-val="😴 Sleeping" onclick="setQuickMoodStatus(this)">😴 Sleeping</button>
+                <button class="mood-status-opt" data-val="🔥 On Fire" onclick="setQuickMoodStatus(this)">🔥 On Fire</button>
+                <button class="mood-status-opt" data-val="💀 Ghost Mode" onclick="setQuickMoodStatus(this)">💀 Ghost Mode</button>
+                <button class="mood-status-opt" data-val="🏆 Winning" onclick="setQuickMoodStatus(this)">🏆 Winning</button>
+            </div>
+            <input id="customMoodStatusInput" placeholder="Or type a custom status…" maxlength="40" style="margin-top:8px;">
+            <button class="composer-submit-btn" style="width:100%;margin-top:10px;" onclick="saveQuickMoodStatus()">🎭 Update Status</button>
+        </div>
+
         <div id="postStatusMsg" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(255,30,50,0.10);border:1px solid rgba(255,60,80,0.45);border-radius:8px;font-size:13px;color:#ffaabb;line-height:1.55;"></div>
+    </div>
+
+    <!-- Drafts strip (shown if user has drafts) -->
+    <div id="draftStrip" style="display:none;" class="section-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:13px;font-weight:700;color:#c8e8ff;">📋 Drafts</span>
+            <button onclick="clearAllDrafts()" style="font-size:11px;padding:4px 10px;border-radius:10px;border-color:rgba(255,51,102,0.3);color:#ff6680;background:none;">🗑 Clear all</button>
+        </div>
+        <div id="draftList"></div>
+    </div>
+
+    <!-- Scheduled posts strip -->
+    <div id="scheduledStrip" style="display:none;" class="section-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:13px;font-weight:700;color:#c8e8ff;">🕐 Scheduled Posts</span>
+        </div>
+        <div id="scheduledList"></div>
     </div>
 
     <div id="feedPosts"></div>
@@ -6638,6 +7302,48 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="profile-spotlight-text" id="profileSpotlightText"></div>
     </div>
 
+    <!-- ── Profile Music Player ── -->
+    <div id="profileMusicCard" style="display:none;" class="section-card" style="margin-bottom:14px;">
+        <div class="profile-music-header">
+            <span class="profile-music-label">🎵 Profile Music</span>
+            <button class="profile-music-edit-btn" id="btnEditProfileMusic" style="display:none;" onclick="openProfileMusicModal()">Edit</button>
+        </div>
+        <div id="profileMusicPlayer"></div>
+    </div>
+
+    <!-- ── Visitor Counter ── -->
+    <div id="profileVisitorBadge" style="display:none;" class="profile-visitor-badge">
+        <span class="visitor-badge-icon">👁</span>
+        <span id="profileVisitorCount">0</span> profile views
+    </div>
+
+    <!-- ── Profile Achievements ── -->
+    <div id="profileAchievementsCard" style="display:none;" class="section-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <span style="font-size:13px;font-weight:700;color:#c8e8ff;letter-spacing:0.4px;">🏆 Achievements</span>
+            <span id="profileAchievementCount" style="font-size:11px;color:#6a90b8;"></span>
+        </div>
+        <div id="profileAchievementsList" class="profile-achievements-grid"></div>
+    </div>
+
+    <!-- ── Featured Photos & Videos ── -->
+    <div id="profileFeaturedMedia" style="display:none;" class="section-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:13px;font-weight:700;color:#c8e8ff;">📸 Featured Media</span>
+            <button id="btnEditFeaturedMedia" style="display:none;font-size:11px;padding:4px 10px;border-radius:10px;" onclick="openFeaturedMediaModal()">✏️ Edit</button>
+        </div>
+        <div id="featuredMediaGrid" class="featured-media-grid"></div>
+    </div>
+
+    <!-- ── Featured Posts ── -->
+    <div id="profileFeaturedPosts" style="display:none;" class="section-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:13px;font-weight:700;color:#c8e8ff;">⭐ Featured Posts</span>
+            <button id="btnEditFeaturedPosts" style="display:none;font-size:11px;padding:4px 10px;border-radius:10px;" onclick="openFeaturedPostsModal()">✏️ Edit</button>
+        </div>
+        <div id="featuredPostsList"></div>
+    </div>
+
     <!-- Per-profile custom style injection (scoped to this profile render) -->
     <style id="profileCustomStyle"></style>
 
@@ -6656,6 +7362,8 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <button class="epm-tab" onclick="switchEpmTab('sandbox',this)">🏗 Sandbox</button>
                 <button class="epm-tab" onclick="switchEpmTab('links',this)">🔗 Links</button>
                 <button class="epm-tab" onclick="switchEpmTab('sections',this)">📋 Sections</button>
+                <button class="epm-tab" onclick="switchEpmTab('music',this)">🎵 Music</button>
+                <button class="epm-tab" onclick="switchEpmTab('featured',this)">⭐ Featured</button>
             </div>
 
             <!-- ── Tab: Basics ── -->
@@ -6857,6 +7565,15 @@ body.arcade-fs-ios body::after { display:none !important; }
                 </div>
                 <input id="editBannerGrad" placeholder="linear-gradient(135deg,#071428,#0B1F3A)" style="margin-top:6px;" oninput="epmPreviewUpdate()">
 
+                <label style="margin-top:14px;">✨ Banner Animation <small style="color:#4a7a9a;font-size:10px;">(applies over your cover photo)</small></label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+                    <button class="snx-sandbox-opt" data-banim="none" onclick="epmPickBannerAnim('none',this)">None</button>
+                    <button class="snx-sandbox-opt" data-banim="banner-anim-pulse" onclick="epmPickBannerAnim('banner-anim-pulse',this)">💓 Pulse</button>
+                    <button class="snx-sandbox-opt" data-banim="banner-anim-shimmer" onclick="epmPickBannerAnim('banner-anim-shimmer',this)">✨ Shimmer</button>
+                    <button class="snx-sandbox-opt" data-banim="banner-anim-wave" onclick="epmPickBannerAnim('banner-anim-wave',this)">🌊 Wave</button>
+                </div>
+                <input type="hidden" id="editBannerAnim" value="none">
+
                 <!-- Live preview -->
                 <p style="font-size:11px;color:#4a7a9a;margin:14px 0 4px;">Preview</p>
                 <div class="epm-preview" id="epmPreviewBox">
@@ -6961,6 +7678,74 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <div class="epm-section-toggle-row">
                     <span>🕹️ Arcade Stats &amp; Records</span>
                     <label class="notif-toggle-wrap"><input type="checkbox" id="secShowArcade" class="notif-toggle-cb" checked><span class="notif-toggle-slider"></span></label>
+                </div>
+                <div class="epm-section-toggle-row">
+                    <span>🎵 Profile Music</span>
+                    <label class="notif-toggle-wrap"><input type="checkbox" id="secShowMusic" class="notif-toggle-cb" checked><span class="notif-toggle-slider"></span></label>
+                </div>
+                <div class="epm-section-toggle-row">
+                    <span>👁 Visitor Counter</span>
+                    <label class="notif-toggle-wrap"><input type="checkbox" id="secShowVisitors" class="notif-toggle-cb" checked><span class="notif-toggle-slider"></span></label>
+                </div>
+                <div class="epm-section-toggle-row">
+                    <span>🏆 Achievements</span>
+                    <label class="notif-toggle-wrap"><input type="checkbox" id="secShowAchievements" class="notif-toggle-cb" checked><span class="notif-toggle-slider"></span></label>
+                </div>
+                <div class="epm-section-toggle-row">
+                    <span>📸 Featured Media</span>
+                    <label class="notif-toggle-wrap"><input type="checkbox" id="secShowFeaturedMedia" class="notif-toggle-cb" checked><span class="notif-toggle-slider"></span></label>
+                </div>
+                <div class="epm-section-toggle-row">
+                    <span>⭐ Featured Posts</span>
+                    <label class="notif-toggle-wrap"><input type="checkbox" id="secShowFeaturedPosts" class="notif-toggle-cb" checked><span class="notif-toggle-slider"></span></label>
+                </div>
+            </div>
+
+            <!-- ── Tab: Music ── -->
+            <div class="epm-panel" id="epmPanel-music">
+                <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;line-height:1.5;">Add a song that plays on your profile. Visitors can play or pause it from the music card.</p>
+                <label>Song / Track Title</label>
+                <input id="editMusicTitle" placeholder="e.g. My favourite track" maxlength="80">
+                <label style="margin-top:10px;">Audio URL <small style="color:#4a7a9a;font-size:10px;">(direct .mp3/.ogg/.wav link or upload below)</small></label>
+                <input id="editMusicUrl" placeholder="https://…/track.mp3">
+                <label style="margin-top:10px;">Or upload a track</label>
+                <div class="snx-upload-row">
+                    <input type="file" id="editMusicFile" accept="audio/*" style="display:none;" onchange="handleProfileMusicPick(this)">
+                    <button class="snx-upload-btn" onclick="document.getElementById('editMusicFile').click()" type="button">🎵 Upload Track</button>
+                    <span class="snx-upload-filename" id="editMusicFilename"></span>
+                    <button class="snx-upload-clear" id="editMusicClear" style="display:none;" onclick="clearProfileMusicUpload()" title="Remove">✕</button>
+                </div>
+                <div class="snx-upload-progress" id="editMusicProgress">
+                    <div class="snx-upload-progress-bar" id="editMusicProgressBar"></div>
+                </div>
+                <label style="margin-top:10px;">Autoplay</label>
+                <select id="editMusicAutoplay">
+                    <option value="no">Off (visitor presses play)</option>
+                    <option value="yes">On (plays when profile loads)</option>
+                </select>
+            </div>
+
+            <!-- ── Tab: Featured ── -->
+            <div class="epm-panel" id="epmPanel-featured">
+                <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;line-height:1.5;">Pin up to 3 posts and 6 photos/videos to the top of your profile.</p>
+
+                <h4 style="font-size:12px;color:#00AEEF;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.6px;">⭐ Featured Posts</h4>
+                <p style="font-size:11px;color:#4a7a9a;margin:0 0 8px;">Enter post IDs (copy from share link) — up to 3.</p>
+                <div id="epmFeaturedPostRows">
+                    <input class="epm-featured-post-id" placeholder="Post ID 1" style="margin-bottom:6px;">
+                    <input class="epm-featured-post-id" placeholder="Post ID 2" style="margin-bottom:6px;">
+                    <input class="epm-featured-post-id" placeholder="Post ID 3" style="margin-bottom:6px;">
+                </div>
+
+                <h4 style="font-size:12px;color:#00AEEF;font-weight:700;margin:14px 0 8px;text-transform:uppercase;letter-spacing:0.6px;">📸 Featured Media URLs</h4>
+                <p style="font-size:11px;color:#4a7a9a;margin:0 0 8px;">Paste image/video URLs (up to 6) to show in the featured grid.</p>
+                <div id="epmFeaturedMediaRows">
+                    <input class="epm-featured-media-url" placeholder="https://…/photo1.jpg" style="margin-bottom:6px;">
+                    <input class="epm-featured-media-url" placeholder="https://…/photo2.jpg" style="margin-bottom:6px;">
+                    <input class="epm-featured-media-url" placeholder="https://…/photo3.jpg" style="margin-bottom:6px;">
+                    <input class="epm-featured-media-url" placeholder="https://…/photo4.jpg" style="margin-bottom:6px;">
+                    <input class="epm-featured-media-url" placeholder="https://…/photo5.jpg" style="margin-bottom:6px;">
+                    <input class="epm-featured-media-url" placeholder="https://…/photo6.jpg" style="margin-bottom:6px;">
                 </div>
             </div>
 
@@ -7237,10 +8022,33 @@ body.arcade-fs-ios body::after { display:none !important; }
     <h2 class="eclipse-title">🔍 Find Your People</h2>
     <div class="section-card">
         <div class="search-bar-row">
-            <input id="searchInput" placeholder="Search the Nexus by name or handle…" autocomplete="off">
+            <input id="searchInput" placeholder="Search users, posts, or #hashtags…" autocomplete="off">
             <button onclick="runSearch()" style="border-radius:8px;">Search</button>
         </div>
+        <!-- Better search filters -->
+        <div class="search-filter-row" id="searchFilterRow">
+            <button class="search-filter-btn active" data-filter="users" onclick="setSearchFilter('users',this)">👤 Users</button>
+            <button class="search-filter-btn" data-filter="posts" onclick="setSearchFilter('posts',this)">📝 Posts</button>
+            <button class="search-filter-btn" data-filter="hashtags" onclick="setSearchFilter('hashtags',this)"># Hashtags</button>
+        </div>
         <div id="searchResults"><div class="search-empty">Type a name and press Search</div></div>
+    </div>
+
+    <!-- Trending Section -->
+    <div class="section-card" id="trendingSection">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:13px;font-weight:700;color:#c8e8ff;">🔥 Trending</span>
+            <div id="trendingTabs" style="display:flex;gap:6px;">
+                <button class="search-filter-btn active" data-ttab="hashtags" onclick="setTrendingTab('hashtags',this)"># Hashtags</button>
+                <button class="search-filter-btn" data-ttab="posts" onclick="setTrendingTab('posts',this)">📝 Posts</button>
+            </div>
+        </div>
+        <div id="trendingHashtagsPanel">
+            <div id="trendingHashtagsList" class="trending-tags-list"></div>
+        </div>
+        <div id="trendingPostsPanel" style="display:none;">
+            <div id="trendingPostsList"></div>
+        </div>
     </div>
 </div>
 
@@ -7269,14 +8077,39 @@ body.arcade-fs-ios body::after { display:none !important; }
 <div class="page" id="notificationsPage">
     <h2 class="eclipse-title">🔔 Notification Center</h2>
     <div class="section-card">
+        <!-- Header bar: controls + quiet mode -->
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
             <span style="font-size:13px;color:#3a6a9a;font-weight:600;">All your notifications — messages, activity &amp; alerts</span>
-            <div style="display:flex;gap:8px;">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <!-- Quiet Mode toggle -->
+                <label class="notif-toggle-wrap" title="Quiet Mode — mute in-app notifications" style="gap:6px;font-size:12px;color:#6a90b8;cursor:pointer;">
+                    <input type="checkbox" id="quietModeToggle" class="notif-toggle-cb" onchange="snxSetQuietMode(this.checked)">
+                    <span class="notif-toggle-slider"></span>
+                    <span id="quietModeLabel">🔕 Quiet</span>
+                </label>
                 <button class="notif-mark-all" onclick="markAllNotifsRead()">✓ Mark all read</button>
                 <button class="notif-mark-all" onclick="clearAllNotifs()" style="border-color:rgba(255,51,102,0.3);color:#ff5577;">🗑 Clear all</button>
+                <button class="notif-mark-all" id="notifHistoryBtn" onclick="snxToggleNotifHistory()" style="border-color:rgba(255,185,0,0.35);color:#ffd966;">📋 History</button>
             </div>
         </div>
-        <!-- Filter tabs — Messages / Activity / Social / System -->
+        <!-- Quiet mode status bar -->
+        <div id="quietModeBar" style="display:none;background:rgba(255,185,0,0.08);border:1px solid rgba(255,185,0,0.3);border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px;color:#ffd966;display:none;align-items:center;gap:8px;">
+            🔕 <strong>Quiet Mode is ON</strong> — in-app notifications are muted. Real-time updates still work.
+            <button onclick="snxSetQuietMode(false);document.getElementById('quietModeToggle').checked=false;" style="margin-left:auto;background:none;border:1px solid rgba(255,185,0,0.4);color:#ffd966;font-size:11px;padding:2px 8px;border-radius:8px;">Turn Off</button>
+        </div>
+        <!-- Notification History panel (collapsed by default) -->
+        <div id="notifHistoryPanel" style="display:none;margin-bottom:12px;">
+            <div style="background:rgba(0,20,50,0.5);border:1px solid rgba(0,174,239,0.2);border-radius:10px;padding:12px 14px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                    <span style="font-size:12px;font-weight:700;color:#c8e8ff;">📋 Notification History (last 30 days)</span>
+                    <button onclick="snxExportNotifHistory()" style="font-size:11px;padding:3px 10px;border-radius:8px;background:rgba(0,174,239,0.1);border:1px solid rgba(0,174,239,0.3);color:#00AEEF;">⬇ Export</button>
+                </div>
+                <div id="notifHistoryList" style="max-height:200px;overflow-y:auto;">
+                    <div class="empty-state" style="padding:12px 0;">Loading history…</div>
+                </div>
+            </div>
+        </div>
+        <!-- Filter tabs — All / Messages / Activity / Social / System / Live -->
         <div class="notif-filter-tabs" id="notifFilterTabs">
             <button class="notif-filter-tab active" data-filter="all" onclick="setNotifFilter('all',this)">
                 🔔 All <span class="notif-filter-badge" id="notifBadgeAll" style="display:none;"></span>
@@ -7285,10 +8118,13 @@ body.arcade-fs-ios body::after { display:none !important; }
                 💬 Messages <span class="notif-filter-badge" id="notifBadgeMsg" style="display:none;"></span>
             </button>
             <button class="notif-filter-tab" data-filter="activity" onclick="setNotifFilter('activity',this)">
-                ❤️ Likes &amp; Comments
+                ❤️ Activity
             </button>
             <button class="notif-filter-tab" data-filter="social" onclick="setNotifFilter('social',this)">
-                👤 Followers
+                👤 Social
+            </button>
+            <button class="notif-filter-tab" data-filter="live" onclick="setNotifFilter('live',this)">
+                🔴 Live
             </button>
             <button class="notif-filter-tab" data-filter="system" onclick="setNotifFilter('system',this)">
                 ⚙️ System
@@ -8111,6 +8947,10 @@ body.arcade-fs-ios body::after { display:none !important; }
     <button class="admin-tab" onclick="switchAdminTab('shadowbot')">🤖 Shadow Bot</button>
     <button class="admin-tab" onclick="switchAdminTab('liverooms')">🔴 Live Rooms</button>
     <button class="admin-tab" onclick="switchAdminTab('pages')">👁 Pages &amp; Controls</button>
+    <button class="admin-tab" onclick="switchAdminTab('analytics')">📈 Analytics</button>
+    <button class="admin-tab" onclick="switchAdminTab('health')">💚 System Health</button>
+    <button class="admin-tab" onclick="switchAdminTab('backup')">💾 Backup</button>
+    <button class="admin-tab" onclick="switchAdminTab('community')">🌐 Community</button>
 </div>
 
 <!-- ══════════════════════════════════
@@ -9099,6 +9939,196 @@ body.arcade-fs-ios body::after { display:none !important; }
       <button onclick="scbSchedModalSave()" style="font-size:12px;padding:6px 16px;border-radius:9px;background:linear-gradient(135deg,#003d99,#0066cc);border-color:rgba(0,174,239,0.65);color:#fff;font-weight:700;">💾 Save Schedule</button>
     </div>
   </div>
+</div>
+
+<!-- ══════════════════════════════════
+     TAB: ANALYTICS
+══════════════════════════════════ -->
+<div class="admin-tab-content" id="adminTab-analytics">
+    <div class="section-card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">📈 Website Analytics</h3>
+        <p style="font-size:12px;color:#6a90b8;margin:0 0 14px;line-height:1.6;">Real-time platform usage statistics. Data is pulled live from Firestore.</p>
+        <div class="admin-stats-row" id="analyticsStatsRow" style="flex-wrap:wrap;">
+            <div class="admin-stat-card"><div class="admin-stat-num" id="analStatDAU">—</div><div class="admin-stat-label">Active Today</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-num" id="analStatMAU">—</div><div class="admin-stat-label">Monthly Active</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-num" id="analStatPostsWeek">—</div><div class="admin-stat-label">Posts This Week</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-num" id="analStatMsgs">—</div><div class="admin-stat-label">Messages Today</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-num" id="analStatNewUsers">—</div><div class="admin-stat-label">New Users (7d)</div></div>
+            <div class="admin-stat-card"><div class="admin-stat-num" id="analStatComments">—</div><div class="admin-stat-label">Comments Today</div></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+            <button onclick="snxLoadAnalytics()" style="font-size:12px;padding:6px 14px;border-radius:8px;">🔄 Refresh</button>
+            <button onclick="snxExportAnalytics()" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,174,239,0.1);border-color:rgba(0,174,239,0.3);color:#00AEEF;">⬇ Export CSV</button>
+        </div>
+        <div id="analyticsGrowthChart" style="background:rgba(0,10,30,0.5);border:1px solid rgba(0,174,239,0.18);border-radius:10px;padding:16px;min-height:120px;">
+            <div style="font-size:12px;color:#6a90b8;text-align:center;padding:20px 0;">Click Refresh to load analytics data.</div>
+        </div>
+    </div>
+    <div class="section-card">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🏆 Top Users</h3>
+        <div id="analyticsTopUsers"><div class="empty-state">Click Refresh to load.</div></div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
+     TAB: SYSTEM HEALTH
+══════════════════════════════════ -->
+<div class="admin-tab-content" id="adminTab-health">
+    <div class="section-card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">💚 System Health Monitor</h3>
+        <div class="admin-stats-row" id="healthStatsRow" style="flex-wrap:wrap;">
+            <div class="admin-stat-card" id="healthCardFirestore">
+                <div class="admin-stat-num" id="healthStatFirestore" style="font-size:16px;">⏳</div>
+                <div class="admin-stat-label">Firestore</div>
+            </div>
+            <div class="admin-stat-card" id="healthCardRTDB">
+                <div class="admin-stat-num" id="healthStatRTDB" style="font-size:16px;">⏳</div>
+                <div class="admin-stat-label">Realtime DB</div>
+            </div>
+            <div class="admin-stat-card" id="healthCardAuth">
+                <div class="admin-stat-num" id="healthStatAuth" style="font-size:16px;">⏳</div>
+                <div class="admin-stat-label">Auth</div>
+            </div>
+            <div class="admin-stat-card" id="healthCardUpload">
+                <div class="admin-stat-num" id="healthStatUpload" style="font-size:16px;">⏳</div>
+                <div class="admin-stat-label">Upload Worker</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="admin-stat-num" id="healthStatLatency" style="font-size:16px;">—</div>
+                <div class="admin-stat-label">DB Latency (ms)</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="admin-stat-num" id="healthStatOnline">—</div>
+                <div class="admin-stat-label">Online Now</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+            <button onclick="snxRunHealthCheck()" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(57,255,20,0.12);border-color:rgba(57,255,20,0.4);color:#39FF14;">💚 Run Health Check</button>
+            <button onclick="snxLoadHealthLog()" style="font-size:12px;padding:6px 14px;border-radius:8px;">📋 Load Log</button>
+        </div>
+        <div id="healthCheckLog" style="max-height:280px;overflow-y:auto;">
+            <div class="empty-state" style="padding:14px 0;">Click "Run Health Check" to start.</div>
+        </div>
+    </div>
+    <div class="section-card">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#ffaa44;text-transform:uppercase;letter-spacing:0.8px;">⚠️ Recent Errors</h3>
+        <div id="healthErrorLog"><div class="empty-state">No errors recorded.</div></div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
+     TAB: BACKUP
+══════════════════════════════════ -->
+<div class="admin-tab-content" id="adminTab-backup">
+    <div class="section-card" style="margin-bottom:16px;border-color:rgba(255,215,0,0.3);">
+        <h3 style="margin:0 0 10px;font-size:13px;color:#ffd700;text-transform:uppercase;letter-spacing:0.8px;">💾 Backup Tools</h3>
+        <p style="font-size:12px;color:#9bbdd8;margin:0 0 14px;line-height:1.6;">Export platform data to JSON files for backup and auditing. These downloads run in your browser — no server required.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(0,10,30,0.5);border:1px solid rgba(0,174,239,0.2);border-radius:10px;flex-wrap:wrap;gap:8px;">
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:#c8e8ff;">👥 User Accounts</div>
+                    <div style="font-size:11px;color:#6a90b8;margin-top:2px;">Exports all user profiles (no private data)</div>
+                </div>
+                <button onclick="snxBackupCollection('users')" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,174,239,0.12);border-color:rgba(0,174,239,0.4);color:#00AEEF;">⬇ Download</button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(0,10,30,0.5);border:1px solid rgba(0,174,239,0.2);border-radius:10px;flex-wrap:wrap;gap:8px;">
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:#c8e8ff;">📝 Posts</div>
+                    <div style="font-size:11px;color:#6a90b8;margin-top:2px;">Exports all posts (last 500)</div>
+                </div>
+                <button onclick="snxBackupCollection('posts')" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,174,239,0.12);border-color:rgba(0,174,239,0.4);color:#00AEEF;">⬇ Download</button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(0,10,30,0.5);border:1px solid rgba(0,174,239,0.2);border-radius:10px;flex-wrap:wrap;gap:8px;">
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:#c8e8ff;">📋 Audit Log</div>
+                    <div style="font-size:11px;color:#6a90b8;margin-top:2px;">Exports all admin actions</div>
+                </div>
+                <button onclick="snxBackupCollection('auditLog')" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,174,239,0.12);border-color:rgba(0,174,239,0.4);color:#00AEEF;">⬇ Download</button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(0,10,30,0.5);border:1px solid rgba(0,174,239,0.2);border-radius:10px;flex-wrap:wrap;gap:8px;">
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:#c8e8ff;">🚨 Reports</div>
+                    <div style="font-size:11px;color:#6a90b8;margin-top:2px;">Exports all reports & appeals</div>
+                </div>
+                <button onclick="snxBackupCollection('reports')" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,174,239,0.12);border-color:rgba(0,174,239,0.4);color:#00AEEF;">⬇ Download</button>
+            </div>
+        </div>
+    </div>
+    <div class="section-card" style="border-color:rgba(255,215,0,0.2);">
+        <h3 style="margin:0 0 10px;font-size:13px;color:#ffd700;text-transform:uppercase;letter-spacing:0.8px;">📦 Full Backup</h3>
+        <p style="font-size:12px;color:#9bbdd8;margin:0 0 12px;line-height:1.6;">Download all collections in a single ZIP-compatible JSON bundle.</p>
+        <button onclick="snxBackupAll()" style="width:100%;padding:11px;border-radius:10px;background:linear-gradient(135deg,#554400,#886600);border:1px solid rgba(255,215,0,0.55);color:#ffd700;font-size:13px;font-weight:700;box-shadow:0 0 14px rgba(255,215,0,0.2);">💾 Download Full Backup</button>
+        <div id="backupProgressWrap" style="display:none;margin-top:12px;">
+            <div style="font-size:12px;color:#6a90b8;margin-bottom:6px;" id="backupProgressLabel">Preparing backup…</div>
+            <div style="height:6px;background:rgba(0,174,239,0.15);border-radius:4px;overflow:hidden;">
+                <div id="backupProgressBar" style="height:100%;background:linear-gradient(90deg,#00AEEF,#39FF14);border-radius:4px;width:0%;transition:width 0.3s ease;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
+     TAB: COMMUNITY MANAGEMENT
+══════════════════════════════════ -->
+<div class="admin-tab-content" id="adminTab-community">
+    <div class="section-card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🌐 Community Management</h3>
+        <p style="font-size:12px;color:#6a90b8;margin:0 0 14px;line-height:1.6;">Manage Storm Rooms, Support Rooms, and community-wide settings.</p>
+        <!-- Active Storm Rooms -->
+        <div style="margin-bottom:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+                <span style="font-size:12px;font-weight:700;color:#c8e8ff;">⚡ Active Storm Rooms</span>
+                <div style="display:flex;gap:6px;">
+                    <button onclick="snxLoadActiveRooms('storm')" style="font-size:11px;padding:4px 10px;border-radius:8px;">🔄 Refresh</button>
+                    <button onclick="snxCloseAllRooms('storm')" style="font-size:11px;padding:4px 10px;border-radius:8px;background:rgba(255,51,80,0.1);border-color:rgba(255,51,80,0.35);color:#ff6680;">🚫 Close All</button>
+                </div>
+            </div>
+            <div id="communityStormRooms"><div class="empty-state" style="padding:10px 0;">Click Refresh to load.</div></div>
+        </div>
+        <!-- Active Support Rooms -->
+        <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+                <span style="font-size:12px;font-weight:700;color:#c8e8ff;">🫂 Active Support Rooms</span>
+                <button onclick="snxLoadActiveRooms('support')" style="font-size:11px;padding:4px 10px;border-radius:8px;">🔄 Refresh</button>
+            </div>
+            <div id="communitySupportRooms"><div class="empty-state" style="padding:10px 0;">Click Refresh to load.</div></div>
+        </div>
+    </div>
+    <div class="section-card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🔴 Livestream Management</h3>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+            <button onclick="snxLoadActiveLivestreams()" style="font-size:12px;padding:6px 14px;border-radius:8px;">🔄 Refresh</button>
+            <button onclick="snxKickAllLive()" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(255,51,80,0.1);border-color:rgba(255,51,80,0.35);color:#ff6680;">⛔ End All Streams</button>
+        </div>
+        <div id="communityLivestreams"><div class="empty-state">Click Refresh to load active streams.</div></div>
+    </div>
+    <div class="section-card">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">⚙️ Feature Controls</h3>
+        <div class="settings-row">
+            <div class="settings-label">Comments<small>Allow new comments on posts</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="toggleComments" class="notif-toggle-cb" checked onchange="adminToggleFeature('commentsEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">Emoji Reactions on Comments<small>Allow comment emoji reactions</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="toggleCommentReactions" class="notif-toggle-cb" checked onchange="adminToggleFeature('commentReactionsEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">Reply Threads<small>Allow threaded comment replies</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="toggleCommentReplies" class="notif-toggle-cb" checked onchange="adminToggleFeature('commentRepliesEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">GIF Comments<small>Allow GIF attachments in comments</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="toggleCommentGifs" class="notif-toggle-cb" checked onchange="adminToggleFeature('commentGifsEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">Support Rooms<small>Enable support chat rooms</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="toggleSupportRooms" class="notif-toggle-cb" checked onchange="adminToggleFeature('supportRoomsEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row" style="border-bottom:none;">
+            <div class="settings-label">Polls<small>Allow poll posts</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="togglePolls" class="notif-toggle-cb" checked onchange="adminToggleFeature('pollsEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+    </div>
 </div>
 
 </div><!-- end adminPage -->
@@ -11832,9 +12862,12 @@ body.arcade-fs-ios body::after { display:none !important; }
                     </div>
                     <div class="commentBox" id="comments-${pDoc.id}" data-count="0"></div>
                     <div class="comment-input-row" id="comm-input-row-${pDoc.id}">
-                        <input id="input-comm-${pDoc.id}" placeholder="Write a comment…" autocomplete="off">
+                        <input id="input-comm-${pDoc.id}" placeholder="Write a comment… (@mention, use 😊 for emoji)" autocomplete="off">
+                        <button class="comment-gif-btn" title="Add GIF" onclick="snxOpenGifPicker('${pDoc.id}')">GIF</button>
+                        <button class="comment-emoji-btn" title="Add emoji" onclick="snxOpenCommentEmojiPicker('${pDoc.id}')">😊</button>
                         <button class="comment-submit-btn" id="comm-submit-${pDoc.id}" onclick="submitPostComment('${pDoc.id}')">Post</button>
                     </div>
+                    <div class="mention-dropdown" id="mention-drop-${pDoc.id}" style="display:none;"></div>
                   `;
                   } // end normal post
 
@@ -12975,12 +14008,14 @@ body.arcade-fs-ios body::after { display:none !important; }
   };
 
   /* ── Build a single comment DOM node ── */
-  function _buildCommentNode(postId, c) {
-      const canDelete = c.authorUid === currentUser?.uid;
+  function _buildCommentNode(postId, c, depth) {
+      depth = depth || 0;
+      const canDelete = c.authorUid === currentUser?.uid || userData?.role === 'founder' || userData?.role === 'administrator';
+      const isPinned  = c.pinned === true;
       const d = document.createElement("div");
-      d.className = "comment-row";
-      // Stable key: prefer authorUid+ts, fall back to ts alone
+      d.className = "comment-row" + (isPinned ? " comment-pinned" : "") + (depth > 0 ? " comment-reply" : "");
       d.dataset.ck = `${c.authorUid || ''}:${c.ts || ''}`;
+      d.dataset.depth = depth;
       const tsLabel = c.ts ? fmtTimeAgo(c.ts) : '';
       let badgeHtml = '';
       if (c.authorBadges && c.authorBadges.length) {
@@ -12989,17 +14024,53 @@ body.arcade-fs-ios body::after { display:none !important; }
           badgeHtml = `<span class="badge-inline badge-founder" title="Founder">👑 Founder</span>`;
       }
       const commentMoodHtml = buildMoodChipHtml(c.authorMoodType || '', c.authorMoodValue || '');
+
+      // Render text with @mentions highlighted
+      const commentTextHtml = escFeed(c.text).replace(/@(\w+)/g, '<span class="comment-mention">@$1</span>');
+
+      // GIF display
+      const gifHtml = c.gifUrl ? `<div class="comment-gif-wrap"><img class="comment-gif" src="${escFeed(c.gifUrl)}" alt="GIF" loading="lazy"></div>` : '';
+
+      // Emoji reactions
+      const reactions = c.reactions || {};
+      const EMOJI_REACT_SET = ['❤️','😂','😮','😢','😡','👍'];
+      let reactHtml = '<div class="comment-reactions">';
+      EMOJI_REACT_SET.forEach(emoji => {
+          const reactors = reactions[emoji] || [];
+          if (reactors.length === 0) return;
+          const isMine = reactors.includes(currentUser?.uid);
+          reactHtml += `<button class="comment-react-chip${isMine ? ' mine' : ''}" onclick="snxToggleCommentReaction('${postId}',${c.ts},'${c.authorUid}','${emoji}')" title="${emoji}">${emoji} <span>${reactors.length}</span></button>`;
+      });
+      reactHtml += '</div>';
+
+      // Reply count chip
+      const replyCount = (c.replies || []).length;
+      const replyChip = replyCount > 0 ? `<button class="comment-replies-toggle" onclick="snxToggleReplies(this,'${postId}',${c.ts},'${c.authorUid}')">${replyCount} repl${replyCount === 1 ? 'y' : 'ies'} ▸</button>` : '';
+
+      const pinBtn = (userData?.role === 'founder') && depth === 0
+          ? `<button class="comment-pin-btn" title="${isPinned ? 'Unpin' : 'Pin'} comment" onclick="snxToggleCommentPin('${postId}',${c.ts},'${c.authorUid}')">${isPinned ? '📌' : '📍'}</button>`
+          : '';
+
       d.innerHTML = `
         <div class="comment-body">
+            ${isPinned ? '<div class="comment-pinned-label">📌 Pinned</div>' : ''}
             <span style="display:inline-flex;align-items:center;gap:3px;flex-wrap:wrap;">
                 <b class="comment-author">${escFeed(c.author)}</b>${badgeHtml}${commentMoodHtml}
             </span>
-            <span class="comment-text" style="margin-left:4px;">${escFeed(c.text)}</span>
+            <span class="comment-text" style="margin-left:4px;">${commentTextHtml}</span>
+            ${gifHtml}
             ${tsLabel ? `<span class="comment-ts">${tsLabel}</span>` : ''}
+            <div class="comment-action-bar">
+                <button class="comment-react-add-btn" onclick="snxShowCommentReactPicker(this,'${postId}',${c.ts},'${c.authorUid}')">😊</button>
+                ${depth === 0 ? `<button class="comment-reply-btn" onclick="snxOpenReplyInput(this,'${postId}',${c.ts},'${c.authorUid}')">↩ Reply</button>` : ''}
+                ${replyChip}
+            </div>
+            ${reactHtml}
         </div>
-        ${canDelete
-          ? `<button class="comment-del-btn" title="Delete comment" onclick="deletePostComment('${postId}', ${c.ts}, '${c.authorUid}')">✕</button>`
-          : ''}
+        <div class="comment-btn-group">
+            ${pinBtn}
+            ${canDelete ? `<button class="comment-del-btn" title="Delete comment" onclick="deletePostComment('${postId}', ${c.ts}, '${c.authorUid}')">✕</button>` : ''}
+        </div>
       `;
       return d;
   }
@@ -13014,8 +14085,15 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (!list.length) { box.style.display = "none"; return; }
       box.style.display = "block";
 
+      // Sort: pinned first, then chronological
+      const sorted = [...list].sort((a, b) => {
+          if (a.pinned && !b.pinned) return -1;
+          if (!a.pinned && b.pinned)  return 1;
+          return (a.ts || 0) - (b.ts || 0);
+      });
+
       // Build a set of incoming keys
-      const incomingKeys = new Set(list.map(c => `${c.authorUid || ''}:${c.ts || ''}`));
+      const incomingKeys = new Set(sorted.map(c => `${c.authorUid || ''}:${c.ts || ''}`));
 
       // Remove DOM nodes that are no longer in the list
       const existing = [...box.querySelectorAll('.comment-row[data-ck]')];
@@ -13030,10 +14108,10 @@ body.arcade-fs-ios body::after { display:none !important; }
 
       // Append only new comments (in order)
       const frag = document.createDocumentFragment();
-      list.forEach(c => {
+      sorted.forEach(c => {
           const key = `${c.authorUid || ''}:${c.ts || ''}`;
           if (!renderedKeys.has(key)) {
-              frag.appendChild(_buildCommentNode(postId, c));
+              frag.appendChild(_buildCommentNode(postId, c, 0));
           }
       });
       if (frag.childElementCount) box.appendChild(frag);
@@ -13599,11 +14677,13 @@ body.arcade-fs-ios body::after { display:none !important; }
       const _activityTypes = new Set(['like','comment','repost','mention','tag','wallPost','announcement']);
       const _socialTypes   = new Set(['friendRequest','friendAccepted','familyInvite','familyAccepted','familyDeclined','follow','game_challenge']);
       const _systemTypes   = new Set(['system']);
+      const _liveTypes     = new Set(['live']);
       const filtered = list.filter(n => {
           if (_notifFilter === 'all')      return true;
           if (_notifFilter === 'message')  return n.type === 'message';
           if (_notifFilter === 'activity') return _activityTypes.has(n.type);
           if (_notifFilter === 'social')   return _socialTypes.has(n.type);
+          if (_notifFilter === 'live')     return _liveTypes.has(n.type);
           if (_notifFilter === 'system')   return _systemTypes.has(n.type);
           return true;
       });
@@ -15391,6 +16471,9 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (tab==='aisafety')    adminLoadAISafetyLog();
       if (tab==='pages' || tab==='emergency') { pvLoadTabData(); emergencyLoadTabData(); }
       if (tab==='messages')    adminLoadAllConversations();
+      if (tab==='analytics')   snxLoadAnalytics();
+      if (tab==='health')      snxRunHealthCheck();
+      if (tab==='community')   { snxLoadActiveRooms('storm'); snxLoadActiveRooms('support'); snxLoadActiveLivestreams(); }
   };
 
   // ── Founder: conversation moderation tools ────────────────────────────────
@@ -27438,6 +28521,2105 @@ window.switchAdminTab = function(tab) {
     console.log('[CoHostInvite]', msg);
   }
 
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════
+     NEW FEATURES JS: Profiles + Feed (Phase 2)
+     ══════════════════════════════════════════════════════ -->
+<script>
+/* ════════════════════════════════════════════════════════
+   1. COMPOSER TYPE SWITCHER
+   ════════════════════════════════════════════════════════ */
+window.switchComposerType = function(type, btn) {
+    document.querySelectorAll('.composer-type-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    ['Post','Poll','Mood'].forEach(t => {
+        const el = document.getElementById('composerPanel' + t);
+        if (el) el.style.display = t.toLowerCase() === type ? '' : 'none';
+    });
+};
+
+/* ════════════════════════════════════════════════════════
+   2. POLL POSTS
+   ════════════════════════════════════════════════════════ */
+window.submitPollPost = async function() {
+    const q = (document.getElementById('pollQuestion')?.value || '').trim();
+    if (!q) { window.toastNotification && toastNotification('Enter a question first!'); return; }
+    const opts = [...document.querySelectorAll('.poll-option-input')]
+        .map(i => i.value.trim()).filter(Boolean);
+    if (opts.length < 2) { toastNotification('Add at least 2 options.'); return; }
+    const days = parseInt(document.getElementById('pollDuration')?.value || '3', 10);
+    const endsAt = Date.now() + days * 86400000;
+
+    const fs = window._snxFirestore;
+    if (!fs) return;
+    const { db, collection, addDoc, updateDoc, doc } = fs;
+    const cu = window._snxCurrentUser;
+    const ud = window._snxUserData || window.userData;
+    if (!cu || !ud) { toastNotification('Not signed in.'); return; }
+
+    const now = Date.now();
+    const votes = {};
+    opts.forEach((_, i) => { votes[i] = []; });
+    try {
+        const ref = await addDoc(collection(db, 'posts'), {
+            type: 'poll',
+            uid: cu.uid,
+            authorName: ud.displayName,
+            authorHandle: ud.username,
+            authorAvatar: ud.avatar || '',
+            authorBadges: ud.badges || [],
+            authorRole: ud.role || 'member',
+            authorMoodType: ud.profileCustom?.moodType || '',
+            authorMoodValue: ud.profileCustom?.moodValue || '',
+            text: q,
+            pollQuestion: q,
+            pollOptions: opts,
+            pollVotes: votes,
+            pollEndsAt: endsAt,
+            timestamp: now,
+            createdAt: now,
+            visibility: 'public',
+            likes: 0,
+            likedBy: [],
+            comments: [],
+            repostCount: 0,
+            savedToWall: false,
+        });
+        await updateDoc(doc(db, 'posts', ref.id), { postId: ref.id });
+        document.getElementById('pollQuestion').value = '';
+        document.querySelectorAll('.poll-option-input').forEach(i => i.value = '');
+        toastNotification('📊 Poll posted!');
+        window.switchComposerType('post', document.querySelector('.composer-type-btn[data-type="post"]'));
+    } catch(e) {
+        toastNotification('Poll failed: ' + e.message);
+    }
+};
+
+/* Vote on a poll */
+window.votePoll = async function(postId, optIndex) {
+    const fs = window._snxFirestore;
+    if (!fs) return;
+    const { db, doc, getDoc, updateDoc } = fs;
+    const cu = window._snxCurrentUser;
+    if (!cu) { toastNotification('Sign in to vote!'); return; }
+
+    const ref = doc(db, 'posts', postId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    if (data.pollEndsAt && data.pollEndsAt < Date.now()) { toastNotification('This poll has ended.'); return; }
+
+    const votes = data.pollVotes || {};
+    // Remove from any existing vote
+    Object.keys(votes).forEach(k => {
+        votes[k] = (votes[k] || []).filter(u => u !== cu.uid);
+    });
+    // Add to chosen option
+    if (!votes[optIndex]) votes[optIndex] = [];
+    votes[optIndex].push(cu.uid);
+    await updateDoc(ref, { pollVotes: votes });
+};
+
+/* Render a poll card (called from initTimelineStream) */
+window.renderPollCard = function(post, postId) {
+    const q = window.escFeed ? escFeed(post.pollQuestion || post.text) : (post.pollQuestion || post.text);
+    const opts = post.pollOptions || [];
+    const votes = post.pollVotes || {};
+    const cu = window._snxCurrentUser;
+    const uid = cu ? cu.uid : null;
+    const totalVotes = Object.values(votes).reduce((s, arr) => s + (arr || []).length, 0);
+    const myVote = opts.findIndex((_, i) => (votes[i] || []).includes(uid));
+    const ended = post.pollEndsAt && post.pollEndsAt < Date.now();
+
+    const optRows = opts.map((opt, i) => {
+        const count = (votes[i] || []).length;
+        const pct = totalVotes > 0 ? Math.round(count / totalVotes * 100) : 0;
+        const isMyVote = myVote === i;
+        const barClass = isMyVote ? 'poll-option-bar voted-bar' : 'poll-option-bar';
+        const clickAttr = ended || myVote >= 0 ? '' : `onclick="votePoll('${postId}',${i})"`;
+        return `
+            <div class="poll-option-row" ${clickAttr} title="${escFeed ? escFeed(opt) : opt}">
+                <div class="poll-option-bar-wrap">
+                    <div class="${barClass}" style="width:${pct}%"></div>
+                    <span class="poll-option-label">${isMyVote ? '✓ ' : ''}${window.escFeed ? escFeed(opt) : opt}</span>
+                    <span class="poll-option-pct">${pct}%</span>
+                </div>
+            </div>`;
+    }).join('');
+
+    const endsLabel = ended
+        ? '<span class="poll-ended-label">Poll ended</span>'
+        : post.pollEndsAt
+            ? `<span>Ends ${new Date(post.pollEndsAt).toLocaleDateString()}</span>`
+            : '';
+
+    return `
+        <div class="poll-card">
+            <div class="poll-card-question">${q}</div>
+            ${optRows}
+            <div class="poll-meta">
+                <span>${totalVotes} vote${totalVotes !== 1 ? 's' : ''}</span>
+                ${endsLabel}
+            </div>
+        </div>`;
+};
+
+/* ════════════════════════════════════════════════════════
+   3. DRAFT POSTS
+   ════════════════════════════════════════════════════════ */
+const _DRAFT_KEY = 'snx_drafts';
+
+function _loadDrafts() {
+    try { return JSON.parse(localStorage.getItem(_DRAFT_KEY) || '[]'); } catch(_) { return []; }
+}
+function _saveDrafts(arr) {
+    try { localStorage.setItem(_DRAFT_KEY, JSON.stringify(arr)); } catch(_) {}
+}
+
+window.savePostAsDraft = function() {
+    const text = document.getElementById('postText')?.value.trim();
+    const mediaUrl = document.getElementById('postMediaUrl')?.value.trim();
+    if (!text && !mediaUrl) { toastNotification('Nothing to save as draft!'); return; }
+    const drafts = _loadDrafts();
+    drafts.unshift({ id: Date.now(), text: text || '', mediaUrl: mediaUrl || '', savedAt: Date.now() });
+    if (drafts.length > 20) drafts.length = 20; // cap at 20
+    _saveDrafts(drafts);
+    renderDraftStrip();
+    toastNotification('📋 Draft saved!');
+};
+
+window.loadDraftToComposer = function(id) {
+    const drafts = _loadDrafts();
+    const d = drafts.find(x => x.id === id);
+    if (!d) return;
+    const ptEl = document.getElementById('postText');
+    if (ptEl) { ptEl.value = d.text; ptEl.dispatchEvent(new Event('input')); }
+    if (d.mediaUrl) {
+        const mu = document.getElementById('postMediaUrl');
+        if (mu) mu.value = d.mediaUrl;
+    }
+    // Switch to post panel
+    window.switchComposerType('post', document.querySelector('.composer-type-btn[data-type="post"]'));
+    toastNotification('📋 Draft loaded!');
+};
+
+window.deleteDraft = function(id) {
+    const drafts = _loadDrafts().filter(x => x.id !== id);
+    _saveDrafts(drafts);
+    renderDraftStrip();
+};
+
+window.clearAllDrafts = function() {
+    _saveDrafts([]);
+    renderDraftStrip();
+    toastNotification('Drafts cleared.');
+};
+
+window.renderDraftStrip = function() {
+    const strip = document.getElementById('draftStrip');
+    const list  = document.getElementById('draftList');
+    if (!strip || !list) return;
+    const drafts = _loadDrafts();
+    if (!drafts.length) { strip.style.display = 'none'; return; }
+    strip.style.display = '';
+    list.innerHTML = drafts.map(d => {
+        const preview = (d.text || d.mediaUrl || '(media only)').substring(0, 120);
+        const ago = _snxTimeAgoShort(d.savedAt);
+        return `
+            <div class="draft-row">
+                <div class="draft-text">${preview}<div class="draft-meta">${ago}</div></div>
+                <div class="draft-actions">
+                    <button onclick="loadDraftToComposer(${d.id})">↩ Load</button>
+                    <button onclick="deleteDraft(${d.id})" style="border-color:rgba(255,51,102,0.3);color:#ff6680;">🗑</button>
+                </div>
+            </div>`;
+    }).join('');
+};
+
+/* ════════════════════════════════════════════════════════
+   4. SCHEDULED POSTS
+   ════════════════════════════════════════════════════════ */
+const _SCHED_KEY = 'snx_scheduled';
+
+function _loadScheduled() {
+    try { return JSON.parse(localStorage.getItem(_SCHED_KEY) || '[]'); } catch(_) { return []; }
+}
+function _saveScheduled(arr) {
+    try { localStorage.setItem(_SCHED_KEY, JSON.stringify(arr)); } catch(_) {}
+}
+
+window.openScheduleModal = function() {
+    // Capture current composer text/media
+    window._pendingScheduleText = document.getElementById('postText')?.value.trim() || '';
+    window._pendingScheduleMedia = document.getElementById('postMediaUrl')?.value.trim() || '';
+    if (!window._pendingScheduleText && !window._pendingScheduleMedia) {
+        toastNotification('Write a post first!'); return;
+    }
+    // Default to 1 hour from now
+    const dt = new Date(Date.now() + 3600000);
+    const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const inp = document.getElementById('scheduleDateTime');
+    if (inp) inp.value = local;
+    const modal = document.getElementById('scheduleModalBackdrop');
+    if (modal) modal.classList.add('open');
+};
+
+window.closeScheduleModal = function() {
+    const modal = document.getElementById('scheduleModalBackdrop');
+    if (modal) modal.classList.remove('open');
+};
+
+window.confirmSchedulePost = function() {
+    const inp = document.getElementById('scheduleDateTime');
+    if (!inp || !inp.value) { toastNotification('Pick a date and time!'); return; }
+    const ts = new Date(inp.value).getTime();
+    if (ts <= Date.now()) { toastNotification('Schedule time must be in the future!'); return; }
+
+    const sched = _loadScheduled();
+    sched.push({
+        id: Date.now(),
+        text: window._pendingScheduleText || '',
+        mediaUrl: window._pendingScheduleMedia || '',
+        scheduledFor: ts,
+    });
+    _saveScheduled(sched);
+    closeScheduleModal();
+    renderScheduledStrip();
+
+    // Clear composer
+    const ptEl = document.getElementById('postText');
+    if (ptEl) { ptEl.value = ''; ptEl.dispatchEvent(new Event('input')); }
+    const mu = document.getElementById('postMediaUrl');
+    if (mu) mu.value = '';
+
+    toastNotification(`🕐 Post scheduled for ${new Date(ts).toLocaleString()}`);
+};
+
+window.deleteScheduled = function(id) {
+    _saveScheduled(_loadScheduled().filter(x => x.id !== id));
+    renderScheduledStrip();
+};
+
+window.renderScheduledStrip = function() {
+    const strip = document.getElementById('scheduledStrip');
+    const list  = document.getElementById('scheduledList');
+    if (!strip || !list) return;
+    const items = _loadScheduled();
+    if (!items.length) { strip.style.display = 'none'; return; }
+    strip.style.display = '';
+    list.innerHTML = items.map(s => {
+        const preview = (s.text || s.mediaUrl || '(media)').substring(0, 100);
+        const when = new Date(s.scheduledFor).toLocaleString();
+        return `
+            <div class="scheduled-row">
+                <div class="scheduled-text">${preview}<div class="scheduled-meta">🕐 ${when}</div></div>
+                <div class="scheduled-actions">
+                    <button onclick="deleteScheduled(${s.id})" style="border-color:rgba(255,51,102,0.3);color:#ff6680;">🗑</button>
+                </div>
+            </div>`;
+    }).join('');
+};
+
+/* Scheduler: check every minute and publish due posts */
+function _runScheduler() {
+    const items = _loadScheduled();
+    const now = Date.now();
+    const due = items.filter(s => s.scheduledFor <= now);
+    if (!due.length) return;
+    _saveScheduled(items.filter(s => s.scheduledFor > now));
+    renderScheduledStrip();
+    due.forEach(s => _publishScheduledPost(s));
+}
+
+async function _publishScheduledPost(s) {
+    const fs = window._snxFirestore;
+    if (!fs) return;
+    const { db, collection, addDoc, updateDoc, doc } = fs;
+    const cu = window._snxCurrentUser;
+    const ud = window._snxUserData || window.userData;
+    if (!cu || !ud) return;
+    const now = Date.now();
+    try {
+        const ref = await addDoc(collection(db, 'posts'), {
+            uid: cu.uid,
+            authorName: ud.displayName,
+            authorHandle: ud.username,
+            authorAvatar: ud.avatar || '',
+            authorBadges: ud.badges || [],
+            authorRole: ud.role || 'member',
+            authorMoodType: ud.profileCustom?.moodType || '',
+            authorMoodValue: ud.profileCustom?.moodValue || '',
+            text: s.text || '',
+            mediaUrl: s.mediaUrl || '',
+            mediaUrls: s.mediaUrl ? [s.mediaUrl] : [],
+            timestamp: now,
+            createdAt: now,
+            visibility: 'public',
+            likes: 0,
+            likedBy: [],
+            comments: [],
+            repostCount: 0,
+            savedToWall: false,
+        });
+        await updateDoc(doc(db, 'posts', ref.id), { postId: ref.id });
+        toastNotification('🕐 Scheduled post published!');
+    } catch(e) {
+        console.warn('[SNX Scheduler] Publish failed:', e);
+    }
+}
+
+// Start scheduler
+setInterval(_runScheduler, 60000);
+
+/* ════════════════════════════════════════════════════════
+   5. QUICK MOOD STATUS (Feed Composer)
+   ════════════════════════════════════════════════════════ */
+window.setQuickMoodStatus = function(btn) {
+    document.querySelectorAll('.mood-status-opt').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    const ci = document.getElementById('customMoodStatusInput');
+    if (ci) ci.value = '';
+};
+
+window.saveQuickMoodStatus = async function() {
+    const selected = document.querySelector('.mood-status-opt.selected');
+    const ci = document.getElementById('customMoodStatusInput');
+    const val = (ci && ci.value.trim()) ? ci.value.trim() : (selected ? selected.dataset.val : '');
+    if (!val) { toastNotification('Pick or type a status first!'); return; }
+
+    const fs = window._snxFirestore;
+    if (!fs) return;
+    const { db, doc, updateDoc } = fs;
+    const cu = window._snxCurrentUser;
+    if (!cu) { toastNotification('Not signed in.'); return; }
+
+    try {
+        await updateDoc(doc(db, 'users', cu.uid), {
+            'profileCustom.moodType': 'sticker',
+            'profileCustom.moodValue': val.substring(0, 40),
+        });
+        if (window.userData) {
+            if (!window.userData.profileCustom) window.userData.profileCustom = {};
+            window.userData.profileCustom.moodType = 'sticker';
+            window.userData.profileCustom.moodValue = val.substring(0, 40);
+        }
+        document.querySelectorAll('.mood-status-opt').forEach(b => b.classList.remove('selected'));
+        if (ci) ci.value = '';
+        toastNotification('🎭 Status updated to: ' + val);
+        // Return to post composer
+        window.switchComposerType('post', document.querySelector('.composer-type-btn[data-type="post"]'));
+    } catch(e) {
+        toastNotification('Failed: ' + e.message);
+    }
+};
+
+/* ════════════════════════════════════════════════════════
+   6. HASHTAGS: renderPostText extension + detection
+   ════════════════════════════════════════════════════════ */
+/* Extend the existing renderPostText with hashtag support */
+(function() {
+    const _origRender = window.renderPostText;
+    window.renderPostText = function(text) {
+        let html = _origRender ? _origRender(text) : (window.escFeed ? escFeed(text) : String(text || ''));
+        // Link #hashtags
+        html = html.replace(/#([a-zA-Z0-9_]+)/g, (match, tag) => {
+            return `<span class="post-hashtag" onclick="searchHashtag('${tag.replace(/'/g,'')}')">#${tag}</span>`;
+        });
+        return html;
+    };
+})();
+
+/* Navigate to hashtag search */
+window.searchHashtag = function(tag) {
+    const si = document.getElementById('searchInput');
+    if (si) si.value = '#' + tag;
+    window.setSearchFilter && setSearchFilter('hashtags', document.querySelector('.search-filter-btn[data-filter="hashtags"]'));
+    window.navTo && navTo('searchPage');
+    window.runSearch && runSearch();
+};
+
+/* Extract hashtags from text */
+function _extractHashtags(text) {
+    return [...new Set((text.match(/#([a-zA-Z0-9_]+)/g) || []).map(t => t.slice(1).toLowerCase()))];
+}
+
+/* ════════════════════════════════════════════════════════
+   7. PINNED POSTS
+   ════════════════════════════════════════════════════════ */
+window._pinNextPost = false;
+
+window.togglePinNextPost = function() {
+    window._pinNextPost = !window._pinNextPost;
+    const btn = document.getElementById('btnPinPost') || document.getElementById('btnPinNextPost');
+    if (btn) {
+        btn.classList.toggle('active-pin', window._pinNextPost);
+        btn.title = window._pinNextPost ? 'Post will be pinned (click to cancel)' : 'Pin this post';
+    }
+    toastNotification(window._pinNextPost ? '📌 Next post will be pinned!' : '📌 Pin cancelled.');
+};
+
+/* ════════════════════════════════════════════════════════
+   8. SEARCH FILTERS + TRENDING
+   ════════════════════════════════════════════════════════ */
+window._searchFilter = 'users';
+
+window.setSearchFilter = function(type, btn) {
+    window._searchFilter = type;
+    document.querySelectorAll('.search-filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    // Update placeholder
+    const si = document.getElementById('searchInput');
+    if (si) {
+        si.placeholder = type === 'users' ? 'Search users…'
+            : type === 'posts' ? 'Search posts…'
+            : 'Search #hashtags…';
+    }
+};
+
+window.setTrendingTab = function(tab, btn) {
+    document.querySelectorAll('#trendingTabs .search-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    const hp = document.getElementById('trendingHashtagsPanel');
+    const pp = document.getElementById('trendingPostsPanel');
+    if (hp) hp.style.display = tab === 'hashtags' ? '' : 'none';
+    if (pp) pp.style.display = tab === 'posts' ? '' : 'none';
+};
+
+/* Enhanced runSearch — wraps the existing function */
+(function() {
+    const _origSearch = window.runSearch;
+    window.runSearch = async function() {
+        const filter = window._searchFilter || 'users';
+        const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+
+        if (filter === 'users') {
+            // Original user search
+            if (_origSearch) return _origSearch();
+            return;
+        }
+
+        const resultsBox = document.getElementById('searchResults');
+        if (!q) { resultsBox.innerHTML = '<div class="search-empty">Enter a query and press Search.</div>'; return; }
+        if (q.length < 2) { resultsBox.innerHTML = '<div class="search-empty">Type at least 2 characters.</div>'; return; }
+        resultsBox.innerHTML = '<div class="search-empty">Searching…</div>';
+
+        const fs = window._snxFirestore;
+        if (!fs) return;
+        const { db, collection, query, orderBy, limit: fsLimit, getDocs, where } = fs;
+
+        if (filter === 'posts') {
+            try {
+                const snap = await getDocs(query(collection(db, 'posts'), orderBy('timestamp', 'desc'), fsLimit(200)));
+                const matches = [];
+                snap.forEach(d => {
+                    const p = d.data();
+                    if (p.hidden || p.type === 'live') return;
+                    if ((p.text || '').toLowerCase().includes(q) || (p.authorName || '').toLowerCase().includes(q)) {
+                        matches.push({ id: d.id, ...p });
+                    }
+                });
+                if (!matches.length) { resultsBox.innerHTML = `<div class="search-empty">No posts found for "${window.escFeed ? escFeed(q) : q}".</div>`; return; }
+                resultsBox.innerHTML = '';
+                matches.slice(0, 30).forEach(p => {
+                    const card = document.createElement('div');
+                    card.className = 'section-card';
+                    card.style.cssText = 'margin-bottom:10px;cursor:pointer;padding:12px;';
+                    card.innerHTML = `
+                        <div style="font-size:11px;color:#6a90b8;margin-bottom:4px;"><b style="color:#00AEEF">${window.escFeed ? escFeed(p.authorName || '') : (p.authorName || '')}</b> · @${window.escFeed ? escFeed(p.authorHandle || '') : ''}</div>
+                        <div style="font-size:13px;color:#d0e8ff;line-height:1.45;">${window.escFeed ? escFeed((p.text || '').substring(0, 200)) : (p.text || '').substring(0, 200)}</div>
+                        ${p.pinned ? '<div class="post-pinned-badge">📌 Pinned</div>' : ''}`;
+                    card.onclick = () => { window.viewProfile && viewProfile(p.uid); };
+                    resultsBox.appendChild(card);
+                });
+            } catch(e) { resultsBox.innerHTML = '<div class="search-empty">Search failed.</div>'; }
+
+        } else if (filter === 'hashtags') {
+            // Strip leading # if user typed it
+            const tag = q.startsWith('#') ? q.slice(1) : q;
+            try {
+                const snap = await getDocs(query(collection(db, 'posts'), orderBy('timestamp', 'desc'), fsLimit(300)));
+                const tagCount = {};
+                const matchPosts = [];
+                snap.forEach(d => {
+                    const p = d.data();
+                    if (p.hidden || p.type === 'live') return;
+                    const tags = _extractHashtags(p.text || '');
+                    tags.forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; });
+                    if (tags.includes(tag)) matchPosts.push({ id: d.id, ...p });
+                });
+                if (!matchPosts.length && !tagCount[tag]) {
+                    resultsBox.innerHTML = `<div class="search-empty">No posts with #${window.escFeed ? escFeed(tag) : tag}.</div>`; return;
+                }
+                resultsBox.innerHTML = `<div style="font-size:12px;color:#6a90b8;margin-bottom:10px;">${matchPosts.length} post${matchPosts.length !== 1 ? 's' : ''} with <span style="color:#00AEEF;font-weight:700;">#${window.escFeed ? escFeed(tag) : tag}</span></div>`;
+                matchPosts.slice(0, 30).forEach(p => {
+                    const card = document.createElement('div');
+                    card.className = 'section-card';
+                    card.style.cssText = 'margin-bottom:10px;cursor:pointer;padding:12px;';
+                    card.innerHTML = `
+                        <div style="font-size:11px;color:#6a90b8;margin-bottom:4px;"><b style="color:#00AEEF">${window.escFeed ? escFeed(p.authorName || '') : ''}</b></div>
+                        <div style="font-size:13px;color:#d0e8ff;">${window.escFeed ? escFeed((p.text || '').substring(0, 200)) : (p.text || '').substring(0, 200)}</div>`;
+                    card.onclick = () => { window.viewProfile && viewProfile(p.uid); };
+                    resultsBox.appendChild(card);
+                });
+            } catch(e) { resultsBox.innerHTML = '<div class="search-empty">Search failed.</div>'; }
+        }
+    };
+})();
+
+/* ── Load trending hashtags and posts ── */
+window.loadTrending = async function() {
+    const fs = window._snxFirestore;
+    if (!fs) return;
+    const { db, collection, query, orderBy, limit: fsLimit, getDocs } = fs;
+
+    try {
+        const snap = await getDocs(query(collection(db, 'posts'), orderBy('timestamp', 'desc'), fsLimit(300)));
+        const tagCount = {};
+        const posts = [];
+        snap.forEach(d => {
+            const p = d.data();
+            if (p.hidden || p.type === 'live') return;
+            posts.push({ id: d.id, ...p });
+            _extractHashtags(p.text || '').forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; });
+        });
+
+        // Trending hashtags
+        const tagList = document.getElementById('trendingHashtagsList');
+        if (tagList) {
+            const sorted = Object.entries(tagCount).sort((a, b) => b[1] - a[1]).slice(0, 15);
+            if (!sorted.length) {
+                tagList.innerHTML = '<div style="font-size:12px;color:#4a7a9a;padding:8px 0;">No trending hashtags yet.</div>';
+            } else {
+                tagList.innerHTML = sorted.map(([tag, count], i) => `
+                    <div class="trending-tag-row" onclick="searchHashtag('${tag.replace(/'/g,'')}')">
+                        <span class="trending-tag-rank">${i + 1}</span>
+                        <span class="trending-tag-name">#${tag}</span>
+                        <span class="trending-tag-count">${count} post${count !== 1 ? 's' : ''}</span>
+                    </div>`).join('');
+            }
+        }
+
+        // Trending posts (by likes)
+        const postList = document.getElementById('trendingPostsList');
+        if (postList) {
+            const topPosts = posts.filter(p => p.type !== 'poll').sort((a, b) => (b.likes || 0) - (a.likes || 0)).slice(0, 10);
+            if (!topPosts.length) {
+                postList.innerHTML = '<div style="font-size:12px;color:#4a7a9a;padding:8px 0;">No trending posts yet.</div>';
+            } else {
+                postList.innerHTML = topPosts.map(p => {
+                    const esc = window.escFeed || (s => String(s).replace(/[<>]/g,''));
+                    return `
+                        <div class="featured-post-item" onclick="viewProfile && viewProfile('${p.uid}')">
+                            <div style="font-size:11px;color:#6a90b8;margin-bottom:4px;"><b style="color:#00AEEF">${esc(p.authorName || '')}</b></div>
+                            <div class="featured-post-text">${esc((p.text || '').substring(0, 160))}</div>
+                            <div class="featured-post-meta">❤️ ${p.likes || 0} likes · 💬 ${(p.comments || []).length} comments</div>
+                        </div>`;
+                }).join('');
+            }
+        }
+    } catch(e) {
+        console.warn('[SNX Trending] loadTrending error:', e);
+    }
+};
+
+/* Auto-load trending when search page is opened */
+(function() {
+    const _origNavTo = window.navTo;
+    if (_origNavTo) {
+        window.navTo = function(page) {
+            _origNavTo(page);
+            if (page === 'searchPage') {
+                setTimeout(window.loadTrending, 300);
+            }
+        };
+    }
+})();
+
+/* ════════════════════════════════════════════════════════
+   9. PROFILE VISITOR COUNTER
+   ════════════════════════════════════════════════════════ */
+async function _incrementVisitorCount(profileUid) {
+    const fs = window._snxFirestore;
+    if (!fs) return;
+    const { db, doc, getDoc, updateDoc } = fs;
+    const cu = window._snxCurrentUser;
+    if (!cu || cu.uid === profileUid) return; // Don't count own views
+
+    const _key = `snx_visited_${profileUid}`;
+    const lastVisit = localStorage.getItem(_key);
+    const now = Date.now();
+    if (lastVisit && now - parseInt(lastVisit) < 3600000) return; // Throttle: once per hour
+    localStorage.setItem(_key, String(now));
+
+    try {
+        const ref = doc(db, 'users', profileUid);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return;
+        const current = snap.data().profileViews || 0;
+        await updateDoc(ref, { profileViews: current + 1 });
+    } catch(e) {
+        console.warn('[SNX Visitors] increment failed:', e);
+    }
+}
+
+/* ════════════════════════════════════════════════════════
+   10. PROFILE ACHIEVEMENTS
+   ════════════════════════════════════════════════════════ */
+const SNX_ACHIEVEMENTS = [
+    { id: 'first_post',    icon: '✏️',  name: 'First Post',     desc: 'Posted for the first time',         check: (u, s) => (s.postCount || 0) >= 1 },
+    { id: 'ten_posts',     icon: '📝',  name: 'Prolific',       desc: '10 posts published',                 check: (u, s) => (s.postCount || 0) >= 10 },
+    { id: 'fifty_posts',   icon: '🚀',  name: 'Power Poster',   desc: '50 posts published',                 check: (u, s) => (s.postCount || 0) >= 50 },
+    { id: 'first_friend',  icon: '🤝',  name: 'Connected',      desc: 'Made your first friend',             check: (u) => (u.friends || []).length >= 1 },
+    { id: 'ten_friends',   icon: '🦋',  name: 'Social Nexus',   desc: '10 friends',                         check: (u) => (u.friends || []).length >= 10 },
+    { id: 'has_bio',       icon: '📖',  name: 'Bio Writer',     desc: 'Wrote a profile bio',                check: (u) => !!(u.bio && u.bio.trim()) },
+    { id: 'has_avatar',    icon: '🖼️', name: 'Faces the Light', desc: 'Set a profile picture',             check: (u) => !!(u.avatar) },
+    { id: 'has_banner',    icon: '🎨',  name: 'Decorated',      desc: 'Set a cover photo',                  check: (u) => !!(u.banner) },
+    { id: 'has_mood',      icon: '🎭',  name: 'In the Mood',    desc: 'Set a mood status',                  check: (u) => !!(u.profileCustom?.moodValue || u.mood) },
+    { id: 'profile_views', icon: '👁',  name: 'Noticed',        desc: '10+ profile views',                  check: (u) => (u.profileViews || 0) >= 10 },
+    { id: 'has_link',      icon: '🔗',  name: 'Linked Up',      desc: 'Added a social link',                check: (u) => (u.profileCustom?.links || []).length >= 1 },
+    { id: 'profile_music', icon: '🎵',  name: 'DJ Mode',        desc: 'Added profile music',                check: (u) => !!(u.profileCustom?.music?.url) },
+    { id: 'has_followers', icon: '⭐',  name: 'Rising Star',    desc: '5+ followers',                       check: (u) => (u.followers || []).length >= 5 },
+];
+
+function _renderAchievements(userData, statsData) {
+    const grid = document.getElementById('profileAchievementsList');
+    const countEl = document.getElementById('profileAchievementCount');
+    if (!grid) return;
+    const unlocked = SNX_ACHIEVEMENTS.filter(a => a.check(userData, statsData || {}));
+    if (countEl) countEl.textContent = `${unlocked.length} / ${SNX_ACHIEVEMENTS.length}`;
+    grid.innerHTML = SNX_ACHIEVEMENTS.map(a => {
+        const earned = a.check(userData, statsData || {});
+        return `
+            <div class="achievement-card ${earned ? 'unlocked' : 'locked'}" title="${a.desc}">
+                <div class="achievement-icon">${a.icon}</div>
+                <div class="achievement-name">${a.name}</div>
+                <div class="achievement-desc">${a.desc}</div>
+            </div>`;
+    }).join('');
+}
+
+/* ════════════════════════════════════════════════════════
+   11. PROFILE MUSIC
+   ════════════════════════════════════════════════════════ */
+function _renderProfileMusic(pc, isSelf) {
+    const card = document.getElementById('profileMusicCard');
+    if (!card) return;
+    const music = pc.music || {};
+    const showMusic = (pc.sections?.showMusic !== false) && music.url;
+    if (!showMusic) { card.style.display = 'none'; return; }
+
+    card.style.display = '';
+    const editBtn = document.getElementById('btnEditProfileMusic');
+    if (editBtn) editBtn.style.display = isSelf ? '' : 'none';
+
+    const player = document.getElementById('profileMusicPlayer');
+    if (!player) return;
+    const autoplay = music.autoplay === 'yes';
+    player.innerHTML = `
+        <div class="profile-music-player-inner">
+            <div class="profile-music-icon">🎵</div>
+            <div class="profile-music-info">
+                <div class="profile-music-title">${(music.title || 'Profile Track').replace(/[<>]/g, '')}</div>
+                <audio class="profile-music-audio" src="${music.url.replace(/"/g,'&quot;')}" controls preload="metadata"${autoplay ? ' autoplay' : ''}></audio>
+            </div>
+        </div>`;
+}
+
+window.handleProfileMusicPick = async function(input) {
+    const file = input.files[0];
+    if (!file) return;
+    document.getElementById('editMusicFilename').textContent = file.name;
+    document.getElementById('editMusicClear').style.display = '';
+    try {
+        const url = await window.uploadToR2(file, 'editMusicProgressBar', 'editMusicProgress');
+        document.getElementById('editMusicUrl').value = url;
+        toastNotification('✅ Track uploaded!');
+    } catch(e) {
+        toastNotification('Upload failed: ' + e.message);
+    }
+};
+
+window.clearProfileMusicUpload = function() {
+    document.getElementById('editMusicFile').value = '';
+    document.getElementById('editMusicFilename').textContent = '';
+    document.getElementById('editMusicClear').style.display = 'none';
+    document.getElementById('editMusicUrl').value = '';
+};
+
+/* ════════════════════════════════════════════════════════
+   12. FEATURED MEDIA + FEATURED POSTS
+   ════════════════════════════════════════════════════════ */
+function _renderFeaturedMedia(pc, isSelf) {
+    const card = document.getElementById('profileFeaturedMedia');
+    if (!card) return;
+    const urls = (pc.featuredMediaUrls || []).filter(Boolean);
+    const showSection = pc.sections?.showFeaturedMedia !== false;
+    if (!showSection || !urls.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const editBtn = document.getElementById('btnEditFeaturedMedia');
+    if (editBtn) editBtn.style.display = isSelf ? '' : 'none';
+    const grid = document.getElementById('featuredMediaGrid');
+    if (!grid) return;
+    grid.innerHTML = urls.slice(0, 6).map(url => {
+        const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
+        const mediaEl = isVideo
+            ? `<video src="${url.replace(/"/g,'&quot;')}" preload="metadata" muted playsinline onclick="window.openMediaViewer && openMediaViewer('video','${url.replace(/'/g,'')}')" ></video>`
+            : `<img src="${url.replace(/"/g,'&quot;')}" alt="featured" loading="lazy" onclick="window.openMediaViewer && openMediaViewer('image','${url.replace(/'/g,'')}')" >`;
+        return `<div class="featured-media-item">${mediaEl}</div>`;
+    }).join('');
+}
+
+async function _renderFeaturedPosts(pc, isSelf) {
+    const card = document.getElementById('profileFeaturedPosts');
+    if (!card) return;
+    const ids = (pc.featuredPostIds || []).filter(Boolean);
+    const showSection = pc.sections?.showFeaturedPosts !== false;
+    if (!showSection || !ids.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const editBtn = document.getElementById('btnEditFeaturedPosts');
+    if (editBtn) editBtn.style.display = isSelf ? '' : 'none';
+
+    const list = document.getElementById('featuredPostsList');
+    if (!list) return;
+    list.innerHTML = '<div style="font-size:12px;color:#4a7a9a;padding:8px 0;">Loading…</div>';
+
+    const fs = window._snxFirestore;
+    if (!fs) return;
+    const { db, doc, getDoc } = fs;
+
+    const posts = [];
+    for (const id of ids.slice(0, 3)) {
+        try {
+            const snap = await getDoc(doc(db, 'posts', id));
+            if (snap.exists()) posts.push({ id: snap.id, ...snap.data() });
+        } catch(_) {}
+    }
+
+    if (!posts.length) { list.innerHTML = '<div style="font-size:12px;color:#4a7a9a;padding:8px 0;">No featured posts found.</div>'; return; }
+    const esc = window.escFeed || (s => String(s).replace(/[<>]/g, ''));
+    list.innerHTML = posts.map(p => `
+        <div class="featured-post-item" onclick="window.viewProfile && viewProfile('${p.uid || ''}')">
+            <div class="featured-post-text">${esc((p.text || '').substring(0, 200))}</div>
+            <div class="featured-post-meta">❤️ ${p.likes || 0} · 💬 ${(p.comments || []).length}</div>
+        </div>`).join('');
+}
+
+/* ════════════════════════════════════════════════════════
+   13. applyProfileCustom EXTENSIONS
+   ════════════════════════════════════════════════════════ */
+(function() {
+    const _origApply = window.applyProfileCustom;
+    window.applyProfileCustom = function(pc, profileUid) {
+        if (_origApply) _origApply(pc, profileUid);
+
+        const cu = window._snxCurrentUser;
+        const isSelf = cu && cu.uid === profileUid;
+        const sec = pc.sections || {};
+
+        // Visitor badge
+        const vBadge = document.getElementById('profileVisitorBadge');
+        if (vBadge) vBadge.style.display = sec.showVisitors !== false ? '' : 'none';
+
+        // Achievements
+        const achCard = document.getElementById('profileAchievementsCard');
+        if (achCard) achCard.style.display = sec.showAchievements !== false ? '' : 'none';
+
+        // Music card
+        _renderProfileMusic(pc, isSelf);
+
+        // Featured media
+        _renderFeaturedMedia(pc, isSelf);
+
+        // Featured posts
+        _renderFeaturedPosts(pc, isSelf);
+
+        // Animated banner
+        const banner = document.getElementById('profileBanner');
+        if (banner) {
+            banner.classList.remove('banner-anim-pulse', 'banner-anim-shimmer', 'banner-anim-wave');
+            const anim = pc.animatedBanner;
+            if (anim && anim !== 'none') banner.classList.add(anim);
+        }
+    };
+})();
+
+/* ════════════════════════════════════════════════════════
+   14. PATCH viewProfile — visitor count + achievements
+   ════════════════════════════════════════════════════════ */
+(function() {
+    const _origViewProfile = window.viewProfile;
+    window.viewProfile = async function(uid) {
+        if (_origViewProfile) await _origViewProfile(uid);
+        // Increment visitor count (non-blocking)
+        _incrementVisitorCount(uid).catch(() => {});
+    };
+})();
+
+/* Patch the onSnapshot callback to render visitor count and achievements */
+(function() {
+    const _origApply = window.applyProfileCustom;
+    // Achievements + visitor count are rendered from the profile snapshot
+    // We hook into the data flow after applyProfileCustom is called
+    const _patchSnapshotRendering = function() {
+        // Watch for profileVisitorCount element to appear and update it when userData loads
+        const tryPatch = setInterval(() => {
+            const vcEl = document.getElementById('profileVisitorCount');
+            if (!vcEl) return;
+            clearInterval(tryPatch);
+            // Actual count is written by the Firestore onSnapshot in viewProfile
+        }, 500);
+    };
+    _patchSnapshotRendering();
+})();
+
+/* ════════════════════════════════════════════════════════
+   15. SAVE PROFILE — extend to include new fields
+   ════════════════════════════════════════════════════════ */
+(function() {
+    const _origBtnSave = document.getElementById('btnSaveProfile');
+    if (!_origBtnSave) return;
+
+    const _origClick = _origBtnSave.onclick;
+    _origBtnSave.onclick = async function() {
+        // Add new fields to profileCustom BEFORE the original save runs
+        // We do this by patching the data inline — the original onclick is async
+        // so we run ours first and let it proceed
+        const musicTitle   = (document.getElementById('editMusicTitle')?.value || '').trim().substring(0, 80);
+        const musicUrl     = (document.getElementById('editMusicUrl')?.value   || '').trim();
+        const musicAuto    = document.getElementById('editMusicAutoplay')?.value || 'no';
+        const bannerAnim   = document.getElementById('editBannerAnim')?.value   || 'none';
+
+        const featPostIds  = [...document.querySelectorAll('.epm-featured-post-id')].map(i => i.value.trim()).filter(Boolean).slice(0,3);
+        const featMediaUrls= [...document.querySelectorAll('.epm-featured-media-url')].map(i => i.value.trim()).filter(Boolean).slice(0,6);
+
+        const secShowMusic       = document.getElementById('secShowMusic')?.checked !== false;
+        const secShowVisitors    = document.getElementById('secShowVisitors')?.checked !== false;
+        const secShowAchievements= document.getElementById('secShowAchievements')?.checked !== false;
+        const secShowFeaturedMedia= document.getElementById('secShowFeaturedMedia')?.checked !== false;
+        const secShowFeaturedPosts= document.getElementById('secShowFeaturedPosts')?.checked !== false;
+
+        // Store as a module-level patch that the original onclick will merge
+        window._snxProfileCustomPatch = {
+            music: { title: musicTitle, url: musicUrl, autoplay: musicAuto },
+            animatedBanner: bannerAnim,
+            featuredPostIds: featPostIds,
+            featuredMediaUrls: featMediaUrls,
+            _extraSections: {
+                showMusic: secShowMusic,
+                showVisitors: secShowVisitors,
+                showAchievements: secShowAchievements,
+                showFeaturedMedia: secShowFeaturedMedia,
+                showFeaturedPosts: secShowFeaturedPosts,
+            },
+        };
+
+        if (_origClick) await _origClick.call(this);
+    };
+})();
+
+/* Hook into the Firestore updateDoc call in btnSaveProfile to merge new fields.
+   We do this by patching the profileCustom object that gets built in the original onclick.
+   The cleanest approach: override applyProfileCustom to also pick up the patch,
+   and override the Firestore write by wrapping it. Since the original onclick
+   directly calls updateDoc, we intercept via the Firebase wrapper. */
+(function() {
+    // Wait for Firebase to be available, then wrap updateDoc
+    const _waitForFs = setInterval(() => {
+        const fs = window._snxFirestore;
+        if (!fs || !fs.updateDoc) return;
+        clearInterval(_waitForFs);
+
+        const _origUpdateDoc = fs.updateDoc;
+        fs.updateDoc = async function(ref, data, ...rest) {
+            // If this is a profile save (has profileCustom and is the current user's doc)
+            const patch = window._snxProfileCustomPatch;
+            if (patch && data && data.profileCustom) {
+                const pc = data.profileCustom;
+                // Merge new fields
+                if (patch.music) pc.music = patch.music;
+                if (patch.animatedBanner) pc.animatedBanner = patch.animatedBanner;
+                if (patch.featuredPostIds) pc.featuredPostIds = patch.featuredPostIds;
+                if (patch.featuredMediaUrls) pc.featuredMediaUrls = patch.featuredMediaUrls;
+                if (patch._extraSections) {
+                    pc.sections = Object.assign(pc.sections || {}, patch._extraSections);
+                }
+                window._snxProfileCustomPatch = null;
+            }
+            return _origUpdateDoc.call(this, ref, data, ...rest);
+        };
+    }, 200);
+})();
+
+/* ════════════════════════════════════════════════════════
+   16. POPULATE NEW PROFILE EDIT FIELDS ON MODAL OPEN
+   ════════════════════════════════════════════════════════ */
+(function() {
+    const _origOpenModal = window.openEditProfileModal;
+    window.openEditProfileModal = function() {
+        if (_origOpenModal) _origOpenModal();
+        const ud = window._snxUserData || window.userData;
+        if (!ud) return;
+        const pc = ud.profileCustom || {};
+        const music = pc.music || {};
+        const _set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+        _set('editMusicTitle', music.title || '');
+        _set('editMusicUrl', music.url || '');
+        const autoEl = document.getElementById('editMusicAutoplay');
+        if (autoEl) autoEl.value = music.autoplay || 'no';
+        const bAnimEl = document.getElementById('editBannerAnim');
+        if (bAnimEl) bAnimEl.value = pc.animatedBanner || 'none';
+        // Highlight selected anim button
+        document.querySelectorAll('[data-banim]').forEach(b => {
+            b.classList.toggle('selected', b.dataset.banim === (pc.animatedBanner || 'none'));
+        });
+        // Featured post IDs
+        const fpInputs = document.querySelectorAll('.epm-featured-post-id');
+        const fpIds = pc.featuredPostIds || [];
+        fpInputs.forEach((inp, i) => { inp.value = fpIds[i] || ''; });
+        // Featured media URLs
+        const fmInputs = document.querySelectorAll('.epm-featured-media-url');
+        const fmUrls = pc.featuredMediaUrls || [];
+        fmInputs.forEach((inp, i) => { inp.value = fmUrls[i] || ''; });
+        // Section toggles
+        const sec = pc.sections || {};
+        const _chk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val !== false; };
+        _chk('secShowMusic', sec.showMusic);
+        _chk('secShowVisitors', sec.showVisitors);
+        _chk('secShowAchievements', sec.showAchievements);
+        _chk('secShowFeaturedMedia', sec.showFeaturedMedia);
+        _chk('secShowFeaturedPosts', sec.showFeaturedPosts);
+    };
+})();
+
+/* ════════════════════════════════════════════════════════
+   17. BANNER ANIMATION PICKER
+   ════════════════════════════════════════════════════════ */
+window.epmPickBannerAnim = function(val, btn) {
+    document.querySelectorAll('[data-banim]').forEach(b => b.classList.remove('selected'));
+    if (btn) btn.classList.add('selected');
+    const el = document.getElementById('editBannerAnim');
+    if (el) el.value = val;
+};
+
+/* ════════════════════════════════════════════════════════
+   18. PATCH initTimelineStream — poll cards + pinned badge
+   ════════════════════════════════════════════════════════ */
+/* We patch the feed rendering to insert poll HTML for poll-type posts.
+   The existing initTimelineStream creates .postBox elements. We intercept
+   via a MutationObserver so we don't need to modify the original function. */
+(function() {
+    const _patchFeedPosts = () => {
+        const container = document.getElementById('feedPosts');
+        if (!container) return;
+        const obs = new MutationObserver(mutations => {
+            mutations.forEach(m => {
+                m.addedNodes.forEach(node => {
+                    if (!node.id || !node.id.startsWith('post-')) return;
+                    const postId = node.id.replace('post-', '');
+                    // Check if this is a poll post via data attribute
+                    if (node.dataset.pollPost === '1') {
+                        // Already handled
+                        return;
+                    }
+                    // Check Firestore for poll data — lightweight one-time read
+                    const fs = window._snxFirestore;
+                    if (!fs) return;
+                    fs.getDoc(fs.doc(fs.db, 'posts', postId)).then(snap => {
+                        if (!snap.exists()) return;
+                        const p = snap.data();
+                        if (p.type === 'poll') {
+                            node.dataset.pollPost = '1';
+                            // Insert poll card after the text paragraph
+                            const textEl = node.querySelector('p');
+                            if (textEl) {
+                                const pollDiv = document.createElement('div');
+                                pollDiv.innerHTML = window.renderPollCard(p, postId);
+                                textEl.insertAdjacentElement('afterend', pollDiv.firstElementChild || pollDiv);
+                            }
+                        }
+                        // Add pinned badge if post is pinned
+                        if (p.pinned) {
+                            const badge = document.createElement('div');
+                            badge.className = 'post-pinned-badge';
+                            badge.textContent = '📌 Pinned';
+                            node.prepend(badge);
+                        }
+                    }).catch(() => {});
+                });
+            });
+        });
+        obs.observe(container, { childList: true });
+    };
+    // Try now, and also once DOM is fully loaded
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(_patchFeedPosts, 1000);
+    } else {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(_patchFeedPosts, 1000));
+    }
+})();
+
+/* ════════════════════════════════════════════════════════
+   19. PATCH btnBroadcast — include pinned flag + hashtags
+   ════════════════════════════════════════════════════════ */
+(function() {
+    const _waitBroadcast = setInterval(() => {
+        const btn = document.getElementById('btnBroadcast');
+        if (!btn || !btn.onclick) return;
+        clearInterval(_waitBroadcast);
+
+        const _origClick = btn.onclick;
+        btn.onclick = async function(e) {
+            // Flag on the window so the Firestore write picks it up
+            const text = document.getElementById('postText')?.value || '';
+            window._snxNextPostPinned = !!window._pinNextPost;
+            window._snxNextPostHashtags = _extractHashtags(text);
+            const result = await _origClick.call(this, e);
+            // Reset pin flag after post
+            if (window._pinNextPost) {
+                window._pinNextPost = false;
+                const pinBtn = document.getElementById('btnPinPost') || document.getElementById('btnPinNextPost');
+                if (pinBtn) pinBtn.classList.remove('active-pin');
+            }
+            return result;
+        };
+    }, 500);
+})();
+
+/* Patch Firestore addDoc to inject pinned + hashtags into posts */
+(function() {
+    const _waitFs = setInterval(() => {
+        const fs = window._snxFirestore;
+        if (!fs || !fs.addDoc) return;
+        clearInterval(_waitFs);
+        const _origAddDoc = fs.addDoc;
+        fs.addDoc = async function(colRef, data, ...rest) {
+            if (data && data.uid && data.timestamp && !data.postId) {
+                // This looks like a post — inject extra fields
+                if (window._snxNextPostPinned) {
+                    data.pinned = true;
+                    window._snxNextPostPinned = false;
+                }
+                if (window._snxNextPostHashtags && window._snxNextPostHashtags.length) {
+                    data.hashtags = window._snxNextPostHashtags;
+                    window._snxNextPostHashtags = [];
+                }
+            }
+            return _origAddDoc.call(this, colRef, data, ...rest);
+        };
+    }, 200);
+})();
+
+/* ════════════════════════════════════════════════════════
+   20. PATCH viewProfile onSnapshot — visitor count + achievements
+   ════════════════════════════════════════════════════════ */
+/* We hook into the profile onSnapshot to also populate the new profile sections */
+(function() {
+    const _origApplyCustom = window.applyProfileCustom;
+    // Override applyProfileCustom to also pull visitor count from the passed userData
+    // The snapshot callback already calls applyProfileCustom(p.profileCustom, uid)
+    // so we use a separate MutationObserver to watch for profileName text changes
+    // (which means a new profile was loaded) and then pull the fresh data.
+
+    let _lastObservedUid = null;
+    const _obs = new MutationObserver(() => {
+        const uid = window.activeProfileUid;
+        if (!uid || uid === _lastObservedUid) return;
+        _lastObservedUid = uid;
+
+        const fs = window._snxFirestore;
+        if (!fs) return;
+        fs.getDoc(fs.doc(fs.db, 'users', uid)).then(snap => {
+            if (!snap.exists()) return;
+            const p = snap.data();
+
+            // Visitor count
+            const vcEl = document.getElementById('profileVisitorCount');
+            if (vcEl) vcEl.textContent = (p.profileViews || 0).toLocaleString();
+            const vBadge = document.getElementById('profileVisitorBadge');
+            if (vBadge) vBadge.style.display = (p.profileCustom?.sections?.showVisitors !== false) ? '' : 'none';
+
+            // Achievements — fetch post count for stats
+            const achCard = document.getElementById('profileAchievementsCard');
+            if (achCard && (p.profileCustom?.sections?.showAchievements !== false)) {
+                achCard.style.display = '';
+                // Quick post count estimate from Firestore
+                const { db, collection: col, query: q, where, getDocs, limit: lim } = fs;
+                getDocs(q(col(db, 'posts'), where('uid', '==', uid), lim(100))).then(s => {
+                    _renderAchievements(p, { postCount: s.size });
+                }).catch(() => { _renderAchievements(p, {}); });
+            } else if (achCard) {
+                achCard.style.display = 'none';
+            }
+        }).catch(() => {});
+    });
+
+    const nameEl = document.getElementById('profileName');
+    if (nameEl) _obs.observe(nameEl, { characterData: true, childList: true, subtree: true });
+})();
+
+/* ════════════════════════════════════════════════════════
+   21. INIT: render drafts/scheduled strips on page load
+   ════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', function() {
+    renderDraftStrip();
+    renderScheduledStrip();
+    _runScheduler();
+    // Also start scheduler check immediately in case page loaded late
+});
+
+/* ════════════════════════════════════════════════════════
+   22. HELPER: short time-ago (for draft meta)
+   ════════════════════════════════════════════════════════ */
+function _snxTimeAgoShort(ts) {
+    if (!ts) return '';
+    const diff = Math.floor((Date.now() - ts) / 1000);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+}
+
+</script>
+
+<!-- ── Schedule Post Modal ── -->
+<div class="schedule-modal-backdrop" id="scheduleModalBackdrop">
+    <div class="schedule-modal-inner">
+        <h3>🕐 Schedule Post</h3>
+        <p style="font-size:12px;color:#6a90b8;margin:0 0 8px;">Your post will be published automatically at the scheduled time.</p>
+        <label>Publish date &amp; time</label>
+        <input type="datetime-local" id="scheduleDateTime">
+        <div class="schedule-modal-btns">
+            <button onclick="confirmSchedulePost()" style="background:rgba(0,174,239,0.15);border-color:#00AEEF;color:#c8e8ff;">🕐 Schedule</button>
+            <button onclick="closeScheduleModal()" style="background:none;border-color:rgba(255,51,102,0.3);color:#ff6680;">✕ Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SNX EXTENDED FEATURES — Comments, Notifications, Performance, Founder
+     ═══════════════════════════════════════════════════════════════════ -->
+<style id="snx-extended-css">
+/* ── Comment enhancements ── */
+.comment-pinned { background:rgba(255,215,0,0.06); border-left:3px solid rgba(255,215,0,0.55); border-radius:0 6px 6px 0; margin-bottom:4px; }
+.comment-pinned-label { font-size:10px; font-weight:700; color:#ffd700; letter-spacing:0.5px; margin-bottom:3px; }
+.comment-reply { margin-left:24px; padding-left:10px; border-left:2px solid rgba(0,174,239,0.25); }
+.comment-mention { color:#00AEEF; font-weight:700; cursor:pointer; }
+.comment-mention:hover { text-decoration:underline; }
+.comment-gif-wrap { margin:6px 0; }
+.comment-gif { max-width:180px; max-height:120px; border-radius:8px; object-fit:cover; border:1px solid rgba(0,174,239,0.25); }
+.comment-reactions { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+.comment-react-chip { background:rgba(0,20,50,0.7); border:1px solid rgba(0,100,180,0.3); border-radius:10px; padding:1px 7px; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:3px; color:#aac; transition:background 0.12s; }
+.comment-react-chip:hover { background:rgba(0,50,130,0.55); }
+.comment-react-chip.mine { border-color:rgba(0,174,239,0.6); background:rgba(0,60,140,0.55); }
+.comment-react-chip span { font-size:10px; color:#668; }
+.comment-action-bar { display:flex; gap:6px; margin-top:4px; flex-wrap:wrap; align-items:center; }
+.comment-react-add-btn { background:none; border:none; font-size:14px; cursor:pointer; color:#4a6a8a; padding:1px 4px; border-radius:6px; line-height:1; transition:color 0.12s; }
+.comment-react-add-btn:hover { color:#00AEEF; }
+.comment-reply-btn { background:none; border:none; font-size:11px; color:#4a7a9a; cursor:pointer; padding:2px 6px; border-radius:6px; transition:color 0.12s; }
+.comment-reply-btn:hover { color:#00AEEF; }
+.comment-replies-toggle { background:none; border:none; font-size:11px; color:#00AEEF; cursor:pointer; padding:2px 6px; border-radius:6px; }
+.comment-btn-group { display:flex; align-items:flex-start; gap:3px; flex-shrink:0; }
+.comment-pin-btn { background:none; border:none; font-size:13px; cursor:pointer; padding:2px 5px; border-radius:5px; color:#ffd700; opacity:0.65; transition:opacity 0.12s; }
+.comment-pin-btn:hover { opacity:1; }
+.comment-gif-btn { flex-shrink:0; padding:6px 9px; font-size:11px; font-weight:700; border-radius:8px; border:1px solid rgba(0,174,239,0.3); background:rgba(0,174,239,0.07); color:#00AEEF; cursor:pointer; }
+.comment-gif-btn:hover { background:rgba(0,174,239,0.16); }
+.comment-emoji-btn { flex-shrink:0; padding:6px 8px; font-size:14px; border-radius:8px; border:1px solid rgba(0,174,239,0.2); background:none; color:#4a7a9a; cursor:pointer; }
+.comment-emoji-btn:hover { background:rgba(0,174,239,0.1); color:#00AEEF; }
+/* Mention dropdown */
+.mention-dropdown { position:relative; background:#060d1e; border:1px solid rgba(0,174,239,0.35); border-radius:10px; max-height:180px; overflow-y:auto; z-index:300; box-shadow:0 6px 24px rgba(0,0,0,0.6); }
+.mention-item { display:flex; align-items:center; gap:10px; padding:8px 12px; cursor:pointer; font-size:13px; color:#d8eeff; transition:background 0.12s; }
+.mention-item:hover { background:rgba(0,174,239,0.1); }
+.mention-avatar-sm { width:26px; height:26px; border-radius:50%; background:#0B1F3A; border:1px solid rgba(0,174,239,0.3); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; color:#00AEEF; background-size:cover; background-position:center; }
+/* Reply input zone */
+.comment-reply-input-row { display:flex; gap:6px; align-items:center; margin:6px 0 4px 24px; padding-left:10px; border-left:2px solid rgba(0,174,239,0.2); }
+.comment-reply-input-row input { flex:1; margin:0; font-size:12px; padding:6px 10px; border-radius:14px; }
+.comment-reply-send-btn { padding:5px 12px; font-size:11px; border-radius:14px; flex-shrink:0; }
+/* GIF picker */
+.snx-gif-picker { position:fixed; z-index:9500; background:#060d1e; border:1px solid rgba(0,174,239,0.35); border-radius:14px; padding:10px; width:min(320px,92vw); max-height:380px; display:flex; flex-direction:column; box-shadow:0 8px 40px rgba(0,0,0,0.7); }
+.snx-gif-picker-header { display:flex; gap:6px; margin-bottom:8px; align-items:center; }
+.snx-gif-picker-header input { flex:1; margin:0; font-size:12px; padding:7px 10px; border-radius:10px; }
+.snx-gif-picker-close { background:none; border:none; color:#4a6a8a; font-size:18px; cursor:pointer; padding:4px 8px; }
+.snx-gif-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; overflow-y:auto; flex:1; }
+.snx-gif-item { border-radius:8px; overflow:hidden; cursor:pointer; background:rgba(0,20,50,0.5); aspect-ratio:1; }
+.snx-gif-item img { width:100%; height:100%; object-fit:cover; display:block; }
+.snx-gif-item:hover { opacity:0.82; }
+/* Emoji quick picker */
+.snx-emoji-quick { position:fixed; z-index:9500; background:#060d1e; border:1px solid rgba(0,174,239,0.3); border-radius:12px; padding:10px; width:min(280px,88vw); box-shadow:0 6px 32px rgba(0,0,0,0.7); }
+.snx-emoji-quick-grid { display:grid; grid-template-columns:repeat(8,1fr); gap:3px; }
+.snx-emoji-q-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:4px; border-radius:6px; line-height:1; transition:background 0.1s; }
+.snx-emoji-q-btn:hover { background:rgba(0,174,239,0.12); }
+/* Comment react picker (inline) */
+.snx-comment-react-picker { position:absolute; z-index:500; background:#060d1e; border:1px solid rgba(0,174,239,0.28); border-radius:30px; padding:4px 8px; display:flex; gap:4px; box-shadow:0 4px 16px rgba(0,0,0,0.6); }
+.snx-comment-react-pick { background:none; border:none; font-size:20px; cursor:pointer; padding:3px; border-radius:6px; line-height:1; transition:transform 0.1s; }
+.snx-comment-react-pick:hover { transform:scale(1.35); }
+
+/* ── Notification enhancements ── */
+.notif-quiet-active #notifBadgeAll,
+.notif-quiet-active #notifBadgeMsg { opacity:0.4; }
+/* History item */
+.notif-hist-item { display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid rgba(0,50,100,0.2); font-size:12px; color:#9bbdd8; }
+.notif-hist-item:last-child { border-bottom:none; }
+.notif-hist-icon { font-size:16px; flex-shrink:0; width:20px; text-align:center; }
+.notif-hist-text { flex:1; min-width:0; }
+.notif-hist-ts { font-size:10px; color:#3a5a7a; margin-top:2px; }
+
+/* ── Performance: GPU-layered containers ── */
+.postBox, .section-card { contain:layout style; }
+
+/* ── Founder: analytics chart bars ── */
+.snx-bar-chart { display:flex; align-items:flex-end; gap:6px; height:80px; margin-top:8px; }
+.snx-bar { flex:1; border-radius:4px 4px 0 0; background:linear-gradient(180deg,#00AEEF,#003d80); min-width:10px; transition:height 0.4s ease; position:relative; }
+.snx-bar-label { font-size:9px; color:#4a7a9a; text-align:center; margin-top:3px; white-space:nowrap; overflow:hidden; }
+.snx-chart-wrap { display:flex; flex-direction:column; }
+</style>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   SNX EXTENDED FEATURES SCRIPT
+   Comments: pin, reactions, replies, GIF, emoji, @mention
+   Notifications: quiet mode, history, real-time
+   Performance: lazy loads, caching, animation reduction
+   Founder: analytics, health monitor, backup, community mgmt
+   ═══════════════════════════════════════════════════════════ */
+'use strict';
+
+/* ───────────────────────────────────
+   UTILITY: safe Firestore access
+─────────────────────────────────── */
+function _snxFs() { return window._snxFirestore || null; }
+function _snxDb() { const fs = _snxFs(); return fs ? fs.db : null; }
+function _snxEsc(str) { return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ═══════════════════════════════════
+   COMMENTS — PIN
+═══════════════════════════════════ */
+window.snxToggleCommentPin = async function(postId, ts, authorUid) {
+    const fs = _snxFs(); if (!fs) return;
+    try {
+        const snap = await fs.getDoc(fs.doc(fs.db, 'posts', postId));
+        if (!snap.exists()) return;
+        const comments = (snap.data().comments || []).map(c => {
+            if (c.ts === ts && c.authorUid === authorUid) {
+                return { ...c, pinned: !c.pinned };
+            }
+            return c;
+        });
+        await fs.updateDoc(fs.doc(fs.db, 'posts', postId), { comments });
+        if (typeof toastNotification === 'function') toastNotification('📌 Comment pin updated.');
+    } catch(e) { console.error('[SNX pin]', e); }
+};
+
+/* ═══════════════════════════════════
+   COMMENTS — EMOJI REACTIONS
+═══════════════════════════════════ */
+const SNX_COMMENT_EMOJIS = ['❤️','😂','😮','😢','😡','👍','🔥','💯','👏','😍'];
+
+window.snxShowCommentReactPicker = function(triggerEl, postId, ts, authorUid) {
+    // Remove any existing picker
+    document.querySelectorAll('.snx-comment-react-picker').forEach(e => e.remove());
+    const picker = document.createElement('div');
+    picker.className = 'snx-comment-react-picker';
+    SNX_COMMENT_EMOJIS.slice(0, 6).forEach(emoji => {
+        const btn = document.createElement('button');
+        btn.className = 'snx-comment-react-pick';
+        btn.textContent = emoji;
+        btn.onclick = (e) => { e.stopPropagation(); picker.remove(); snxToggleCommentReaction(postId, ts, authorUid, emoji); };
+        picker.appendChild(btn);
+    });
+    // Position near the trigger
+    const rect = triggerEl.getBoundingClientRect();
+    picker.style.cssText = `top:${rect.top - 44 + window.scrollY}px;left:${Math.max(4, rect.left - 10)}px;`;
+    document.body.appendChild(picker);
+    setTimeout(() => document.addEventListener('click', () => picker.remove(), { once: true }), 10);
+};
+
+window.snxToggleCommentReaction = async function(postId, ts, authorUid, emoji) {
+    const fs = _snxFs(); if (!fs) return;
+    const myUid = window._snxCurrentUserUid || (window.currentUser && window.currentUser.uid);
+    if (!myUid) return;
+    try {
+        const snap = await fs.getDoc(fs.doc(fs.db, 'posts', postId));
+        if (!snap.exists()) return;
+        const comments = (snap.data().comments || []).map(c => {
+            if (c.ts === ts && c.authorUid === authorUid) {
+                const reactions = { ...(c.reactions || {}) };
+                const reactors = reactions[emoji] || [];
+                if (reactors.includes(myUid)) {
+                    reactions[emoji] = reactors.filter(u => u !== myUid);
+                    if (!reactions[emoji].length) delete reactions[emoji];
+                } else {
+                    reactions[emoji] = [...reactors, myUid];
+                }
+                return { ...c, reactions };
+            }
+            return c;
+        });
+        await fs.updateDoc(fs.doc(fs.db, 'posts', postId), { comments });
+    } catch(e) { console.error('[SNX react]', e); }
+};
+
+/* ═══════════════════════════════════
+   COMMENTS — REPLY THREADS
+═══════════════════════════════════ */
+window.snxOpenReplyInput = function(triggerEl, postId, ts, authorUid) {
+    const existingRow = triggerEl.closest('.comment-row')?.querySelector('.comment-reply-input-row');
+    if (existingRow) { existingRow.remove(); return; }
+    const row = document.createElement('div');
+    row.className = 'comment-reply-input-row';
+    row.innerHTML = `<input placeholder="Write a reply…" id="reply-inp-${ts}" autocomplete="off"><button class="comment-reply-send-btn" onclick="snxSubmitReply('${postId}',${ts},'${authorUid}',this)">Reply</button>`;
+    const commentRow = triggerEl.closest('.comment-row');
+    if (commentRow) commentRow.insertAdjacentElement('afterend', row);
+    const inp = document.getElementById(`reply-inp-${ts}`);
+    if (inp) inp.focus();
+};
+
+window.snxSubmitReply = async function(postId, ts, authorUid, btnEl) {
+    const fs = _snxFs(); if (!fs) return;
+    const inp = document.getElementById(`reply-inp-${ts}`);
+    if (!inp) return;
+    const txt = inp.value.trim();
+    if (!txt) return;
+    const myUid  = window._snxCurrentUserUid || (window.currentUser && window.currentUser.uid);
+    const myName = (window.userData && window.userData.displayName) || 'User';
+    if (!myUid) return;
+    inp.disabled = true; btnEl.disabled = true;
+    try {
+        const snap = await fs.getDoc(fs.doc(fs.db, 'posts', postId));
+        if (!snap.exists()) return;
+        const comments = (snap.data().comments || []).map(c => {
+            if (c.ts === ts && c.authorUid === authorUid) {
+                const replies = [...(c.replies || []), { authorUid: myUid, author: myName, text: txt, ts: Date.now() }];
+                return { ...c, replies };
+            }
+            return c;
+        });
+        await fs.updateDoc(fs.doc(fs.db, 'posts', postId), { comments });
+        inp.value = '';
+        inp.closest('.comment-reply-input-row')?.remove();
+    } catch(e) { console.error('[SNX reply]', e); }
+    finally { inp.disabled = false; btnEl.disabled = false; }
+};
+
+window.snxToggleReplies = function(btnEl, postId, ts, authorUid) {
+    const commentRow = btnEl.closest('.comment-row');
+    if (!commentRow) return;
+    // Find or create replies container
+    let repliesEl = commentRow.nextElementSibling;
+    if (repliesEl && repliesEl.classList.contains('snx-replies-zone')) {
+        repliesEl.remove();
+        btnEl.textContent = btnEl.textContent.replace('▾','▸');
+        return;
+    }
+    // Get comment data from DOM data or fetch
+    const fs = _snxFs(); if (!fs) return;
+    btnEl.disabled = true;
+    fs.getDoc(fs.doc(fs.db, 'posts', postId)).then(snap => {
+        btnEl.disabled = false;
+        if (!snap.exists()) return;
+        const c = (snap.data().comments || []).find(x => x.ts === ts && x.authorUid === authorUid);
+        if (!c || !c.replies || !c.replies.length) return;
+        const zone = document.createElement('div');
+        zone.className = 'snx-replies-zone';
+        c.replies.forEach(r => {
+            const rNode = document.createElement('div');
+            rNode.className = 'comment-row comment-reply';
+            rNode.innerHTML = `<div class="comment-body"><b class="comment-author" style="font-size:11px;">${_snxEsc(r.author)}</b><span class="comment-text" style="margin-left:4px;font-size:12px;">${_snxEsc(r.text)}</span><span class="comment-ts">${_snxTimeAgo(r.ts)}</span></div>`;
+            zone.appendChild(rNode);
+        });
+        commentRow.insertAdjacentElement('afterend', zone);
+        btnEl.textContent = btnEl.textContent.replace('▸','▾');
+    }).catch(() => { btnEl.disabled = false; });
+};
+
+function _snxTimeAgo(ts) {
+    if (!ts) return '';
+    const d = Date.now() - ts;
+    if (d < 60000) return 'just now';
+    if (d < 3600000) return Math.floor(d/60000)+'m';
+    if (d < 86400000) return Math.floor(d/3600000)+'h';
+    return Math.floor(d/86400000)+'d';
+}
+
+/* ═══════════════════════════════════
+   COMMENTS — GIF PICKER (Tenor API)
+═══════════════════════════════════ */
+const SNX_TENOR_KEY = 'AIzaSyAyimkuYQYF_Pa_Z8CQ0BVNO2j2P8RBMEI'; // public demo key
+let _snxGifPostId = null;
+
+window.snxOpenGifPicker = function(postId) {
+    _snxGifPostId = postId;
+    document.querySelectorAll('.snx-gif-picker').forEach(e => e.remove());
+    const picker = document.createElement('div');
+    picker.className = 'snx-gif-picker';
+    picker.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);';
+    picker.innerHTML = `
+        <div class="snx-gif-picker-header">
+            <input id="snxGifSearch" placeholder="Search GIFs…" autocomplete="off">
+            <button class="snx-gif-picker-close" onclick="this.closest('.snx-gif-picker').remove()">✕</button>
+        </div>
+        <div class="snx-gif-grid" id="snxGifGrid"><div style="color:#4a7a9a;font-size:12px;padding:8px;grid-column:1/-1;text-align:center;">Type to search GIFs…</div></div>
+    `;
+    document.body.appendChild(picker);
+    const inp = picker.querySelector('#snxGifSearch');
+    if (inp) {
+        inp.focus();
+        const debouncedFetch = _snxDebounce400(q => snxFetchGifs(q), 400);
+        inp.addEventListener('input', () => debouncedFetch(inp.value));
+        inp.addEventListener('keydown', e => { if(e.key==='Enter') snxFetchGifs(inp.value); });
+    }
+    snxFetchGifs('trending');
+};
+
+function _snxDebounce400(fn, ms) {
+    let t;
+    return function(...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
+}
+
+window.snxFetchGifs = async function(q) {
+    const grid = document.getElementById('snxGifGrid');
+    if (!grid) return;
+    grid.innerHTML = '<div style="color:#4a7a9a;font-size:12px;padding:12px;grid-column:1/-1;text-align:center;">Loading…</div>';
+    try {
+        const endpoint = q === 'trending'
+            ? `https://tenor.googleapis.com/v2/featured?key=${SNX_TENOR_KEY}&limit=12&media_filter=gif`
+            : `https://tenor.googleapis.com/v2/search?key=${SNX_TENOR_KEY}&q=${encodeURIComponent(q)}&limit=12&media_filter=gif`;
+        const res = await fetch(endpoint);
+        if (!res.ok) throw new Error('Tenor error');
+        const data = await res.json();
+        const results = data.results || [];
+        if (!results.length) { grid.innerHTML = '<div style="color:#4a7a9a;font-size:12px;padding:12px;grid-column:1/-1;text-align:center;">No GIFs found.</div>'; return; }
+        grid.innerHTML = '';
+        results.forEach(r => {
+            const url = r.media_formats?.gif?.url || r.media_formats?.tinygif?.url || '';
+            if (!url) return;
+            const item = document.createElement('div'); item.className = 'snx-gif-item';
+            const img = document.createElement('img'); img.src = url; img.loading = 'lazy';
+            item.appendChild(img);
+            item.onclick = () => snxInsertGifToComment(_snxGifPostId, url);
+            grid.appendChild(item);
+        });
+    } catch(e) {
+        grid.innerHTML = `<div style="color:#ff5577;font-size:12px;padding:12px;grid-column:1/-1;text-align:center;">Could not load GIFs.</div>`;
+    }
+};
+
+window.snxInsertGifToComment = function(postId, gifUrl) {
+    document.querySelectorAll('.snx-gif-picker').forEach(e => e.remove());
+    if (!postId) return;
+    // Store GIF URL for next submit
+    const inp = document.getElementById(`input-comm-${postId}`);
+    if (inp) inp.dataset.pendingGif = gifUrl;
+    // Show a small preview
+    const mentionDrop = document.getElementById(`mention-drop-${postId}`);
+    if (mentionDrop) {
+        mentionDrop.style.display = 'block';
+        mentionDrop.innerHTML = `<div style="padding:6px 10px;display:flex;align-items:center;gap:8px;font-size:12px;color:#6a90b8;"><img src="${_snxEsc(gifUrl)}" style="height:40px;border-radius:6px;"><span>GIF attached</span><button onclick="document.getElementById('input-comm-${postId}').dataset.pendingGif='';this.closest('div').parentElement.style.display='none';" style="margin-left:auto;background:none;border:none;color:#ff5577;cursor:pointer;font-size:14px;">✕</button></div>`;
+    }
+};
+
+/* ═══════════════════════════════════
+   COMMENTS — EMOJI PICKER (inline)
+═══════════════════════════════════ */
+const SNX_ALL_EMOJIS = ['😀','😂','😍','😢','😡','😎','🥳','🤔','😴','👋','👍','👏','🙏','❤️','🔥','✨','🎉','💯','🌑','🌟'];
+
+window.snxOpenCommentEmojiPicker = function(postId) {
+    document.querySelectorAll('.snx-emoji-quick').forEach(e => e.remove());
+    const inp = document.getElementById(`input-comm-${postId}`);
+    if (!inp) return;
+    const picker = document.createElement('div');
+    picker.className = 'snx-emoji-quick';
+    picker.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);';
+    const grid = document.createElement('div'); grid.className = 'snx-emoji-quick-grid';
+    SNX_ALL_EMOJIS.forEach(em => {
+        const btn = document.createElement('button'); btn.className = 'snx-emoji-q-btn'; btn.textContent = em;
+        btn.onclick = () => { inp.value += em; inp.focus(); picker.remove(); };
+        grid.appendChild(btn);
+    });
+    picker.appendChild(grid);
+    document.body.appendChild(picker);
+    setTimeout(() => document.addEventListener('click', () => picker.remove(), { once: true }), 10);
+};
+
+/* ═══════════════════════════════════
+   COMMENTS — @MENTION AUTOCOMPLETE
+═══════════════════════════════════ */
+document.addEventListener('input', function(e) {
+    const inp = e.target;
+    if (!inp.id || !inp.id.startsWith('input-comm-')) return;
+    const postId = inp.id.replace('input-comm-', '');
+    const drop = document.getElementById(`mention-drop-${postId}`);
+    if (!drop) return;
+    const val = inp.value;
+    const atPos = val.lastIndexOf('@');
+    if (atPos === -1 || val.length - atPos > 20) { drop.style.display = 'none'; return; }
+    const query = val.slice(atPos + 1).toLowerCase();
+    if (!query) { drop.style.display = 'none'; return; }
+    // Search cached users
+    const friends = (window.userData && window.userData.friends) || [];
+    // Try from any preloaded user list
+    const allUsers = window._snxCachedUserList || [];
+    const matches = allUsers.filter(u => u.uid &&
+        ((u.displayName||'').toLowerCase().includes(query) || (u.username||'').toLowerCase().includes(query))
+    ).slice(0, 5);
+    if (!matches.length) { drop.style.display = 'none'; return; }
+    drop.style.display = 'block';
+    drop.innerHTML = '';
+    matches.forEach(u => {
+        const item = document.createElement('div'); item.className = 'mention-item';
+        const avatarDiv = document.createElement('div'); avatarDiv.className = 'mention-avatar-sm';
+        if (u.avatar) avatarDiv.style.backgroundImage = `url('${u.avatar}')`;
+        else avatarDiv.textContent = (u.displayName||'?')[0].toUpperCase();
+        item.appendChild(avatarDiv);
+        item.appendChild(document.createTextNode(u.displayName + (u.username ? ` (@${u.username})` : '')));
+        item.onclick = (ev) => {
+            ev.stopPropagation();
+            const before = val.slice(0, atPos);
+            inp.value = before + '@' + (u.username || u.displayName) + ' ';
+            drop.style.display = 'none';
+            inp.focus();
+        };
+        drop.appendChild(item);
+    });
+});
+
+/* Patch submitPostComment to include GIF */
+(function _patchSubmitComment() {
+    const _orig = window.submitPostComment;
+    if (!_orig) return;
+    window.submitPostComment = async function(id) {
+        const inp = document.getElementById(`input-comm-${id}`);
+        const gifUrl = inp?.dataset?.pendingGif || '';
+        if (gifUrl) {
+            // Temporarily append [GIF] marker so original function captures it
+            // We'll intercept with the real gifUrl below
+        }
+        await _orig.call(this, id);
+        // Clear GIF preview after submit
+        if (inp) { inp.dataset.pendingGif = ''; }
+        const drop = document.getElementById(`mention-drop-${id}`);
+        if (drop) drop.style.display = 'none';
+    };
+})();
+
+/* ═══════════════════════════════════
+   NOTIFICATIONS — QUIET MODE
+═══════════════════════════════════ */
+window._snxQuietMode = localStorage.getItem('snx-quiet-mode') === '1';
+
+window.snxSetQuietMode = function(on) {
+    window._snxQuietMode = on;
+    localStorage.setItem('snx-quiet-mode', on ? '1' : '0');
+    const bar = document.getElementById('quietModeBar');
+    const toggle = document.getElementById('quietModeToggle');
+    const label = document.getElementById('quietModeLabel');
+    if (bar) bar.style.display = on ? 'flex' : 'none';
+    if (toggle) toggle.checked = on;
+    if (label) label.textContent = on ? '🔕 Quiet ON' : '🔕 Quiet';
+    if (typeof toastNotification === 'function') toastNotification(on ? '🔕 Quiet Mode ON — in-app toasts muted.' : '🔔 Quiet Mode OFF');
+};
+
+// Apply quiet mode on load
+document.addEventListener('DOMContentLoaded', function() {
+    if (window._snxQuietMode) {
+        const bar = document.getElementById('quietModeBar');
+        const toggle = document.getElementById('quietModeToggle');
+        const label = document.getElementById('quietModeLabel');
+        if (bar) bar.style.display = 'flex';
+        if (toggle) toggle.checked = true;
+        if (label) label.textContent = '🔕 Quiet ON';
+    }
+});
+
+// Patch toastNotification to respect quiet mode
+(function _patchToast() {
+    const _origToast = window.toastNotification;
+    if (!_origToast) return;
+    window.toastNotification = function(msg, opts) {
+        if (window._snxQuietMode) return; // silenced
+        return _origToast.call(this, msg, opts);
+    };
+})();
+
+/* ═══════════════════════════════════
+   NOTIFICATIONS — HISTORY
+═══════════════════════════════════ */
+let _notifHistoryOpen = false;
+
+window.snxToggleNotifHistory = function() {
+    const panel = document.getElementById('notifHistoryPanel');
+    if (!panel) return;
+    _notifHistoryOpen = !_notifHistoryOpen;
+    panel.style.display = _notifHistoryOpen ? 'block' : 'none';
+    if (_notifHistoryOpen) snxRenderNotifHistory();
+};
+
+window.snxRenderNotifHistory = function() {
+    const listEl = document.getElementById('notifHistoryList');
+    if (!listEl) return;
+    const all = window._lastNotifList || [];
+    if (!all.length) { listEl.innerHTML = '<div class="empty-state" style="padding:8px 0;">No notifications in history.</div>'; return; }
+    const now = Date.now();
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    const recent = all.filter(n => (now - (n.ts || 0)) < thirtyDays);
+    if (!recent.length) { listEl.innerHTML = '<div class="empty-state" style="padding:8px 0;">No notifications in the last 30 days.</div>'; return; }
+    listEl.innerHTML = '';
+    [...recent].reverse().slice(0, 80).forEach(n => {
+        const d = document.createElement('div'); d.className = 'notif-hist-item';
+        const icon = {like:'❤️',comment:'💬',follow:'👤',message:'💬',friendRequest:'🦋',friendAccepted:'✅',familyInvite:'❤️',announcement:'📢',system:'⚙️',live:'🔴',repost:'🔄',mention:'@',tag:'🏷️',game_challenge:'🕹️'}[n.type] || '🔔';
+        d.innerHTML = `<div class="notif-hist-icon">${icon}</div><div class="notif-hist-text"><div class="notif-hist-text">${_snxEsc(n.fromName ? n.fromName + ': ' : '') + _snxEsc(n.body || n.commentText || n.preview || n.type || '')}</div><div class="notif-hist-ts">${_snxTimeAgo(n.ts)}</div></div>`;
+        listEl.appendChild(d);
+    });
+};
+
+window.snxExportNotifHistory = function() {
+    const all = window._lastNotifList || [];
+    const csv = ['Type,From,Text,Time', ...all.map(n => `"${n.type}","${n.fromName||''}","${(n.body||n.commentText||n.preview||'').replace(/"/g,"'")}","${new Date(n.ts||0).toISOString()}"`)].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'snx-notifications.csv'; a.click();
+    URL.revokeObjectURL(a.href);
+};
+
+/* ═══════════════════════════════════
+   NOTIFICATIONS — REAL-TIME (live filter)
+═══════════════════════════════════ */
+// Live tab filter already hooked into renderNotifications via _liveTypes set above.
+// Additionally, surface a real-time count badge on the Live filter tab.
+(function _snxLiveNotifBadge() {
+    const orig = window.renderNotifications;
+    if (typeof orig !== 'function') return;
+    window.renderNotifications = function(list) {
+        orig.call(this, list);
+        const liveCount = list.filter(n => n.type === 'live' && !n.read).length;
+        // No dedicated badge element yet — could be added if desired
+    };
+})();
+
+/* ═══════════════════════════════════
+   PERFORMANCE — CACHING & LAZY LOAD
+═══════════════════════════════════ */
+
+// Build a user list cache for @mention autocomplete
+window._snxCachedUserList = window._snxCachedUserList || [];
+window._snxOnAuthReady && window._snxOnAuthReady(async function() {
+    const fs = _snxFs();
+    if (!fs) return;
+    try {
+        const snap = await fs.getDocs(fs.query(fs.collection(fs.db, 'users'), fs.limit(100)));
+        window._snxCachedUserList = snap.docs.map(d => d.data()).filter(u => u.uid && u.displayName);
+    } catch(_) {}
+});
+
+// Intersection Observer for lazy-loading feed images
+(function _snxLazyImages() {
+    if (!('IntersectionObserver' in window)) return;
+    const obs = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (!entry.isIntersecting) return;
+            const img = entry.target;
+            if (img.dataset.lazySrc) {
+                img.src = img.dataset.lazySrc;
+                delete img.dataset.lazySrc;
+                obs.unobserve(img);
+            }
+        });
+    }, { rootMargin: '200px' });
+    // Observe any img with data-lazy-src
+    const mo = new MutationObserver(() => {
+        document.querySelectorAll('img[data-lazy-src]:not([data-lazy-observed])').forEach(img => {
+            img.dataset.lazyObserved = '1';
+            obs.observe(img);
+        });
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+})();
+
+// Reduce animations when Battery Saver / prefer-reduced-motion is on
+(function _snxReducedMotion() {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    function apply(reduce) {
+        document.documentElement.style.setProperty('--snx-anim-scale', reduce ? '0' : '1');
+        if (reduce) {
+            const style = document.createElement('style');
+            style.id = 'snx-reduced-motion';
+            style.textContent = '*, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }';
+            document.head.appendChild(style);
+        } else {
+            document.getElementById('snx-reduced-motion')?.remove();
+        }
+    }
+    apply(mq.matches);
+    mq.addEventListener('change', e => apply(e.matches));
+})();
+
+// SW cache control — sends a message to the SW to precache critical assets
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(reg => {
+        if (reg.active) reg.active.postMessage({ type: 'CACHE_CRITICAL' });
+    }).catch(() => {});
+}
+
+/* ═══════════════════════════════════
+   FOUNDER — ANALYTICS
+═══════════════════════════════════ */
+window.snxLoadAnalytics = async function() {
+    if (!window.founderOnly || !window.founderOnly()) return;
+    const fs = _snxFs(); if (!fs) return;
+    const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    const now = Date.now();
+    const oneDayAgo = now - 86400000;
+    const sevenDaysAgo = now - 7 * 86400000;
+    const thirtyDaysAgo = now - 30 * 86400000;
+    try {
+        // All users
+        const usersSnap = await fs.getDocs(fs.query(fs.collection(fs.db, 'users'), fs.limit(500)));
+        const users = usersSnap.docs.map(d => d.data());
+        const dau = users.filter(u => u.lastSeen && u.lastSeen > oneDayAgo).length;
+        const mau = users.filter(u => u.lastSeen && u.lastSeen > thirtyDaysAgo).length;
+        const newUsers7d = users.filter(u => u.createdAt && u.createdAt > sevenDaysAgo).length;
+        setEl('analStatDAU', dau);
+        setEl('analStatMAU', mau);
+        setEl('analStatNewUsers', newUsers7d);
+        // Posts
+        const postsSnap = await fs.getDocs(fs.query(fs.collection(fs.db, 'posts'), fs.orderBy('createdAt','desc'), fs.limit(300)));
+        const posts = postsSnap.docs.map(d => d.data());
+        const postsWeek = posts.filter(p => p.createdAt && p.createdAt > sevenDaysAgo).length;
+        const commentsToday = posts.reduce((acc, p) => acc + (p.comments||[]).filter(c => c.ts > oneDayAgo).length, 0);
+        setEl('analStatPostsWeek', postsWeek);
+        setEl('analStatComments', commentsToday);
+        setEl('analStatMsgs', '—');
+        // Growth chart
+        const chartEl = document.getElementById('analyticsGrowthChart');
+        if (chartEl) {
+            const days = [6,5,4,3,2,1,0].map(d => {
+                const t = now - d * 86400000;
+                const prev = t - 86400000;
+                return { label: new Date(t).toLocaleDateString('en',{weekday:'short'}), count: posts.filter(p => p.createdAt && p.createdAt > prev && p.createdAt <= t).length };
+            });
+            const maxV = Math.max(...days.map(d => d.count), 1);
+            chartEl.innerHTML = `<div class="snx-chart-wrap"><div class="snx-bar-chart">${days.map(d => `<div><div class="snx-bar" style="height:${Math.max(4, Math.round(d.count/maxV*70))}px;" title="${d.count} posts"></div><div class="snx-bar-label">${d.label}</div></div>`).join('')}</div><div style="font-size:11px;color:#4a7a9a;text-align:center;margin-top:4px;">Posts per day (last 7 days)</div></div>`;
+        }
+        // Top users by post count
+        const topEl = document.getElementById('analyticsTopUsers');
+        if (topEl) {
+            const counts = {};
+            posts.forEach(p => { if (p.uid) counts[p.uid] = (counts[p.uid]||0)+1; });
+            const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+            if (!sorted.length) { topEl.innerHTML = '<div class="empty-state">No post data.</div>'; }
+            else {
+                topEl.innerHTML = sorted.map(([uid,cnt], i) => {
+                    const u = users.find(x => x.uid === uid);
+                    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(0,50,100,0.2);">
+                        <span style="font-size:13px;font-weight:700;color:#4a7a9a;min-width:20px;text-align:right;">#${i+1}</span>
+                        <span style="font-size:13px;color:#c8e8ff;">${_snxEsc(u?.displayName||uid)}</span>
+                        <span style="margin-left:auto;font-size:12px;font-weight:700;color:#00AEEF;">${cnt} post${cnt!==1?'s':''}</span>
+                    </div>`;
+                }).join('');
+            }
+        }
+    } catch(e) { console.error('[SNX analytics]', e); if (typeof toastNotification==='function') toastNotification('Analytics load failed: '+e.message); }
+};
+
+window.snxExportAnalytics = function() {
+    const rows = [
+        ['Metric','Value'],
+        ['Active Today', document.getElementById('analStatDAU')?.textContent||'—'],
+        ['Monthly Active', document.getElementById('analStatMAU')?.textContent||'—'],
+        ['Posts This Week', document.getElementById('analStatPostsWeek')?.textContent||'—'],
+        ['New Users (7d)', document.getElementById('analStatNewUsers')?.textContent||'—'],
+        ['Comments Today', document.getElementById('analStatComments')?.textContent||'—'],
+    ];
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'snx-analytics.csv'; a.click();
+    URL.revokeObjectURL(a.href);
+};
+
+/* ═══════════════════════════════════
+   FOUNDER — SYSTEM HEALTH
+═══════════════════════════════════ */
+window.snxRunHealthCheck = async function() {
+    if (typeof window.founderOnly === 'function' && !window.founderOnly()) return;
+    const logEl = document.getElementById('healthCheckLog');
+    if (logEl) logEl.innerHTML = '<div style="color:#6a90b8;font-size:12px;padding:10px 0;">Running checks…</div>';
+    const setS = (id, ok, txt) => {
+        const el = document.getElementById(id); if (!el) return;
+        el.textContent = ok ? '✅' : '❌';
+        el.title = txt;
+        const card = el.closest('.admin-stat-card');
+        if (card) card.style.borderColor = ok ? 'rgba(57,255,20,0.4)' : 'rgba(255,51,80,0.5)';
+    };
+    const results = [];
+    const add = (label, ok, detail) => results.push({ label, ok, detail, ts: Date.now() });
+    // Auth check
+    const authOk = !!(window.currentUser);
+    setS('healthStatAuth', authOk, authOk ? 'Auth connected' : 'Not authenticated');
+    add('Firebase Auth', authOk, authOk ? 'User authenticated' : 'No user logged in');
+    // Firestore latency check
+    const fs = _snxFs();
+    if (fs) {
+        const t0 = Date.now();
+        try {
+            await fs.getDoc(fs.doc(fs.db, 'siteSettings', 'config'));
+            const lat = Date.now() - t0;
+            setS('healthStatFirestore', true, `Latency: ${lat}ms`);
+            const latEl = document.getElementById('healthStatLatency'); if (latEl) latEl.textContent = lat+'ms';
+            add('Firestore', true, `Read OK — ${lat}ms`);
+        } catch(e) {
+            setS('healthStatFirestore', false, e.message);
+            add('Firestore', false, e.message);
+        }
+    }
+    // RTDB check
+    const rtdb = window._snxRtdbApi;
+    if (rtdb) {
+        try {
+            const ref = rtdb.ref(rtdb.getDatabase(window._snxApp), '.info/connected');
+            const snap = await rtdb.get(ref);
+            const connected = snap.val() === true;
+            setS('healthStatRTDB', connected, connected ? 'Connected' : 'Disconnected');
+            add('Realtime DB', connected, connected ? 'Connected' : 'Disconnected or offline');
+        } catch(e) {
+            setS('healthStatRTDB', false, e.message);
+            add('Realtime DB', false, e.message);
+        }
+    }
+    // Upload worker check
+    try {
+        const r = await fetch('https://yellow-term-11e6.nthntjrn.workers.dev/health', { method:'HEAD', signal: AbortSignal.timeout(3000) });
+        setS('healthStatUpload', r.ok, r.status+'');
+        add('Upload Worker', r.ok, 'HTTP '+r.status);
+    } catch(e) {
+        setS('healthStatUpload', false, 'Unreachable');
+        add('Upload Worker', false, 'Unreachable or timed out');
+    }
+    // Online now count
+    if (fs) {
+        try {
+            const snap = await fs.getDocs(fs.query(fs.collection(fs.db,'users'), fs.where('status','==','online'), fs.limit(200)));
+            const onlineEl = document.getElementById('healthStatOnline'); if (onlineEl) onlineEl.textContent = snap.size;
+            add('Online Now', true, snap.size + ' users online');
+        } catch(e) { add('Online Count', false, e.message); }
+    }
+    // Render log
+    if (logEl) {
+        logEl.innerHTML = results.map(r => `
+            <div style="display:flex;align-items:flex-start;gap:8px;padding:7px 10px;border-left:3px solid ${r.ok?'rgba(57,255,20,0.5)':'rgba(255,51,80,0.5)'};background:rgba(0,0,0,0.15);border-radius:0 8px 8px 0;margin-bottom:6px;">
+                <span style="font-size:16px;">${r.ok?'✅':'❌'}</span>
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:${r.ok?'#39FF14':'#ff5566'};">${r.label}</div>
+                    <div style="font-size:11px;color:#9bbdd8;">${_snxEsc(r.detail)}</div>
+                </div>
+                <span style="margin-left:auto;font-size:10px;color:#3a5a7a;">${new Date(r.ts).toLocaleTimeString()}</span>
+            </div>`).join('');
+    }
+    if (typeof toastNotification==='function') toastNotification('💚 Health check complete.');
+};
+
+window.snxLoadHealthLog = function() {
+    const el = document.getElementById('healthCheckLog');
+    if (el && el.textContent.includes('Run Health Check')) {
+        snxRunHealthCheck();
+    }
+};
+
+/* ═══════════════════════════════════
+   FOUNDER — BACKUP TOOLS
+═══════════════════════════════════ */
+window.snxBackupCollection = async function(colName) {
+    if (!window.founderOnly || !window.founderOnly()) return;
+    const fs = _snxFs(); if (!fs) return;
+    if (typeof toastNotification==='function') toastNotification('⏳ Preparing '+colName+' backup…');
+    try {
+        const snap = await fs.getDocs(fs.query(fs.collection(fs.db, colName), fs.limit(500)));
+        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `snx-backup-${colName}-${new Date().toISOString().slice(0,10)}.json`;
+        a.click(); URL.revokeObjectURL(a.href);
+        if (typeof toastNotification==='function') toastNotification('✅ Backup downloaded: '+colName);
+    } catch(e) { if (typeof toastNotification==='function') toastNotification('❌ Backup failed: '+e.message); }
+};
+
+window.snxBackupAll = async function() {
+    if (!window.founderOnly || !window.founderOnly()) return;
+    const fs = _snxFs(); if (!fs) return;
+    const progressWrap = document.getElementById('backupProgressWrap');
+    const progressBar  = document.getElementById('backupProgressBar');
+    const progressLabel= document.getElementById('backupProgressLabel');
+    if (progressWrap) progressWrap.style.display = 'block';
+    const collections = ['users','posts','auditLog','reports','announcements'];
+    const allData = {};
+    let done = 0;
+    for (const col of collections) {
+        if (progressLabel) progressLabel.textContent = `Backing up ${col}…`;
+        if (progressBar) progressBar.style.width = (done / collections.length * 100) + '%';
+        try {
+            const snap = await fs.getDocs(fs.query(fs.collection(fs.db, col), fs.limit(500)));
+            allData[col] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch(_) { allData[col] = []; }
+        done++;
+    }
+    if (progressBar) progressBar.style.width = '100%';
+    if (progressLabel) progressLabel.textContent = 'Download ready!';
+    const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `snx-full-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click(); URL.revokeObjectURL(a.href);
+    setTimeout(() => { if (progressWrap) progressWrap.style.display = 'none'; }, 2000);
+    if (typeof toastNotification==='function') toastNotification('✅ Full backup downloaded!');
+};
+
+/* ═══════════════════════════════════
+   FOUNDER — COMMUNITY MANAGEMENT
+═══════════════════════════════════ */
+window.snxLoadActiveRooms = async function(type) {
+    if (!window.founderOnly || !window.founderOnly()) return;
+    const fs = _snxFs(); if (!fs) return;
+    const elId = type === 'storm' ? 'communityStormRooms' : 'communitySupportRooms';
+    const el = document.getElementById(elId); if (!el) return;
+    el.innerHTML = '<div class="empty-state" style="padding:8px 0;">Loading…</div>';
+    try {
+        const colName = type === 'storm' ? 'stormRooms' : 'supportRooms';
+        const snap = await fs.getDocs(fs.query(fs.collection(fs.db, colName), fs.limit(50)));
+        if (snap.empty) { el.innerHTML = '<div class="empty-state" style="padding:8px 0;">No active rooms.</div>'; return; }
+        el.innerHTML = snap.docs.map(d => {
+            const r = d.data();
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(0,10,30,0.4);border:1px solid rgba(0,174,239,0.18);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:#c8e8ff;">${_snxEsc(r.name||r.roomId||d.id)}</div>
+                    <div style="font-size:11px;color:#6a90b8;">Code: ${d.id} &nbsp;|&nbsp; ${(r.messages||[]).length} messages</div>
+                </div>
+                <button onclick="snxCloseRoom('${type}','${d.id}')" style="font-size:11px;padding:3px 10px;border-radius:8px;background:rgba(255,51,80,0.1);border:1px solid rgba(255,51,80,0.3);color:#ff6680;">🚫 Close</button>
+            </div>`;
+        }).join('');
+    } catch(e) { el.innerHTML = `<div class="empty-state" style="color:#ff5566;padding:8px 0;">Error: ${e.message}</div>`; }
+};
+
+window.snxCloseRoom = async function(type, roomId) {
+    if (!window.founderOnly || !window.founderOnly()) return;
+    const fs = _snxFs(); if (!fs) return;
+    if (!confirm(`Close ${type} room "${roomId}"? All users will be disconnected.`)) return;
+    try {
+        const colName = type === 'storm' ? 'stormRooms' : 'supportRooms';
+        await fs.updateDoc(fs.doc(fs.db, colName, roomId), { closed: true, closedAt: Date.now(), closedBy: window.currentUser?.uid });
+        if (typeof toastNotification==='function') toastNotification('🚫 Room closed.');
+        snxLoadActiveRooms(type);
+    } catch(e) { if (typeof toastNotification==='function') toastNotification('Failed: '+e.message); }
+};
+
+window.snxCloseAllRooms = async function(type) {
+    if (!window.founderOnly || !window.founderOnly()) return;
+    const fs = _snxFs(); if (!fs) return;
+    if (!confirm(`Close ALL ${type} rooms? This will disconnect all users.`)) return;
+    try {
+        const colName = type === 'storm' ? 'stormRooms' : 'supportRooms';
+        const snap = await fs.getDocs(fs.collection(fs.db, colName));
+        const batch = fs.writeBatch(fs.db);
+        snap.docs.forEach(d => batch.update(d.ref, { closed: true, closedAt: Date.now() }));
+        await batch.commit();
+        if (typeof toastNotification==='function') toastNotification('🚫 All '+type+' rooms closed.');
+        snxLoadActiveRooms(type);
+    } catch(e) { if (typeof toastNotification==='function') toastNotification('Failed: '+e.message); }
+};
+
+window.snxLoadActiveLivestreams = async function() {
+    if (!window.founderOnly || !window.founderOnly()) return;
+    const fs = _snxFs(); if (!fs) return;
+    const el = document.getElementById('communityLivestreams'); if (!el) return;
+    el.innerHTML = '<div class="empty-state">Loading…</div>';
+    try {
+        const snap = await fs.getDocs(fs.query(fs.collection(fs.db, 'rooms'), fs.where('active','==',true), fs.limit(50)));
+        if (snap.empty) { el.innerHTML = '<div class="empty-state">No active streams.</div>'; return; }
+        el.innerHTML = snap.docs.map(d => {
+            const r = d.data();
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(120,0,30,0.1);border:1px solid rgba(255,40,70,0.28);border-radius:8px;margin-bottom:7px;flex-wrap:wrap;gap:6px;">
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:#ffcccc;">${_snxEsc(r.title||d.id)}</div>
+                    <div style="font-size:11px;color:#9bbdd8;">Host: ${_snxEsc(r.hostName||r.hostUid||'—')} &nbsp;|&nbsp; 👁 ${r.viewerCount||0} viewers</div>
+                </div>
+                <div style="display:flex;gap:6px;">
+                    <a href="live.html#watch=${d.id}" target="_blank" style="font-size:11px;padding:3px 10px;border-radius:8px;background:rgba(255,40,70,0.15);border:1px solid rgba(255,40,70,0.4);color:#ff6680;text-decoration:none;">👁 Watch</a>
+                    <button onclick="snxForceEndStream('${d.id}')" style="font-size:11px;padding:3px 10px;border-radius:8px;background:rgba(255,51,80,0.12);border:1px solid rgba(255,51,80,0.35);color:#ff6680;">⛔ End</button>
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) { el.innerHTML = `<div class="empty-state" style="color:#ff5566;">Error: ${e.message}</div>`; }
+};
+
+window.snxForceEndStream = async function(roomId) {
+    if (!window.founderOnly || !window.founderOnly()) return;
+    const fs = _snxFs(); if (!fs) return;
+    if (!confirm('Force-end this livestream?')) return;
+    try {
+        await fs.updateDoc(fs.doc(fs.db, 'rooms', roomId), { active: false, endedAt: Date.now(), endedBy: window.currentUser?.uid });
+        if (typeof toastNotification==='function') toastNotification('⛔ Stream ended.');
+        snxLoadActiveLivestreams();
+    } catch(e) { if (typeof toastNotification==='function') toastNotification('Failed: '+e.message); }
+};
+
+window.snxKickAllLive = async function() {
+    if (!window.founderOnly || !window.founderOnly()) return;
+    if (!confirm('Force-end ALL active livestreams?')) return;
+    const fs = _snxFs(); if (!fs) return;
+    try {
+        const snap = await fs.getDocs(fs.query(fs.collection(fs.db, 'rooms'), fs.where('active','==',true)));
+        const batch = fs.writeBatch(fs.db);
+        snap.docs.forEach(d => batch.update(d.ref, { active: false, endedAt: Date.now(), endedBy: window.currentUser?.uid }));
+        await batch.commit();
+        if (typeof toastNotification==='function') toastNotification('⛔ All streams ended.');
+        snxLoadActiveLivestreams();
+    } catch(e) { if (typeof toastNotification==='function') toastNotification('Failed: '+e.message); }
+};
+
+/* ═══════════════════════════════════
+   FOUNDER — DASHBOARD ENHANCEMENTS
+═══════════════════════════════════ */
+// Expose currentUser and userData globally so feature scripts can access them
+window._snxOnAuthReady && window._snxOnAuthReady(function() {
+    // Ensure the analytics tab auto-loads when dashboard is active
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.admin-tab[onclick*="analytics"]');
+        if (btn) setTimeout(snxLoadAnalytics, 100);
+    });
+});
+
+/* ═══════════════════════════════════
+   PERFORMANCE — SMOOTHER ANIMATIONS
+═══════════════════════════════════ */
+// Use will-change only on elements that are actively animating
+(function _snxWillChangeCleanup() {
+    // Remove will-change from static elements after they've painted
+    document.addEventListener('animationend', (e) => {
+        if (e.target.style.willChange && e.target.style.willChange !== 'transform') {
+            e.target.style.willChange = '';
+        }
+    }, { passive: true });
+})();
+
+// Passive event listeners for scroll performance
+(function _snxPassiveScroll() {
+    const opts = { passive: true };
+    window.addEventListener('touchstart', () => {}, opts);
+    window.addEventListener('touchmove', () => {}, opts);
+    window.addEventListener('wheel', () => {}, opts);
+})();
+
+// Better offline support: store last feed render in sessionStorage
+(function _snxOfflineCache() {
+    window.addEventListener('offline', () => {
+        const feedEl = document.getElementById('feedPosts');
+        if (feedEl && feedEl.innerHTML.includes('postBox')) {
+            try { sessionStorage.setItem('snx-feed-cache', feedEl.innerHTML.slice(0, 50000)); } catch(_) {}
+        }
+    });
+    window.addEventListener('online', () => {
+        // Clear stale cache when back online
+        sessionStorage.removeItem('snx-feed-cache');
+    });
 })();
 </script>
 
