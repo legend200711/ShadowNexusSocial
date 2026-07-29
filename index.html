@@ -989,6 +989,73 @@ input:focus, textarea:focus, select:focus {
 .social-list-handle{ font-size:12px; color:#6a90b8; }
 .social-list-empty { padding:30px; text-align:center; color:#334; font-size:13px; }
 
+/* ── Profile inline social panel (followers / following / friends) ── */
+.profile-social-panel {
+    width:100%; margin:14px 0 10px;
+    background:#060d1e; border:1px solid rgba(0,174,239,0.28);
+    border-radius:14px; overflow:hidden;
+    box-shadow:0 0 32px rgba(0,80,200,0.15);
+    animation:deleteModalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.psp-header {
+    display:flex; align-items:center; gap:8px;
+    padding:12px 16px 10px; border-bottom:1px solid rgba(0,174,239,0.14);
+    flex-wrap:nowrap;
+}
+.psp-title  { font-size:15px; font-weight:700; color:#fff; flex:1; min-width:0; }
+.psp-count  { font-size:13px; color:#3a7abf; flex-shrink:0; }
+.psp-close  {
+    background:rgba(0,174,239,0.07); border:1px solid rgba(0,174,239,0.25);
+    color:#00AEEF; font-size:12px; font-weight:600; border-radius:20px;
+    padding:4px 12px; cursor:pointer; flex-shrink:0; transition:background 0.15s;
+}
+.psp-close:hover { background:rgba(0,174,239,0.18); }
+.psp-search-wrap { padding:10px 14px 6px; }
+.psp-search {
+    width:100%; box-sizing:border-box; background:rgba(0,20,50,0.6);
+    border:1px solid rgba(0,174,239,0.22); border-radius:20px;
+    color:#d8eeff; font-size:13px; padding:7px 14px; outline:none;
+    transition:border-color 0.15s;
+}
+.psp-search:focus { border-color:rgba(0,174,239,0.6); }
+.psp-search::placeholder { color:#3a5a7a; }
+.psp-list   {
+    max-height:320px; overflow-y:auto; padding:6px 0;
+    -webkit-overflow-scrolling:touch;
+    contain:strict;
+}
+.psp-list::-webkit-scrollbar { width:4px; }
+.psp-list::-webkit-scrollbar-thumb { background:rgba(0,174,239,0.3); border-radius:2px; }
+.psp-item   {
+    display:flex; align-items:center; gap:12px;
+    padding:9px 16px; cursor:pointer; transition:background 0.13s;
+}
+.psp-item:hover { background:rgba(0,174,239,0.09); }
+.psp-avatar-wrap { position:relative; flex-shrink:0; }
+.psp-avatar {
+    width:40px; height:40px; border-radius:50%;
+    background:#0B1F3A; background-size:cover; background-position:center;
+    border:2px solid rgba(0,174,239,0.38);
+    display:flex; align-items:center; justify-content:center;
+    font-size:15px; font-weight:bold; color:#00AEEF; overflow:hidden;
+}
+.psp-online-dot {
+    position:absolute; bottom:1px; right:1px;
+    width:10px; height:10px; border-radius:50%;
+    background:#39FF14; border:2px solid #060d1e;
+    box-shadow:0 0 6px rgba(57,255,20,0.8);
+}
+.psp-meta   { flex:1; min-width:0; }
+.psp-name   { font-size:13px; font-weight:600; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.psp-handle { font-size:11px; color:#6a90b8; display:flex; align-items:center; gap:5px; }
+.psp-online-label { color:#39FF14; font-size:10px; }
+.psp-empty  { padding:28px; text-align:center; color:#3a5a7a; font-size:13px; }
+@media (max-width:600px) {
+    .psp-list { max-height:260px; }
+    .psp-avatar { width:36px; height:36px; font-size:13px; }
+    .psp-item { padding:8px 12px; gap:10px; }
+}
+
 /* ── Profile stat boxes — make them look tappable ── */
 .profile-stat { cursor:pointer; transition:background 0.15s, transform 0.12s; border-radius:8px; padding:4px 8px; }
 .profile-stat:hover { background:rgba(0,174,239,0.1); transform:scale(1.04); }
@@ -7250,6 +7317,21 @@ body.arcade-fs-ios body::after { display:none !important; }
                     </div>
                 </div>
 
+                <!-- ── Inline Social List Panel (followers / following / friends) ── -->
+                <div id="profileSocialPanel" class="profile-social-panel" style="display:none;" aria-live="polite">
+                    <div class="psp-header">
+                        <span class="psp-title" id="pspTitle">Followers</span>
+                        <span class="psp-count" id="pspCount"></span>
+                        <button class="psp-close" onclick="closeSocialList()" aria-label="Close list">✕ Close</button>
+                    </div>
+                    <div class="psp-search-wrap">
+                        <input id="pspSearch" class="psp-search" type="search" placeholder="Search…" autocomplete="off" oninput="window._pspFilter(this.value)">
+                    </div>
+                    <div class="psp-list" id="pspList">
+                        <div class="psp-empty">Loading…</div>
+                    </div>
+                </div>
+
                 <!-- Action buttons -->
                 <div class="profile-actions-row">
                     <button id="btnFollowAction">+ Follow</button>
@@ -12161,76 +12243,206 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (toggle) toggle.checked = isOn;
   }
 
-  /* ── Social List Modal — friends / followers / following ──────────────
-     Called by clicking the stat boxes on any profile page.
+  /* ── Social List — inline panel on profile page ────────────────────────
+     Opens an inline scrollable panel under the stats row on the profile page.
      type: 'friends' | 'followers' | 'following'
      Uses activeProfileUid to know whose data to load.
+     Keeps the legacy overlay modal only when invoked outside #profile.
   ─────────────────────────────────────────────────────────────────── */
+
+  // Internal: all loaded user objects for the current open list (used for search filter)
+  let _pspAllUsers = [];
+  let _pspCurrentType = '';
+  // Real-time listener unsubscribe for the open panel
+  let _pspUnsub = null;
+
+  // Render (or re-render) items in the inline panel, respecting the current search query
+  window._pspFilter = function(q) {
+      const listEl = document.getElementById('pspList');
+      if (!listEl) return;
+      const lower = (q || '').toLowerCase().trim();
+      const visible = lower
+          ? _pspAllUsers.filter(u =>
+              (u.displayName||'').toLowerCase().includes(lower) ||
+              (u.username||'').toLowerCase().includes(lower))
+          : _pspAllUsers;
+      _pspRenderItems(listEl, visible);
+  };
+
+  function _pspRenderItems(listEl, users) {
+      const labels = { friends:'Friends', followers:'Followers', following:'Following' };
+      if (!users.length) {
+          listEl.innerHTML = `<div class="psp-empty">No ${labels[_pspCurrentType] || _pspCurrentType} found.</div>`;
+          return;
+      }
+      listEl.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      users.forEach(u => {
+          const isOnline = typeof window._snxIsUserOnline === 'function' && window._snxIsUserOnline(u);
+          const avStyle  = u.avatar ? `background-image:url('${u.avatar}');background-size:cover;background-position:center;` : '';
+          const avLetter = u.avatar ? '' : escFeed((u.displayName || u.username || '?')[0].toUpperCase());
+          const onlineDot = isOnline ? '<div class="psp-online-dot"></div>' : '';
+          const onlineLbl = isOnline ? '<span class="psp-online-label">● Online</span>' : '';
+
+          const item = document.createElement('div');
+          item.className = 'psp-item';
+          item.setAttribute('data-uid', u.uid);
+          item.innerHTML = `
+              <div class="psp-avatar-wrap">
+                  <div class="psp-avatar" style="${avStyle}">${avLetter}</div>
+                  ${onlineDot}
+              </div>
+              <div class="psp-meta">
+                  <div class="psp-name">${escFeed(u.displayName || u.username || 'Unknown')}${buildBadgeHtml(u.badges||[], u.role||'member')}</div>
+                  <div class="psp-handle">@${escFeed(u.username || '')}${onlineLbl}</div>
+              </div>`;
+          item.addEventListener('click', () => { closeSocialList(); viewProfile(u.uid); });
+          frag.appendChild(item);
+      });
+      listEl.appendChild(frag);
+  }
+
+  async function _pspLoad(uid, type) {
+      const listEl   = document.getElementById('pspList');
+      const countEl  = document.getElementById('pspCount');
+      const labels   = { friends:'Friends', followers:'Followers', following:'Following' };
+      if (!listEl) return;
+
+      listEl.innerHTML = '<div class="psp-empty">Loading…</div>';
+      if (countEl) countEl.textContent = '';
+
+      try {
+          const snap = await getDoc(doc(db, 'users', uid));
+          if (!snap.exists()) {
+              listEl.innerHTML = `<div class="psp-empty">No data found.</div>`;
+              return;
+          }
+          const data  = snap.data();
+          const uids  = data[type] || [];
+
+          // Update stat counts live
+          document.getElementById('cntFollowers').textContent = (data.followers?.length || 0);
+          document.getElementById('cntFollowing').textContent = (data.following?.length || 0);
+          document.getElementById('cntFriends').textContent   = (data.friends?.length  || 0);
+
+          if (countEl) countEl.textContent = uids.length ? `(${uids.length})` : '';
+
+          if (!uids.length) {
+              _pspAllUsers = [];
+              listEl.innerHTML = `<div class="psp-empty">No ${labels[type]} yet.</div>`;
+              return;
+          }
+
+          // Fetch user profiles in Firestore batches of 10
+          const chunks = [];
+          for (let i = 0; i < uids.length; i += 10) chunks.push(uids.slice(i, i + 10));
+          const users = [];
+          for (const chunk of chunks) {
+              const qs = await getDocs(query(collection(db, 'users'), where('uid', 'in', chunk)));
+              qs.forEach(d => users.push(d.data()));
+          }
+
+          _pspAllUsers = users;
+
+          // Respect any active search query
+          const searchVal = (document.getElementById('pspSearch')?.value || '').trim();
+          if (searchVal) {
+              window._pspFilter(searchVal);
+          } else {
+              _pspRenderItems(listEl, users);
+          }
+      } catch(e) {
+          listEl.innerHTML = `<div class="psp-empty">Failed to load. Try again.</div>`;
+      }
+  }
+
   window.openSocialList = async function(type) {
       const uid = activeProfileUid || (currentUser && currentUser.uid);
       if (!uid) return;
 
+      const labels = { friends:'Friends', followers:'Followers', following:'Following' };
+      _pspCurrentType = type;
+
+      // ── Inline panel (profile page) ────────────────────────────────
+      const panel = document.getElementById('profileSocialPanel');
+      if (panel) {
+          // If same type already open → collapse (toggle)
+          if (panel.style.display !== 'none' && panel.dataset.type === type) {
+              closeSocialList();
+              return;
+          }
+          // Detach any previous real-time listener
+          if (_pspUnsub) { _pspUnsub(); _pspUnsub = null; }
+
+          panel.dataset.type = type;
+          const titleEl = document.getElementById('pspTitle');
+          const searchEl = document.getElementById('pspSearch');
+          if (titleEl) titleEl.textContent = labels[type] || type;
+          if (searchEl) searchEl.value = '';
+          _pspAllUsers = [];
+          panel.style.display = '';
+
+          // Scroll the panel into view smoothly
+          panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+          // Initial load
+          await _pspLoad(uid, type);
+
+          // Real-time listener: refresh when the viewed profile's doc changes
+          _pspUnsub = onSnapshot(doc(db, 'users', uid), snap => {
+              if (!snap.exists()) return;
+              const data = snap.data();
+              // Update counts
+              const cnt = document.getElementById('pspCount');
+              const arr = data[type] || [];
+              if (cnt) cnt.textContent = arr.length ? `(${arr.length})` : '';
+              document.getElementById('cntFollowers').textContent = (data.followers?.length || 0);
+              document.getElementById('cntFollowing').textContent = (data.following?.length || 0);
+              document.getElementById('cntFriends').textContent   = (data.friends?.length  || 0);
+              // Re-load user details when the list actually changes
+              const prevUids = _pspAllUsers.map(u => u.uid).sort().join(',');
+              const newUids  = arr.slice().sort().join(',');
+              if (prevUids !== newUids) _pspLoad(uid, type);
+          });
+          return;
+      }
+
+      // ── Fallback: legacy overlay modal (non-profile pages) ─────────
       const modal = document.getElementById('socialListModal');
       const title = document.getElementById('socialListTitle');
       const body  = document.getElementById('socialListBody');
       if (!modal) return;
-
-      const labels = { friends: 'Friends', followers: 'Followers', following: 'Following' };
       title.textContent = labels[type] || type;
       body.innerHTML = '<div class="social-list-empty">Loading…</div>';
       modal.classList.add('open');
-
       try {
           const snap = await getDoc(doc(db, 'users', uid));
           if (!snap.exists()) { body.innerHTML = '<div class="social-list-empty">No data found.</div>'; return; }
-
           const data = snap.data();
           const uids = data[type] || [];
-
-          if (!uids.length) {
-              body.innerHTML = `<div class="social-list-empty">No ${labels[type] || type} yet.</div>`;
-              return;
-          }
-
-          // Fetch all user docs in batches of 10 (Firestore 'in' limit)
+          if (!uids.length) { body.innerHTML = `<div class="social-list-empty">No ${labels[type]} yet.</div>`; return; }
           const chunks = [];
           for (let i = 0; i < uids.length; i += 10) chunks.push(uids.slice(i, i + 10));
-
           const users = [];
           for (const chunk of chunks) {
-              const q = query(collection(db, 'users'), where('uid', 'in', chunk));
-              const qs = await getDocs(q);
+              const qs = await getDocs(query(collection(db, 'users'), where('uid', 'in', chunk)));
               qs.forEach(d => users.push(d.data()));
           }
-
-          if (!users.length) {
-              body.innerHTML = `<div class="social-list-empty">No ${labels[type] || type} yet.</div>`;
-              return;
-          }
-
+          if (!users.length) { body.innerHTML = `<div class="social-list-empty">No ${labels[type]} yet.</div>`; return; }
           body.innerHTML = '';
           users.forEach(u => {
               const item = document.createElement('div');
               item.className = 'social-list-item';
               item.onclick = () => { closeSocialList(); viewProfile(u.uid); };
-
               const avatarDiv = document.createElement('div');
               avatarDiv.className = 'social-list-avatar';
-              avatarDiv.setAttribute('data-uid', u.uid);
-              if (u.avatar) {
-                  avatarDiv.style.backgroundImage = `url('${u.avatar}')`;
-              } else {
-                  avatarDiv.textContent = (u.displayName || '?')[0].toUpperCase();
-              }
-
+              if (u.avatar) { avatarDiv.style.backgroundImage = `url('${u.avatar}')`; }
+              else { avatarDiv.textContent = (u.displayName || '?')[0].toUpperCase(); }
               const infoDiv = document.createElement('div');
-              infoDiv.style.flex = '1';
-              infoDiv.style.minWidth = '0';
+              infoDiv.style.cssText = 'flex:1;min-width:0;';
               infoDiv.innerHTML = `
                   <div class="social-list-name">${escFeed(u.displayName || u.username || 'Unknown')}${buildBadgeHtml(u.badges||[], u.role||'member')}</div>
-                  <div class="social-list-handle">@${escFeed(u.username || '')}</div>
-              `;
-
+                  <div class="social-list-handle">@${escFeed(u.username || '')}</div>`;
               item.appendChild(avatarDiv);
               item.appendChild(infoDiv);
               body.appendChild(item);
@@ -12241,11 +12453,25 @@ body.arcade-fs-ios body::after { display:none !important; }
   };
 
   window.closeSocialList = function() {
+      // Collapse inline panel
+      const panel = document.getElementById('profileSocialPanel');
+      if (panel) {
+          panel.style.display = 'none';
+          panel.dataset.type = '';
+          const listEl = document.getElementById('pspList');
+          if (listEl) listEl.innerHTML = '';
+          const searchEl = document.getElementById('pspSearch');
+          if (searchEl) searchEl.value = '';
+          _pspAllUsers = [];
+      }
+      // Detach real-time listener
+      if (_pspUnsub) { _pspUnsub(); _pspUnsub = null; }
+      // Also close legacy overlay if open
       const modal = document.getElementById('socialListModal');
       if (modal) modal.classList.remove('open');
   };
 
-  // Close social list on backdrop click
+  // Close legacy overlay on backdrop click
   document.getElementById('socialListModal')?.addEventListener('click', function(e) {
       if (e.target === this) closeSocialList();
   });
@@ -15250,6 +15476,8 @@ body.arcade-fs-ios body::after { display:none !important; }
   let activeProfileUnsubscribe = null;
 
   window.viewProfile = async function(uid) {
+      // Close any open social list panel before switching profiles
+      if (typeof closeSocialList === 'function') closeSocialList();
       activeProfileUid = uid;
       window.activeProfileUid = uid;
       show('profile');
