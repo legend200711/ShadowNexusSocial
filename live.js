@@ -874,8 +874,10 @@ function _startHostVideoHealth() {
     const v = D.liveVideo;
     if (!v || !_localStream) return;
     // 1. Re-attach stream if srcObject drifted (e.g. after camera flip)
+    //    IMPORTANT: Never assign null before reassigning — that causes a
+    //    single-frame black flash visible to the host and all guests.
     if (v.srcObject !== _localStream) {
-      v.srcObject = _localStream;
+      v.srcObject = _localStream;   // direct reassign, no null-step
       v.play().catch(() => {});
       _lastTime = -1;
       _frozenTicks = 0;
@@ -889,12 +891,14 @@ function _startHostVideoHealth() {
       return;
     }
     // 3. Detect frozen currentTime (video element running but no new frames)
+    //    Require 3 consecutive frozen ticks (12 s) before acting, and avoid
+    //    the null-then-reassign pattern — reassign directly so no black frame.
     if (v.currentTime === _lastTime && v.currentTime > 0) {
       _frozenTicks++;
-      if (_frozenTicks >= 2) {
-        // Two consecutive 4-second ticks with no progress → force restart
+      if (_frozenTicks >= 3) {
+        // Three consecutive 4-second ticks with no progress → force restart
+        // Direct reassign (no srcObject=null step) to avoid black flash.
         _frozenTicks = 0;
-        v.srcObject = null;
         v.srcObject = _localStream;
         v.play().catch(() => {});
       }
@@ -1689,9 +1693,11 @@ async function _handleViewerConnection(viewerUid) {
     }
   });
 
-  const appliedCandKeys = new Set();
-  const pendingCands    = [];
-  let   offerWritten    = false;
+  const appliedCandKeys   = new Set();
+  const pendingCands      = [];
+  let   offerWritten      = false;
+  let   _lastAnswerSdp    = null;   // track applied answer SDP for ICE-restart detection
+  let   _iceRestartInFlight = false;
 
   const viewerConnRef = ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}`);
 
@@ -1711,6 +1717,38 @@ async function _handleViewerConnection(viewerUid) {
       if (_creatorViewerPeers[viewerUid] && _creatorViewerPeers[viewerUid].pc === pc) {
         _teardownCreatorViewerPeer(viewerUid);
       }
+    }
+    // 'disconnected' is handled by _attachIceWatchdog (restartIce()) — do NOT
+    // tear down on disconnected; it's often a transient blip that resolves itself.
+  };
+
+  // ── ICE-restart renegotiation (host→viewer) ───────────────────────────
+  // When _attachIceWatchdog calls restartIce(), onnegotiationneeded fires.
+  // Write the new ICE-restart offer to RTDB so the viewer can respond with
+  // a fresh answer. Without this, the restart collects new candidates but
+  // the SDP handshake never completes and the stream stays frozen/black.
+  pc.onnegotiationneeded = async () => {
+    if (!offerWritten) return;         // initial offer handled below
+    if (_iceRestartInFlight) return;
+    if (pc.signalingState !== 'stable') return;
+    if (!_creatorViewerPeers[viewerUid]) return; // peer was removed
+    _iceRestartInFlight = true;
+    try {
+      const restartOffer = await pc.createOffer({ iceRestart: true });
+      await pc.setLocalDescription(restartOffer);
+      // Reset candidate tracking so the viewer processes the new set cleanly.
+      appliedCandKeys.clear();
+      _lastAnswerSdp = null;
+      await update(viewerConnRef, {
+        offer: { type: restartOffer.type, sdp: restartOffer.sdp },
+        creatorCandidates: null,
+        viewerCandidates:  null,
+      });
+      console.log(`[HostViewer] ICE-restart offer written for viewer ${viewerUid}`);
+    } catch (e) {
+      console.warn(`[HostViewer] ICE-restart renegotiation failed for ${viewerUid}:`, e.message);
+    } finally {
+      _iceRestartInFlight = false;
     }
   };
 
@@ -1748,12 +1786,20 @@ async function _handleViewerConnection(viewerUid) {
   }
 
   // Watch this viewer's node for its answer + ICE candidates.
+  // Handles both the initial answer and ICE-restart answers (different SDP).
   const unsub = onValue(viewerConnRef, async snap => {
     if (!snap.exists()) return;
     const d = snap.val();
-    if (d.answer && pc.remoteDescription === null) {
-      try { await pc.setRemoteDescription(new RTCSessionDescription(d.answer)); }
-      catch (_) {}
+    // Apply answer if it's new (initial answer or ICE-restart answer with changed SDP)
+    if (d.answer && d.answer.sdp !== _lastAnswerSdp) {
+      if (pc.signalingState === 'have-local-offer') {
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
+          _lastAnswerSdp = d.answer.sdp;
+          // Clear applied candidates so the new ICE candidate set is processed
+          appliedCandKeys.clear();
+        } catch (_) {}
+      }
     }
     if (pc.remoteDescription && d.viewerCandidates) {
       for (const [key, cand] of Object.entries(d.viewerCandidates)) {
@@ -1830,6 +1876,24 @@ async function _startViewerWebRTC(roomData) {
   if (_rtcSignalRef && _rtcSignalUnsub) {
     try { off(_rtcSignalRef); } catch (_) {}
     _rtcSignalRef = null; _rtcSignalUnsub = null;
+  }
+
+  // ── Viewer presence seat (re-registration on reconnect) ───────────────
+  // The initial seat is registered by the IIFE in _startViewer. When
+  // _scheduleViewerReconnect calls _startViewerWebRTC directly, that IIFE
+  // doesn't run again. We re-register here after the reconnect path nulled
+  // both the ref and the joined flag. The double-write on first load is
+  // harmless — it's an idempotent set() to the same path.
+  if (!_viewerPresenceJoined && _user && _mode !== 'creator' && _roomId) {
+    (async () => {
+      try {
+        _viewerPresenceRef = ref(_liveDB, `liveViewers/${_roomId}/${_user.uid}`);
+        _viewerPresenceOdc = onDisconnect(_viewerPresenceRef);
+        await _viewerPresenceOdc.remove();
+        await set(_viewerPresenceRef, { joinedAt: Date.now(), active: true });
+        _viewerPresenceJoined = true;
+      } catch (_) {}
+    })();
   }
 
   // TIKTOK-STYLE: Create the RTCPeerConnection FIRST (local, synchronous)
@@ -1977,17 +2041,23 @@ async function _startViewerWebRTC(roomData) {
   _rtcPc.ontrack = (e) => {
     if (!D.liveVideo) return;
     const stream = e.streams[0] || new MediaStream([e.track]);
-    D.liveVideo.srcObject = stream;
+    // ── Prevent unnecessary srcObject reassignment during ICE restarts ──
+    // If the video is already playing with a healthy stream, don't
+    // replace srcObject — that causes a brief black frame and resets the
+    // decoder. Only update when the stream object itself is different.
+    if (D.liveVideo.srcObject !== stream) {
+      D.liveVideo.srcObject = stream;
+    }
     D.liveVideo.muted = true;
     // Buffer / mobile optimisation: low-latency mode where supported
     if ('playsInline' in D.liveVideo) D.liveVideo.playsInline = true;
     if (typeof D.liveVideo.disableRemotePlayback !== 'undefined') D.liveVideo.disableRemotePlayback = true;
     // Prefer low-latency (Chrome hint)
     try { D.liveVideo.setPreferredQuality && D.liveVideo.setPreferredQuality('auto'); } catch(_) {}
-    // Kick off playback the instant the track arrives. Use a retry loop
-    // because the first play() can be interrupted by the browser on some
-    // mobile devices. We retry up to 3 times with a small delay.
-    _kickoffPlayback();
+    // Kick off playback only if not already playing
+    if (D.liveVideo.paused || D.liveVideo.readyState < 2) {
+      _kickoffPlayback();
+    }
     _showUnmutePrompt();
     // ── DON'T hide the banner yet! The track arrived but no frame is
     //    rendered yet — the viewer would see a black screen. We hide the
@@ -2011,8 +2081,30 @@ async function _startViewerWebRTC(roomData) {
       // black screen gap between "connected" and "first frame".
       _viewerReconnectAttempt = 0; // reset on successful connection
     } else if (state === 'disconnected' || state === 'failed') {
-      _showConnBanner('Reconnecting\u2026', '');
-      _scheduleViewerReconnect(roomData);
+      // Only show the reconnecting banner / schedule a reconnect if the video
+      // is not currently playing. A transient ICE blip often heals itself
+      // within milliseconds; showing the banner causes needless visual
+      // disruption, and _scheduleViewerReconnect tears down the PC which
+      // makes the video go black. Let the ICE watchdog (restartIce) try
+      // first; we only intervene if the PC is still broken after a delay.
+      if (!D.liveVideo || D.liveVideo.paused || D.liveVideo.readyState < 2 ||
+          !D.liveVideo.srcObject) {
+        _showConnBanner('Reconnecting\u2026', '');
+        _scheduleViewerReconnect(roomData);
+      } else {
+        // Video is still flowing — schedule a quiet reconnect only if the
+        // connection hasn't recovered within 8 s (extra grace for ICE restart).
+        if (_viewerReconnectTimer) clearTimeout(_viewerReconnectTimer);
+        _viewerReconnectTimer = setTimeout(() => {
+          _viewerReconnectTimer = null;
+          if (_viewerLeftFlag) return;
+          const s = _rtcPc?.connectionState;
+          if (s === 'disconnected' || s === 'failed') {
+            _showConnBanner('Reconnecting\u2026', '');
+            _scheduleViewerReconnect(roomData);
+          }
+        }, 8000);
+      }
     }
   };
 
@@ -2124,17 +2216,49 @@ async function _startViewerWebRTC(roomData) {
 
   /* ── Apply existing creator ICE candidates ── */
   let _appliedCreatorCandKeys = new Set();
+  let _lastAppliedOfferSdp    = offerSnap.val().offer?.sdp || null;
+  let _iceRestartAnswerInFlight = false;
   const existingCands = offerSnap.val().creatorCandidates || {};
   for (const [key, cand] of Object.entries(existingCands)) {
     _appliedCreatorCandKeys.add(key);
     try { await _rtcPc.addIceCandidate(new RTCIceCandidate(cand)); } catch (_) {}
   }
 
-  /* ── Listen for new creator ICE candidates on our node ── */
+  /* ── Listen for ICE-restart offers and new creator ICE candidates ── */
   _rtcSignalRef   = viewerConnRef;
   _rtcSignalUnsub = onValue(viewerConnRef, async snap => {
     if (!snap.exists()) return;
     const d = snap.val();
+
+    // ── Handle ICE-restart offer from host ──────────────────────────────
+    // When the host calls restartIce() and writes a new offer to RTDB, the
+    // viewer must respond with a fresh answer. Without this, the stream
+    // stays frozen because the SDP renegotiation never completes. This is
+    // the root cause of the "black screen every few minutes" bug.
+    if (d.offer && d.offer.sdp !== _lastAppliedOfferSdp && !_iceRestartAnswerInFlight) {
+      _iceRestartAnswerInFlight = true;
+      try {
+        // Only apply when our signaling state allows it.
+        if (_rtcPc && (_rtcPc.signalingState === 'stable' ||
+            _rtcPc.signalingState === 'have-remote-offer')) {
+          await _rtcPc.setRemoteDescription(new RTCSessionDescription(d.offer));
+          _lastAppliedOfferSdp = d.offer.sdp;
+          _appliedCreatorCandKeys.clear(); // fresh candidate set
+          const restartAnswer = await _rtcPc.createAnswer();
+          await _rtcPc.setLocalDescription(restartAnswer);
+          await update(viewerConnRef, {
+            answer: { type: restartAnswer.type, sdp: restartAnswer.sdp },
+          });
+          console.log('[ViewerWebRTC] ICE-restart answer sent to host');
+        }
+      } catch (e) {
+        console.warn('[ViewerWebRTC] ICE-restart answer failed:', e.message);
+      } finally {
+        _iceRestartAnswerInFlight = false;
+      }
+    }
+
+    // ── Apply new creator ICE candidates ────────────────────────────────
     if (d.creatorCandidates) {
       for (const [key, cand] of Object.entries(d.creatorCandidates)) {
         if (_appliedCreatorCandKeys.has(key)) continue;
@@ -2295,7 +2419,22 @@ function _scheduleViewerReconnect(roomData) {
     _viewerReconnectTimer = null;
     if (_viewerLeftFlag) return;
 
-    // Tear down old peer connection + signal listener
+    // ── Guard: if the connection already healed while we were waiting,
+    //    skip the teardown/reconnect — don't interrupt a healthy stream.
+    if (_rtcPc) {
+      const st = _rtcPc.connectionState;
+      if ((st === 'connected' || st === 'connecting') &&
+          D.liveVideo && D.liveVideo.srcObject &&
+          !D.liveVideo.paused && D.liveVideo.readyState >= 2) {
+        // Connection recovered on its own — reset counter and bail.
+        _viewerReconnectAttempt = 0;
+        return;
+      }
+    }
+
+    // Tear down old peer connection + signal listener.
+    // IMPORTANT: Do NOT null srcObject on D.liveVideo here — the last frame
+    // stays visible during the reconnect instead of going black.
     if (_rtcPc) { try { _rtcPc.close(); } catch(_){} _rtcPc = null; }
     if (_rtcSignalRef && _rtcSignalUnsub) {
       try { off(_rtcSignalRef); } catch(_) {}
@@ -2314,10 +2453,15 @@ function _scheduleViewerReconnect(roomData) {
     }
     // Cancel the old presence-seat onDisconnect so a stale remove()
     // doesn't fire after the reconnect writes a fresh seat.
-    // Clear _viewerPresenceJoined so _startViewer can re-register the seat.
+    // Also explicitly remove the stale seat so the host's onValue listener
+    // recounts immediately — prevents phantom "online" viewers during reconnect.
     if (_viewerPresenceOdc) {
       try { await _viewerPresenceOdc.cancel(); } catch(_) {}
       _viewerPresenceOdc = null;
+    }
+    if (_viewerPresenceRef && _user) {
+      try { await remove(_viewerPresenceRef); } catch(_) {}
+      _viewerPresenceRef = null;
     }
     _viewerPresenceJoined = false;
 
@@ -3158,7 +3302,7 @@ function _attachHostVideoToCell(cell) {
       const newStream = lv.srcObject;
       // Re-sync if the underlying stream was replaced (e.g. viewer reconnect)
       if (newStream && vid.srcObject !== newStream) {
-        vid.srcObject = newStream;
+        vid.srcObject = newStream;  // direct reassign, no null-step
         vid.play().catch(() => {});
         _hcSyncLastTime = -1; _hcSyncFrozenTicks = 0;
         return;
@@ -3172,9 +3316,10 @@ function _attachHostVideoToCell(cell) {
       if (vid.srcObject && vid.currentTime === _hcSyncLastTime && vid.currentTime > 0) {
         if (++_hcSyncFrozenTicks >= 2) {
           _hcSyncFrozenTicks = 0;
-          // Re-clone from liveVideo srcObject to unblock the decoder
+          // Direct reassign (no srcObject=null) to unblock the decoder without
+          // the black-frame flash that the null-then-reassign pattern causes.
           const s = lv.srcObject;
-          if (s) { vid.srcObject = null; vid.srcObject = s; vid.play().catch(() => {}); }
+          if (s) { vid.srcObject = s; vid.play().catch(() => {}); }
         }
       } else {
         _hcSyncFrozenTicks = 0;
@@ -4354,7 +4499,8 @@ function _hostAddGuestCell(uid, name, avatar, stream, pc) {
       if (++_gcFrozenTicks >= 2) {
         _gcFrozenTicks = 0;
         const s = p.stream || vid.srcObject;
-        if (s) { vid.srcObject = null; vid.srcObject = s; vid.play().catch(() => {}); }
+        // Direct reassign (no srcObject=null) — avoids the black frame flash.
+        if (s) { vid.srcObject = s; vid.play().catch(() => {}); }
       }
     } else {
       _gcFrozenTicks = 0;
@@ -4402,7 +4548,7 @@ function _addHostCellToGrid() {
     if (vid.currentTime === _hcLastTime && vid.currentTime > 0) {
       if (++_hcFrozenTicks >= 2) {
         _hcFrozenTicks = 0;
-        vid.srcObject = null;
+        // Direct reassign (no srcObject=null) to avoid the black-frame flash.
         vid.srcObject = _localStream;
         vid.play().catch(() => {});
       }
@@ -4666,7 +4812,8 @@ function _attachGuestGridResizeObserver() {
    guest cells stay frozen until the user taps the screen.              */
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return; // only act on foreground
-  // Kick every <video> in the stage (host video, guest cells, host cell)
+
+  // ── Kick every paused video element (iOS/Android resume from background) ──
   const vids = document.querySelectorAll('.live-stage video, .guest-grid video');
   vids.forEach(v => {
     if (v.paused && v.srcObject) {
@@ -4675,6 +4822,28 @@ document.addEventListener('visibilitychange', () => {
   });
   // Also kick the main #liveVideo in case it's outside .live-stage
   if (D.liveVideo && D.liveVideo.paused && D.liveVideo.srcObject) {
+    D.liveVideo.play().catch(() => {});
+  }
+
+  // ── Viewer: probe for stale connection after returning from background ──
+  // iOS and Android can suspend WebRTC when the app is backgrounded, causing
+  // the ICE connection to silently die. After returning to foreground, check
+  // if the connection is still healthy and trigger ICE restart if needed.
+  if (_mode === 'viewer' && _rtcPc && !_viewerLeftFlag) {
+    const st = _rtcPc.connectionState;
+    if (st === 'disconnected' || st === 'failed') {
+      // Use the existing reconnect machinery — it has the recovery guard.
+      try { _rtcPc.restartIce && _rtcPc.restartIce(); } catch(_) {}
+    } else if (st === 'connected' || st === 'completed') {
+      // Connection is alive — just make sure video is still flowing.
+      if (D.liveVideo && D.liveVideo.paused && D.liveVideo.srcObject) {
+        D.liveVideo.play().catch(() => {});
+      }
+    }
+  }
+
+  // ── Host: kick the local preview and restart the heartbeat guard ──
+  if (_mode === 'creator' && _localStream && D.liveVideo && D.liveVideo.paused) {
     D.liveVideo.play().catch(() => {});
   }
 });
