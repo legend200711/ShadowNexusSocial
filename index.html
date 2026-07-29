@@ -29682,7 +29682,9 @@ window.snxLoadCreatorDash = async function() {
 
 async function _cdLoadEvents() {
     const cu = _cu(); if (!cu) return;
-    const { collection, query, where, orderBy, getDocs } = _fs();
+    const fs = _fs();
+    if (!fs || !fs.collection) return; // Firestore not ready yet
+    const { collection, query, where, orderBy, getDocs } = fs;
     const el = document.getElementById('cdEventList'); if (!el) return;
     try {
         const snap = await getDocs(query(collection(_db(),'creatorEvents'), where('uid','==',cu.uid), orderBy('eventAt','asc')));
@@ -29699,37 +29701,94 @@ async function _cdLoadEvents() {
                 <button class="creator-event-del" onclick="snxDeleteCreatorEvent('${d.id}')">✕</button>
             </div>`;
         }).join('');
-    } catch(e) { console.warn('[CreatorEvents]', e); }
+    } catch(e) {
+        const msg = (e && e.message) ? e.message : String(e);
+        el.innerHTML = `<div style="color:#ff5577;font-size:13px;padding:8px 0;">Could not load events: ${msg.slice(0,80)}</div>`;
+        console.warn('[CreatorEvents] Load failed:', e);
+    }
 }
 
 window.snxSaveCreatorEvent = async function() {
-    const cu = _cu(); if (!cu) { if (typeof toastNotification==='function') toastNotification('⚠️ Sign in first.'); return; }
+    const _t = msg => { if (typeof toastNotification === 'function') toastNotification(msg); };
+
+    const cu = _cu();
+    if (!cu) { _t('⚠️ Sign in to schedule an event.'); return; }
+
+    // Guard: Firestore must be ready
+    const fs = _fs();
+    if (!fs || !fs.collection) { _t('⚠️ Still connecting — please try again in a moment.'); return; }
+
     const title = document.getElementById('cdEventTitle')?.value.trim();
     const desc  = document.getElementById('cdEventDesc')?.value.trim();
     const dateV = document.getElementById('cdEventDate')?.value;
-    if (!title) { if (typeof toastNotification==='function') toastNotification('⚠️ Event title required.'); return; }
-    if (!dateV)  { if (typeof toastNotification==='function') toastNotification('⚠️ Pick a date/time.'); return; }
+    if (!title) { _t('⚠️ Event title required.'); return; }
+    if (!dateV)  { _t('⚠️ Pick a date and time.'); return; }
     const eventAt = new Date(dateV).getTime();
-    if (isNaN(eventAt) || eventAt <= Date.now()) { if (typeof toastNotification==='function') toastNotification('⚠️ Pick a future date.'); return; }
-    const { collection, addDoc } = _fs();
+    if (isNaN(eventAt) || eventAt <= Date.now()) { _t('⚠️ Pick a future date and time.'); return; }
+
+    const { collection, addDoc } = fs;
+    const saveBtn = document.querySelector('#cdPanelEvents button');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+    // Retry helper for transient network errors
+    async function _trySave(attemptsLeft) {
+        try {
+            await addDoc(collection(_db(),'creatorEvents'), {
+                uid: cu.uid, title, desc: desc || '', eventAt, createdAt: Date.now()
+            });
+            const titleEl = document.getElementById('cdEventTitle');
+            const descEl  = document.getElementById('cdEventDesc');
+            const dateEl  = document.getElementById('cdEventDate');
+            if (titleEl) titleEl.value = '';
+            if (descEl)  descEl.value  = '';
+            if (dateEl)  dateEl.value  = '';
+            _t('📅 Event scheduled!');
+            _cdLoadEvents();
+        } catch(e) {
+            const msg = (e && e.message) ? e.message : String(e);
+            const isTransient = msg.includes('unavailable') || msg.includes('network') || msg.includes('timeout') || msg.includes('Failed to fetch');
+            if (isTransient && attemptsLeft > 0) {
+                _t(`⚠️ Connection issue — retrying… (${attemptsLeft} left)`);
+                await new Promise(r => setTimeout(r, 2000));
+                return _trySave(attemptsLeft - 1);
+            }
+            if (msg.includes('permission') || msg.includes('Missing or insufficient')) {
+                _t('❌ Permission denied. Make sure you are signed in and try again.');
+            } else if (isTransient) {
+                _t('❌ Network error. Check your connection and try again.');
+            } else {
+                _t('❌ Could not save event: ' + msg.slice(0, 80));
+            }
+            console.error('[SNX Events] Save failed:', e);
+        }
+    }
+
     try {
-        await addDoc(collection(_db(),'creatorEvents'), { uid:cu.uid, title, desc:desc||'', eventAt, createdAt:Date.now() });
-        document.getElementById('cdEventTitle').value = '';
-        document.getElementById('cdEventDesc').value  = '';
-        document.getElementById('cdEventDate').value  = '';
-        if (typeof toastNotification==='function') toastNotification('📅 Event scheduled!');
-        _cdLoadEvents();
-    } catch(e) { if (typeof toastNotification==='function') toastNotification('❌ Could not save event.'); }
+        await _trySave(2);
+    } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '📅 Schedule Event'; }
+    }
 };
 
 window.snxDeleteCreatorEvent = async function(id) {
-    const { doc, deleteDoc } = _fs(); if (!doc) return;
+    const _t = msg => { if (typeof toastNotification === 'function') toastNotification(msg); };
+    const fs = _fs();
+    if (!fs || !fs.doc) { _t('⚠️ Still connecting — please try again.'); return; }
     if (!confirm('Delete this event?')) return;
+    const { doc, deleteDoc } = fs;
     try {
         await deleteDoc(doc(_db(),'creatorEvents',id));
-        if (typeof toastNotification==='function') toastNotification('🗑 Event deleted.');
+        _t('🗑 Event deleted.');
         _cdLoadEvents();
-    } catch(e) { if (typeof toastNotification==='function') toastNotification('❌ Could not delete event.'); }
+    } catch(e) {
+        const msg = (e && e.message) ? e.message : String(e);
+        if (msg.includes('permission') || msg.includes('Missing or insufficient')) {
+            _t('❌ Permission denied.');
+        } else {
+            _t('❌ Could not delete event: ' + msg.slice(0, 80));
+        }
+        console.error('[SNX Events] Delete failed:', e);
+    }
 };
 
 /* ════════════════════════════════════════════════════════════
@@ -29790,10 +29849,14 @@ window.snxSwitchCommHubTab = function(tab, btn) {
 
 /* ── Load communities into Discover grid ── */
 window.snxLoadCommunities = async function() {
-    const { collection, query, orderBy, limit, getDocs, where } = _fs();
-    if (!collection) return;
     const grid = document.getElementById('snxCommDiscoverGrid');
     if (!grid) return;
+    const fs = _fs();
+    if (!fs || !fs.collection) {
+        grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Still connecting…</div>';
+        return;
+    }
+    const { collection, query, orderBy, limit, getDocs, where } = fs;
     grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Loading…</div>';
     try {
         const topic = document.getElementById('commTopicFilter')?.value || '';
@@ -29819,7 +29882,11 @@ window.snxLoadCommunities = async function() {
                         onclick="event.stopPropagation();snxCommJoinToggle('${c.id}',this,${!!c.isPrivate})">${isMember?'✓ Joined':'Join'}</button>
                 </div>`);
         });
-    } catch(e) { grid.innerHTML = '<div style="color:#ff5577;font-size:13px;text-align:center;padding:16px;grid-column:1/-1;">Could not load communities.</div>'; console.warn('[SNX Comm]',e); }
+    } catch(e) {
+        const msg = (e && e.message) ? e.message : String(e);
+        grid.innerHTML = `<div style="color:#ff5577;font-size:13px;text-align:center;padding:16px;grid-column:1/-1;">Could not load communities: ${msg.slice(0,80)}</div>`;
+        console.warn('[SNX Comm] Load failed:', e);
+    }
 };
 
 window.snxSearchCommunities = function(val) {
@@ -29832,11 +29899,17 @@ window.snxSearchCommunities = function(val) {
 
 /* ── Load My Communities ── */
 window.snxLoadMyCommunities = async function() {
-    const cu = _cu(); const grid = document.getElementById('snxCommMyGrid');
+    const cu = _cu();
+    const grid = document.getElementById('snxCommMyGrid');
     if (!grid) return;
     if (!cu) { grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Sign in to see your communities.</div>'; return; }
+    const fs = _fs();
+    if (!fs || !fs.collection) {
+        grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Still connecting…</div>';
+        return;
+    }
     grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Loading…</div>';
-    const { collection, query, where, getDocs } = _fs();
+    const { collection, query, where, getDocs } = fs;
     try {
         const snap = await getDocs(query(collection(_db(),'communities'), where('members','array-contains',cu.uid)));
         if (snap.empty) { grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">You haven\'t joined any communities yet.</div>'; return; }
@@ -29852,7 +29925,11 @@ window.snxLoadMyCommunities = async function() {
                     <button class="snx-comm-join-btn joined" onclick="event.stopPropagation();snxCommJoinToggle('${c.id}',this,false)">✓ Joined</button>
                 </div>`);
         });
-    } catch(e) { grid.innerHTML = '<div style="color:#ff5577;font-size:13px;text-align:center;grid-column:1/-1;">Could not load.</div>'; }
+    } catch(e) {
+        const msg = (e && e.message) ? e.message : String(e);
+        grid.innerHTML = `<div style="color:#ff5577;font-size:13px;text-align:center;grid-column:1/-1;">Could not load communities: ${msg.slice(0,80)}</div>`;
+        console.warn('[SNX Comm] My communities load failed:', e);
+    }
 };
 
 /* ── Create Community ── */
@@ -29862,31 +29939,85 @@ window.snxSelectCommIcon = function(el) {
 };
 
 window.snxCreateCommunity = async function() {
-    const cu = _cu(); if (!cu) { _toast('⚠️ Sign in first.'); return; }
+    const cu = _cu();
+    if (!cu) { _toast('⚠️ Sign in to create a community.'); return; }
+
+    // Guard: Firestore must be ready
+    const fs = _fs();
+    if (!fs || !fs.collection) {
+        _toast('⚠️ Still connecting — please try again in a moment.');
+        return;
+    }
+
     const name = document.getElementById('newCommName')?.value.trim();
     const topic = document.getElementById('newCommTopic')?.value || 'other';
     const desc  = document.getElementById('newCommDesc')?.value.trim() || '';
     const icon  = document.querySelector('#newCommIconPicker .selected')?.dataset.icon || '💙';
     const isPrivate = document.getElementById('newCommPrivate')?.checked || false;
+
     if (!name) { _toast('⚠️ Enter a community name.'); return; }
-    const { collection, addDoc, doc, getDoc, updateDoc, increment } = _fs();
+
+    const { collection, addDoc, doc, getDoc, query, where, getDocs } = fs;
+    const btn = document.querySelector('#commHubPanelCreate button');
+    if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+
+    // Retry helper for transient network errors
+    async function _tryCreate(attemptsLeft) {
+        try {
+            // Limit: no more than 10 communities per user
+            const owned = await getDocs(query(collection(_db(),'communities'), where('ownerUid','==',cu.uid)));
+            if (owned.size >= 10) { _toast('⚠️ You can only create up to 10 communities.'); return; }
+
+            const ud = await getDoc(doc(_db(),'users',cu.uid));
+            const udata = ud.exists() ? ud.data() : {};
+            const newComm = {
+                name, topic, desc, icon, isPrivate,
+                ownerUid: cu.uid,
+                ownerName: udata.displayName || 'User',
+                members: [cu.uid],
+                memberCount: 1,
+                postCount: 0,
+                createdAt: Date.now()
+            };
+            const ref = await addDoc(collection(_db(),'communities'), newComm);
+            _toast(`💙 Community "${name}" created!`);
+
+            // Clear form
+            const nameEl = document.getElementById('newCommName');
+            const descEl = document.getElementById('newCommDesc');
+            if (nameEl) nameEl.value = '';
+            if (descEl) descEl.value = '';
+
+            // Refresh Discover grid so new community appears immediately
+            if (typeof snxLoadCommunities === 'function') snxLoadCommunities();
+
+            // Auto-open the new community
+            snxOpenCommDetail(ref.id);
+        } catch(e) {
+            const msg = (e && e.message) ? e.message : String(e);
+            const isTransient = msg.includes('unavailable') || msg.includes('network') || msg.includes('timeout') || msg.includes('Failed to fetch');
+            if (isTransient && attemptsLeft > 0) {
+                _toast(`⚠️ Connection issue — retrying… (${attemptsLeft} left)`);
+                await new Promise(r => setTimeout(r, 2000));
+                return _tryCreate(attemptsLeft - 1);
+            }
+            // Show actual reason
+            if (msg.includes('permission') || msg.includes('Missing or insufficient')) {
+                _toast('❌ Permission denied. Make sure you are signed in and try again.');
+            } else if (isTransient) {
+                _toast('❌ Network error. Check your connection and try again.');
+            } else {
+                _toast('❌ Could not create community: ' + msg.slice(0, 80));
+            }
+            console.error('[SNX Comm] Create failed:', e);
+        }
+    }
+
     try {
-        // Limit: no more than 10 communities per user (fetch count)
-        const { query, where, getDocs } = _fs();
-        const owned = await getDocs(query(collection(_db(),'communities'), where('ownerUid','==',cu.uid)));
-        if (owned.size >= 10) { _toast('⚠️ You can only create up to 10 communities.'); return; }
-        const ud = await getDoc(doc(_db(),'users',cu.uid));
-        const udata = ud.exists() ? ud.data() : {};
-        const newComm = { name, topic, desc, icon, isPrivate, ownerUid:cu.uid,
-            ownerName: udata.displayName||'User', members:[cu.uid], memberCount:1,
-            postCount:0, createdAt:Date.now() };
-        const ref = await addDoc(collection(_db(),'communities'), newComm);
-        _toast(`💙 Community "${name}" created!`);
-        document.getElementById('newCommName').value = '';
-        document.getElementById('newCommDesc').value = '';
-        // Auto-open the new community
-        snxOpenCommDetail(ref.id);
-    } catch(e) { _toast('❌ Could not create community.'); console.warn('[SNX Comm]',e); }
+        await _tryCreate(2);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '💙 Create Community'; }
+    }
 };
 
 /* ── Join / Leave toggle on a community card ── */
