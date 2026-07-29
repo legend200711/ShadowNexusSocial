@@ -849,6 +849,22 @@ input:focus, textarea:focus, select:focus {
 .profile-stat:hover .stat-num { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.55); }
 .stat-num { font-size: 17px; font-weight: 800; color: #c0e0f8; line-height: 1; transition: color 0.2s, text-shadow 0.2s; }
 .stat-label { font-size: 11px; color: #3a6a9a; margin-top: 1px; }
+/* ── Follower / Following / Friends stat boxes — visible tappable affordance ── */
+#statFollowers, #statFollowing, #statFriends {
+    position: relative;
+}
+#statFollowers::after, #statFollowing::after, #statFriends::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    transition: border-color 0.15s;
+    pointer-events: none;
+}
+#statFollowers:hover::after, #statFollowing:hover::after, #statFriends:hover::after {
+    border-color: rgba(0,174,239,0.4);
+}
 
 /* Profile action buttons row */
 .profile-actions-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
@@ -1022,7 +1038,6 @@ input:focus, textarea:focus, select:focus {
 .psp-list   {
     max-height:320px; overflow-y:auto; padding:6px 0;
     -webkit-overflow-scrolling:touch;
-    contain:strict;
 }
 .psp-list::-webkit-scrollbar { width:4px; }
 .psp-list::-webkit-scrollbar-thumb { background:rgba(0,174,239,0.3); border-radius:2px; }
@@ -1048,23 +1063,32 @@ input:focus, textarea:focus, select:focus {
 .psp-meta   { flex:1; min-width:0; }
 .psp-name   { font-size:13px; font-weight:600; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .psp-handle { font-size:11px; color:#6a90b8; display:flex; align-items:center; gap:5px; }
-.psp-online-label { color:#39FF14; font-size:10px; }
+.psp-online-label  { color:#39FF14; font-size:10px; }
+.psp-offline-label { color:#6a90b8; font-size:10px; }
 .psp-empty  { padding:28px; text-align:center; color:#3a5a7a; font-size:13px; }
+.psp-item:focus-visible { outline:2px solid rgba(0,174,239,0.7); outline-offset:-2px; border-radius:8px; }
 @media (max-width:900px) {
     /* Tablet: slightly shorter list so it doesn't dominate the viewport */
     .psp-list { max-height:280px; }
 }
 @media (max-width:600px) {
-    .psp-list { max-height:240px; }
+    .psp-list { max-height:52vh; }
     .psp-avatar { width:36px; height:36px; font-size:13px; }
     .psp-item { padding:8px 12px; gap:10px; }
     /* Ensure the panel fills the column on small screens */
-    .profile-social-panel { border-radius:10px; }
+    .profile-social-panel { border-radius:10px; margin-left:0; margin-right:0; }
+    .profile-stats-row { gap:12px; justify-content:center; }
+}
+@media (max-width:400px) {
+    .psp-list { max-height:45vh; }
+    .psp-name { font-size:12px; }
+    .psp-handle { font-size:10px; }
 }
 
 /* ── Profile stat boxes — make them look tappable ── */
 .profile-stat { cursor:pointer; transition:background 0.15s, transform 0.12s; border-radius:8px; padding:4px 8px; -webkit-tap-highlight-color:transparent; user-select:none; }
 .profile-stat:hover { background:rgba(0,174,239,0.1); transform:scale(1.04); }
+.profile-stat:focus-visible { outline:2px solid rgba(0,174,239,0.7); outline-offset:1px; }
 /* Active state: shows which list is currently open */
 .profile-stat.psp-active { background:rgba(0,174,239,0.18); box-shadow:0 0 0 2px rgba(0,174,239,0.55); }
 .profile-stat.psp-active .stat-num { color:#00AEEF; text-shadow:0 0 10px rgba(0,174,239,0.7); }
@@ -7309,15 +7333,15 @@ body.arcade-fs-ios body::after { display:none !important; }
                         <div class="stat-num" id="cntPosts">0</div>
                         <div class="stat-label">Posts</div>
                     </div>
-                    <div class="profile-stat" id="statFollowers" role="button" aria-expanded="false" onclick="openSocialList('followers')" title="Tap to view followers list">
+                    <div class="profile-stat" id="statFollowers" role="button" tabindex="0" aria-expanded="false" onclick="openSocialList('followers')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSocialList('followers');}" title="Tap to view followers list">
                         <div class="stat-num" id="cntFollowers">0</div>
                         <div class="stat-label">Followers</div>
                     </div>
-                    <div class="profile-stat" id="statFollowing" role="button" aria-expanded="false" onclick="openSocialList('following')" title="Tap to view following list">
+                    <div class="profile-stat" id="statFollowing" role="button" tabindex="0" aria-expanded="false" onclick="openSocialList('following')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSocialList('following');}" title="Tap to view following list">
                         <div class="stat-num" id="cntFollowing">0</div>
                         <div class="stat-label">Following</div>
                     </div>
-                    <div class="profile-stat" id="statFriends" role="button" aria-expanded="false" onclick="openSocialList('friends')" title="Tap to view friends list">
+                    <div class="profile-stat" id="statFriends" role="button" tabindex="0" aria-expanded="false" onclick="openSocialList('friends')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSocialList('friends');}" title="Tap to view friends list">
                         <div class="stat-num" id="cntFriends">0</div>
                         <div class="stat-label">Friends</div>
                     </div>
@@ -12344,14 +12368,19 @@ body.arcade-fs-ios body::after { display:none !important; }
       const frag = document.createDocumentFragment();
       users.forEach(u => {
           const isOnline = typeof window._snxIsUserOnline === 'function' && window._snxIsUserOnline(u);
-          const avStyle  = u.avatar ? `background-image:url('${u.avatar}');background-size:cover;background-position:center;` : '';
-          const avLetter = u.avatar ? '' : escFeed((u.displayName || u.username || '?')[0].toUpperCase());
+          // Escape avatar URL to prevent XSS in style attribute
+          const safeAvatar = u.avatar ? escFeed(u.avatar) : '';
+          const avStyle  = safeAvatar ? `background-image:url('${safeAvatar}');background-size:cover;background-position:center;` : '';
+          const avLetter = safeAvatar ? '' : escFeed((u.displayName || u.username || '?')[0].toUpperCase());
           const onlineDot = isOnline ? '<div class="psp-online-dot"></div>' : '';
-          const onlineLbl = isOnline ? '<span class="psp-online-label">● Online</span>' : '';
+          const onlineLbl = isOnline ? '<span class="psp-online-label">● Online</span>' : '<span class="psp-offline-label">⚫ Offline</span>';
 
           const item = document.createElement('div');
           item.className = 'psp-item';
           item.setAttribute('data-uid', u.uid);
+          item.setAttribute('tabindex', '0');
+          item.setAttribute('role', 'button');
+          item.setAttribute('aria-label', `View profile of ${escFeed(u.displayName || u.username || 'Unknown')}`);
           item.innerHTML = `
               <div class="psp-avatar-wrap">
                   <div class="psp-avatar" style="${avStyle}">${avLetter}</div>
@@ -12361,7 +12390,9 @@ body.arcade-fs-ios body::after { display:none !important; }
                   <div class="psp-name">${escFeed(u.displayName || u.username || 'Unknown')}${buildBadgeHtml(u.badges||[], u.role||'member')}</div>
                   <div class="psp-handle">@${escFeed(u.username || '')}${onlineLbl}</div>
               </div>`;
-          item.addEventListener('click', () => { closeSocialList(); viewProfile(u.uid); });
+          const goProfile = () => { closeSocialList(); viewProfile(u.uid); };
+          item.addEventListener('click', goProfile);
+          item.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goProfile(); } });
           frag.appendChild(item);
       });
       listEl.appendChild(frag);
@@ -12385,10 +12416,13 @@ body.arcade-fs-ios body::after { display:none !important; }
           const data  = snap.data();
           const uids  = data[type] || [];
 
-          // Update stat counts live
-          document.getElementById('cntFollowers').textContent = (data.followers?.length || 0);
-          document.getElementById('cntFollowing').textContent = (data.following?.length || 0);
-          document.getElementById('cntFriends').textContent   = (data.friends?.length  || 0);
+          // Update stat counts live (null-safe for pages where profile stats aren't shown)
+          const _cF = document.getElementById('cntFollowers');
+          const _cI = document.getElementById('cntFollowing');
+          const _cR = document.getElementById('cntFriends');
+          if (_cF) _cF.textContent = (data.followers?.length || 0);
+          if (_cI) _cI.textContent = (data.following?.length || 0);
+          if (_cR) _cR.textContent = (data.friends?.length  || 0);
 
           if (countEl) countEl.textContent = uids.length ? `(${uids.length})` : '';
 
@@ -12417,7 +12451,9 @@ body.arcade-fs-ios body::after { display:none !important; }
               _pspRenderItems(listEl, users);
           }
       } catch(e) {
-          listEl.innerHTML = `<div class="psp-empty">Failed to load. Try again.</div>`;
+          console.error('[SNX] _pspLoad error:', e);
+          listEl.innerHTML = `<div class="psp-empty">Failed to load. Tap to retry.</div>`;
+          listEl.onclick = () => { listEl.onclick = null; _pspLoad(uid, type); };
       }
   }
 
@@ -12459,31 +12495,36 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (titleEl) titleEl.textContent = labels[type] || type;
           if (searchEl) searchEl.value = '';
           _pspAllUsers = [];
-          panel.style.display = '';
+          panel.style.display = 'block';
 
           // Mark the tapped stat button as active, clear the others
           _pspSetActiveStat(type);
 
-          // Scroll the panel into view smoothly
+          // Initial load — scroll into view only after content is rendered
+          await _pspLoad(uid, type);
           panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-          // Initial load
-          await _pspLoad(uid, type);
-
-          // Real-time listener: refresh when the viewed profile's doc changes
+          // Real-time listener: refresh when the viewed profile's doc changes.
+          // Skip the first snapshot emission (it fires synchronously on attach and
+          // would cause a redundant double-load right after _pspLoad() finishes).
+          let _pspSnapFirst = true;
           _pspUnsub = onSnapshot(doc(db, 'users', uid), snap => {
               if (!snap.exists()) return;
+              if (_pspSnapFirst) { _pspSnapFirst = false; return; }
               const data = snap.data();
               // Update counts
               const cnt = document.getElementById('pspCount');
               const arr = data[type] || [];
               if (cnt) cnt.textContent = arr.length ? `(${arr.length})` : '';
-              document.getElementById('cntFollowers').textContent = (data.followers?.length || 0);
-              document.getElementById('cntFollowing').textContent = (data.following?.length || 0);
-              document.getElementById('cntFriends').textContent   = (data.friends?.length  || 0);
-              // Re-load user details when the list actually changes
+              const cntFollowers = document.getElementById('cntFollowers');
+              const cntFollowing = document.getElementById('cntFollowing');
+              const cntFriends   = document.getElementById('cntFriends');
+              if (cntFollowers) cntFollowers.textContent = (data.followers?.length || 0);
+              if (cntFollowing) cntFollowing.textContent = (data.following?.length || 0);
+              if (cntFriends)   cntFriends.textContent   = (data.friends?.length  || 0);
+              // Re-load user details only when the list membership actually changes
               const prevUids = _pspAllUsers.map(u => u.uid).sort().join(',');
-              const newUids  = arr.slice().sort().join(',');
+              const newUids  = (data[type] || []).slice().sort().join(',');
               if (prevUids !== newUids) _pspLoad(uid, type);
           });
           return;
@@ -12513,23 +12554,40 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (!users.length) { body.innerHTML = `<div class="social-list-empty">No ${labels[type]} yet.</div>`; return; }
           body.innerHTML = '';
           users.forEach(u => {
+              const isOnline = typeof window._snxIsUserOnline === 'function' && window._snxIsUserOnline(u);
               const item = document.createElement('div');
               item.className = 'social-list-item';
-              item.onclick = () => { closeSocialList(); viewProfile(u.uid); };
+              item.setAttribute('tabindex', '0');
+              item.setAttribute('role', 'button');
+              const goProfile = () => { closeSocialList(); viewProfile(u.uid); };
+              item.addEventListener('click', goProfile);
+              item.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goProfile(); } });
+              // Avatar
               const avatarDiv = document.createElement('div');
               avatarDiv.className = 'social-list-avatar';
-              if (u.avatar) { avatarDiv.style.backgroundImage = `url('${u.avatar}')`; }
+              avatarDiv.style.position = 'relative';
+              if (u.avatar) { avatarDiv.style.backgroundImage = `url('${escFeed(u.avatar)}')`; }
               else { avatarDiv.textContent = (u.displayName || '?')[0].toUpperCase(); }
+              // Online dot on avatar
+              if (isOnline) {
+                  const dot = document.createElement('div');
+                  dot.style.cssText = 'position:absolute;bottom:1px;right:1px;width:10px;height:10px;border-radius:50%;background:#39FF14;border:2px solid #060d1e;box-shadow:0 0 6px rgba(57,255,20,0.8);';
+                  avatarDiv.appendChild(dot);
+              }
               const infoDiv = document.createElement('div');
               infoDiv.style.cssText = 'flex:1;min-width:0;';
+              const onlineLbl = isOnline
+                  ? '<span style="color:#39FF14;font-size:10px;margin-left:4px;">● Online</span>'
+                  : '<span style="color:#6a90b8;font-size:10px;margin-left:4px;">⚫ Offline</span>';
               infoDiv.innerHTML = `
                   <div class="social-list-name">${escFeed(u.displayName || u.username || 'Unknown')}${buildBadgeHtml(u.badges||[], u.role||'member')}</div>
-                  <div class="social-list-handle">@${escFeed(u.username || '')}</div>`;
+                  <div class="social-list-handle">@${escFeed(u.username || '')}${onlineLbl}</div>`;
               item.appendChild(avatarDiv);
               item.appendChild(infoDiv);
               body.appendChild(item);
           });
       } catch(e) {
+          console.error('[SNX] socialListModal load error:', e);
           body.innerHTML = `<div class="social-list-empty">Failed to load. Try again.</div>`;
       }
   };
@@ -12541,7 +12599,10 @@ body.arcade-fs-ios body::after { display:none !important; }
           panel.style.display = 'none';
           panel.dataset.type = '';
           const listEl = document.getElementById('pspList');
-          if (listEl) listEl.innerHTML = '';
+          if (listEl) {
+              listEl.innerHTML = '';
+              listEl.onclick = null; // clear any stale retry handler
+          }
           const searchEl = document.getElementById('pspSearch');
           if (searchEl) searchEl.value = '';
           _pspAllUsers = [];
@@ -16375,6 +16436,21 @@ body.arcade-fs-ios body::after { display:none !important; }
                   t.style.fontSize = '13px'; t.style.fontStyle = 'italic';
                   t.textContent = 'This message was deleted.';
                   bub.appendChild(t);
+              } else if (m.type === 'gif' && m.gif) {
+                  // ── GIF bubble ──
+                  const gifWrap = document.createElement('div');
+                  gifWrap.style.cssText = 'position:relative;display:inline-block;max-width:220px;';
+                  const gifImg = document.createElement('img');
+                  gifImg.src = m.gif;
+                  gifImg.alt = m.text || 'GIF';
+                  gifImg.style.cssText = 'max-width:220px;width:100%;border-radius:10px;display:block;cursor:pointer;';
+                  gifImg.onclick = () => openMediaViewer('image', m.gif);
+                  const gifBadge = document.createElement('span');
+                  gifBadge.textContent = 'GIF';
+                  gifBadge.style.cssText = 'position:absolute;bottom:4px;left:4px;background:rgba(0,0,0,0.55);color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;pointer-events:none;letter-spacing:.5px;';
+                  gifWrap.appendChild(gifImg);
+                  gifWrap.appendChild(gifBadge);
+                  bub.appendChild(gifWrap);
               } else if (m.type === 'image' && m.imageUrl) {
                   const img = document.createElement('img');
                   img.className = 'msg-media-img';
@@ -16383,21 +16459,63 @@ body.arcade-fs-ios body::after { display:none !important; }
                   img.onclick = () => openMediaViewer('image', m.imageUrl);
                   bub.appendChild(img);
                   if (m.text) { const t = document.createElement('div'); t.style.fontSize = '13px'; t.textContent = m.text; bub.appendChild(t); }
-              } else if (m.type === 'video' && m.imageUrl) {
+              } else if (m.type === 'video' && (m.imageUrl || m.mediaUrl)) {
+                  const _vSrc = m.imageUrl || m.mediaUrl;
                   const vid = document.createElement('video');
                   vid.className = 'msg-media-vid';
-                  vid.src = m.imageUrl;
+                  vid.src = _vSrc;
                   vid.controls = true;
                   vid.setAttribute('playsinline', '');
                   bub.appendChild(vid);
                   if (m.text) { const t = document.createElement('div'); t.style.fontSize = '13px'; t.textContent = m.text; bub.appendChild(t); }
-              } else if (m.type === 'audio' && m.imageUrl) {
-                  const filename = decodeURIComponent(m.imageUrl.split('/').pop().split('?')[0]);
+              } else if (m.type === 'audio' && (m.imageUrl || m.mediaUrl)) {
+                  // ── Voice message bubble with progress bar + duration ──
+                  const _aSrc = m.imageUrl || m.mediaUrl;
                   const card = document.createElement('div');
-                  card.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,30,70,0.7);border:1px solid rgba(0,174,239,0.3);border-radius:10px;min-width:200px;';
-                  card.innerHTML = `<span style="font-size:24px;flex-shrink:0;">🎵</span><div style="flex:1;min-width:0;"><div style="font-size:12px;color:#d8eeff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;">${_mEsc(filename)}</div><audio src="${m.imageUrl}" controls style="width:100%;"></audio></div>`;
+                  card.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,30,70,0.7);border:1px solid rgba(0,174,239,0.3);border-radius:12px;min-width:220px;max-width:260px;';
+                  const _uid = 'vm_' + Math.random().toString(36).slice(2);
+                  card.innerHTML = `
+                      <button id="${_uid}_btn" style="flex-shrink:0;width:36px;height:36px;border-radius:50%;background:rgba(0,174,239,0.18);border:1px solid rgba(0,174,239,0.4);color:#00AEEF;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;" aria-label="Play voice message">▶</button>
+                      <div style="flex:1;min-width:0;">
+                          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+                              <span style="font-size:11px;color:#9bbdd8;">🎙️ Voice message</span>
+                              <span id="${_uid}_dur" style="font-size:11px;color:#9bbdd8;font-weight:700;">0:00</span>
+                          </div>
+                          <div style="position:relative;height:4px;background:rgba(0,174,239,0.18);border-radius:2px;cursor:pointer;" id="${_uid}_bar">
+                              <div id="${_uid}_prog" style="height:100%;width:0%;background:#00AEEF;border-radius:2px;transition:width .1s linear;"></div>
+                          </div>
+                      </div>
+                      <audio id="${_uid}_audio" src="${_mEsc(_aSrc)}" preload="metadata" style="display:none;"></audio>`;
                   bub.appendChild(card);
-                  if (m.text) { const t = document.createElement('div'); t.style.fontSize = '13px'; t.textContent = m.text; bub.appendChild(t); }
+                  // Wire up play/pause + progress + duration after DOM insertion
+                  setTimeout(() => {
+                      const audio = document.getElementById(_uid + '_audio');
+                      const btn   = document.getElementById(_uid + '_btn');
+                      const prog  = document.getElementById(_uid + '_prog');
+                      const dur   = document.getElementById(_uid + '_dur');
+                      const bar   = document.getElementById(_uid + '_bar');
+                      if (!audio || !btn) return;
+                      function _fmtT(s) { const m=Math.floor(s/60),sc=Math.floor(s%60); return m+':'+(sc<10?'0':'')+sc; }
+                      audio.addEventListener('loadedmetadata', () => {
+                          if (audio.duration && isFinite(audio.duration)) dur.textContent = _fmtT(audio.duration);
+                      });
+                      audio.addEventListener('timeupdate', () => {
+                          if (audio.duration && isFinite(audio.duration)) {
+                              prog.style.width = ((audio.currentTime / audio.duration) * 100) + '%';
+                              dur.textContent = _fmtT(audio.currentTime) + ' / ' + _fmtT(audio.duration);
+                          }
+                      });
+                      audio.addEventListener('ended', () => { btn.textContent = '▶'; prog.style.width = '0%'; });
+                      btn.addEventListener('click', () => {
+                          if (audio.paused) { audio.play(); btn.textContent = '⏸'; }
+                          else { audio.pause(); btn.textContent = '▶'; }
+                      });
+                      if (bar) bar.addEventListener('click', e => {
+                          if (!audio.duration || !isFinite(audio.duration)) return;
+                          const rect = bar.getBoundingClientRect();
+                          audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+                      });
+                  }, 0);
               } else {
                   bub.textContent = m.text || '';
               }
@@ -31132,12 +31250,14 @@ window.snxPinConversation = async function(uid, el) {
     let _timerInterval = null;
     let _recSeconds = 0;
     let _recContext = null; // 'ipc'
+    let _cancelled  = false;
 
     window.snxToggleVoiceRecord = async function(context) {
         _recContext = context;
         if (_recorder && _recorder.state === 'recording') {
-            _stopRecording();
+            _stopRecording(false); // stop and show preview
         } else {
+            _cancelled = false;
             await _startRecording('audio');
         }
     };
@@ -31145,10 +31265,20 @@ window.snxPinConversation = async function(uid, el) {
     window.snxToggleVideoRecord = async function(context) {
         _recContext = context;
         if (_recorder && _recorder.state === 'recording') {
-            _stopRecording();
+            _stopRecording(false);
         } else {
+            _cancelled = false;
             await _startRecording('video');
         }
+    };
+
+    // Cancel without sending
+    window.snxCancelVoiceRecord = function() {
+        _cancelled = true;
+        clearInterval(_timerInterval);
+        if (_recorder && _recorder.state !== 'inactive') _recorder.stop();
+        _hideRecordingUI();
+        _toast('🗑️ Recording cancelled.');
     };
 
     async function _startRecording(mode) {
@@ -31159,15 +31289,17 @@ window.snxPinConversation = async function(uid, el) {
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             const mimeType = mode === 'video'
                 ? (MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm')
-                : (MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/ogg');
+                : (MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+                   : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/ogg'));
             _recorder = new MediaRecorder(stream, { mimeType });
             _chunks = [];
             _recorder.ondataavailable = e => { if (e.data.size > 0) _chunks.push(e.data); };
             _recorder.onstop = () => {
                 stream.getTracks().forEach(t => t.stop());
+                if (_cancelled) { _chunks = []; _cancelled = false; return; }
                 const blob = new Blob(_chunks, { type: mimeType });
-                _onRecordingComplete(blob, mode);
                 _chunks = [];
+                _showPreview(blob, mode);
             };
             _recorder.start();
             _recSeconds = 0;
@@ -31176,14 +31308,15 @@ window.snxPinConversation = async function(uid, el) {
                 _recSeconds++;
                 const el = document.querySelector('.snx-voice-timer');
                 if (el) el.textContent = _fmtTime(_recSeconds);
-                if (_recSeconds >= 120) _stopRecording(); // max 2 min
+                if (_recSeconds >= 120) _stopRecording(false); // max 2 min
             }, 1000);
         } catch(e) {
             _toast('🎙️ Microphone access denied. Please allow mic in browser settings.');
         }
     }
 
-    function _stopRecording() {
+    function _stopRecording(cancel) {
+        if (cancel) _cancelled = true;
         clearInterval(_timerInterval);
         if (_recorder && _recorder.state !== 'inactive') _recorder.stop();
         _hideRecordingUI();
@@ -31193,10 +31326,7 @@ window.snxPinConversation = async function(uid, el) {
         const footer = document.querySelector('#ipcModal .ipc-modal-footer');
         if (!footer) return;
         const wrap = footer.querySelector('.ipc-modal-input-wrap');
-        if (wrap) {
-            wrap._savedDisplay = wrap.style.display;
-            wrap.style.display = 'none';
-        }
+        if (wrap) { wrap._savedDisplay = wrap.style.display; wrap.style.display = 'none'; }
         const existing = footer.querySelector('.snx-voice-recording');
         if (!existing) {
             const recEl = document.createElement('div');
@@ -31204,11 +31334,12 @@ window.snxPinConversation = async function(uid, el) {
             recEl.innerHTML = `<span class="snx-voice-dot"></span>
                 <span>${mode==='video'?'📹':'🎙️'} Recording…</span>
                 <span class="snx-voice-timer">0:00</span>
-                <span style="margin-left:auto;font-size:11px;color:#9bbdd8;">Tap 🎙️ to stop</span>`;
+                <button onclick="window.snxCancelVoiceRecord()" title="Cancel recording"
+                    style="margin-left:auto;background:none;border:none;color:#ff6680;font-size:13px;cursor:pointer;padding:0 4px;">✕ Cancel</button>`;
             footer.insertBefore(recEl, footer.querySelector('.ipc-modal-send'));
         }
         const voiceBtn = document.getElementById('ipcVoiceBtn');
-        if (voiceBtn) { voiceBtn.style.color = '#ff3344'; }
+        if (voiceBtn) { voiceBtn.style.color = '#ff3344'; voiceBtn.title = 'Stop recording'; }
     }
 
     function _hideRecordingUI() {
@@ -31220,7 +31351,43 @@ window.snxPinConversation = async function(uid, el) {
             if (wrap && wrap._savedDisplay !== undefined) wrap.style.display = wrap._savedDisplay || '';
         }
         const voiceBtn = document.getElementById('ipcVoiceBtn');
-        if (voiceBtn) { voiceBtn.style.color = ''; }
+        if (voiceBtn) { voiceBtn.style.color = ''; voiceBtn.title = 'Voice message'; }
+    }
+
+    // ── Audio preview before sending ──
+    function _showPreview(blob, mode) {
+        const isVid = mode === 'video';
+        const blobUrl = URL.createObjectURL(blob);
+        const prev = document.createElement('div');
+        prev.id = 'snxVoicePreview';
+        prev.style.cssText = 'position:fixed;inset:0;z-index:9700;background:rgba(0,3,15,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;box-sizing:border-box;';
+        prev.innerHTML = `
+            <div style="color:#fff;font-size:14px;font-weight:700;">${isVid ? '📹 Video' : '🎙️ Voice'} Preview</div>
+            ${isVid
+                ? `<video src="${blobUrl}" controls playsinline style="max-width:300px;max-height:50vh;border-radius:10px;background:#000;"></video>`
+                : `<div style="background:rgba(0,30,70,0.8);border:1px solid rgba(0,174,239,0.35);border-radius:12px;padding:14px 18px;min-width:260px;">
+                       <div style="display:flex;align-items:center;gap:10px;">
+                           <span style="font-size:22px;">🎙️</span>
+                           <audio id="snxVoicePreviewAudio" src="${blobUrl}" controls style="flex:1;min-width:0;"></audio>
+                       </div>
+                       <div style="font-size:11px;color:#6a90b8;margin-top:8px;text-align:center;">Duration: ${_fmtTime(_recSeconds)}</div>
+                   </div>`
+            }
+            <div style="display:flex;gap:12px;">
+                <button id="snxVoicePreviewSend" style="padding:10px 28px;border-radius:24px;background:#0d84e8;border:none;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Send</button>
+                <button id="snxVoicePreviewCancel" style="padding:10px 20px;border-radius:24px;background:rgba(255,60,80,0.18);border:1px solid rgba(255,60,80,0.5);color:#ff6680;font-size:14px;cursor:pointer;">Discard</button>
+            </div>`;
+        document.body.appendChild(prev);
+        document.getElementById('snxVoicePreviewCancel').addEventListener('click', () => {
+            URL.revokeObjectURL(blobUrl);
+            prev.remove();
+            _toast('🗑️ Recording discarded.');
+        });
+        document.getElementById('snxVoicePreviewSend').addEventListener('click', async () => {
+            URL.revokeObjectURL(blobUrl);
+            prev.remove();
+            await _onRecordingComplete(blob, mode);
+        });
     }
 
     async function _onRecordingComplete(blob, mode) {
@@ -31228,7 +31395,6 @@ window.snxPinConversation = async function(uid, el) {
         const isVid = mode === 'video';
         _toast(`⏳ Uploading ${isVid?'video':'voice'} message…`);
         try {
-            // Use the existing R2 upload worker
             const ext = isVid ? 'webm' : 'webm';
             const fname = `voice_${cu.uid}_${Date.now()}.${ext}`;
             const formData = new FormData();
@@ -31239,26 +31405,37 @@ window.snxPinConversation = async function(uid, el) {
             if (!res.ok) throw new Error('Upload failed: ' + res.status);
             const { url } = await res.json();
 
-            // Send as a message via ipcModal's existing send mechanism
-            const msgData = {
-                type: isVid ? 'video' : 'audio',
-                mediaUrl: url,
-                text: isVid ? '🎬 Video message' : '🎙️ Voice message',
-            };
-            // Inject into chat via window.snxSendMediaMsg if available, else directly to Firestore
-            if (typeof window.snxSendMediaMsg === 'function') {
-                window.snxSendMediaMsg(msgData);
-            } else if (window._m_chId) {
-                const { collection, addDoc } = _fs();
-                if (collection) {
-                    await addDoc(collection(_db(),'chats',window._m_chId,'messages'), {
-                        ...msgData,
-                        senderId: cu.uid,
-                        senderName: window.userData?.displayName || '',
-                        timestamp: Date.now(),
-                        read: false
-                    });
-                }
+            // ── Store using the correct DM schema (arrayUnion on the chat doc) ──
+            if (window._m_chId && !window._ipcIsGroup) {
+                const { doc, setDoc, arrayUnion, increment } = _fs(); if (!doc) return;
+                const tgtUid = window._m_tgtUid;
+                const msg = {
+                    type:      isVid ? 'video' : 'audio',
+                    mediaUrl:  url,
+                    imageUrl:  url,   // alias — _mRender checks imageUrl
+                    text:      isVid ? '🎬 Video message' : '🎙️ Voice message',
+                    sender:    cu.uid,
+                    senderName: window.userData?.displayName || '',
+                    timestamp:  Date.now()
+                };
+                const upd = {
+                    messages:    arrayUnion(msg),
+                    readReceipt: false,
+                    lastMsgTs:   msg.timestamp
+                };
+                if (tgtUid) upd['unread_' + tgtUid] = increment(1);
+                await setDoc(doc(_db(),'chats',window._m_chId), upd, { merge:true });
+            } else if (window._ipcIsGroup && window._ipcGroupId) {
+                // Group chats use subcollection
+                const { collection, addDoc } = _fs(); if (!collection) return;
+                await addDoc(collection(_db(),'groupChats',window._ipcGroupId,'messages'), {
+                    type:      isVid ? 'video' : 'audio',
+                    mediaUrl:  url,
+                    text:      isVid ? '🎬 Video message' : '🎙️ Voice message',
+                    senderId:  cu.uid, sender: cu.uid,
+                    senderName: window.userData?.displayName || '',
+                    timestamp:  Date.now(), read: false
+                });
             }
             _toast(`✅ ${isVid?'Video':'Voice'} message sent!`);
         } catch(e) {
@@ -31335,26 +31512,63 @@ window.snxPinConversation = async function(uid, el) {
         }
     }
 
-    async function _selectGif(url, title) {
+    function _selectGif(url, title) {
         window.snxCloseGifPicker();
         const cu = _cu(); if (!cu) return;
+        // ── GIF preview before sending ──
+        const prev = document.createElement('div');
+        prev.id = 'snxGifPreview';
+        prev.style.cssText = 'position:fixed;inset:0;z-index:9700;background:rgba(0,3,15,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;';
+        prev.innerHTML = `
+            <div style="color:#fff;font-size:14px;font-weight:700;margin-bottom:4px;">Preview GIF</div>
+            <img src="${_snxEsc(url)}" alt="${_snxEsc(title)}" style="max-width:280px;max-height:55vh;border-radius:12px;display:block;">
+            <div style="display:flex;gap:12px;margin-top:4px;">
+                <button id="snxGifPreviewSend" style="padding:10px 28px;border-radius:24px;background:#0d84e8;border:none;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Send GIF</button>
+                <button id="snxGifPreviewCancel" style="padding:10px 20px;border-radius:24px;background:rgba(255,60,80,0.18);border:1px solid rgba(255,60,80,0.5);color:#ff6680;font-size:14px;cursor:pointer;">Cancel</button>
+            </div>`;
+        document.body.appendChild(prev);
+        document.getElementById('snxGifPreviewCancel').addEventListener('click', () => prev.remove());
+        document.getElementById('snxGifPreviewSend').addEventListener('click', async () => {
+            prev.remove();
+            await _doSendGif(url, title, cu);
+        });
+    }
+
+    async function _doSendGif(url, title, cu) {
         _toast('📤 Sending GIF…');
         try {
             if (_gifContext === 'ipc' && window._m_chId) {
-                const { collection, addDoc } = _fs(); if (!collection) return;
                 const isGroup = window._ipcIsGroup && window._ipcGroupId;
-                const path = isGroup
-                    ? collection(_db(),'groupChats',window._ipcGroupId,'messages')
-                    : collection(_db(),'chats',window._m_chId,'messages');
-                await addDoc(path, {
-                    type: 'gif', gif: url, text: title,
-                    senderId: cu.uid,
-                    senderName: window.userData?.displayName || '',
-                    timestamp: Date.now(), read: false
-                });
+                if (isGroup) {
+                    // Group chats use a subcollection — addDoc is correct here
+                    const { collection, addDoc } = _fs(); if (!collection) return;
+                    await addDoc(collection(_db(),'groupChats',window._ipcGroupId,'messages'), {
+                        type: 'gif', gif: url, text: title,
+                        senderId: cu.uid, sender: cu.uid,
+                        senderName: window.userData?.displayName || '',
+                        timestamp: Date.now(), read: false
+                    });
+                } else {
+                    // 1-to-1 DMs store messages as arrayUnion on the chat document
+                    const { doc, setDoc, arrayUnion, increment } = _fs(); if (!doc) return;
+                    const tgtUid = window._m_tgtUid;
+                    const msg = {
+                        type: 'gif', gif: url, text: title,
+                        sender: cu.uid,
+                        senderName: window.userData?.displayName || '',
+                        timestamp: Date.now()
+                    };
+                    const upd = {
+                        messages:    arrayUnion(msg),
+                        readReceipt: false,
+                        lastMsgTs:   msg.timestamp
+                    };
+                    if (tgtUid) upd['unread_' + tgtUid] = increment(1);
+                    await setDoc(doc(_db(),'chats',window._m_chId), upd, { merge:true });
+                }
+                _toast('✅ GIF sent!');
             }
-            // Could also hook into comment context here
-        } catch(e) { _toast('❌ Could not send GIF.'); }
+        } catch(e) { console.warn('[SNX GIF]', e); _toast('❌ Could not send GIF.'); }
     }
 
     // Close on backdrop click
