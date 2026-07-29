@@ -44,6 +44,7 @@
 <!-- ── Shared stylesheet ── -->
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="album.css">
+<link rel="stylesheet" href="holiday-themes.css">
 
 <!-- ── Preconnect to Firebase + R2 CDN so first load is faster ── -->
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -3393,10 +3394,250 @@ img.post-media-preview::before {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.profile-music-audio {
-    width: 100%;
+/* ─── Profile music custom player controls ─── */
+.profile-music-artist {
+    font-size: 11px;
+    color: #6a90b8;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.profile-music-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+}
+.pm-ctrl-btn {
+    flex-shrink: 0;
+    width: 32px;
     height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,174,239,0.4);
+    background: rgba(0,174,239,0.12);
+    color: #c8e8ff;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    padding: 0;
+}
+.pm-ctrl-btn:hover { background: rgba(0,174,239,0.28); }
+.pm-ctrl-btn.pm-repeat-btn.active { background: rgba(0,174,239,0.35); color: #00AEEF; border-color: #00AEEF; }
+.pm-progress-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.pm-progress-bar {
+    position: relative;
+    height: 6px;
+    background: rgba(0,174,239,0.12);
+    border-radius: 3px;
+    overflow: visible;
+}
+.pm-progress-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 0%;
+    background: #00AEEF;
+    border-radius: 3px;
+    pointer-events: none;
+    transition: width 0.1s linear;
+}
+.pm-seek {
+    position: absolute;
+    inset: -6px 0;
+    width: 100%;
+    opacity: 0;
+    cursor: pointer;
+    margin: 0;
+}
+.pm-time {
+    font-size: 10px;
+    color: #4a7a9a;
+    white-space: nowrap;
+}
+.pm-vol-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.pm-vol-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+.pm-volume {
+    width: 60px;
     accent-color: #00AEEF;
+    cursor: pointer;
+}
+
+/* ─── Inbox tab bar (DMs / Groups) ─── */
+.inbox-tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid rgba(0,174,239,0.2);
+    margin-bottom: 16px;
+}
+.inbox-tab {
+    flex: 1;
+    padding: 10px 12px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #6a90b8;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    text-align: center;
+}
+.inbox-tab:hover { color: #c8e8ff; }
+.inbox-tab.active { color: #00AEEF; border-bottom-color: #00AEEF; }
+.inbox-group-badge {
+    display: inline-block;
+    background: #ff3366;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 8px;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+
+/* ─── Group chat inbox card ─── */
+.inbox-group-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(0,174,239,0.15);
+    background: rgba(0,20,50,0.35);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 6px;
+}
+.inbox-group-card:hover { border-color: rgba(0,174,239,0.4); background: rgba(0,40,80,0.45); }
+.inbox-group-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: rgba(0,174,239,0.15);
+    border: 1px solid rgba(0,174,239,0.3);
+    object-fit: cover;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #00AEEF;
+    overflow: hidden;
+}
+.inbox-group-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e6f3ff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.inbox-group-preview {
+    font-size: 12px;
+    color: #6a90b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+.inbox-group-unread {
+    background: #ff3366;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.inbox-group-unread.zero { display: none; }
+
+/* ─── Group member chip ─── */
+.snx-group-member-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px 4px 6px;
+    background: rgba(0,174,239,0.15);
+    border: 1px solid rgba(0,174,239,0.3);
+    border-radius: 20px;
+    font-size: 12px;
+    color: #c8e8ff;
+}
+.snx-group-member-chip button {
+    background: none;
+    border: none;
+    color: #ff5566;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+    line-height: 1;
+}
+
+/* ─── Group friend pick row ─── */
+.snx-group-friend-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.15s, border-color 0.15s;
+}
+.snx-group-friend-row:hover { background: rgba(0,174,239,0.07); border-color: rgba(0,174,239,0.2); }
+.snx-group-friend-row.selected { background: rgba(0,174,239,0.14); border-color: rgba(0,174,239,0.4); }
+.snx-group-friend-row img,
+.snx-group-friend-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: rgba(0,40,80,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #00AEEF;
+}
+.snx-group-friend-name { font-size: 13px; color: #e6f3ff; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.snx-group-friend-check { font-size: 16px; color: #00AEEF; flex-shrink: 0; }
+
+/* ─── Group chat bubble sender label ─── */
+.ipc-group-sender-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(0,40,80,0.7);
+    object-fit: cover;
+    flex-shrink: 0;
+    font-size: 13px;
+    color: #00AEEF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
+    vertical-align: middle;
 }
 
 /* ─── Profile visitor badge ─── */
@@ -7706,6 +7947,8 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;line-height:1.5;">Add a song that plays on your profile. Visitors can play or pause it from the music card.</p>
                 <label>Song / Track Title</label>
                 <input id="editMusicTitle" placeholder="e.g. My favourite track" maxlength="80">
+                <label style="margin-top:8px;">Artist / Band Name <small style="color:#4a7a9a;font-size:10px;">(optional)</small></label>
+                <input id="editMusicArtist" placeholder="e.g. Artist Name" maxlength="80">
                 <label style="margin-top:10px;">Audio URL <small style="color:#4a7a9a;font-size:10px;">(direct .mp3/.ogg/.wav link or upload below)</small></label>
                 <input id="editMusicUrl" placeholder="https://…/track.mp3">
                 <label style="margin-top:10px;">Or upload a track</label>
@@ -7718,10 +7961,15 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <div class="snx-upload-progress" id="editMusicProgress">
                     <div class="snx-upload-progress-bar" id="editMusicProgressBar"></div>
                 </div>
-                <label style="margin-top:10px;">Autoplay</label>
+                <label style="margin-top:10px;">Autoplay when profile opens</label>
                 <select id="editMusicAutoplay">
                     <option value="no">Off (visitor presses play)</option>
                     <option value="yes">On (plays when profile loads)</option>
+                </select>
+                <label style="margin-top:10px;">Repeat</label>
+                <select id="editMusicRepeat">
+                    <option value="no">Off</option>
+                    <option value="yes">On (loop track)</option>
                 </select>
             </div>
 
@@ -8147,34 +8395,57 @@ body.arcade-fs-ios body::after { display:none !important; }
 <div class="page" id="inboxPage">
     <h2 class="eclipse-title">💬 Message Inbox</h2>
     <div class="section-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-            <span style="font-size:13px;color:#3a6a9a;font-weight:600;">All your direct messages in one place</span>
-            <button id="inboxComposeBtn" class="notif-mark-all" title="Start a new message">✏️ New Message</button>
+        <!-- Tab bar: DMs vs Groups -->
+        <div class="inbox-tab-bar">
+            <button class="inbox-tab active" id="inboxTabDMs" onclick="snxSwitchInboxTab('dms',this)">💬 Direct Messages</button>
+            <button class="inbox-tab" id="inboxTabGroups" onclick="snxSwitchInboxTab('groups',this)">👥 Group Chats <span id="inboxGroupBadge" class="inbox-group-badge" style="display:none;"></span></button>
         </div>
 
-        <div class="search-bar-row" style="margin-bottom:12px;">
-            <input id="inboxSearchInput" placeholder="Search conversations by name…" autocomplete="off">
-            <button onclick="filterInboxConversations()" style="border-radius:8px;">Search</button>
-        </div>
-
-        <div id="inboxOnlineWrap" style="display:none;">
-            <div class="online-now-header">
-                <div class="online-now-title"><span class="live-pip"></span> Online Now</div>
-                <div id="inboxOnlineCount" class="online-now-count">0 online</div>
+        <!-- DMs panel -->
+        <div id="inboxDMsPanel">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+                <span style="font-size:13px;color:#3a6a9a;font-weight:600;">All your direct messages in one place</span>
+                <button id="inboxComposeBtn" class="notif-mark-all" title="Start a new message">✏️ New Message</button>
             </div>
-            <div id="inboxOnlineGrid"></div>
+
+            <div class="search-bar-row" style="margin-bottom:12px;">
+                <input id="inboxSearchInput" placeholder="Search conversations by name…" autocomplete="off">
+                <button onclick="filterInboxConversations()" style="border-radius:8px;">Search</button>
+            </div>
+
+            <div id="inboxOnlineWrap" style="display:none;">
+                <div class="online-now-header">
+                    <div class="online-now-title"><span class="live-pip"></span> Online Now</div>
+                    <div id="inboxOnlineCount" class="online-now-count">0 online</div>
+                </div>
+                <div id="inboxOnlineGrid"></div>
+            </div>
+
+            <div id="inboxStatusLegend" class="inbox-status-legend" style="display:none;">
+                <span class="legend-item"><span class="legend-dot online"></span><span id="legendOnlineCount">0</span> Online</span>
+                <span class="legend-item"><span class="legend-dot live"></span><span id="legendLiveCount">0</span> LIVE</span>
+                <span class="legend-item"><span class="legend-dot offline"></span><span id="legendOfflineCount">0</span> Offline</span>
+            </div>
+
+            <div id="inboxConvList">
+                <div class="empty-state" id="inboxEmptyState">
+                    <div style="font-size:28px;margin-bottom:10px;">💬</div>
+                    Loading your conversations…
+                </div>
+            </div>
         </div>
 
-        <div id="inboxStatusLegend" class="inbox-status-legend" style="display:none;">
-            <span class="legend-item"><span class="legend-dot online"></span><span id="legendOnlineCount">0</span> Online</span>
-            <span class="legend-item"><span class="legend-dot live"></span><span id="legendLiveCount">0</span> LIVE</span>
-            <span class="legend-item"><span class="legend-dot offline"></span><span id="legendOfflineCount">0</span> Offline</span>
-        </div>
-
-        <div id="inboxConvList">
-            <div class="empty-state" id="inboxEmptyState">
-                <div style="font-size:28px;margin-bottom:10px;">💬</div>
-                Loading your conversations…
+        <!-- Groups panel -->
+        <div id="inboxGroupsPanel" style="display:none;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+                <span style="font-size:13px;color:#3a6a9a;font-weight:600;">Group chats with your friends</span>
+                <button id="inboxCreateGroupBtn" class="notif-mark-all" title="Create a group chat" onclick="snxOpenCreateGroupModal()" style="border-color:rgba(0,174,239,0.4);color:#00AEEF;">👥 New Group</button>
+            </div>
+            <div id="inboxGroupList">
+                <div class="empty-state">
+                    <div style="font-size:28px;margin-bottom:10px;">👥</div>
+                    Loading group chats…
+                </div>
             </div>
         </div>
     </div>
@@ -8208,6 +8479,98 @@ body.arcade-fs-ios body::after { display:none !important; }
         <!-- Scrollable results list (fills the rest of the screen) -->
         <div id="inboxComposeResults" style="flex:1;min-height:0;overflow-y:auto;padding:8px 14px 20px;box-sizing:border-box;-webkit-overflow-scrolling:touch;">
             <div class="ipc-modal-loading"><span>Search your friends to start a chat.</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ GROUP CHAT — CREATE GROUP MODAL ═══════════ -->
+<div id="snxCreateGroupModal" role="dialog" aria-modal="true" aria-label="Create group chat" style="display:none;position:fixed;inset:0;z-index:9300;background:rgba(0,4,14,0.92);backdrop-filter:blur(6px);">
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;">
+        <div style="background:linear-gradient(180deg,#0d1f3a 0%,#071428 100%);border:1px solid rgba(0,174,239,0.3);border-radius:18px;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
+            <!-- Header -->
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid rgba(0,174,239,0.2);flex-shrink:0;">
+                <div style="width:44px;height:44px;border-radius:12px;background:rgba(0,174,239,0.15);border:1px solid rgba(0,174,239,0.3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">👥</div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:17px;font-weight:700;color:#fff;">Create Group Chat</div>
+                    <div style="font-size:12px;color:#6a90b8;">Name your group and invite friends</div>
+                </div>
+                <button onclick="snxCloseCreateGroupModal()" style="width:36px;height:36px;border-radius:10px;background:rgba(255,85,102,0.12);border:1px solid rgba(255,85,102,0.3);color:#ff5566;font-size:18px;cursor:pointer;flex-shrink:0;">✕</button>
+            </div>
+            <!-- Body -->
+            <div style="padding:18px;overflow-y:auto;flex:1;min-height:0;">
+                <!-- Group name -->
+                <label style="font-size:12px;color:#9bbdd8;font-weight:600;display:block;margin-bottom:6px;">Group Name <span style="color:#ff5566;">*</span></label>
+                <input id="snxGroupName" placeholder="e.g. Squad Goals, Study Group…" maxlength="60"
+                    style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(0,174,239,0.25);border-radius:10px;color:#e6f3ff;padding:12px 14px;font-size:14px;outline:none;margin-bottom:14px;">
+                <!-- Group picture URL -->
+                <label style="font-size:12px;color:#9bbdd8;font-weight:600;display:block;margin-bottom:6px;">Group Picture URL <small style="color:#4a7a9a;font-size:10px;">(optional)</small></label>
+                <input id="snxGroupPicUrl" placeholder="https://…/image.jpg"
+                    style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(0,174,239,0.25);border-radius:10px;color:#e6f3ff;padding:12px 14px;font-size:14px;outline:none;margin-bottom:14px;">
+                <!-- Invite friends -->
+                <label style="font-size:12px;color:#9bbdd8;font-weight:600;display:block;margin-bottom:6px;">Invite Friends <span style="color:#ff5566;">*</span> <span style="color:#4a7a9a;font-size:10px;">(select at least 1)</span></label>
+                <input id="snxGroupFriendSearch" placeholder="Search friends by name…" autocomplete="off"
+                    style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.25);border:1px solid rgba(0,174,239,0.2);border-radius:10px;color:#e6f3ff;padding:10px 14px;font-size:13px;outline:none;margin-bottom:8px;">
+                <div id="snxGroupFriendList" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:14px;"></div>
+                <!-- Selected members preview -->
+                <div id="snxGroupSelectedWrap" style="display:none;margin-bottom:14px;">
+                    <div style="font-size:11px;color:#6a90b8;margin-bottom:6px;font-weight:600;">SELECTED MEMBERS</div>
+                    <div id="snxGroupSelectedList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                </div>
+            </div>
+            <!-- Footer -->
+            <div style="padding:14px 18px;border-top:1px solid rgba(0,174,239,0.15);flex-shrink:0;display:flex;gap:10px;justify-content:flex-end;">
+                <button onclick="snxCloseCreateGroupModal()" style="padding:10px 20px;border-radius:10px;background:rgba(255,85,102,0.1);border:1px solid rgba(255,85,102,0.3);color:#ff5566;font-size:13px;cursor:pointer;">Cancel</button>
+                <button id="snxCreateGroupSubmitBtn" onclick="snxSubmitCreateGroup()" style="padding:10px 24px;border-radius:10px;background:linear-gradient(135deg,#003d99,#0066cc);border:1px solid rgba(0,174,239,0.5);color:#fff;font-size:13px;font-weight:700;cursor:pointer;">Create Group</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ GROUP CHAT — CHAT MODAL ═══════════ -->
+<div id="snxGroupChatModal" role="dialog" aria-modal="true" aria-label="Group chat" style="display:none;position:fixed;inset:0;z-index:9400;">
+    <div id="snxGroupChatBackdrop" style="position:absolute;inset:0;background:rgba(0,4,14,0.7);" onclick="snxCloseGroupChat()"></div>
+    <div class="ipc-modal-card" style="max-width:600px;" role="document">
+        <!-- Header -->
+        <div class="ipc-modal-header" id="snxGcHeader">
+            <div class="ipc-modal-avatar" id="snxGcAvatar"></div>
+            <div class="ipc-modal-info">
+                <div class="ipc-modal-name" id="snxGcName">Group Chat</div>
+                <div class="ipc-modal-sub" id="snxGcSub">Loading…</div>
+            </div>
+            <div class="ipc-modal-header-btns">
+                <button class="ipc-modal-btn" title="Group info / manage" onclick="snxOpenGroupInfo()" aria-label="Group info" style="font-size:14px;color:#00AEEF;">ℹ️</button>
+                <button class="ipc-modal-btn" title="Close" onclick="snxCloseGroupChat()" aria-label="Close" style="font-size:20px;color:#ff5566;">✕</button>
+            </div>
+        </div>
+        <!-- Messages -->
+        <div class="ipc-modal-messages" id="snxGcMessages">
+            <div class="ipc-modal-loading">
+                <div class="ipc-ldot"></div><div class="ipc-ldot"></div><div class="ipc-ldot"></div>
+                <span>Loading group chat…</span>
+            </div>
+        </div>
+        <!-- Typing -->
+        <div class="ipc-modal-typing" id="snxGcTyping"></div>
+        <!-- Footer: attachments + input + send -->
+        <div class="ipc-modal-footer">
+            <div class="ipc-modal-input-wrap">
+                <textarea id="snxGcInput" placeholder="Message group… (Enter to send)" rows="1" autocomplete="off" autocorrect="on" spellcheck="true" enterkeyhint="send" aria-label="Type a group message"></textarea>
+            </div>
+            <button class="ipc-modal-send" id="snxGcSendBtn" aria-label="Send message" title="Send (Enter)">➤</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ GROUP CHAT — INFO / MANAGE MODAL ═══════════ -->
+<div id="snxGroupInfoModal" role="dialog" aria-modal="true" aria-label="Group info" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,4,14,0.85);backdrop-filter:blur(6px);">
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;">
+        <div style="background:linear-gradient(180deg,#0d1f3a 0%,#071428 100%);border:1px solid rgba(0,174,239,0.3);border-radius:18px;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid rgba(0,174,239,0.2);flex-shrink:0;">
+                <div style="font-size:18px;font-weight:700;color:#fff;flex:1;">👥 Group Info</div>
+                <button onclick="snxCloseGroupInfo()" style="width:36px;height:36px;border-radius:10px;background:rgba(255,85,102,0.12);border:1px solid rgba(255,85,102,0.3);color:#ff5566;font-size:18px;cursor:pointer;">✕</button>
+            </div>
+            <div style="padding:18px;overflow-y:auto;flex:1;min-height:0;" id="snxGroupInfoBody">Loading…</div>
+            <div style="padding:14px 18px;border-top:1px solid rgba(0,174,239,0.15);flex-shrink:0;display:flex;gap:8px;flex-wrap:wrap;" id="snxGroupInfoActions"></div>
         </div>
     </div>
 </div>
@@ -8951,6 +9314,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     <button class="admin-tab" onclick="switchAdminTab('health')">💚 System Health</button>
     <button class="admin-tab" onclick="switchAdminTab('backup')">💾 Backup</button>
     <button class="admin-tab" onclick="switchAdminTab('community')">🌐 Community</button>
+    <button class="admin-tab" onclick="switchAdminTab('holidaythemes')">🎄 Holiday Themes</button>
 </div>
 
 <!-- ══════════════════════════════════
@@ -10128,6 +10492,16 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="settings-label">Polls<small>Allow poll posts</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="togglePolls" class="notif-toggle-cb" checked onchange="adminToggleFeature('pollsEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
+     TAB: HOLIDAY THEMES
+══════════════════════════════════ -->
+<div class="admin-tab-content" id="adminTab-holidaythemes">
+    <div class="section-card">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎄 Holiday Themes</h3>
+        <p style="font-size:12px;color:#6a90b8;margin:0;">Loading…</p>
     </div>
 </div>
 
@@ -16474,6 +16848,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (tab==='analytics')   snxLoadAnalytics();
       if (tab==='health')      snxRunHealthCheck();
       if (tab==='community')   { snxLoadActiveRooms('storm'); snxLoadActiveRooms('support'); snxLoadActiveLivestreams(); }
+      if (tab==='holidaythemes') { if (typeof window.snxHtRenderAdminTab === 'function') window.snxHtRenderAdminTab(); }
   };
 
   // ── Founder: conversation moderation tools ────────────────────────────────
@@ -28262,6 +28637,9 @@ window.switchAdminTab = function(tab) {
   if (tab === 'liverooms') {
     window.adminLoadLiveRooms();
   }
+  if (tab === 'holidaythemes') {
+    if (typeof window.snxHtRenderAdminTab === 'function') window.snxHtRenderAdminTab();
+  }
 };
 
 })(); // end IIFE
@@ -29216,16 +29594,147 @@ function _renderProfileMusic(pc, isSelf) {
 
     const player = document.getElementById('profileMusicPlayer');
     if (!player) return;
-    const autoplay = music.autoplay === 'yes';
+
+    const safeUrl    = (music.url    || '').replace(/"/g, '&quot;');
+    const safeTitle  = (music.title  || 'Profile Track').replace(/[<>]/g, '');
+    const safeArtist = (music.artist || '').replace(/[<>]/g, '');
+    const pId = 'snxMusicAudio_' + Date.now();
+
     player.innerHTML = `
-        <div class="profile-music-player-inner">
-            <div class="profile-music-icon">🎵</div>
+        <div class="profile-music-player-inner" id="snxMusicPlayerUI">
+            <div class="profile-music-icon" id="snxMusicNoteIcon">🎵</div>
             <div class="profile-music-info">
-                <div class="profile-music-title">${(music.title || 'Profile Track').replace(/[<>]/g, '')}</div>
-                <audio class="profile-music-audio" src="${music.url.replace(/"/g,'&quot;')}" controls preload="metadata"${autoplay ? ' autoplay' : ''}></audio>
+                <div class="profile-music-title">${safeTitle}</div>
+                ${safeArtist ? `<div class="profile-music-artist">${safeArtist}</div>` : ''}
+                <audio id="${pId}" src="${safeUrl}" preload="metadata"${music.repeat === 'yes' ? ' loop' : ''} style="display:none;"></audio>
+                <div class="profile-music-controls">
+                    <button class="pm-ctrl-btn" id="snxMusicPlayBtn" onclick="snxMusicTogglePlay('${pId}')" title="Play / Pause" aria-label="Play or pause">▶</button>
+                    <div class="pm-progress-wrap">
+                        <div class="pm-progress-bar">
+                            <div class="pm-progress-fill" id="snxMusicFill"></div>
+                            <input type="range" class="pm-seek" id="snxMusicSeek" min="0" max="100" value="0" step="0.1"
+                                   oninput="snxMusicSeek('${pId}',this.value)" aria-label="Seek">
+                        </div>
+                        <div class="pm-time" id="snxMusicTime">0:00 / 0:00</div>
+                    </div>
+                    <button class="pm-ctrl-btn pm-repeat-btn${music.repeat === 'yes' ? ' active' : ''}" id="snxMusicRepeatBtn" onclick="snxMusicToggleRepeat('${pId}')" title="Repeat" aria-label="Toggle repeat">🔁</button>
+                    <div class="pm-vol-wrap">
+                        <span class="pm-vol-icon" onclick="snxMusicToggleMute('${pId}')" title="Mute / Unmute" style="cursor:pointer;">🔊</span>
+                        <input type="range" class="pm-volume" id="snxMusicVol" min="0" max="100" value="80" step="1"
+                               oninput="snxMusicVolume('${pId}',this.value)" aria-label="Volume">
+                    </div>
+                </div>
             </div>
         </div>`;
+
+    // Wire up the audio element events after injecting HTML
+    const audio = document.getElementById(pId);
+    if (!audio) return;
+
+    audio.volume = 0.8;
+
+    audio.addEventListener('timeupdate', () => {
+        const fill  = document.getElementById('snxMusicFill');
+        const seek  = document.getElementById('snxMusicSeek');
+        const tEl   = document.getElementById('snxMusicTime');
+        const pct   = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+        if (fill)  fill.style.width = pct + '%';
+        if (seek)  seek.value = pct;
+        if (tEl)   tEl.textContent = _snxMusicFmt(audio.currentTime) + ' / ' + _snxMusicFmt(audio.duration || 0);
+    });
+    audio.addEventListener('play', () => {
+        const btn  = document.getElementById('snxMusicPlayBtn');
+        const icon = document.getElementById('snxMusicNoteIcon');
+        if (btn)  btn.textContent = '⏸';
+        if (icon) icon.style.animationPlayState = 'running';
+    });
+    audio.addEventListener('pause', () => {
+        const btn  = document.getElementById('snxMusicPlayBtn');
+        const icon = document.getElementById('snxMusicNoteIcon');
+        if (btn)  btn.textContent = '▶';
+        if (icon) icon.style.animationPlayState = 'paused';
+    });
+    audio.addEventListener('ended', () => {
+        const btn  = document.getElementById('snxMusicPlayBtn');
+        const icon = document.getElementById('snxMusicNoteIcon');
+        if (btn)  btn.textContent = '▶';
+        if (icon) icon.style.animationPlayState = 'paused';
+    });
+
+    // Autoplay with muted fallback (browsers block autoplay with sound)
+    if (music.autoplay === 'yes') {
+        audio.play().catch(() => {
+            audio.muted = true;
+            audio.play().catch(() => {});
+            const volIcon = player.querySelector('.pm-vol-icon');
+            if (volIcon) volIcon.textContent = '🔇';
+            const volSlider = document.getElementById('snxMusicVol');
+            if (volSlider) volSlider.value = 0;
+        });
+    }
 }
+
+function _snxMusicFmt(s) {
+    if (!isFinite(s) || s < 0) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60).toString().padStart(2, '0');
+    return m + ':' + sec;
+}
+
+window.snxMusicTogglePlay = function(pId) {
+    const audio = document.getElementById(pId);
+    if (!audio) return;
+    if (audio.paused) { audio.play().catch(() => {}); }
+    else              { audio.pause(); }
+};
+
+window.snxMusicSeek = function(pId, pct) {
+    const audio = document.getElementById(pId);
+    if (!audio || !isFinite(audio.duration)) return;
+    audio.currentTime = (pct / 100) * audio.duration;
+    const fill = document.getElementById('snxMusicFill');
+    if (fill) fill.style.width = pct + '%';
+};
+
+window.snxMusicVolume = function(pId, val) {
+    const audio = document.getElementById(pId);
+    if (!audio) return;
+    audio.volume = val / 100;
+    audio.muted  = val == 0;
+    const icon = document.querySelector('#snxMusicPlayerUI .pm-vol-icon');
+    if (icon) icon.textContent = val == 0 ? '🔇' : val < 40 ? '🔉' : '🔊';
+};
+
+window.snxMusicToggleMute = function(pId) {
+    const audio = document.getElementById(pId);
+    if (!audio) return;
+    audio.muted = !audio.muted;
+    const icon   = document.querySelector('#snxMusicPlayerUI .pm-vol-icon');
+    const slider = document.getElementById('snxMusicVol');
+    if (audio.muted) {
+        if (icon) icon.textContent = '🔇';
+        if (slider) slider.value = 0;
+    } else {
+        if (icon) icon.textContent = audio.volume < 0.4 ? '🔉' : '🔊';
+        if (slider) slider.value = Math.round(audio.volume * 100);
+    }
+};
+
+window.snxMusicToggleRepeat = function(pId) {
+    const audio = document.getElementById(pId);
+    if (!audio) return;
+    audio.loop = !audio.loop;
+    const btn = document.getElementById('snxMusicRepeatBtn');
+    if (btn) btn.classList.toggle('active', audio.loop);
+};
+
+/* openProfileMusicModal — opens the edit modal on the music tab */
+window.openProfileMusicModal = function() {
+    if (typeof openEditProfileModal === 'function') openEditProfileModal();
+    // Switch to the music tab
+    const musicTabBtn = document.querySelector('[onclick="switchEpmTab(\'music\',this)"]');
+    if (musicTabBtn && typeof switchEpmTab === 'function') switchEpmTab('music', musicTabBtn);
+};
 
 window.handleProfileMusicPick = async function(input) {
     const file = input.files[0];
@@ -29386,9 +29895,11 @@ async function _renderFeaturedPosts(pc, isSelf) {
         // Add new fields to profileCustom BEFORE the original save runs
         // We do this by patching the data inline — the original onclick is async
         // so we run ours first and let it proceed
-        const musicTitle   = (document.getElementById('editMusicTitle')?.value || '').trim().substring(0, 80);
-        const musicUrl     = (document.getElementById('editMusicUrl')?.value   || '').trim();
+        const musicTitle   = (document.getElementById('editMusicTitle')?.value  || '').trim().substring(0, 80);
+        const musicArtist  = (document.getElementById('editMusicArtist')?.value || '').trim().substring(0, 80);
+        const musicUrl     = (document.getElementById('editMusicUrl')?.value    || '').trim();
         const musicAuto    = document.getElementById('editMusicAutoplay')?.value || 'no';
+        const musicRepeat  = document.getElementById('editMusicRepeat')?.value  || 'no';
         const bannerAnim   = document.getElementById('editBannerAnim')?.value   || 'none';
 
         const featPostIds  = [...document.querySelectorAll('.epm-featured-post-id')].map(i => i.value.trim()).filter(Boolean).slice(0,3);
@@ -29402,7 +29913,7 @@ async function _renderFeaturedPosts(pc, isSelf) {
 
         // Store as a module-level patch that the original onclick will merge
         window._snxProfileCustomPatch = {
-            music: { title: musicTitle, url: musicUrl, autoplay: musicAuto },
+            music: { title: musicTitle, artist: musicArtist, url: musicUrl, autoplay: musicAuto, repeat: musicRepeat },
             animatedBanner: bannerAnim,
             featuredPostIds: featPostIds,
             featuredMediaUrls: featMediaUrls,
@@ -29465,9 +29976,12 @@ async function _renderFeaturedPosts(pc, isSelf) {
         const music = pc.music || {};
         const _set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
         _set('editMusicTitle', music.title || '');
+        _set('editMusicArtist', music.artist || '');
         _set('editMusicUrl', music.url || '');
         const autoEl = document.getElementById('editMusicAutoplay');
         if (autoEl) autoEl.value = music.autoplay || 'no';
+        const repeatEl = document.getElementById('editMusicRepeat');
+        if (repeatEl) repeatEl.value = music.repeat || 'no';
         const bAnimEl = document.getElementById('editBannerAnim');
         if (bAnimEl) bAnimEl.value = pc.animatedBanner || 'none';
         // Highlight selected anim button
@@ -30622,6 +31136,844 @@ window._snxOnAuthReady && window._snxOnAuthReady(function() {
     });
 })();
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     GROUP CHAT ENGINE
+     Firestore collection: 'groupChats'
+     Document schema: {
+       name: string, picUrl: string, createdBy: uid,
+       members: [uid, ...], admins: [uid, ...],
+       messages: [{sender, senderName, senderAvatar, type, text, imageUrl, timestamp, deleted}],
+       lastMsgTs: number, unread_{uid}: number,
+       typing_{uid}: boolean
+     }
+     ═══════════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+'use strict';
+
+/* ── helpers ── */
+function _gcFs()  { return window._snxFirestore || null; }
+function _gcUser(){ return window.currentUser || null; }
+function _gcEsc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _gcTime(ts){
+    if (!ts) return '';
+    const d = new Date(ts), h = d.getHours().toString().padStart(2,'0'), m = d.getMinutes().toString().padStart(2,'0');
+    return h+':'+m;
+}
+function _gcDate(ts){
+    if (!ts) return '';
+    const d = new Date(ts), now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const day   = new Date(d.getFullYear(),  d.getMonth(),  d.getDate()).getTime();
+    if (day === today)          return 'Today';
+    if (day === today-86400000) return 'Yesterday';
+    return d.toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'});
+}
+function _gcGrow(el){ if(!el)return; el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,90)+'px'; }
+
+/* ══════════════════════════════════════════
+   INBOX TAB SWITCHER
+   ══════════════════════════════════════════ */
+window.snxSwitchInboxTab = function(tab, btn) {
+    document.querySelectorAll('.inbox-tab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    const dmsPanel    = document.getElementById('inboxDMsPanel');
+    const groupsPanel = document.getElementById('inboxGroupsPanel');
+    if (tab === 'groups') {
+        if (dmsPanel)    dmsPanel.style.display    = 'none';
+        if (groupsPanel) groupsPanel.style.display = '';
+        snxRenderGroupInbox();
+    } else {
+        if (dmsPanel)    dmsPanel.style.display    = '';
+        if (groupsPanel) groupsPanel.style.display = 'none';
+    }
+};
+
+/* ══════════════════════════════════════════
+   CREATE GROUP MODAL
+   ══════════════════════════════════════════ */
+let _gcSelectedMembers = {}; // uid -> {uid, name, avatar}
+let _gcFriendCache     = [];
+
+window.snxOpenCreateGroupModal = function() {
+    const modal = document.getElementById('snxCreateGroupModal');
+    if (!modal) return;
+    // Reset state and restore original create-mode UI
+    _gcSelectedMembers = {};
+    const nameRow = document.getElementById('snxGroupName');
+    const picRow  = document.getElementById('snxGroupPicUrl');
+    if (nameRow) { nameRow.value = ''; nameRow.style.display = ''; }
+    if (picRow)  { picRow.value  = ''; picRow.style.display  = ''; }
+    // Restore title / subtitle
+    const titleEl = modal.querySelector('div[style*="font-size:17px"]');
+    const subEl   = modal.querySelector('div[style*="font-size:12px;color:#6a90b8"]');
+    if (titleEl) titleEl.textContent = 'Create Group Chat';
+    if (subEl)   subEl.textContent   = 'Name your group and invite friends';
+    const submitBtn = document.getElementById('snxCreateGroupSubmitBtn');
+    if (submitBtn) { submitBtn.textContent = 'Create Group'; submitBtn.onclick = () => snxSubmitCreateGroup(); }
+    const srchEl = document.getElementById('snxGroupFriendSearch'); if (srchEl) srchEl.value = '';
+    _gcRenderSelectedChips();
+    modal.style.display = '';
+    _gcLoadFriendList('');
+};
+
+window.snxCloseCreateGroupModal = function() {
+    const modal = document.getElementById('snxCreateGroupModal');
+    if (modal) modal.style.display = 'none';
+};
+
+async function _gcLoadFriendList(term) {
+    const listEl = document.getElementById('snxGroupFriendList');
+    if (!listEl) return;
+    const fs = _gcFs(); const user = _gcUser();
+    if (!fs || !user) { listEl.innerHTML = '<div style="color:#6a90b8;font-size:12px;padding:8px;">Sign in to load friends.</div>'; return; }
+    listEl.innerHTML = '<div style="color:#6a90b8;font-size:12px;padding:8px;">Loading friends…</div>';
+    try {
+        const snap = await fs.getDoc(fs.doc(fs.db,'users',user.uid));
+        const friends = snap.exists() ? (snap.data().friends||[]) : [];
+        if (!friends.length) { listEl.innerHTML = '<div style="color:#6a90b8;font-size:12px;padding:8px;">No friends yet. Add friends first!</div>'; return; }
+        const fDocs = await Promise.all(friends.map(uid => fs.getDoc(fs.doc(fs.db,'users',uid))));
+        _gcFriendCache = fDocs.map((d,i) => d.exists() ? { uid: friends[i], ...d.data() } : { uid: friends[i], displayName: friends[i].substring(0,8), avatar: '' });
+        _gcRenderFriendList((term||'').toLowerCase());
+    } catch(e) {
+        listEl.innerHTML = '<div style="color:#ff5566;font-size:12px;padding:8px;">Failed to load friends.</div>';
+    }
+}
+
+function _gcRenderFriendList(term) {
+    const listEl = document.getElementById('snxGroupFriendList');
+    if (!listEl) return;
+    const filtered = term
+        ? _gcFriendCache.filter(f => ((f.displayName||f.name||'').toLowerCase()).includes(term))
+        : _gcFriendCache;
+    if (!filtered.length) { listEl.innerHTML = '<div style="color:#6a90b8;font-size:12px;padding:8px;">No friends match that name.</div>'; return; }
+    listEl.innerHTML = filtered.map(f => {
+        const isSelected = !!_gcSelectedMembers[f.uid];
+        const avatarHtml = f.avatar
+            ? `<img src="${_gcEsc(f.avatar)}" class="snx-group-friend-avatar" style="border-radius:50%;width:38px;height:38px;object-fit:cover;">`
+            : `<div class="snx-group-friend-avatar">&#x1F464;</div>`;
+        const safeName = _gcEsc((f.displayName||f.name||'User').replace(/'/g, ''));
+        const safeAv   = _gcEsc((f.avatar||'').replace(/'/g,''));
+        return `<div class="snx-group-friend-row${isSelected?' selected':''}" data-uid="${_gcEsc(f.uid)}"
+            onclick="snxGroupToggleMember('${_gcEsc(f.uid)}','${safeName}','${safeAv}')">
+            ${avatarHtml}
+            <span class="snx-group-friend-name">${_gcEsc(f.displayName||f.name||'User')}</span>
+            <span class="snx-group-friend-check">${isSelected ? '&#10003;' : ''}</span>
+        </div>`;
+    }).join('');
+}
+
+window.snxGroupToggleMember = function(uid, name, avatar) {
+    if (_gcSelectedMembers[uid]) {
+        delete _gcSelectedMembers[uid];
+    } else {
+        _gcSelectedMembers[uid] = { uid, name, avatar };
+    }
+    _gcRenderFriendList((document.getElementById('snxGroupFriendSearch')?.value||'').toLowerCase());
+    _gcRenderSelectedChips();
+};
+
+function _gcRenderSelectedChips() {
+    const wrap  = document.getElementById('snxGroupSelectedWrap');
+    const inner = document.getElementById('snxGroupSelectedList');
+    if (!wrap || !inner) return;
+    const selected = Object.values(_gcSelectedMembers);
+    wrap.style.display = selected.length ? '' : 'none';
+    inner.innerHTML = selected.map(m => {
+        const safeName = _gcEsc(m.name||'').replace(/'/g, '');
+        const safeAv   = _gcEsc((m.avatar||'').replace(/'/g,''));
+        return `<span class="snx-group-member-chip">
+            ${m.avatar ? `<img src="${_gcEsc(m.avatar)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;">` : '&#x1F464;'}
+            ${_gcEsc(m.name)}
+            <button onclick="snxGroupToggleMember('${_gcEsc(m.uid)}','${safeName}','${safeAv}')">&#x2715;</button>
+        </span>`;
+    }).join('');
+}
+
+// Friend search input wiring
+document.addEventListener('input', function(e) {
+    if (e.target && e.target.id === 'snxGroupFriendSearch') {
+        _gcRenderFriendList(e.target.value.toLowerCase());
+    }
+});
+
+window.snxSubmitCreateGroup = async function() {
+    const fs = _gcFs(); const user = _gcUser();
+    if (!fs || !user) { if(typeof toastNotification==='function') toastNotification('Sign in first!'); return; }
+    const nameEl = document.getElementById('snxGroupName');
+    const picEl  = document.getElementById('snxGroupPicUrl');
+    const name   = (nameEl?.value||'').trim();
+    if (!name) { if(typeof toastNotification==='function') toastNotification('&#x26A0;&#xFE0F; Please enter a group name.'); nameEl?.focus(); return; }
+    const selected = Object.values(_gcSelectedMembers);
+    if (!selected.length) { if(typeof toastNotification==='function') toastNotification('&#x26A0;&#xFE0F; Invite at least one friend.'); return; }
+
+    const btn = document.getElementById('snxCreateGroupSubmitBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Creating\u2026'; }
+
+    const members = [user.uid, ...selected.map(m => m.uid)];
+    const picUrl  = (picEl?.value||'').trim();
+
+    try {
+        const docRef  = await fs.addDoc(fs.collection(fs.db, 'groupChats'), {
+            name,
+            picUrl,
+            createdBy: user.uid,
+            createdAt: Date.now(),
+            members,
+            admins: [user.uid],
+            messages: [],
+            lastMsgTs: Date.now(),
+        });
+        const groupId = docRef.id;
+        // Notifications
+        for (const m of selected) {
+            try {
+                if (typeof pushNotification === 'function') {
+                    await pushNotification(m.uid, {
+                        type: 'group_invite', fromUid: user.uid,
+                        fromName: (window.userData?.displayName||'Someone'),
+                        fromAvatar: (window.userData?.avatar||''),
+                        preview: 'Invited you to the group: ' + name,
+                        groupId, groupName: name,
+                    });
+                }
+            } catch(_) {}
+        }
+        if(typeof toastNotification==='function') toastNotification('\u2705 Group "'+name+'" created!');
+        window.snxCloseCreateGroupModal();
+        // Switch to groups tab and open chat
+        const groupsTab = document.getElementById('inboxTabGroups');
+        window.snxSwitchInboxTab('groups', groupsTab);
+        setTimeout(() => window.snxOpenGroupChat(groupId), 400);
+    } catch(e) {
+        if(typeof toastNotification==='function') toastNotification('\u274C Failed to create group: '+e.message);
+        if (btn) { btn.disabled = false; btn.textContent = 'Create Group'; }
+    }
+};
+
+/* ══════════════════════════════════════════
+   GROUP INBOX LIST
+   ══════════════════════════════════════════ */
+let _gcInboxUnsub  = null;
+let _gcInboxGroups = [];
+
+window.snxRenderGroupInbox = function() {
+    const user = _gcUser(); const fs = _gcFs();
+    const listEl = document.getElementById('inboxGroupList');
+    if (!listEl) return;
+    if (!user || !fs) {
+        listEl.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">&#x1F512;</div>Sign in to see your groups.</div>';
+        return;
+    }
+    if (_gcInboxUnsub) { _gcInboxUnsub(); _gcInboxUnsub = null; }
+    listEl.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">&#x1F465;</div>Loading group chats\u2026</div>';
+    try {
+        const q = fs.query(fs.collection(fs.db,'groupChats'), fs.where('members','array-contains',user.uid));
+        _gcInboxUnsub = fs.onSnapshot(q, snap => {
+            _gcInboxGroups = [];
+            snap.forEach(d => _gcInboxGroups.push({ id: d.id, ...d.data() }));
+            _gcInboxGroups.sort((a,b) => (b.lastMsgTs||0) - (a.lastMsgTs||0));
+            _gcRenderGroupList();
+            _gcUpdateGroupBadge();
+        }, err => {
+            console.warn('[groupChat] snapshot error', err);
+            listEl.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">&#x26A0;&#xFE0F;</div>Could not load groups.</div>';
+        });
+    } catch(e) { console.warn('[groupChat] render error', e); }
+};
+
+function _gcRenderGroupList() {
+    const listEl = document.getElementById('inboxGroupList');
+    const user   = _gcUser();
+    if (!listEl || !user) return;
+    if (!_gcInboxGroups.length) {
+        listEl.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">&#x1F465;</div>No group chats yet. Tap "New Group" to create one!</div>';
+        return;
+    }
+    listEl.innerHTML = _gcInboxGroups.map(g => {
+        const msgs    = g.messages || [];
+        const lastMsg = msgs.length ? msgs[msgs.length-1] : null;
+        let preview   = '';
+        if (lastMsg) {
+            if (lastMsg.type === 'image') preview = '&#x1F4F7; Photo';
+            else if (lastMsg.type === 'audio') preview = '&#x1F3B5; Audio';
+            else preview = lastMsg.text || '';
+        }
+        const unread  = g['unread_'+user.uid] || 0;
+        const ts      = g.lastMsgTs || 0;
+        const timeStr = ts ? _gcInboxTime(ts) : '';
+        const avatarHtml = g.picUrl
+            ? `<img src="${_gcEsc(g.picUrl)}" class="inbox-group-avatar" style="border-radius:14px;width:48px;height:48px;object-fit:cover;">`
+            : `<div class="inbox-group-avatar">&#x1F465;</div>`;
+        return `<div class="inbox-group-card" onclick="snxOpenGroupChat('${_gcEsc(g.id)}')">
+            ${avatarHtml}
+            <div style="flex:1;min-width:0;">
+                <div class="inbox-group-name">${_gcEsc(g.name||'Group Chat')}</div>
+                <div class="inbox-group-preview">${_gcEsc(preview.substring(0,60))}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">
+                <div style="font-size:11px;color:#4a7a9a;">${_gcEsc(timeStr)}</div>
+                <div class="inbox-group-unread ${unread>0?'':'zero'}">${unread>0?unread:''}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function _gcInboxTime(ts) {
+    const d = new Date(ts), now = new Date();
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    return d.toLocaleDateString([], {month:'short', day:'numeric'});
+}
+
+function _gcUpdateGroupBadge() {
+    const user = _gcUser(); if (!user) return;
+    let total = 0;
+    _gcInboxGroups.forEach(g => { total += g['unread_'+user.uid] || 0; });
+    const badge = document.getElementById('inboxGroupBadge');
+    if (badge) {
+        if (total > 0) { badge.textContent = total > 99 ? '99+' : total; badge.style.display = 'inline-block'; }
+        else            { badge.style.display = 'none'; }
+    }
+}
+
+/* ══════════════════════════════════════════
+   GROUP CHAT MODAL ENGINE
+   ══════════════════════════════════════════ */
+let _gc_groupId     = null;
+let _gc_groupData   = null;
+let _gc_msgUnsub    = null;
+let _gc_typTimer    = null;
+let _gc_inpHandler  = null;
+let _gc_memberCache = {}; // uid -> {displayName, avatar}
+
+window.snxOpenGroupChat = async function(groupId) {
+    const fs = _gcFs(); const user = _gcUser();
+    if (!fs || !user) return;
+
+    // Tear down any previous session
+    _gcCloseSession();
+
+    _gc_groupId = groupId;
+    _gc_memberCache = {};
+
+    const modal = document.getElementById('snxGroupChatModal');
+    if (modal) modal.style.display = '';
+    document.body.style.overflow = 'hidden';
+
+    const msgBox = document.getElementById('snxGcMessages');
+    const inp    = document.getElementById('snxGcInput');
+    const nameEl = document.getElementById('snxGcName');
+    const subEl  = document.getElementById('snxGcSub');
+    const avEl   = document.getElementById('snxGcAvatar');
+    if (msgBox) msgBox.innerHTML = '<div class="ipc-modal-loading"><div class="ipc-ldot"></div><div class="ipc-ldot"></div><div class="ipc-ldot"></div><span>Loading\u2026</span></div>';
+    if (inp) inp.value = '';
+
+    try {
+        const snap = await fs.getDoc(fs.doc(fs.db,'groupChats',groupId));
+        if (!snap.exists()) {
+            if(typeof toastNotification==='function') toastNotification('Group not found.');
+            window.snxCloseGroupChat(); return;
+        }
+        _gc_groupData = { id: groupId, ...snap.data() };
+
+        if (nameEl) nameEl.textContent = _gc_groupData.name || 'Group Chat';
+        if (subEl)  subEl.textContent  = (_gc_groupData.members||[]).length + ' members';
+        if (avEl) {
+            if (_gc_groupData.picUrl) {
+                avEl.style.backgroundImage = `url('${_gc_groupData.picUrl}')`;
+                avEl.textContent = '';
+            } else {
+                avEl.style.backgroundImage = 'none';
+                avEl.textContent = '👥';
+            }
+        }
+
+        // Pre-load member profiles
+        await _gcLoadMembers(_gc_groupData.members || []);
+
+        // Mark as read
+        const updR = {}; updR['unread_'+user.uid] = 0;
+        fs.updateDoc(fs.doc(fs.db,'groupChats',groupId), updR).catch(()=>{});
+
+    } catch(e) {
+        if (msgBox) msgBox.innerHTML = '<div class="ipc-modal-empty"><div class="ipc-modal-empty-icon">&#x26A0;&#xFE0F;</div><div class="ipc-modal-empty-text">Failed to load group chat.</div></div>';
+        return;
+    }
+
+    // Live messages listener
+    const capturedId = groupId;
+    _gc_msgUnsub = fs.onSnapshot(fs.doc(fs.db,'groupChats',groupId), docSnap => {
+        if (_gc_groupId !== capturedId) return;
+        if (!docSnap.exists()) return;
+        _gc_groupData = { id: capturedId, ...docSnap.data() };
+        _gcRenderMessages(docSnap.data());
+        // Mark as read
+        const u = _gcUser(); if (!u) return;
+        const updU = {}; updU['unread_'+u.uid] = 0;
+        fs.updateDoc(fs.doc(fs.db,'groupChats',capturedId), updU).catch(()=>{});
+    }, err => {
+        console.warn('[groupChat] messages listener error', err);
+    });
+
+    // Wire input typing indicator
+    if (inp) {
+        inp.placeholder = 'Message '+(_gc_groupData?.name||'group')+'\u2026';
+        if (_gc_inpHandler) inp.removeEventListener('input', _gc_inpHandler);
+        _gc_inpHandler = async e => {
+            if (_gc_groupId !== capturedId) return;
+            clearTimeout(_gc_typTimer);
+            const isTyping = e.target.value.length > 0;
+            const updT = {}; updT['typing_'+user.uid] = isTyping;
+            fs.updateDoc(fs.doc(fs.db,'groupChats',capturedId), updT).catch(()=>{});
+            _gcGrow(e.target);
+            if (isTyping) {
+                _gc_typTimer = setTimeout(() => {
+                    if (_gc_groupId !== capturedId) return;
+                    const clr = {}; clr['typing_'+user.uid] = false;
+                    fs.updateDoc(fs.doc(fs.db,'groupChats',capturedId), clr).catch(()=>{});
+                }, 4000);
+            }
+        };
+        inp.addEventListener('input', _gc_inpHandler);
+        setTimeout(() => { if (_gc_groupId === capturedId && inp) inp.focus(); }, 300);
+    }
+};
+
+async function _gcLoadMembers(memberUids) {
+    const fs = _gcFs(); if (!fs) return;
+    const toLoad = memberUids.filter(uid => !_gc_memberCache[uid]);
+    if (!toLoad.length) return;
+    try {
+        const snaps = await Promise.all(toLoad.map(uid => fs.getDoc(fs.doc(fs.db,'users',uid))));
+        snaps.forEach((s, i) => {
+            const d = s.exists() ? s.data() : {};
+            _gc_memberCache[toLoad[i]] = { displayName: d.displayName||d.name||'User', avatar: d.avatar||'' };
+        });
+    } catch(_) {}
+}
+
+function _gcRenderMessages(cData) {
+    const user   = _gcUser(); if (!user) return;
+    const msgBox = document.getElementById('snxGcMessages');
+    const typEl  = document.getElementById('snxGcTyping');
+    if (!msgBox) return;
+
+    const messages = cData.messages || [];
+
+    // Typing indicator
+    if (typEl) {
+        const members = cData.members || [];
+        const typingNames = members
+            .filter(uid => uid !== user.uid && cData['typing_'+uid])
+            .map(uid => (_gc_memberCache[uid]?.displayName || 'Someone'));
+        typEl.textContent = typingNames.length
+            ? typingNames.join(', ') + (typingNames.length === 1 ? ' is typing\u2026' : ' are typing\u2026')
+            : '';
+    }
+
+    const atBot = msgBox.scrollHeight - msgBox.scrollTop <= msgBox.clientHeight + 120;
+    msgBox.innerHTML = '';
+
+    if (!messages.length) {
+        msgBox.innerHTML = '<div class="ipc-modal-empty"><div class="ipc-modal-empty-icon">&#x1F44B;</div><div class="ipc-modal-empty-text">Be the first to say hello in <strong style="color:#4db8ff">'+_gcEsc(_gc_groupData?.name||'the group')+'</strong>!</div></div>';
+    } else {
+        let lastDate = '';
+        messages.forEach(m => {
+            const isMine = m.sender === user.uid;
+            const dl     = _gcDate(m.timestamp);
+            if (dl !== lastDate) {
+                lastDate = dl;
+                const sep = document.createElement('div');
+                sep.className = 'ipc-modal-date-sep'; sep.textContent = dl;
+                msgBox.appendChild(sep);
+            }
+
+            // System messages (join/leave)
+            if (m.sender === 'system') {
+                const sysDiv = document.createElement('div');
+                sysDiv.className = 'ipc-modal-date-sep';
+                sysDiv.style.fontStyle = 'italic';
+                sysDiv.textContent = m.text || '';
+                msgBox.appendChild(sysDiv);
+                return;
+            }
+
+            const wrap = document.createElement('div');
+            wrap.className = 'ipc-modal-bwrap ' + (isMine ? 'me' : 'them');
+
+            if (!isMine) {
+                const senderInfo = _gc_memberCache[m.sender] || { displayName: m.senderName||'User', avatar: m.senderAvatar||'' };
+                const lbl = document.createElement('div');
+                lbl.className = 'ipc-modal-sender';
+                lbl.style.cssText = 'display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;';
+                const avHtml = senderInfo.avatar
+                    ? `<img src="${_gcEsc(senderInfo.avatar)}" class="ipc-group-sender-avatar">`
+                    : `<span class="ipc-group-sender-avatar">&#x1F464;</span>`;
+                lbl.innerHTML = avHtml + _gcEsc(senderInfo.displayName);
+                wrap.appendChild(lbl);
+            }
+
+            const bub = document.createElement('div');
+            bub.className = 'ipc-modal-bubble' + (m.deleted ? ' deleted' : '');
+
+            if (m.deleted) {
+                const t = document.createElement('div');
+                t.style.cssText = 'font-size:13px;font-style:italic;';
+                t.textContent = 'This message was deleted.';
+                bub.appendChild(t);
+            } else if (m.type === 'image' && m.imageUrl) {
+                const img = document.createElement('img');
+                img.className = 'msg-media-img'; img.src = m.imageUrl; img.alt = 'Image';
+                if (typeof openMediaViewer === 'function') img.onclick = () => openMediaViewer('image', m.imageUrl);
+                bub.appendChild(img);
+                if (m.text) { const t = document.createElement('div'); t.style.fontSize='13px'; t.textContent=m.text; bub.appendChild(t); }
+            } else if (m.type === 'audio' && m.imageUrl) {
+                const card = document.createElement('div');
+                card.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,30,70,0.7);border:1px solid rgba(0,174,239,0.3);border-radius:10px;min-width:200px;';
+                const fname = decodeURIComponent((m.imageUrl||'').split('/').pop().split('?')[0]);
+                card.innerHTML = `<span style="font-size:24px;flex-shrink:0;">&#x1F3B5;</span><div style="flex:1;min-width:0;"><div style="font-size:12px;color:#d8eeff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;">${_gcEsc(fname)}</div><audio src="${_gcEsc(m.imageUrl)}" controls style="width:100%;"></audio></div>`;
+                bub.appendChild(card);
+            } else {
+                bub.textContent = m.text || '';
+            }
+
+            const meta = document.createElement('div');
+            meta.className = 'ipc-modal-meta';
+            const ts = document.createElement('span');
+            ts.className = 'ipc-modal-ts'; ts.textContent = _gcTime(m.timestamp);
+            meta.appendChild(ts);
+            bub.appendChild(meta);
+            wrap.appendChild(bub);
+            msgBox.appendChild(wrap);
+        });
+    }
+
+    if (atBot) msgBox.scrollTop = msgBox.scrollHeight;
+}
+
+async function _gcSend() {
+    const fs = _gcFs(); const user = _gcUser();
+    if (!fs || !user || !_gc_groupId) return;
+    const inp = document.getElementById('snxGcInput');
+    if (!inp) return;
+    const text = inp.value.trim();
+    if (!text) return;
+
+    // AI safety scan
+    if (typeof window.snxAIScan === 'function') {
+        const blocked = await window.snxAIScan(text, 'chat');
+        if (blocked) return;
+    }
+
+    const sendBtn = document.getElementById('snxGcSendBtn');
+    if (sendBtn) { sendBtn.style.opacity='0.5'; sendBtn.style.transform='scale(0.9)'; }
+    clearTimeout(_gc_typTimer);
+
+    const memberInfo = _gc_memberCache[user.uid] ||
+        { displayName: window.userData?.displayName || 'User', avatar: window.userData?.avatar || '' };
+
+    const msg = {
+        sender:       user.uid,
+        senderName:   memberInfo.displayName,
+        senderAvatar: memberInfo.avatar,
+        type:         'text',
+        text,
+        timestamp:    Date.now(),
+        deleted:      false,
+    };
+
+    const capturedId = _gc_groupId;
+    const members    = (_gc_groupData?.members || []).filter(uid => uid !== user.uid);
+    const upd = {
+        messages:  fs.arrayUnion(msg),
+        lastMsgTs: msg.timestamp,
+    };
+    upd['typing_'+user.uid] = false;
+    members.forEach(uid => { upd['unread_'+uid] = fs.increment(1); });
+
+    try {
+        await fs.setDoc(fs.doc(fs.db,'groupChats',capturedId), upd, { merge: true });
+        inp.value = '';
+        _gcGrow(inp);
+        const msgBox = document.getElementById('snxGcMessages');
+        if (msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+
+        // Notifications (best-effort)
+        for (const uid of members) {
+            try {
+                if (typeof pushNotification === 'function') {
+                    await pushNotification(uid, {
+                        type:       'group_message',
+                        fromUid:    user.uid,
+                        fromName:   memberInfo.displayName,
+                        fromAvatar: memberInfo.avatar,
+                        preview:    text.length > 80 ? text.substring(0,80)+'\u2026' : text,
+                        groupId:    capturedId,
+                        groupName:  _gc_groupData?.name || 'Group Chat',
+                    });
+                }
+            } catch(_) {}
+        }
+    } catch(err) {
+        if (typeof toastNotification==='function') toastNotification('Message failed \u2014 please try again.');
+        console.error('[groupChat] send error', err);
+    } finally {
+        if (sendBtn) { sendBtn.style.opacity=''; sendBtn.style.transform=''; }
+        if (inp && !inp.disabled) inp.focus();
+    }
+}
+
+// Wire send button once DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+    const sendBtn = document.getElementById('snxGcSendBtn');
+    if (sendBtn) {
+        let _gcBusy = false;
+        sendBtn.addEventListener('click', () => {
+            if (_gcBusy) return;
+            _gcBusy = true;
+            _gcSend().finally(() => { _gcBusy = false; });
+        });
+    }
+    const gcInp = document.getElementById('snxGcInput');
+    if (gcInp) {
+        gcInp.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _gcSend(); }
+        });
+    }
+});
+
+function _gcCloseSession() {
+    if (_gc_msgUnsub) { _gc_msgUnsub(); _gc_msgUnsub = null; }
+    clearTimeout(_gc_typTimer);
+    const inp = document.getElementById('snxGcInput');
+    if (inp && _gc_inpHandler) { inp.removeEventListener('input', _gc_inpHandler); _gc_inpHandler = null; }
+    // Clear typing flag
+    const fs = _gcFs(); const user = _gcUser();
+    if (fs && user && _gc_groupId) {
+        const clr = {}; clr['typing_'+user.uid] = false;
+        fs.updateDoc(fs.doc(fs.db,'groupChats',_gc_groupId), clr).catch(()=>{});
+    }
+    _gc_groupId = null; _gc_groupData = null;
+}
+
+window.snxCloseGroupChat = function() {
+    _gcCloseSession();
+    const modal = document.getElementById('snxGroupChatModal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+};
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const m = document.getElementById('snxGroupChatModal');
+        if (m && m.style.display !== 'none') window.snxCloseGroupChat();
+    }
+});
+
+/* ══════════════════════════════════════════
+   GROUP INFO / MANAGE MODAL
+   ══════════════════════════════════════════ */
+window.snxOpenGroupInfo = function() {
+    const g = _gc_groupData; const user = _gcUser();
+    if (!g || !user) return;
+    const bodyEl    = document.getElementById('snxGroupInfoBody');
+    const actionsEl = document.getElementById('snxGroupInfoActions');
+    const modal     = document.getElementById('snxGroupInfoModal');
+    if (!modal || !bodyEl) return;
+
+    const isAdmin = (g.admins||[]).includes(user.uid);
+    const members = g.members || [];
+
+    bodyEl.innerHTML = `
+        <div style="font-size:15px;font-weight:700;color:#e6f3ff;margin-bottom:14px;">${_gcEsc(g.name)}</div>
+        <div style="font-size:11px;color:#6a90b8;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Members (${members.length})</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+            ${members.map(uid => {
+                const info   = _gc_memberCache[uid] || { displayName: 'User', avatar: '' };
+                const isAdm  = (g.admins||[]).includes(uid);
+                const isSelf = uid === user.uid;
+                const avHtml = info.avatar
+                    ? `<img src="${_gcEsc(info.avatar)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;">`
+                    : `<div style="width:36px;height:36px;border-radius:50%;background:rgba(0,40,80,0.6);display:flex;align-items:center;justify-content:center;font-size:16px;color:#00AEEF;flex-shrink:0;">&#x1F464;</div>`;
+                const badge  = isAdm ? ' <span style="font-size:10px;color:#ffd966;">&#x1F451; Admin</span>' : '';
+                const selfTag= isSelf? ' <span style="color:#4a7a9a;font-size:10px;">(you)</span>' : '';
+                const rmBtn  = isAdmin && !isSelf
+                    ? `<button onclick="snxGroupRemoveMember('${_gcEsc(uid)}')" style="font-size:11px;padding:3px 10px;border-radius:8px;background:rgba(255,51,80,0.1);border:1px solid rgba(255,51,80,0.3);color:#ff6680;cursor:pointer;flex-shrink:0;">Remove</button>`
+                    : '';
+                return `<div style="display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:10px;background:rgba(0,20,50,0.4);">
+                    ${avHtml}
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:13px;color:#c8e8ff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_gcEsc(info.displayName)}${selfTag}${badge}</div>
+                    </div>
+                    ${rmBtn}
+                </div>`;
+            }).join('')}
+        </div>`;
+
+    actionsEl.innerHTML = '';
+    if (isAdmin) {
+        const invBtn = document.createElement('button');
+        invBtn.textContent = '&#x2795; Invite More';
+        invBtn.style.cssText = 'padding:8px 16px;border-radius:10px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.3);color:#00AEEF;font-size:12px;cursor:pointer;';
+        invBtn.onclick = () => { window.snxCloseGroupInfo(); window.snxOpenInviteMoreModal(); };
+        actionsEl.appendChild(invBtn);
+    }
+    const leaveBtn = document.createElement('button');
+    leaveBtn.textContent = '&#x1F6AA; Leave Group';
+    leaveBtn.style.cssText = 'padding:8px 16px;border-radius:10px;background:rgba(255,51,80,0.1);border:1px solid rgba(255,51,80,0.3);color:#ff6680;font-size:12px;cursor:pointer;';
+    leaveBtn.onclick = () => window.snxLeaveGroup();
+    actionsEl.appendChild(leaveBtn);
+
+    modal.style.display = '';
+};
+
+window.snxCloseGroupInfo = function() {
+    const modal = document.getElementById('snxGroupInfoModal');
+    if (modal) modal.style.display = 'none';
+};
+
+window.snxGroupRemoveMember = async function(targetUid) {
+    const fs = _gcFs(); const user = _gcUser();
+    if (!fs || !user || !_gc_groupId) return;
+    if (!confirm('Remove this member from the group?')) return;
+    try {
+        await fs.updateDoc(fs.doc(fs.db,'groupChats',_gc_groupId), {
+            members: fs.arrayRemove(targetUid),
+            admins:  fs.arrayRemove(targetUid),
+        });
+        if (_gc_groupData) {
+            _gc_groupData.members = (_gc_groupData.members||[]).filter(u => u !== targetUid);
+            _gc_groupData.admins  = (_gc_groupData.admins||[]).filter(u => u !== targetUid);
+        }
+        const sysMsg = { sender:'system', senderName:'System', senderAvatar:'', type:'text', text:'A member was removed from the group.', timestamp:Date.now(), deleted:false };
+        fs.updateDoc(fs.doc(fs.db,'groupChats',_gc_groupId), { messages: fs.arrayUnion(sysMsg) }).catch(()=>{});
+        if(typeof toastNotification==='function') toastNotification('\u2705 Member removed.');
+        window.snxOpenGroupInfo(); // re-render info
+    } catch(e) {
+        if(typeof toastNotification==='function') toastNotification('Failed: '+e.message);
+    }
+};
+
+window.snxLeaveGroup = async function() {
+    const fs = _gcFs(); const user = _gcUser();
+    if (!fs || !user || !_gc_groupId) return;
+    if (!confirm('Leave this group chat?')) return;
+    const myName = _gc_memberCache[user.uid]?.displayName || 'Someone';
+    try {
+        await fs.updateDoc(fs.doc(fs.db,'groupChats',_gc_groupId), {
+            members: fs.arrayRemove(user.uid),
+            admins:  fs.arrayRemove(user.uid),
+        });
+        const sysMsg = { sender:'system', senderName:'System', senderAvatar:'', type:'text', text: myName+' left the group.', timestamp:Date.now(), deleted:false };
+        fs.updateDoc(fs.doc(fs.db,'groupChats',_gc_groupId), { messages: fs.arrayUnion(sysMsg) }).catch(()=>{});
+        if(typeof toastNotification==='function') toastNotification('You left the group.');
+        window.snxCloseGroupInfo();
+        window.snxCloseGroupChat();
+        window.snxRenderGroupInbox();
+    } catch(e) {
+        if(typeof toastNotification==='function') toastNotification('Failed: '+e.message);
+    }
+};
+
+window.snxOpenInviteMoreModal = function() {
+    if (!_gc_groupId || !_gc_groupData) return;
+    _gcSelectedMembers = {};
+    const modal = document.getElementById('snxCreateGroupModal');
+    if (!modal) return;
+    // Change title/subtitle for invite mode
+    const titleEl = modal.querySelector('div[style*="font-size:17px"]');
+    const subEl   = modal.querySelector('div[style*="font-size:12px;color:#6a90b8"]');
+    if (titleEl) titleEl.textContent = 'Invite More Members';
+    if (subEl)   subEl.textContent   = 'Select friends to add to the group';
+    // Hide group name + pic URL rows
+    const nameEl = document.getElementById('snxGroupName');
+    const picEl  = document.getElementById('snxGroupPicUrl');
+    if (nameEl) nameEl.style.display = 'none';
+    if (picEl)  picEl.style.display  = 'none';
+    const submitBtn = document.getElementById('snxCreateGroupSubmitBtn');
+    const existingSet = new Set(_gc_groupData.members||[]);
+    if (submitBtn) { submitBtn.textContent = 'Invite'; submitBtn.onclick = () => window.snxSubmitInviteMore(existingSet); }
+    const srchEl = document.getElementById('snxGroupFriendSearch'); if (srchEl) srchEl.value = '';
+    _gcRenderSelectedChips();
+    modal.style.display = '';
+    _gcLoadFriendList('');
+};
+
+window.snxSubmitInviteMore = async function(existingSet) {
+    const fs = _gcFs(); const user = _gcUser();
+    if (!fs || !user || !_gc_groupId) return;
+    const selected = Object.values(_gcSelectedMembers).filter(m => !existingSet.has(m.uid));
+    if (!selected.length) { if(typeof toastNotification==='function') toastNotification('&#x26A0;&#xFE0F; Select at least one new member.'); return; }
+    const btn = document.getElementById('snxCreateGroupSubmitBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Inviting\u2026'; }
+    try {
+        for (const m of selected) {
+            await fs.updateDoc(fs.doc(fs.db,'groupChats',_gc_groupId), { members: fs.arrayUnion(m.uid) });
+            if (typeof pushNotification === 'function') {
+                await pushNotification(m.uid, {
+                    type:'group_invite', fromUid:user.uid,
+                    fromName: window.userData?.displayName||'Someone',
+                    fromAvatar: window.userData?.avatar||'',
+                    preview: 'Added you to: '+(_gc_groupData?.name||'a group'),
+                    groupId: _gc_groupId, groupName: _gc_groupData?.name||'Group Chat',
+                }).catch(()=>{});
+            }
+        }
+        const addedNames = selected.map(m => m.name).join(', ');
+        const adminName  = window.userData?.displayName || 'Admin';
+        const sysMsg = { sender:'system', senderName:'System', senderAvatar:'', type:'text', text: adminName+' added '+addedNames+' to the group.', timestamp:Date.now(), deleted:false };
+        await fs.updateDoc(fs.doc(fs.db,'groupChats',_gc_groupId), { messages: fs.arrayUnion(sysMsg) }).catch(()=>{});
+        if(typeof toastNotification==='function') toastNotification('\u2705 Members invited!');
+        window.snxCloseCreateGroupModal();
+        // Refresh group data
+        const snap = await fs.getDoc(fs.doc(fs.db,'groupChats',_gc_groupId));
+        if (snap.exists()) { _gc_groupData = { id:_gc_groupId, ...snap.data() }; await _gcLoadMembers(_gc_groupData.members||[]); }
+    } catch(e) {
+        if(typeof toastNotification==='function') toastNotification('Failed: '+e.message);
+        if (btn) { btn.disabled = false; btn.textContent = 'Invite'; }
+    }
+};
+
+/* ── Patch renderInboxPage to also watch group unread badge ── */
+(function _gcPatchInboxPage() {
+    const orig = window.renderInboxPage;
+    window.renderInboxPage = function() {
+        if (typeof orig === 'function') orig.apply(this, arguments);
+        // Continuously track group unread count for badge even when DMs tab is active
+        const user = _gcUser(); const fs = _gcFs();
+        if (!user || !fs) return;
+        try {
+            const q = fs.query(fs.collection(fs.db,'groupChats'), fs.where('members','array-contains',user.uid));
+            fs.onSnapshot(q, snap => {
+                _gcInboxGroups = [];
+                snap.forEach(d => _gcInboxGroups.push({ id:d.id, ...d.data() }));
+                _gcUpdateGroupBadge();
+            }, ()=>{});
+        } catch(_) {}
+    };
+})();
+
+})(); // end Group Chat IIFE
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     HOLIDAY THEMES — overlay DOM elements
+     Must exist on every page that loads holiday-themes.js.
+     Pointer-events none — no impact on existing UI/interactions.
+     ══════════════════════════════════════════════════════════════ -->
+
+<!-- Seasonal colour stripe at top of screen -->
+<div id="snxHolidayBanner" aria-hidden="true"></div>
+
+<!-- Floating particle canvas (snow, confetti, hearts, etc.) -->
+<canvas id="snxHolidayParticles" aria-hidden="true"></canvas>
+
+<!-- Preview-mode badge shown to Founder only -->
+<div id="snxThemePreviewBadge" role="status" aria-live="polite"></div>
+
+<!-- ── Holiday Themes engine ── -->
+<script src="holiday-themes.js"></script>
 
 </body>
 </html>

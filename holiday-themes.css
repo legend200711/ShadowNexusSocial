@@ -1,0 +1,350 @@
+﻿/* ═══════════════════════════════════════════════════════════════════
+   SHADOW NEXUS SOCIAL — HOLIDAY THEMES
+   Applied via [data-snx-theme] on <html> element by holiday-themes.js.
+   Each theme overrides the CSS custom properties from :root.
+   No layout or functionality is affected — cosmetics only.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Seasonal top-banner stripe ── */
+#snxHolidayBanner {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  z-index: 99999;
+  pointer-events: none;
+}
+#snxHolidayBanner.visible { display: block; }
+
+/* ── Floating particle canvas ── */
+#snxHolidayParticles {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0.55;
+}
+#snxHolidayParticles.visible { display: block; }
+
+/* ── Preview-mode badge ── */
+#snxThemePreviewBadge {
+  display: none;
+  position: fixed;
+  bottom: 80px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.82);
+  border: 1.5px solid rgba(255,255,255,0.25);
+  border-radius: 24px;
+  padding: 7px 18px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  z-index: 99998;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+#snxThemePreviewBadge.visible { display: block; }
+
+/* ══════════════════════════════════════════════════════════════════
+   NEW YEAR'S
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="newyears"] {
+  --bg-main:#0a0a12; --bg-card:#12111f; --bg-input:#0d0c1a;
+  --bg-deep:#070710; --bg-deeper:#030308;
+  --neon-blue:#FFD700; --neon-cyan:#FFF0A0; --neon-blue-dim:#B8960A;
+  --neon-green:#FFD700; --neon-green-dim:#B8960A;
+  --text-primary:#fff9e6; --text-secondary:#d4b855; --text-muted:#7a6630;
+  --border-color:#3a3010; --accent-glow:rgba(255,215,0,0.30);
+  --blue-glow-sm:0 0 10px rgba(255,215,0,0.55);
+  --blue-glow-md:0 0 22px rgba(255,215,0,0.65);
+  --blue-glow-lg:0 0 44px rgba(255,215,0,0.70);
+  --green-glow-sm:0 0 10px rgba(255,215,0,0.50);
+  --green-glow-md:0 0 24px rgba(255,215,0,0.60);
+}
+[data-snx-theme="newyears"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#FFD700,#fff9a0,#FFD700,#fff9a0,#FFD700);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   VALENTINE'S DAY
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="valentines"] {
+  --bg-main:#1a0810; --bg-card:#221020; --bg-input:#160a12;
+  --bg-deep:#100508; --bg-deeper:#090205;
+  --neon-blue:#FF6B8A; --neon-cyan:#FF9EB8; --neon-blue-dim:#C0496A;
+  --neon-green:#FF6B8A; --neon-green-dim:#C0496A;
+  --text-primary:#ffe8ef; --text-secondary:#d47090; --text-muted:#7a4055;
+  --border-color:#3d1525; --accent-glow:rgba(255,107,138,0.30);
+  --blue-glow-sm:0 0 10px rgba(255,107,138,0.55);
+  --blue-glow-md:0 0 22px rgba(255,107,138,0.65);
+  --blue-glow-lg:0 0 44px rgba(255,107,138,0.70);
+  --green-glow-sm:0 0 10px rgba(255,107,138,0.50);
+  --green-glow-md:0 0 24px rgba(255,107,138,0.60);
+}
+[data-snx-theme="valentines"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#FF6B8A,#FFBFD0,#FF6B8A,#FFBFD0,#FF6B8A);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ST. PATRICK'S DAY
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="stpatricks"] {
+  --bg-main:#061a08; --bg-card:#0b2410; --bg-input:#051606;
+  --bg-deep:#041004; --bg-deeper:#020802;
+  --neon-blue:#2ED74A; --neon-cyan:#78F08E; --neon-blue-dim:#1a9e30;
+  --neon-green:#FFD700; --neon-green-dim:#B8960A;
+  --text-primary:#d8f5dc; --text-secondary:#6abf7a; --text-muted:#3a7044;
+  --border-color:#0f3516; --accent-glow:rgba(46,215,74,0.30);
+  --blue-glow-sm:0 0 10px rgba(46,215,74,0.55);
+  --blue-glow-md:0 0 22px rgba(46,215,74,0.65);
+  --blue-glow-lg:0 0 44px rgba(46,215,74,0.70);
+  --green-glow-sm:0 0 10px rgba(46,215,74,0.50);
+  --green-glow-md:0 0 24px rgba(46,215,74,0.60);
+}
+[data-snx-theme="stpatricks"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#1a7a28,#2ED74A,#FFD700,#2ED74A,#1a7a28);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   EASTER
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="easter"] {
+  --bg-main:#120e1f; --bg-card:#1a1430; --bg-input:#0e0b18;
+  --bg-deep:#0a0812; --bg-deeper:#06050c;
+  --neon-blue:#B87CFF; --neon-cyan:#D4AAFF; --neon-blue-dim:#8855CC;
+  --neon-green:#80E878; --neon-green-dim:#55C04C;
+  --text-primary:#f0e8ff; --text-secondary:#b898e0; --text-muted:#7058a0;
+  --border-color:#2a1e45; --accent-glow:rgba(184,124,255,0.30);
+  --blue-glow-sm:0 0 10px rgba(184,124,255,0.55);
+  --blue-glow-md:0 0 22px rgba(184,124,255,0.65);
+  --blue-glow-lg:0 0 44px rgba(184,124,255,0.70);
+  --green-glow-sm:0 0 10px rgba(128,232,120,0.50);
+  --green-glow-md:0 0 24px rgba(128,232,120,0.60);
+}
+[data-snx-theme="easter"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#B87CFF,#80E878,#FFD700,#7EB8FF,#FF9EB8,#B87CFF);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MEMORIAL DAY
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="memorialday"] {
+  --bg-main:#060b1a; --bg-card:#0c1428; --bg-input:#050917;
+  --bg-deep:#040711; --bg-deeper:#020408;
+  --neon-blue:#4A90D9; --neon-cyan:#80B8F0; --neon-blue-dim:#2D6099;
+  --neon-green:#D93030; --neon-green-dim:#992020;
+  --text-primary:#e8f0ff; --text-secondary:#7090cc; --text-muted:#445580;
+  --border-color:#152040; --accent-glow:rgba(74,144,217,0.30);
+  --blue-glow-sm:0 0 10px rgba(74,144,217,0.55);
+  --blue-glow-md:0 0 22px rgba(74,144,217,0.65);
+  --blue-glow-lg:0 0 44px rgba(74,144,217,0.70);
+  --green-glow-sm:0 0 10px rgba(217,48,48,0.50);
+  --green-glow-md:0 0 24px rgba(217,48,48,0.60);
+}
+[data-snx-theme="memorialday"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#B82020,#D93030,#ffffff,#4A90D9,#2D6099,#D93030,#B82020);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   INDEPENDENCE DAY (4th of July)
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="july4"] {
+  --bg-main:#03081a; --bg-card:#070e28; --bg-input:#020615;
+  --bg-deep:#020410; --bg-deeper:#01020a;
+  --neon-blue:#4466FF; --neon-cyan:#88AAFF; --neon-blue-dim:#2244CC;
+  --neon-green:#FF3322; --neon-green-dim:#CC2211;
+  --text-primary:#e8ecff; --text-secondary:#8899cc; --text-muted:#445588;
+  --border-color:#111d40; --accent-glow:rgba(68,102,255,0.30);
+  --blue-glow-sm:0 0 10px rgba(68,102,255,0.55);
+  --blue-glow-md:0 0 22px rgba(68,102,255,0.65);
+  --blue-glow-lg:0 0 44px rgba(68,102,255,0.70);
+  --green-glow-sm:0 0 12px rgba(255,51,34,0.55);
+  --green-glow-md:0 0 24px rgba(255,51,34,0.65);
+}
+[data-snx-theme="july4"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#FF3322,#ffffff,#4466FF,#ffffff,#FF3322);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   HALLOWEEN
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="halloween"] {
+  --bg-main:#0f0508; --bg-card:#1a0a10; --bg-input:#0c0407;
+  --bg-deep:#080205; --bg-deeper:#050103;
+  --neon-blue:#FF6A00; --neon-cyan:#FF9A44; --neon-blue-dim:#B84A00;
+  --neon-green:#AA44FF; --neon-green-dim:#7722CC;
+  --text-primary:#ffe8d0; --text-secondary:#cc7044; --text-muted:#6e3820;
+  --border-color:#2e1010; --accent-glow:rgba(255,106,0,0.30);
+  --blue-glow-sm:0 0 10px rgba(255,106,0,0.55);
+  --blue-glow-md:0 0 22px rgba(255,106,0,0.65);
+  --blue-glow-lg:0 0 44px rgba(255,106,0,0.70);
+  --green-glow-sm:0 0 10px rgba(170,68,255,0.50);
+  --green-glow-md:0 0 24px rgba(170,68,255,0.60);
+}
+[data-snx-theme="halloween"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#FF6A00,#AA44FF,#FF6A00,#AA44FF,#FF6A00);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   THANKSGIVING
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="thanksgiving"] {
+  --bg-main:#110a02; --bg-card:#1e1105; --bg-input:#0e0802;
+  --bg-deep:#090501; --bg-deeper:#060300;
+  --neon-blue:#E07020; --neon-cyan:#F0A050; --neon-blue-dim:#A05010;
+  --neon-green:#D4920A; --neon-green-dim:#9E6B05;
+  --text-primary:#fff0d8; --text-secondary:#c08040; --text-muted:#6e4820;
+  --border-color:#2e1808; --accent-glow:rgba(224,112,32,0.30);
+  --blue-glow-sm:0 0 10px rgba(224,112,32,0.55);
+  --blue-glow-md:0 0 22px rgba(224,112,32,0.65);
+  --blue-glow-lg:0 0 44px rgba(224,112,32,0.70);
+  --green-glow-sm:0 0 10px rgba(212,146,10,0.50);
+  --green-glow-md:0 0 24px rgba(212,146,10,0.60);
+}
+[data-snx-theme="thanksgiving"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#8B3A00,#E07020,#D4920A,#E07020,#8B3A00);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CHRISTMAS
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="christmas"] {
+  --bg-main:#040f04; --bg-card:#081808; --bg-input:#030c03;
+  --bg-deep:#020902; --bg-deeper:#010501;
+  --neon-blue:#D42020; --neon-cyan:#F06060; --neon-blue-dim:#941414;
+  --neon-green:#28CC30; --neon-green-dim:#1A9420;
+  --text-primary:#e8ffe8; --text-secondary:#80c080; --text-muted:#406040;
+  --border-color:#0f2e0f; --accent-glow:rgba(212,32,32,0.30);
+  --blue-glow-sm:0 0 10px rgba(212,32,32,0.55);
+  --blue-glow-md:0 0 22px rgba(212,32,32,0.65);
+  --blue-glow-lg:0 0 44px rgba(212,32,32,0.70);
+  --green-glow-sm:0 0 10px rgba(40,204,48,0.50);
+  --green-glow-md:0 0 24px rgba(40,204,48,0.60);
+}
+[data-snx-theme="christmas"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#D42020,#28CC30,#FFD700,#28CC30,#D42020);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   WINTER
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="winter"] {
+  --bg-main:#050d18; --bg-card:#0a1624; --bg-input:#040b14;
+  --bg-deep:#030810; --bg-deeper:#02060c;
+  --neon-blue:#7EC8E3; --neon-cyan:#C0E8F5; --neon-blue-dim:#4A90A8;
+  --neon-green:#B0D8F8; --neon-green-dim:#6898C0;
+  --text-primary:#eef7ff; --text-secondary:#90bcd8; --text-muted:#507090;
+  --border-color:#0e2034; --accent-glow:rgba(126,200,227,0.30);
+  --blue-glow-sm:0 0 10px rgba(126,200,227,0.55);
+  --blue-glow-md:0 0 22px rgba(126,200,227,0.65);
+  --blue-glow-lg:0 0 44px rgba(126,200,227,0.70);
+  --green-glow-sm:0 0 10px rgba(176,216,248,0.50);
+  --green-glow-md:0 0 24px rgba(176,216,248,0.60);
+}
+[data-snx-theme="winter"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#3a7090,#7EC8E3,#C0E8F5,#7EC8E3,#3a7090);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   BIRTHDAY
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="birthday"] {
+  --bg-main:#0a0418; --bg-card:#140828; --bg-input:#080315;
+  --bg-deep:#060210; --bg-deeper:#04010b;
+  --neon-blue:#FF44CC; --neon-cyan:#FF88E8; --neon-blue-dim:#CC2299;
+  --neon-green:#FFDD00; --neon-green-dim:#CC9900;
+  --text-primary:#fff0ff; --text-secondary:#cc88cc; --text-muted:#7a447a;
+  --border-color:#2a103a; --accent-glow:rgba(255,68,204,0.30);
+  --blue-glow-sm:0 0 10px rgba(255,68,204,0.55);
+  --blue-glow-md:0 0 22px rgba(255,68,204,0.65);
+  --blue-glow-lg:0 0 44px rgba(255,68,204,0.70);
+  --green-glow-sm:0 0 10px rgba(255,221,0,0.50);
+  --green-glow-md:0 0 24px rgba(255,221,0,0.60);
+}
+[data-snx-theme="birthday"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#FF44CC,#FFDD00,#44CCFF,#FF8800,#FF44CC);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ANNIVERSARY
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="anniversary"] {
+  --bg-main:#0e0a04; --bg-card:#1a1408; --bg-input:#0c0903;
+  --bg-deep:#090602; --bg-deeper:#060401;
+  --neon-blue:#D4A840; --neon-cyan:#EED090; --neon-blue-dim:#9A7820;
+  --neon-green:#C8805A; --neon-green-dim:#904030;
+  --text-primary:#fff8e8; --text-secondary:#c0a060; --text-muted:#7a6030;
+  --border-color:#2e2008; --accent-glow:rgba(212,168,64,0.30);
+  --blue-glow-sm:0 0 10px rgba(212,168,64,0.55);
+  --blue-glow-md:0 0 22px rgba(212,168,64,0.65);
+  --blue-glow-lg:0 0 44px rgba(212,168,64,0.70);
+  --green-glow-sm:0 0 10px rgba(200,128,90,0.50);
+  --green-glow-md:0 0 24px rgba(200,128,90,0.60);
+}
+[data-snx-theme="anniversary"] #snxHolidayBanner {
+  background:linear-gradient(90deg,#8B6000,#D4A840,#EED090,#D4A840,#8B6000);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CUSTOM — variables injected dynamically by holiday-themes.js
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme="custom"] { /* vars set via element.style.setProperty() */ }
+[data-snx-theme="custom"] #snxHolidayBanner {
+  background:var(--ht-banner-gradient,linear-gradient(90deg,#00AEEF,#39FF14,#00AEEF));
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   FOUNDER CONTROL PANEL — Holiday Themes tab UI styles
+   ══════════════════════════════════════════════════════════════════ */
+.snx-holiday-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill,minmax(140px,1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.snx-holiday-card {
+  border-radius: 10px;
+  border: 1.5px solid rgba(255,255,255,0.1);
+  padding: 12px 10px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.12s;
+  background: rgba(255,255,255,0.04);
+  text-align: center;
+  position: relative;
+}
+.snx-holiday-card:hover { border-color:rgba(255,255,255,0.3); transform:translateY(-2px); }
+.snx-holiday-card.active-theme { border-color:#39FF14; background:rgba(57,255,20,0.08); }
+.snx-holiday-card .ht-emoji  { font-size:26px; line-height:1; margin-bottom:6px; display:block; }
+.snx-holiday-card .ht-name   { font-size:11px; font-weight:700; color:var(--text-secondary,#b8d4f0); line-height:1.3; }
+.snx-holiday-card .ht-swatch { width:100%; height:6px; border-radius:3px; margin-top:8px; }
+.snx-holiday-card .ht-active-badge {
+  position:absolute; top:6px; right:6px;
+  font-size:10px; background:#39FF14; color:#000;
+  border-radius:4px; padding:1px 5px; font-weight:800; display:none;
+}
+.snx-holiday-card.active-theme .ht-active-badge { display:block; }
+.snx-holiday-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+
+.snx-custom-theme-builder {
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:10px;
+  padding:14px;
+  margin-top:14px;
+}
+.snx-custom-theme-builder h4 { margin:0 0 12px; font-size:12px; color:#00d4ff; text-transform:uppercase; letter-spacing:0.6px; }
+.snx-color-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.snx-color-row label { font-size:11px; color:var(--text-secondary,#b8d4f0); min-width:120px; }
+.snx-color-row input[type="color"] { width:40px; height:28px; border:1.5px solid rgba(255,255,255,0.2); border-radius:6px; padding:2px; background:transparent; cursor:pointer; }
+.snx-color-row input[type="text"]  { width:90px; font-size:11px; font-family:monospace; padding:4px 8px; border-radius:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:var(--text-primary,#fff); }
+
+.snx-schedule-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06); flex-wrap:wrap; }
+.snx-schedule-row:last-child { border-bottom:none; }
+.snx-schedule-emoji { font-size:18px; width:24px; text-align:center; }
+.snx-schedule-name  { font-size:12px; color:var(--text-secondary,#b8d4f0); flex:1; min-width:120px; }
+.snx-schedule-dates { font-size:11px; color:var(--text-muted,#6a90b8); }
+.snx-schedule-status { font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; background:rgba(255,255,255,0.08); color:var(--text-muted,#6a90b8); }
+.snx-schedule-status.active-now { background:rgba(57,255,20,0.15); color:#39FF14; }
