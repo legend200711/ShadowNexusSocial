@@ -10279,27 +10279,13 @@ body.arcade-fs-ios body::after { display:none !important; }
             <input id="exploreSearchInput" placeholder="Search people, posts, hashtags…" autocomplete="off" oninput="snxExploreSearch(this.value)">
         </div>
         <div class="explore-tabs">
-            <button class="explore-tab active" onclick="snxSwitchExploreTab('creators',this)">👥 Creators</button>
-            <button class="explore-tab" onclick="snxSwitchExploreTab('posts',this)">🔥 Trending Posts</button>
-            <button class="explore-tab" onclick="snxSwitchExploreTab('communities',this)">💙 Communities</button>
+            <button class="explore-tab active" onclick="snxSwitchExploreTab('posts',this)">🔥 Trending Posts</button>
             <button class="explore-tab" onclick="snxSwitchExploreTab('suggested',this)">✨ Suggested Friends</button>
         </div>
-        <div class="explore-tab-content active" id="exploreTabCreators">
-            <div class="explore-section-title">🌟 Recommended Creators</div>
-            <div class="explore-creator-grid" id="exploreCreatorGrid">
-                <div style="color:#4a7a9a;font-size:13px;text-align:center;padding:24px 0;grid-column:1/-1;">Loading creators…</div>
-            </div>
-        </div>
-        <div class="explore-tab-content" id="exploreTabPosts">
+        <div class="explore-tab-content active" id="exploreTabPosts">
             <div class="explore-section-title">🔥 Trending Posts</div>
             <div class="explore-post-list" id="exploreTrendingPosts">
                 <div style="color:#4a7a9a;font-size:13px;text-align:center;padding:24px 0;">Loading trending posts…</div>
-            </div>
-        </div>
-        <div class="explore-tab-content" id="exploreTabCommunities">
-            <div class="explore-section-title">💙 Trending Communities</div>
-            <div class="explore-comm-grid" id="exploreCommGrid">
-                <div style="color:#4a7a9a;font-size:13px;text-align:center;padding:24px 0;grid-column:1/-1;">Loading communities…</div>
             </div>
         </div>
         <div class="explore-tab-content" id="exploreTabSuggested">
