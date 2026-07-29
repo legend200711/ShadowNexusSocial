@@ -10690,9 +10690,13 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   // ── Auth-ready queue — lets non-module scripts register callbacks that
   //    run as soon as Firebase auth resolves (avoids the re-login requirement) ──
+  // _snxAuthResolved = true  → signed in (user is set)
+  // _snxAuthResolved = false → signed out OR unknown (user is null)
+  // _snxAuthSignedOut = true → auth resolved with NO user (signed out / no session)
   window._snxAuthReadyQueue = window._snxAuthReadyQueue || [];
   window._snxOnAuthReady = function(fn) {
-    if (window._snxAuthResolved) { try { fn(); } catch(e){} }
+    // Fire immediately when auth has resolved regardless of sign-in state
+    if (window._snxAuthResolved || window._snxAuthSignedOut) { try { fn(); } catch(e){} }
     else { window._snxAuthReadyQueue.push(fn); }
   };
 
@@ -11800,6 +11804,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           // it if the snapshot has already returned real data from a prior run.
           if (userData) window._snxUserData = userData;
           // Flush any auth-ready callbacks registered before auth resolved
+          window._snxAuthSignedOut = false;
           if (Array.isArray(window._snxAuthReadyQueue)) {
             window._snxAuthReadyQueue.forEach(fn => { try { fn(); } catch(e){} });
             window._snxAuthReadyQueue = [];
@@ -12124,14 +12129,21 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Genuine sign-out, expired session, or first load with no saved session.
           _hideLoginLoading();
           if (_firstCall) {
-              // First resolution with no user → show login immediately (no delay needed;
-              // the auth gate already covered the blank period above).
+              // First resolution with no user → show login immediately.
+              // Mark auth as resolved-but-signed-out so _whenAuthReady callbacks
+              // fire immediately rather than waiting the full 8-second timeout.
+              window._snxAuthSignedOut = true;
+              if (Array.isArray(window._snxAuthReadyQueue)) {
+                window._snxAuthReadyQueue.forEach(fn => { try { fn(); } catch(e){} });
+                window._snxAuthReadyQueue = [];
+              }
               show('login');
               return;
           }
           // Explicit logout path — tear down listeners below.
           currentUser = null; userData = null;
           window._snxAuthResolved = false;
+          window._snxAuthSignedOut = true;
           // Clear the presence heartbeat interval so it stops firing after logout
           if (window._snxPresenceHeartbeat) { clearInterval(window._snxPresenceHeartbeat); window._snxPresenceHeartbeat = null; }
           // Clear the proactive token-refresh interval so it doesn't try to refresh
@@ -29511,7 +29523,11 @@ function _toast(msg) { if (typeof toastNotification==='function') toastNotificat
    runs before onAuthStateChanged has fired.
    ───────────────────────────────────────────────────────────────────────── */
 function _whenAuthReady(fn) {
-    if (window._snxAuthResolved && window._snxCurrentUser) { fn(); return; }
+    // Resolve immediately when auth has settled — whether signed in or signed out.
+    // Checking only _snxCurrentUser caused an 8-second hang for unauthenticated
+    // users and eventually triggered a Firestore permission-denied error instead
+    // of a friendly "please sign in" message.
+    if (window._snxAuthResolved || window._snxAuthSignedOut) { fn(); return; }
     if (typeof window._snxOnAuthReady === 'function') {
         window._snxOnAuthReady(fn);
         return;
@@ -29520,7 +29536,7 @@ function _whenAuthReady(fn) {
     let tries = 0;
     const t = setInterval(() => {
         tries++;
-        if (window._snxAuthResolved && window._snxCurrentUser) {
+        if (window._snxAuthResolved || window._snxAuthSignedOut) {
             clearInterval(t);
             fn();
         } else if (tries >= 80) {
@@ -29582,11 +29598,16 @@ window.snxLoadCommunities = async function() {
     const grid = document.getElementById('snxCommDiscoverGrid');
     if (!grid) return;
 
-    // Wait for auth to resolve so membership badges render correctly and
-    // permission-denied errors don't fire for signed-in users mid-restore
-    if (!window._snxAuthResolved) {
+    // Wait for auth to settle (signed in OR confirmed signed out).
+    if (!window._snxAuthResolved && !window._snxAuthSignedOut) {
         grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Loading…</div>';
         _whenAuthReady(() => window.snxLoadCommunities());
+        return;
+    }
+
+    // Not signed in — show friendly message without touching Firestore
+    if (!_cu()) {
+        grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">🔒 Sign in to browse communities.</div>';
         return;
     }
 
@@ -29625,9 +29646,9 @@ window.snxLoadCommunities = async function() {
         const msg = (e && e.message) ? e.message : String(e);
         const isDenied = e && e.code === 'permission-denied';
         grid.innerHTML = `<div style="color:#ff5577;font-size:13px;text-align:center;padding:16px;grid-column:1/-1;">${
-            isDenied && !window._snxCurrentUser
+            isDenied
                 ? '🔒 Please sign in to view communities.'
-                : 'Could not load communities: ' + msg.slice(0,80)
+                : 'Could not load communities. Please try again.'
         }</div>`;
         console.warn('[SNX Comm] Load failed:', e);
     }
@@ -29646,8 +29667,8 @@ window.snxLoadMyCommunities = async function() {
     const grid = document.getElementById('snxCommMyGrid');
     if (!grid) return;
 
-    // Wait for auth to resolve before deciding if the user is signed in
-    if (!window._snxAuthResolved) {
+    // Wait for auth to settle (signed in OR confirmed signed out)
+    if (!window._snxAuthResolved && !window._snxAuthSignedOut) {
         grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Loading…</div>';
         _whenAuthReady(() => window.snxLoadMyCommunities());
         return;
@@ -29691,19 +29712,17 @@ window.snxSelectCommIcon = function(el) {
 };
 
 window.snxCreateCommunity = async function() {
-    // Wait for auth before performing any Firestore write
-    if (!window._snxAuthResolved) {
+    // Wait for auth to settle before performing any Firestore write
+    if (!window._snxAuthResolved && !window._snxAuthSignedOut) {
         let waited = 0;
-        while (!window._snxAuthResolved && waited < 4000) {
+        while (!window._snxAuthResolved && !window._snxAuthSignedOut && waited < 4000) {
             await new Promise(r => setTimeout(r, 200));
             waited += 200;
         }
     }
     const cu = _cu();
     if (!cu) {
-        _toast(window._snxAuthResolved
-            ? '⚠️ You are signed out. Please sign in to create a community.'
-            : '⚠️ Still signing you in — please try again in a moment.');
+        _toast('⚠️ You are signed out. Please sign in to create a community.');
         return;
     }
 
