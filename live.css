@@ -218,6 +218,10 @@ body.is-creator #liveVideo {
   transform: scaleX(-1);
 }
 
+/* ── Safe video area: always 100% of live-video-wrap ── */
+/* Ensures the video never gets hidden behind controls */
+#liveVideo, .live-video-wrap { z-index: 1; }
+
 /* Camera-off overlay */
 .live-cam-off-overlay {
   position: absolute; inset: 0;
@@ -303,14 +307,24 @@ body.is-creator #liveVideo {
 .live-close-btn:active { transform: scale(0.93); }
 
 /* ── Bottom controls (creator only) ── */
+/*
+ * Controls sit below the chat panel: the chat panel is shifted up
+ * to never overlap the controls bar. On tablets/desktop the controls
+ * can live beside the chat panel.  The safe-area inset is always
+ * respected so notch/home-indicator devices are covered.
+ */
 .live-bottom-bar {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   padding: 8px 10px;
   padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
-  background: linear-gradient(0deg, rgba(0,0,0,0.72) 0%, transparent 100%);
+  background: linear-gradient(0deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.1) 100%);
   display: flex; align-items: center; justify-content: center;
-  flex-wrap: nowrap; gap: 8px; z-index: 10;
+  flex-wrap: wrap; gap: 8px; z-index: 12;
+  /* Smooth show/hide */
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  /* Reserve bottom space so it's never cut off */
+  min-height: calc(56px + env(safe-area-inset-bottom, 0));
 }
 .live-ctrl-btn {
   width: 42px; height: 42px; border-radius: 50%;
@@ -338,22 +352,32 @@ body.is-creator #liveVideo {
 #btnEndLive:hover { background: rgba(220,0,40,0.8); color: #fff; }
 
 /* ── Chat panel ── */
+/*
+ * Viewer mode: chat sits above the viewer-actions column on the left.
+ *   • right: 64px leaves space for the action column.
+ *   • bottom is lifted by the chat-input-row height (≈56px).
+ * Creator mode: chat is above the bottom bar.
+ *   • bottom shifts up by the bar height so it never overlaps.
+ */
 .live-chat-panel {
   position: absolute;
-  /* Leave right side clear for viewer action buttons (54px wide) */
   bottom: 0; left: 0;
-  right: 64px; /* clear of side buttons */
-  height: 55%;
+  right: 64px; /* clear of viewer side buttons */
+  height: 50%;
   display: flex; flex-direction: column;
   pointer-events: none;
   z-index: 9;
+  /* Smooth height/position change when layout or orientation switches */
+  transition: height 0.28s cubic-bezier(0.4,0,0.2,1),
+              bottom 0.28s cubic-bezier(0.4,0,0.2,1),
+              right 0.28s cubic-bezier(0.4,0,0.2,1);
 }
 
-/* Creator mode — right edge can go full width, shift up above bottom controls */
+/* Creator mode — full width, shifted up above the bottom controls bar */
 body.is-creator .live-chat-panel {
-  bottom: 66px;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0));
   right: 0;
-  height: 48%;
+  height: 45%;
 }
 
 .live-chat-messages {
@@ -435,23 +459,30 @@ body.is-creator .live-chat-input-row {
 .live-chat-send:active { transform: scale(0.9); }
 
 /* ── Viewer action bar ── */
-/* ══════════════════════════════════════════════════════
-   VIEWER LAYOUT — TikTok-style
-   Side buttons: right edge, vertical column
-   Chat: bottom-left area, clear of the side buttons
-   ══════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+   VIEWER LAYOUT — responsive:
+   • Portrait phones/tablets: buttons stacked vertically on the
+     right edge, just above the chat input row.
+   • Landscape phones: row of buttons below the chat panel.
+   • Tablets/desktop (≥768px): buttons beside the chat panel.
+   Controls are NEVER allowed to overlap live video or chat text.
+   ══════════════════════════════════════════════════════════════ */
 
 .live-viewer-actions {
   position: absolute;
-  /* Sit above the chat input row (≈ 60px) + safe area */
-  bottom: calc(64px + env(safe-area-inset-bottom, 0));
+  /* Portrait: sit beside + above the chat input row */
+  bottom: calc(60px + env(safe-area-inset-bottom, 0));
   right: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   z-index: 20;
   pointer-events: none;
+  /* Smooth repositioning on orientation/size change */
+  transition: bottom 0.28s cubic-bezier(0.4,0,0.2,1),
+              right 0.28s cubic-bezier(0.4,0,0.2,1),
+              flex-direction 0.2s;
 }
 .live-viewer-actions > * { pointer-events: auto; }
 
@@ -559,37 +590,58 @@ body.is-creator .live-chat-input-row {
 .ended-back-btn:hover { filter: brightness(1.12); }
 .ended-back-btn:active { transform: scale(0.96); }
 
-/* ── Fullscreen support: hide system UI ── */
+/* ── Fullscreen support: ensure UI layers stay visible ── */
 :fullscreen .live-top-bar,
 :fullscreen .live-bottom-bar,
 :fullscreen .live-viewer-actions { opacity: 1; }
 
-/* ── Responsive tweaks ── */
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE LAYOUT — phones, tablets, desktop
+   Strategy:
+     - Controls always below or beside the chat, never on top of video
+     - Guest boxes never clipped or overlapping controls
+     - Chat always readable
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Very small phones (≤380px) ── */
 @media (max-width: 380px) {
-  /* Very small phones — squeeze bottom bar even more */
   .live-ctrl-btn  { width: 36px; height: 36px; font-size: 15px; }
-  .live-bottom-bar { gap: 5px; padding: 6px 6px; }
-  #btnEndLive { padding: 6px 10px; font-size: 10px; }
-  /* Side buttons stay circular — just shrink slightly */
+  .live-bottom-bar { gap: 5px; padding: 5px 6px; min-height: calc(48px + env(safe-area-inset-bottom, 0)); }
+  #btnEndLive { padding: 5px 10px; font-size: 10px; }
   .live-like-btn, .live-profile-btn, .live-share-btn, .live-request-box-btn {
     width: 38px; height: 38px;
   }
   .live-like-icon { font-size: 18px; }
   .live-profile-icon { font-size: 18px; }
   .live-share-icon { font-size: 18px; }
-  .live-viewer-actions { gap: 10px; right: 7px; }
+  .live-viewer-actions { gap: 10px; right: 7px; bottom: calc(56px + env(safe-area-inset-bottom, 0)); }
+  body.is-creator .live-chat-panel { height: 40%; }
 }
+
+/* ── Small phones (381–480px) ── */
 @media (max-width: 480px) and (min-width: 381px) {
   .live-ctrl-btn  { width: 38px; height: 38px; font-size: 16px; }
   .live-bottom-bar { gap: 6px; }
 }
+
+/* ── Landscape phones (≤900px wide, ≤500px tall) ──
+   In landscape the screen is wide but short, so:
+   • Controls wrap into a row at the bottom (compact height).
+   • Chat uses more vertical space.
+   • Viewer actions shift to be beside the chat (right column).
+   • Guest boxes must not spill below the chat/controls band.
+*/
 @media (orientation: landscape) and (max-height: 500px) {
-  /* Landscape on phones — shrink side buttons, shift viewer actions up */
   .live-ctrl-btn  { width: 34px; height: 34px; font-size: 14px; }
-  .live-bottom-bar { gap: 6px; padding-bottom: calc(4px + env(safe-area-inset-bottom, 0)); }
+  .live-bottom-bar {
+    gap: 6px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0));
+    min-height: calc(46px + env(safe-area-inset-bottom, 0));
+  }
   #btnEndLive { padding: 5px 10px; font-size: 10px; }
   .live-viewer-actions {
-    bottom: calc(52px + env(safe-area-inset-bottom, 0));
+    /* In landscape: push viewer actions higher so they clear the chat input */
+    bottom: calc(48px + env(safe-area-inset-bottom, 0));
     right: 8px; gap: 8px;
   }
   .live-like-btn, .live-profile-btn, .live-share-btn, .live-request-box-btn {
@@ -598,20 +650,51 @@ body.is-creator .live-chat-input-row {
   .live-like-icon { font-size: 16px; }
   .live-profile-icon { font-size: 16px; }
   .live-share-icon { font-size: 16px; }
-  /* In landscape, chat can use more height */
-  .live-chat-panel { height: 70%; right: 54px; }
-}
-@media (min-width: 768px) {
-  /* Tablet/Desktop: wider chat, bigger side buttons */
-  .live-chat-panel { width: 280px; right: auto; }
-  body.is-creator .live-chat-panel { bottom: 72px; right: 0; }
-  .live-viewer-actions { right: 14px; gap: 16px; }
-  .live-like-btn, .live-profile-btn, .live-share-btn, .live-request-box-btn {
-    width: 50px; height: 50px;
+  /* Landscape: taller chat panel, narrow right margin for side buttons */
+  .live-chat-panel { height: 68%; right: 52px; }
+  body.is-creator .live-chat-panel {
+    height: 60%;
+    bottom: calc(46px + env(safe-area-inset-bottom, 0));
+    right: 0;
   }
-  /* Desktop: restore comfortable button sizes */
+}
+
+/* ── Tablets / small desktop (768px–1024px) ── */
+@media (min-width: 768px) and (max-width: 1024px) {
+  /* Chat panel: fixed width on the left, clear of side buttons */
+  .live-chat-panel { width: 300px; right: auto; height: 55%; }
+  body.is-creator .live-chat-panel {
+    bottom: calc(60px + env(safe-area-inset-bottom, 0));
+    right: 0; width: auto;
+  }
+  .live-viewer-actions { right: 16px; gap: 14px; }
+  .live-like-btn, .live-profile-btn, .live-share-btn, .live-request-box-btn {
+    width: 48px; height: 48px;
+  }
+  .live-ctrl-btn { width: 44px; height: 44px; font-size: 19px; }
+  .live-bottom-bar { gap: 12px; }
+}
+
+/* ── Desktop (≥1025px) ── */
+@media (min-width: 1025px) {
+  /* Wide enough to show chat beside the video without covering it */
+  .live-chat-panel { width: 320px; right: auto; height: 60%; bottom: 0; }
+  body.is-creator .live-chat-panel {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0));
+    right: 0; width: auto;
+  }
+  .live-viewer-actions { right: 18px; gap: 16px; bottom: calc(72px + env(safe-area-inset-bottom, 0)); }
+  .live-like-btn, .live-profile-btn, .live-share-btn, .live-request-box-btn {
+    width: 52px; height: 52px;
+  }
   .live-ctrl-btn { width: 46px; height: 46px; font-size: 20px; }
   .live-bottom-bar { gap: 14px; }
+}
+
+/* Backwards compat: any ≥768 (catches older tablets too) */
+@media (min-width: 768px) {
+  .live-ctrl-btn { width: 44px; height: 44px; font-size: 19px; }
+  .live-bottom-bar { gap: 12px; }
 }
 
 /* ── Viewer-only: no bottom bar, use viewer-actions ── */
@@ -628,6 +711,26 @@ body.is-viewer #shadowBotBadge     { display: none !important; }
 /* ── Tap to show/hide controls on mobile (creator) ── */
 .live-controls-hidden .live-bottom-bar { opacity: 0; transition: opacity 0.3s; pointer-events: none; }
 .live-controls-hidden .live-top-bar    { opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+
+/* ── Compact Controls mode (host preference via settings toggle) ──
+   Reduces button size and bar height to maximise video area.
+   Works at any screen size; does not conflict with responsive rules.
+*/
+body.controls-compact .live-bottom-bar {
+  padding: 5px 8px;
+  padding-bottom: calc(5px + env(safe-area-inset-bottom, 0));
+  min-height: calc(44px + env(safe-area-inset-bottom, 0));
+  gap: 6px;
+}
+body.controls-compact .live-ctrl-btn {
+  width: 36px; height: 36px; font-size: 15px;
+}
+body.controls-compact #btnEndLive {
+  padding: 5px 10px; font-size: 10px;
+}
+body.controls-compact .live-chat-panel {
+  bottom: calc(46px + env(safe-area-inset-bottom, 0));
+}
 
 /* ── Profile avatar live ring (red pulsing border) ── */
 /* Referenced by index.html .p-avatar.is-live and the creator's stage avatar */
@@ -913,14 +1016,16 @@ body.is-viewer #shadowBotBadge     { display: none !important; }
   color: #00AEEF;
 }
 
+/* ════════════════════════════════════════════════════════════
+   GUEST VIDEO GRID
+   ════════════════════════════════════════════════════════════ */
+
 /* ── Guest video grid container ── */
 .guest-grid {
   position: absolute; inset: 0;
   pointer-events: none;
   z-index: 5;
   display: none; /* shown only when guests present */
-  /* Smooth re-layout when guests join/leave */
-  transition: none;
   /* Clip children so nothing escapes the stage */
   overflow: hidden;
 }
@@ -933,23 +1038,38 @@ body.is-viewer #shadowBotBadge     { display: none !important; }
   background: #070d1a;
   pointer-events: auto;
   flex-shrink: 0;
-  /* Face-centering: video is always object-fit:cover so face stays centred */
+  /* Face-centering: video is always object-fit:cover */
   min-width: 0; min-height: 0;
   /* Guarantee cells never escape the grid */
   max-width: 100vw;
   max-height: 100vh;
+  /* Smooth all geometry changes */
+  box-sizing: border-box;
+  transition: width 0.3s cubic-bezier(0.4,0,0.2,1),
+              height 0.3s cubic-bezier(0.4,0,0.2,1),
+              top 0.3s cubic-bezier(0.4,0,0.2,1),
+              right 0.3s cubic-bezier(0.4,0,0.2,1),
+              bottom 0.3s cubic-bezier(0.4,0,0.2,1),
+              left 0.3s cubic-bezier(0.4,0,0.2,1),
+              opacity 0.22s ease;
 }
 .guest-cell video {
   width: 100%; height: 100%;
   object-fit: cover; display: block;
 }
+
+/* ── Guest name label — always visible, always on top ── */
 .guest-cell-name {
   position: absolute; bottom: 0; left: 0; right: 0;
-  background: linear-gradient(0deg, rgba(0,0,0,0.72) 0%, transparent 100%);
+  background: linear-gradient(0deg, rgba(0,0,0,0.82) 0%, transparent 100%);
   padding: clamp(4px, 1.2vw, 8px) clamp(5px, 1.5vw, 10px) clamp(3px, 0.8vw, 5px);
-  font-size: clamp(9px, 1.8vw, 11px); font-weight: 700; color: #e8f4ff;
+  font-size: clamp(9px, 1.8vw, 12px); font-weight: 700; color: #e8f4ff;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   pointer-events: none;
+  /* Always on top — must not be hidden behind video */
+  z-index: 8;
+  /* Name stays legible even on tiny cells */
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
 }
 .guest-cell-remove {
   position: absolute; top: 5px; right: 5px;
@@ -959,7 +1079,7 @@ body.is-viewer #shadowBotBadge     { display: none !important; }
   border: 1px solid rgba(255,255,255,0.2);
   color: #fff; font-size: clamp(10px, 2vw, 13px);
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; z-index: 2;
+  cursor: pointer; z-index: 9;
   transition: background 0.15s;
   touch-action: manipulation;
 }
@@ -975,24 +1095,12 @@ body.is-viewer #shadowBotBadge     { display: none !important; }
 /* Grid hidden when no guests */
 .guest-grid[data-count="0"] { display: none !important; }
 
-/* All cells: box-model + smooth transition for all layout changes */
-.guest-cell {
-  box-sizing: border-box;
-  transition: width 0.28s cubic-bezier(0.4,0,0.2,1),
-              height 0.28s cubic-bezier(0.4,0,0.2,1),
-              top 0.28s cubic-bezier(0.4,0,0.2,1),
-              right 0.28s cubic-bezier(0.4,0,0.2,1),
-              bottom 0.28s cubic-bezier(0.4,0,0.2,1),
-              left 0.28s cubic-bezier(0.4,0,0.2,1),
-              opacity 0.22s ease;
-}
-
 /* ── Float / Host-Full: absolute guest tiles need border + shadow ── */
 .guest-grid[data-layout="float"]     .guest-cell:not(.host-cell),
 .guest-grid[data-layout="host-full"] .guest-cell:not(.host-cell) {
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1.5px solid rgba(0,174,239,0.4);
-  box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.65);
   z-index: 6;
   overflow: hidden;
 }
@@ -1002,10 +1110,10 @@ body.is-viewer #shadowBotBadge     { display: none !important; }
 
 /* ── Grid layout: thin dividing border between cells ── */
 .guest-grid[data-layout="grid"] .guest-cell {
-  border: 1px solid rgba(0,0,0,0.3);
+  border: 1px solid rgba(0,0,0,0.35);
 }
 
-/* ── Stacked layout: guest tiles are absolute, right-aligned, bottom-to-top ── */
+/* ── Stacked layout: guest tiles are absolute, right-aligned ── */
 .guest-grid[data-layout="stacked"] .host-cell {
   position: absolute;
   inset: 0;
@@ -1027,17 +1135,18 @@ body.is-viewer #shadowBotBadge     { display: none !important; }
 .guest-grid.box-lg .guest-cell:not(.host-cell) { --gbox-scale: 1.18; }
 
 /* ══════════════════════════════════════════════════════════════
-   RESPONSIVE OVERRIDES — compact labels on small screens
-   (Geometry is always JS; only typography changes here)
+   GUEST BOX RESPONSIVE TYPOGRAPHY
+   (Geometry is JS; only typography/avatar size changes here)
    ══════════════════════════════════════════════════════════════ */
 
 @media (max-width: 480px) {
   .guest-cell-name { font-size: 9px; padding: 3px 5px; }
-  .vgc-avatar      { width: 48px; height: 48px; font-size: 18px; }
+  .vgc-avatar      { width: 44px; height: 44px; font-size: 16px; }
 }
 
 @media (orientation: landscape) and (max-height: 420px) {
   .guest-cell-name { font-size: 8px; padding: 2px 4px; }
+  .vgc-avatar      { width: 36px; height: 36px; font-size: 13px; }
 }
 
 @media (min-width: 481px) and (max-width: 768px) {
@@ -1046,7 +1155,7 @@ body.is-viewer #shadowBotBadge     { display: none !important; }
 
 @media (min-width: 769px) {
   .guest-cell-name { font-size: 11px; }
-  .vgc-avatar      { width: 72px; height: 72px; font-size: 28px; }
+  .vgc-avatar      { width: 64px; height: 64px; font-size: 24px; }
 }
 
 /* Hide main #liveVideo for viewers when the grid is showing — the grid
@@ -1208,11 +1317,11 @@ body.is-viewer #layoutSettingsPanel   { display: none !important; }
   z-index: 0;
 }
 
-/* Name and status labels always on top */
+/* Name and status labels always on top — matches guest-cell-name z-index 8 */
 .vgc-cell .guest-cell-name,
 .vgc-cell .vgc-name,
 .vgc-cell .vgc-status {
-  z-index: 5;
+  z-index: 8;
 }
 
 /* ═══════════════════════════════════════════════════════

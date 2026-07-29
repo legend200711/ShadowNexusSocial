@@ -409,6 +409,11 @@ document.addEventListener('DOMContentLoaded', () => {
       _iqSetEnabled(e.target.checked);
     });
 
+  document.getElementById('toggleCompactControls') &&
+    document.getElementById('toggleCompactControls').addEventListener('change', e => {
+      _setCompactControls(e.target.checked);
+    });
+
   // Layout option buttons
   document.querySelectorAll('.layout-option-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -3158,6 +3163,9 @@ function _attachHostVideoToCell(cell) {
 // Expose for co-host accept auto-request (cohost.js calls window._viewerRequestBox())
 window._viewerRequestBox = async function() { return _viewerRequestBox(); };
 
+// Flag: true while the viewer is actively in a guest box (prevents double-request)
+let _guestBoxActive = false;
+
 async function _viewerRequestBox() {
   console.log('[BoxRequest] Request button clicked');
 
@@ -3189,8 +3197,9 @@ async function _viewerRequestBox() {
 
   const btn = D.btnRequestBox;
 
-  // ── Guard: already in a guest box ──
-  if (btn && btn.style.display === 'none') {
+  // ── Guard: already actively in a guest box ──
+  // Use explicit flag rather than btn.display so re-invites work correctly
+  if (_guestBoxActive) {
     console.log('[BoxRequest] Viewer already in a guest box');
     return;
   }
@@ -3226,6 +3235,11 @@ async function _viewerRequestBox() {
   const viewerName   = _userData.displayName || _user.email?.split('@')[0] || 'Guest';
   const viewerAvatar = _userData.avatar || _userData.profilePicture || '';
   const requestId    = `${_roomId}_${_user.uid}`;
+
+  // BUG-2 FIX: delete any stale doc from a previous session BEFORE writing the new one.
+  // This ensures the new doc gets a fresh serverTimestamp() so the stale-doc guard in
+  // the onSnapshot listener won't reject it, and the host's 'modified' listener fires.
+  try { await deleteDoc(doc(_db, 'boxRequests', requestId)); } catch(_) {}
 
   // ── Write to Firestore boxRequests ──
   try {
@@ -3282,8 +3296,18 @@ async function _viewerRequestBox() {
 
   const reqDocRef = doc(_db, 'boxRequests', requestId);
   _guestStatusUnsub = onSnapshot(reqDocRef, async snap => {
+    // BUG-2 FIX: ignore docs that don't exist or are in a terminal state we already handled.
+    // A stale doc from a previous session (status:'accepted'|'declined') must not auto-trigger
+    // _guestJoinAsViewer again when this is a brand-new request attempt.
     if (!snap.exists()) return;
-    const status = snap.data().status;
+    const data   = snap.data();
+    const status = data.status;
+    // Ignore stale doc: only react if the doc was created in THIS request session
+    // (createdAt within the last 60 s). Older docs are from a previous session.
+    if (data.createdAt) {
+      const createdMs = data.createdAt.toMillis ? data.createdAt.toMillis() : data.createdAt;
+      if (Date.now() - createdMs > 60000) return;
+    }
     console.log('[BoxRequest] Status update received:', status);
 
     if (status === 'accepted') {
@@ -3291,6 +3315,7 @@ async function _viewerRequestBox() {
         btn.classList.remove('pending');
         btn.style.display = 'none';
       }
+      _guestBoxActive = true;  // set flag before joining so double-taps are blocked
       toast('✅ Accepted! Joining as guest…');
       _guestStatusUnsub && _guestStatusUnsub();
       _guestStatusUnsub = null;
@@ -3304,7 +3329,7 @@ async function _viewerRequestBox() {
       toast('Request declined.');
       _guestStatusUnsub && _guestStatusUnsub();
       _guestStatusUnsub = null;
-      // Clean up Firestore doc
+      // Clean up Firestore doc so it doesn't block a future request
       try { await deleteDoc(reqDocRef); } catch(_) {}
     }
   }, err => {
@@ -3315,6 +3340,9 @@ async function _viewerRequestBox() {
       }
       toast('❌ Session error — please try again.');
     }
+    // On listener error reset pending state so the user can try again
+    if (btn) btn.classList.remove('pending');
+    if (D.btnRequestBoxLabel) D.btnRequestBoxLabel.textContent = 'Request a Box';
   });
 }
 
@@ -3362,8 +3390,27 @@ async function _guestLeaveBox() {
   _guestDoLeave();
 }
 
+// Module-level refs for teardown of the remove-signal listener and dc timer.
+// These must survive _guestJoinAsViewer calls so a new join properly tears down the old ones.
+let _guestRemovedRef   = null;   // RTDB ref for removedByHost listener
+let _guestRemovedUnsub = null;   // onValue unsubscribe for removedByHost
+let _guestDcTimer      = null;   // connection-state disconnect/failed timer
+
 /* ── Internal: perform the guest leave cleanup (called from Leave Box or removedByHost signal) ── */
 function _guestDoLeave() {
+  // BUG-9 FIX: cancel any pending disconnect/failed timer so it can't fire _guestDoLeave twice
+  if (_guestDcTimer) { clearTimeout(_guestDcTimer); _guestDcTimer = null; }
+
+  // BUG-7 FIX: un-subscribe removedByHost listener so it can't trigger after leave
+  if (_guestRemovedUnsub) {
+    try { _guestRemovedUnsub(); } catch(_) {}
+    _guestRemovedUnsub = null;
+  }
+  if (_guestRemovedRef) {
+    try { off(_guestRemovedRef); } catch(_) {}
+    _guestRemovedRef = null;
+  }
+
   // Stop heartbeat immediately — no more presence keep-alive
   if (_guestHeartbeatInterval) {
     clearInterval(_guestHeartbeatInterval);
@@ -3376,12 +3423,16 @@ function _guestDoLeave() {
     _guestSigUnsub = null;
   }
 
-  // Close peer connection — triggers onconnectionstatechange cleanup below,
-  // but also handle directly here for immediate UI response
-  if (_guestPc) {
-    try { _guestPc.close(); } catch(_) {}
-    _guestPc = null;
+  // Close peer connection — triggers onconnectionstatechange, but _guestPc is
+  // nulled BEFORE close() so the state handler sees null and skips cleanup.
+  const pcToClose = _guestPc;
+  _guestPc = null;
+  if (pcToClose) {
+    try { pcToClose.close(); } catch(_) {}
   }
+
+  // Reset active-box flag so the viewer can request again
+  _guestBoxActive = false;
 
   // Remove own presence from RTDB so grid updates for everyone instantly.
   // Also cancel the onDisconnect hook so RTDB doesn't attempt a redundant delete.
@@ -3420,6 +3471,21 @@ function _guestDoLeave() {
 async function _guestJoinAsViewer() {
   if (!_user || !_roomId) return;
 
+  // BUG-3/BUG-8 FIX: tear down any existing guest session before starting a new one.
+  // This prevents stale peer connections and duplicate listeners when a guest rejoins
+  // after being removed then invited again.
+  if (_guestPc || _guestStream) {
+    console.log('[GuestBox] Tearing down previous session before rejoining');
+    if (_guestSigUnsub)    { try { _guestSigUnsub(); }    catch(_){} _guestSigUnsub = null; }
+    if (_guestRemovedUnsub){ try { _guestRemovedUnsub(); } catch(_){} _guestRemovedUnsub = null; }
+    if (_guestRemovedRef)  { try { off(_guestRemovedRef); } catch(_){} _guestRemovedRef = null; }
+    if (_guestDcTimer)     { clearTimeout(_guestDcTimer); _guestDcTimer = null; }
+    if (_guestHeartbeatInterval) { clearInterval(_guestHeartbeatInterval); _guestHeartbeatInterval = null; }
+    const oldPc = _guestPc; _guestPc = null;
+    if (oldPc) { try { oldPc.close(); } catch(_){} }
+    if (_guestStream) { try { _guestStream.getTracks().forEach(t=>t.stop()); } catch(_){} _guestStream = null; }
+  }
+
   let guestStream;
   try {
     guestStream = await navigator.mediaDevices.getUserMedia({
@@ -3435,6 +3501,7 @@ async function _guestJoinAsViewer() {
     } else {
       toast('❌ Could not access camera. Please try again.');
     }
+    _guestBoxActive = false;
     return;
   }
 
@@ -3444,22 +3511,43 @@ async function _guestJoinAsViewer() {
   _guestMicOn  = true;
 
   const sigRef = ref(_liveDB, `guestSignaling/${_roomId}/${_user.uid}`);
-  const MAX_WAIT = 5000;
-  const startedAt = Date.now();
+  // BUG-5 FIX: increase from 5 s → 12 s; slow connections need more time for the host
+  // to write the initial offer after accepting.
+  const MAX_WAIT = 12000;
 
-  // Wait for offer from host
+  // BUG-4 FIX: off(ref, callback) is NOT valid for onValue listeners — only
+  // off(ref) works. We use the returned unsubscribe function from onValue instead.
   const _waitForOffer = () => new Promise((resolve, reject) => {
-    const unsub = onValue(sigRef, snap => {
+    let _done = false;
+    const _unsub = onValue(sigRef, snap => {
       if (!snap.exists() || !snap.val().offer) return;
-      off(sigRef, unsub);
+      if (_done) return;
+      _done = true;
+      _unsub();
       resolve(snap.val());
     });
-    setTimeout(() => { off(sigRef, unsub); reject(new Error('offer timeout')); }, MAX_WAIT);
+    setTimeout(() => {
+      if (_done) return;
+      _done = true;
+      _unsub();
+      reject(new Error('offer timeout'));
+    }, MAX_WAIT);
   });
 
   let sigData;
-  try { sigData = await _waitForOffer(); }
-  catch (e) { toast('Host did not respond in time.'); guestStream.getTracks().forEach(t=>t.stop()); return; }
+  try {
+    sigData = await _waitForOffer();
+  } catch (e) {
+    // BUG-15 FIX: show a more helpful message and reset state so the user can retry
+    console.warn('[GuestBox] Offer wait timed out — host may be slow or offline');
+    toast('⏱ Host is slow to respond. Tap "Request a Box" to try again.');
+    guestStream.getTracks().forEach(t => t.stop());
+    _guestStream = null;
+    _guestBoxActive = false;
+    if (D.btnRequestBox) { D.btnRequestBox.style.display = ''; D.btnRequestBox.classList.remove('pending'); }
+    if (D.btnRequestBoxLabel) D.btnRequestBoxLabel.textContent = 'Request a Box';
+    return;
+  }
 
   const guestPc = new RTCPeerConnection(_ICE_SERVERS);
   _attachIceWatchdog(guestPc, 'guestbox→host');
@@ -3478,7 +3566,14 @@ async function _guestJoinAsViewer() {
 
   try {
     await guestPc.setRemoteDescription(new RTCSessionDescription(sigData.offer));
-  } catch(e) { toast('Connection error.'); guestPc.close(); guestStream.getTracks().forEach(t=>t.stop()); return; }
+  } catch(e) {
+    toast('❌ Connection error. Please request a box again.');
+    guestPc.close(); guestStream.getTracks().forEach(t=>t.stop());
+    _guestStream = null; _guestBoxActive = false;
+    if (D.btnRequestBox) { D.btnRequestBox.style.display = ''; D.btnRequestBox.classList.remove('pending'); }
+    if (D.btnRequestBoxLabel) D.btnRequestBoxLabel.textContent = 'Request a Box';
+    return;
+  }
 
   const answer = await guestPc.createAnswer();
   await guestPc.setLocalDescription(answer);
@@ -3486,7 +3581,14 @@ async function _guestJoinAsViewer() {
   try {
     await update(sigRef, { answer: { type: answer.type, sdp: answer.sdp } });
     _answerWritten = true;
-  } catch(e) { toast('Connection error.'); guestPc.close(); guestStream.getTracks().forEach(t=>t.stop()); return; }
+  } catch(e) {
+    toast('❌ Connection error. Please request a box again.');
+    guestPc.close(); guestStream.getTracks().forEach(t=>t.stop());
+    _guestStream = null; _guestBoxActive = false;
+    if (D.btnRequestBox) { D.btnRequestBox.style.display = ''; D.btnRequestBox.classList.remove('pending'); }
+    if (D.btnRequestBoxLabel) D.btnRequestBoxLabel.textContent = 'Request a Box';
+    return;
+  }
 
   // Flush pending candidates
   for (const c of _pendingCands) {
@@ -3502,12 +3604,15 @@ async function _guestJoinAsViewer() {
     try { await guestPc.addIceCandidate(new RTCIceCandidate(c)); } catch(_) {}
   }
 
+  // BUG-14 FIX: if a previous _guestSigUnsub exists, call the unsubscribe function
+  // directly — NOT off(sigRef) which would detach ALL onValue listeners on that ref.
+  if (_guestSigUnsub) { try { _guestSigUnsub(); } catch(_) {} _guestSigUnsub = null; }
+
   // Listen for host candidates AND ICE-restart offers from the host.
   // When the host calls restartIce() and writes a new offer to RTDB, the
   // guest must respond with a fresh answer to complete the ICE handshake.
   let _lastAppliedOfferSdp = sigData.offer?.sdp || null;
   let _iceAnswerInFlight = false;
-  if (_guestSigUnsub) { try { off(sigRef); } catch(_) {} _guestSigUnsub = null; }
   _guestSigUnsub = onValue(sigRef, async snap => {
     if (!snap.exists()) return;
     const d = snap.val();
@@ -3540,7 +3645,7 @@ async function _guestJoinAsViewer() {
     }
   });
 
-  // Store peer connection so disconnect handler can clean up
+  // Store peer connection so disconnect/cleanup code can reach it
   _guestPc = guestPc;
 
   // ── Publish own presence to RTDB so everyone (incl. self) sees this box ──
@@ -3593,20 +3698,23 @@ async function _guestJoinAsViewer() {
   if (D.btnGuestMic) D.btnGuestMic.style.display = 'flex';
   if (D.btnLeaveBox) D.btnLeaveBox.style.display  = 'flex';
 
+  // BUG-7 FIX: store listener refs at module level so _guestDoLeave can tear them down.
   // ── Listen for host-remove signal on own signaling node ──
   // Host sets removedByHost:true when it removes this guest.
   // Guest client responds by cleaning up immediately.
-  let _removedListened = false;
-  const _removedRef = ref(_liveDB, `guestSignaling/${_roomId}/${_user.uid}/removedByHost`);
-  onValue(_removedRef, snap => {
+  _guestRemovedRef   = ref(_liveDB, `guestSignaling/${_roomId}/${_user.uid}/removedByHost`);
+  _guestRemovedUnsub = onValue(_guestRemovedRef, snap => {
     if (!snap.exists() || !snap.val()) return;
-    if (_removedListened) return;
-    _removedListened = true;
-    off(_removedRef);
+    // Unsubscribe immediately before any async work to prevent double-fire
+    if (_guestRemovedUnsub) { try { _guestRemovedUnsub(); } catch(_){} _guestRemovedUnsub = null; }
+    try { off(_guestRemovedRef); } catch(_) {} _guestRemovedRef = null;
     toast('The host removed you from the guest box.');
     _guestDoLeave();
   });
 
+  // BUG-8/BUG-9 FIX: use module-level _guestDcTimer and check _guestPc === guestPc
+  // so that a stale onconnectionstatechange from a previous session can't fire
+  // _guestDoLeave for the new session.
   // Handle peer disconnect:
   //  - `disconnected` is transient — _attachIceWatchdog fires restartIce()
   //    after 3 s and we write an ICE-restart offer.  Give 15 s for the
@@ -3615,13 +3723,15 @@ async function _guestJoinAsViewer() {
   //    an additional 6 s (for the renegotiation round-trip) before calling
   //    _guestDoLeave, so the video element is never torn down prematurely.
   //  - `closed` → the host explicitly closed us; clean up immediately.
-  let _guestDcTimer = null;
   guestPc.onconnectionstatechange = () => {
+    // Guard: ignore events from a stale pc that was already replaced
+    if (_guestPc !== guestPc) return;
     const st = guestPc.connectionState;
     if (st === 'disconnected') {
       if (!_guestDcTimer) {
         _guestDcTimer = setTimeout(() => {
           _guestDcTimer = null;
+          if (_guestPc !== guestPc) return; // replaced by a newer session
           if (guestPc.connectionState !== 'connected' && (_guestStream || _guestPc)) {
             _guestDoLeave();
           }
@@ -3632,6 +3742,7 @@ async function _guestJoinAsViewer() {
       if (!_guestDcTimer) {
         _guestDcTimer = setTimeout(() => {
           _guestDcTimer = null;
+          if (_guestPc !== guestPc) return;
           if (guestPc.connectionState !== 'connected' && (_guestStream || _guestPc)) {
             _guestDoLeave();
           }
@@ -3639,7 +3750,8 @@ async function _guestJoinAsViewer() {
       }
     } else if (st === 'closed') {
       if (_guestDcTimer) { clearTimeout(_guestDcTimer); _guestDcTimer = null; }
-      if (_guestStream || _guestPc) {
+      // Only clean up if this is still the active peer connection
+      if (_guestPc === guestPc && (_guestStream || _guestPc)) {
         _guestDoLeave();
       }
     } else if (st === 'connected') {
@@ -3733,8 +3845,12 @@ function _hostListenForGuestRequests() {
 
   const fsUnsub = onSnapshot(fsReqQuery, snap => {
     snap.docChanges().forEach(change => {
-      if (change.type === 'added') {
+      // BUG-1 HOST FIX: also handle 'modified' — when a previously-removed guest
+      // re-requests a box, setDoc overwrites the same requestId doc (status: 'pending'),
+      // which fires 'modified' not 'added'.  We must show the card for both types.
+      if (change.type === 'added' || change.type === 'modified') {
         const d = change.doc.data();
+        if (d.status !== 'pending') return; // only show pending requests
         console.log('[BoxRequest] Request received by host from viewer:', d.viewerId, 'name:', d.viewerName);
         if (!_shownReqUids.has(d.viewerId)) {
           _shownReqUids.add(d.viewerId);
@@ -3853,16 +3969,26 @@ async function _hostAcceptGuest(req) {
 async function _hostAcceptGuestImpl(req) {
   if (!_roomId || !_localStream) return;
 
-  // ── Cap: respect _MAX_GUESTS limit ──
-  if (Object.keys(_guestPeers).length >= _MAX_GUESTS) {
-    toast(`⚠️ Guest box full — max ${_MAX_GUESTS} guests.`);
-    _hostDeclineGuest(req.uid, req.requestId || `${_roomId}_${req.uid}`);
-    return;
-  }
-
   const guestUid  = req.uid;
   const requestId = req.requestId || `${_roomId}_${guestUid}`;
   const sigRef    = ref(_liveDB, `guestSignaling/${_roomId}/${guestUid}`);
+
+  // BUG-1/BUG-3 FIX: if this guest already has a peer entry (e.g. re-invited after remove),
+  // cleanly tear it down before setting up a new one.  Without this, the old
+  // _guestPeers[guestUid] check blocked the host from ever accepting the same guest twice.
+  if (_guestPeers[guestUid]) {
+    console.log('[BoxRequest] Guest was already in peers map — tearing down old connection before re-accept:', guestUid);
+    _hostDoRemoveGuest(guestUid);
+    // Brief yield so the remove animation starts before the new offer writes
+    await new Promise(r => setTimeout(r, 50));
+  }
+
+  // ── Cap: respect _MAX_GUESTS limit ──
+  if (Object.keys(_guestPeers).length >= _MAX_GUESTS) {
+    toast(`⚠️ Guest box full — max ${_MAX_GUESTS} guests.`);
+    _hostDeclineGuest(req.uid, requestId);
+    return;
+  }
 
   console.log('[BoxRequest] Host accepting guest:', guestUid, 'name:', req.name);
 
@@ -3877,15 +4003,36 @@ async function _hostAcceptGuestImpl(req) {
   // ── Update RTDB guestRequest status to "accepted" ──
   try { await update(ref(_liveDB, `guestRequests/${_roomId}/${guestUid}`), { status: 'accepted' }); } catch(_) {}
 
+  // BUG-6 FIX: clear any stale signaling data from a previous session for this guest
+  // before writing the new offer so the guest's waitForOffer sees only the fresh offer.
+  try { await remove(sigRef); } catch(_) {}
+
   console.log('[BoxRequest] Guest added to box — starting WebRTC signaling for:', guestUid);
 
   // Create peer connection for this guest
   const guestPc = new RTCPeerConnection(_ICE_SERVERS);
   _attachIceWatchdog(guestPc, `host→guestbox:${guestUid}`);
 
-  // Receive guest's video track
+  // BUG-10/11 FIX: store stream as soon as ontrack fires; if the cell was already
+  // added (e.g. track fires twice or a second ontrack), update its srcObject in-place
+  // rather than calling _hostAddGuestCell twice (which is blocked by duplicate guard
+  // and would silently drop the stream).
+  let _trackStream = null;
   guestPc.ontrack = (e) => {
     const stream = e.streams[0] || new MediaStream([e.track]);
+    // Update the stream ref on the peer entry if it already exists
+    if (_guestPeers[guestUid]) {
+      _guestPeers[guestUid].stream = stream;
+      const cell = _guestPeers[guestUid].cell;
+      if (cell) {
+        const vid = cell.querySelector('video');
+        if (vid && vid.srcObject !== stream) {
+          vid.srcObject = stream;
+          vid.play().catch(() => {});
+        }
+      }
+    }
+    _trackStream = stream;
     _hostAddGuestCell(guestUid, req.name || 'Guest', req.avatar || '', stream, guestPc);
   };
 
@@ -4277,10 +4424,11 @@ function _hostDoRemoveGuest(uid) {
   // Allow this UID to send a new request in a future session
   _shownReqUids.delete(uid);
   try { remove(ref(_liveDB, `guestRequests/${_roomId}/${uid}`)); }  catch(_) {}
-  // Remove signaling AFTER a short delay so the guest client can read the removedByHost flag
+  // BUG-12 FIX: increase from 3 s → 8 s so slow-connection guests have enough time
+  // to read the removedByHost flag before the signaling node is deleted.
   setTimeout(() => {
     try { remove(ref(_liveDB, `guestSignaling/${_roomId}/${uid}`)); } catch(_) {}
-  }, 3000);
+  }, 8000);
   // Remove guest presence so viewers' grids update instantly
   try { remove(ref(_liveDB, `liveGuests/${_roomId}/${uid}`)); } catch(_) {}
   // Clean up Firestore boxRequest
@@ -4320,13 +4468,21 @@ function _startHostGuestWatchdog() {
           const g = child.val();
           if (g.isHost) return;   // never evict host entry
           const uid = child.key;
-          if (!g.hb) return;      // older guest entries without hb — skip
-          if (now - g.hb > _STALE_THRESHOLD_MS) {
-            console.log('[GuestWatchdog] Stale guest detected, evicting:', uid);
-            try { remove(ref(_liveDB, `liveGuests/${_roomId}/${uid}`)); } catch(_) {}
-            if (_guestPeers[uid]) {
-              _hostDoRemoveGuest(uid);
-            }
+          // BUG-16 FIX: guests without a heartbeat field are either very new (joinedAt
+          // within last 30 s) or from an older build.  Give them grace instead of silently
+          // skipping forever — check joinedAt age so new guests aren't wrongly evicted.
+          if (!g.hb) {
+            const age = g.joinedAt ? (now - g.joinedAt) : (_STALE_THRESHOLD_MS + 1);
+            if (age < _STALE_THRESHOLD_MS) return; // recently joined — wait for first hb
+            // else: old entry with no heartbeat at all — treat as stale, fall through
+          } else if (now - g.hb <= _STALE_THRESHOLD_MS) {
+            return; // heartbeat is fresh — guest is alive
+          }
+          // Stale guest: evict
+          console.log('[GuestWatchdog] Stale guest detected, evicting:', uid);
+          try { remove(ref(_liveDB, `liveGuests/${_roomId}/${uid}`)); } catch(_) {}
+          if (_guestPeers[uid]) {
+            _hostDoRemoveGuest(uid);
           }
         });
       }
@@ -4458,20 +4614,35 @@ document.addEventListener('visibilitychange', () => {
 /* ─────────────────────────────────────────────────────────────────
    _doApplyGuestLayout  —  the single source of truth for all
    geometry.  All explicit pixel / percentage assignments live here;
-   CSS only provides the flex skeleton and default resets.
+   CSS provides only the flex skeleton and default resets.
 
-   Smart auto-layout map (guestCount = number of guests, host NOT counted):
-     0  → grid hidden, main #liveVideo shown
-     1  → 2 participants: 50/50 split
-     2  → 3 participants: host 60% + 2 guests stacked in 40%
+   Safe-zone: all layouts reserve a bottom margin so that guest boxes
+   never overlap the chat panel or the controls bar.
+
+   Auto-layout map (guestCount = guests, host NOT counted):
+     1  → 2 participants: 50/50 split (portrait) or 60/40 (landscape)
+     2  → 3 participants: host top 60% + 2 guests side-by-side below
      3  → 4 participants: 2×2 equal grid
-     4  → 5 participants: host top row 100%×55% + 4 guests equal bottom
+     4  → 5 participants: host top row + 4 equal bottom strip
      5  → 6 participants: 2 rows × 3 cols equal
-     6  → 7 participants: host 50%×60% top-left + 6 guests equal right+bottom
+     6  → 7 participants: host 50% + 6 guests in 2×3
      7  → 8 participants: 2 rows × 4 cols equal
      8  → 9 participants: 3 rows × 3 cols equal
-     9  → 10 participants: host top-left 33%×40% + 9 guests balanced
+     9  → 10 participants: host prominent + 9 guests
    ───────────────────────────────────────────────────────────────── */
+
+/* ── Helper: compute the UI safe zone bottom margin (controls + chat input) ── */
+function _getUISafeBottom(stageH) {
+  // Creator: bottom bar + chat-input.  Compact mode has a smaller bar.
+  // Viewer: chat input only.
+  // We add 8px padding so content never kisses the edge.
+  if (_mode === 'creator') {
+    const barH = document.body.classList.contains('controls-compact') ? 44 : 56;
+    return Math.max(barH + 52, Math.floor(stageH * 0.17));
+  }
+  return Math.max(64, Math.floor(stageH * 0.14));
+}
+
 function _doApplyGuestLayout() {
   const grid = D.guestGrid;
   if (!grid) return;
@@ -4484,10 +4655,8 @@ function _doApplyGuestLayout() {
   // ── Resolve guestCount based on mode ──
   let guestCount;
   if (_mode === 'viewer') {
-    // Viewer: count is maintained by _startViewerGuestGrid via dataset.count
     guestCount = parseInt(grid.dataset.count || '0', 10);
   } else {
-    // Creator: count from live _guestPeers
     guestCount = Object.keys(_guestPeers).length;
     grid.dataset.count = guestCount.toString();
   }
@@ -4502,7 +4671,6 @@ function _doApplyGuestLayout() {
   _updateLayoutPanelCounter(guestCount);
 
   // ── Clear any previously JS-set inline styles on all cells ──
-  // (CSS rules handle the base; JS overrides only when needed)
   grid.querySelectorAll('.guest-cell').forEach(c => {
     c.style.width        = '';
     c.style.height       = '';
@@ -4521,6 +4689,7 @@ function _doApplyGuestLayout() {
   grid.style.flexWrap      = '';
   grid.style.alignContent  = '';
   grid.style.alignItems    = '';
+  grid.style.paddingBottom = '';
 
   const totalCells = guestCount + 1; // +1 for host
 
@@ -4556,130 +4725,136 @@ function _doApplyGuestLayout() {
 
 /* ─────────────────────────────────────────────────────────────────
    AUTO LAYOUT  —  smart geometry for every count 1–9
+   Each case is tuned to keep host video as the main focus and
+   keep all cells within the visible stage without clipping.
    ───────────────────────────────────────────────────────────────── */
 function _applyAutoLayout(grid, guestCount, totalCells) {
-  const stageW = grid.offsetWidth  || window.innerWidth;
-  const stageH = grid.offsetHeight || window.innerHeight;
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;   // height available for video cells
   const isLandscape = stageW >= stageH;
-
+  // Height ratios are expressed as fraction of usableH so cells never cover UI
+  const uH = (pct) => ((usableH / stageH) * pct).toFixed(4) + '%';
   const hostCell   = grid.querySelector('.host-cell');
   const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
 
+  // Apply bottom padding so flex rows stop before the UI zone
+  grid.style.paddingBottom = safeBottom + 'px';
+  grid.style.alignContent  = 'flex-start';
+
   switch (guestCount) {
 
-    /* ── 1 guest: 50/50 side-by-side ── */
+    /* ── 1 guest: side-by-side split ── */
     case 1: {
       grid.style.flexDirection = 'row';
       grid.style.flexWrap      = 'nowrap';
-      grid.style.alignItems    = 'stretch';
-      if (hostCell)       { hostCell.style.width = '50%';  hostCell.style.height = '100%'; }
-      if (guestCells[0])  { guestCells[0].style.width = '50%'; guestCells[0].style.height = '100%'; }
+      grid.style.alignItems    = 'flex-start';
+      if (hostCell)      { hostCell.style.width = '50%';  hostCell.style.height = usableH + 'px'; }
+      if (guestCells[0]) { guestCells[0].style.width = '50%'; guestCells[0].style.height = usableH + 'px'; }
       break;
     }
 
-    /* ── 2 guests: host 60% left + 2 guests stacked right ── */
+    /* ── 2 guests ── */
     case 2: {
       if (isLandscape) {
+        // Landscape: host 60% left, 2 guests stacked in 40% right
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        grid.style.alignContent  = 'stretch';
-        if (hostCell)       { hostCell.style.width = '60%';  hostCell.style.height = '100%'; }
-        guestCells.forEach(c => { c.style.width = '40%'; c.style.height = '50%'; });
+        if (hostCell) { hostCell.style.width = '60%'; hostCell.style.height = usableH + 'px'; }
+        guestCells.forEach(c => { c.style.width = '40%'; c.style.height = (usableH / 2) + 'px'; });
       } else {
-        // Portrait: host full top row, guests side-by-side below
+        // Portrait: host top 60%, 2 guests side-by-side below 40%
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        grid.style.alignContent  = 'flex-start';
-        if (hostCell)       { hostCell.style.width = '100%'; hostCell.style.height = '55%'; }
-        guestCells.forEach(c => { c.style.width = '50%'; c.style.height = '45%'; });
+        const hostH  = Math.floor(usableH * 0.60);
+        const guestH = usableH - hostH;
+        if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH + 'px'; }
+        guestCells.forEach(c => { c.style.width = '50%'; c.style.height = guestH + 'px'; });
       }
       break;
     }
 
-    /* ── 3 guests: 2×2 grid ── */
+    /* ── 3 guests: 2×2 equal grid (host + 3 = 4 cells) ── */
     case 3: {
-      _applyEqualGrid(grid, 4);
+      _applyEqualGridUsable(grid, 4, stageW, usableH);
       break;
     }
 
-    /* ── 4 guests: host full top + 4 equal bottom ── */
+    /* ── 4 guests: host prominent top + 4 equal bottom ── */
     case 4: {
       grid.style.flexDirection = 'row';
       grid.style.flexWrap      = 'wrap';
-      grid.style.alignContent  = 'flex-start';
-      if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = '55%'; }
-      guestCells.forEach(c => { c.style.width = '25%'; c.style.height = '45%'; });
+      const hostH4  = Math.floor(usableH * 0.55);
+      const guestH4 = usableH - hostH4;
+      if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH4 + 'px'; }
+      guestCells.forEach(c => { c.style.width = '25%'; c.style.height = guestH4 + 'px'; });
       break;
     }
 
-    /* ── 5 guests: 2 rows × 3 cols equal (6 cells) ── */
+    /* ── 5 guests: 2 rows × 3 cols (6 cells) ── */
     case 5: {
-      _applyEqualGrid(grid, 6);
+      _applyEqualGridUsable(grid, 6, stageW, usableH);
       break;
     }
 
-    /* ── 6 guests: host prominent top-left + 6 guests ──
-       Portrait: host top 100%×40%, 3 guests per row below
-       Landscape: host left 50%×60% + 6 guests on right in 3×2 */
+    /* ── 6 guests: host prominent + 6 guests ── */
     case 6: {
       if (isLandscape) {
+        // Landscape: host 50% left × full usable height, 6 guests in 2 col strips right
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        grid.style.alignContent  = 'flex-start';
-        if (hostCell) { hostCell.style.width = '50%'; hostCell.style.height = '66.67%'; }
-        // 3 guests on right, 3 below
+        const g6H = usableH / 3;
+        if (hostCell) { hostCell.style.width = '50%'; hostCell.style.height = usableH + 'px'; }
         guestCells.forEach((c, i) => {
-          if (i < 3) { c.style.width = '16.67%'; c.style.height = '66.67%'; }
-          else       { c.style.width = '16.67%'; c.style.height = '33.33%'; }
+          c.style.width  = '25%';
+          c.style.height = g6H + 'px';
         });
       } else {
+        // Portrait: host top 40%, 6 guests in 2 rows of 3 below
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        grid.style.alignContent  = 'flex-start';
-        if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = '40%'; }
-        guestCells.forEach(c => { c.style.width = '33.33%'; c.style.height = '30%'; });
+        const hostH6  = Math.floor(usableH * 0.42);
+        const guestH6 = (usableH - hostH6) / 2;
+        if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH6 + 'px'; }
+        guestCells.forEach(c => { c.style.width = '33.33%'; c.style.height = guestH6 + 'px'; });
       }
       break;
     }
 
-    /* ── 7 guests: 2 rows × 4 cols equal (8 cells) ── */
+    /* ── 7 guests: 2 rows × 4 cols (8 cells) ── */
     case 7: {
-      _applyEqualGrid(grid, 8);
+      _applyEqualGridUsable(grid, 8, stageW, usableH);
       break;
     }
 
-    /* ── 8 guests: 3×3 equal (9 cells total) ── */
+    /* ── 8 guests: 3×3 equal (9 cells) ── */
     case 8: {
-      _applyEqualGrid(grid, 9);
+      _applyEqualGridUsable(grid, 9, stageW, usableH);
       break;
     }
 
-    /* ── 9 guests: host top-left prominent + 9 guests ──
-       Portrait: host top 100%×33% + 3 rows of 3 below
-       Landscape: host left 33%×40% + 3 cols of 3 on right */
+    /* ── 9 guests: host prominent + 9 guests ── */
     case 9: {
       if (isLandscape) {
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        grid.style.alignContent  = 'flex-start';
-        if (hostCell) { hostCell.style.width = '34%'; hostCell.style.height = '66.67%'; }
-        guestCells.forEach((c, i) => {
-          if (i < 3) { c.style.width = '22%';  c.style.height = '66.67%'; }
-          else       { c.style.width = '22%';  c.style.height = '33.33%'; }
-        });
+        const g9H = usableH / 3;
+        if (hostCell) { hostCell.style.width = '34%'; hostCell.style.height = usableH + 'px'; }
+        guestCells.forEach(c => { c.style.width = '22%'; c.style.height = g9H + 'px'; });
       } else {
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        grid.style.alignContent  = 'flex-start';
-        if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = '33%'; }
-        guestCells.forEach(c => { c.style.width = '33.33%'; c.style.height = '22.33%'; });
+        const hostH9  = Math.floor(usableH * 0.35);
+        const guestH9 = (usableH - hostH9) / 3;
+        if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH9 + 'px'; }
+        guestCells.forEach(c => { c.style.width = '33.33%'; c.style.height = guestH9 + 'px'; });
       }
       break;
     }
 
     default: {
-      // Fallback for counts beyond 9 (should not happen given _MAX_GUESTS cap)
-      _applyEqualGrid(grid, totalCells);
+      _applyEqualGridUsable(grid, totalCells, stageW, usableH);
     }
   }
 }
@@ -4688,47 +4863,58 @@ function _applyAutoLayout(grid, guestCount, totalCells) {
    NAMED LAYOUT HELPERS
    ───────────────────────────────────────────────────────────────── */
 
-/* Equal grid: calculate optimal rows/cols then set dimensions */
+/* ── Equal grid (named mode): calculate optimal rows/cols then set dimensions ── */
 function _applyEqualGrid(grid, totalCells) {
   const stageW   = grid.offsetWidth  || window.innerWidth;
   const stageH   = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH  = stageH - safeBottom;
+  _applyEqualGridUsable(grid, totalCells, stageW, usableH);
+}
+
+/* ── Equal grid using a pre-computed usable height (used by auto layout) ── */
+function _applyEqualGridUsable(grid, totalCells, stageW, usableH) {
   // Pick cols to minimise wasted space given aspect ratio
-  const cols     = Math.ceil(Math.sqrt(totalCells * (stageW / Math.max(1, stageH))));
+  const cols        = Math.ceil(Math.sqrt(totalCells * (stageW / Math.max(1, usableH))));
   const colsClamped = Math.max(1, Math.min(totalCells, cols));
-  const rows     = Math.ceil(totalCells / colsClamped);
-  const w        = (100 / colsClamped).toFixed(4) + '%';
-  const h        = (100 / rows).toFixed(4) + '%';
+  const rows        = Math.ceil(totalCells / colsClamped);
+  const w           = (100 / colsClamped).toFixed(4) + '%';
+  const h           = Math.floor(usableH / rows) + 'px';
   grid.style.flexDirection = 'row';
   grid.style.flexWrap      = 'wrap';
-  grid.style.alignContent  = 'stretch';
+  grid.style.alignContent  = 'flex-start';
+  grid.style.paddingBottom = '';   // equal grid uses its own height calc
   grid.querySelectorAll('.guest-cell').forEach(cell => {
     cell.style.width  = w;
     cell.style.height = h;
   });
 }
 
-/* Split: side-by-side — works well when guestCount ≤ 2 */
+/* ── Split: side-by-side equal strips ── */
 function _applySplitLayout(grid, guestCount) {
-  const cells = Array.from(grid.querySelectorAll('.guest-cell'));
-  const n     = cells.length;
+  const stageH   = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH  = stageH - safeBottom;
+  const cells    = Array.from(grid.querySelectorAll('.guest-cell'));
+  const n        = cells.length;
   if (n === 0) return;
   grid.style.flexDirection = 'row';
   grid.style.flexWrap      = 'nowrap';
-  grid.style.alignItems    = 'stretch';
+  grid.style.alignItems    = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
   const w = (100 / n).toFixed(4) + '%';
-  cells.forEach(c => { c.style.width = w; c.style.height = '100%'; });
+  cells.forEach(c => { c.style.width = w; c.style.height = usableH + 'px'; });
 }
 
-/* Host full-screen — guests as responsive floating tiles
-   Tiles stack top-right downward; a safe-zone bottom margin
-   prevents them from overlapping the chat, reactions, or controls. */
+/* ── Host full-screen — guests as responsive floating tiles ──
+   Tiles stack from top-right downward; the safe zone prevents
+   overlap with chat, reactions, or controls.                  */
 function _applyHostFullLayout(grid, guestCount) {
-  const stageW    = grid.offsetWidth  || window.innerWidth;
-  const stageH    = grid.offsetHeight || window.innerHeight;
-  // Reserve bottom space for chat panel + controls (≈ 20% of stage height, min 160px)
-  const safeBottom = Math.max(160, Math.floor(stageH * 0.20));
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
   const usableH    = stageH - safeBottom;
-  const hostCell = grid.querySelector('.host-cell');
+  const hostCell   = grid.querySelector('.host-cell');
   if (hostCell) {
     hostCell.style.position = 'absolute';
     hostCell.style.inset    = '0';
@@ -4736,15 +4922,15 @@ function _applyHostFullLayout(grid, guestCount) {
     hostCell.style.height   = '100%';
   }
 
-  // Tile size: shrink when many guests to avoid overflow
-  const maxPerRow  = Math.min(guestCount, Math.ceil(Math.sqrt(guestCount * 2)));
-  const baseW      = Math.max(60, Math.min(160, Math.floor(stageW * 0.18)));
-  const tileW      = Math.floor(baseW * (maxPerRow > 4 ? 0.75 : 1));
-  const tileH      = Math.floor(tileW * 0.75);
-  const gap        = Math.max(4, Math.floor(stageW * 0.012));
-  const cols       = Math.max(1, Math.floor((stageW - gap) / (tileW + gap)));
-  // Max rows that fit without entering the safe zone
-  const maxRows    = Math.max(1, Math.floor((usableH - gap) / (tileH + gap)));
+  // Tile size: shrink with more guests to avoid overflow
+  const maxPerRow = Math.min(guestCount, Math.ceil(Math.sqrt(guestCount * 2)));
+  const baseW     = Math.max(60, Math.min(160, Math.floor(stageW * 0.18)));
+  const tileW     = Math.floor(baseW * (maxPerRow > 4 ? 0.75 : 1));
+  const tileH     = Math.floor(tileW * 0.75);
+  const gap       = Math.max(4, Math.floor(stageW * 0.012));
+  const cols      = Math.max(1, Math.floor((stageW - gap) / (tileW + gap)));
+  // Max rows that fit in the usable zone (excludes UI safe zone)
+  const maxRows   = Math.max(1, Math.floor((usableH - gap) / (tileH + gap)));
 
   let i = 0;
   grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
@@ -4761,9 +4947,12 @@ function _applyHostFullLayout(grid, guestCount) {
   });
 }
 
-/* Host Big: host takes most of the width, guests in a vertical strip */
+/* ── Host Big: host takes most of the width, guests in a vertical strip ── */
 function _applyHostBigLayout(grid, guestCount) {
   const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
   const hostCell   = grid.querySelector('.host-cell');
   const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
 
@@ -4771,17 +4960,18 @@ function _applyHostBigLayout(grid, guestCount) {
   const stripW = Math.max(80, Math.min(200, Math.floor(stageW * 0.22)));
   grid.style.flexDirection = 'row';
   grid.style.flexWrap      = 'nowrap';
-  grid.style.alignItems    = 'stretch';
+  grid.style.alignItems    = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
 
   if (hostCell) {
     hostCell.style.flex   = '1';
-    hostCell.style.height = '100%';
+    hostCell.style.height = usableH + 'px';
   }
 
   // Stack guests in the strip — if more than 5, split into 2 sub-columns
-  const subCols  = guestCount > 5 ? 2 : 1;
-  const gH       = (100 / Math.ceil(guestCount / subCols)).toFixed(4) + '%';
-  const gW       = (stripW / subCols) + 'px';
+  const subCols = guestCount > 5 ? 2 : 1;
+  const gH      = Math.floor(usableH / Math.ceil(guestCount / subCols)) + 'px';
+  const gW      = (stripW / subCols) + 'px';
   guestCells.forEach(c => {
     c.style.width  = gW;
     c.style.height = gH;
@@ -4789,16 +4979,14 @@ function _applyHostBigLayout(grid, guestCount) {
   });
 }
 
-/* Float layout: cascade guest boxes from top-right, responsive.
-   Tiles are capped so they never enter the bottom safe-zone
-   occupied by the chat panel, reactions, and controls. */
+/* ── Float layout: cascade guest boxes from top-right, responsive.
+   Tiles are capped so they never enter the UI safe zone.          ── */
 function _applyFloatLayout(grid, guestCount) {
-  const stageW    = grid.offsetWidth  || window.innerWidth;
-  const stageH    = grid.offsetHeight || window.innerHeight;
-  // Reserve bottom space for chat panel + controls (≈ 20% of stage, min 160px)
-  const safeBottom = Math.max(160, Math.floor(stageH * 0.20));
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
   const usableH    = stageH - safeBottom;
-  const hostCell = grid.querySelector('.host-cell');
+  const hostCell   = grid.querySelector('.host-cell');
 
   if (hostCell) {
     hostCell.style.position = 'absolute';
@@ -4813,7 +5001,7 @@ function _applyFloatLayout(grid, guestCount) {
   const tileH   = Math.floor(tileW * 0.75);
   const gap     = Math.max(4, Math.floor(stageW * 0.012));
   const cols    = Math.max(1, Math.floor((stageW - gap) / (tileW + gap)));
-  // Max rows that fit without entering the safe zone
+  // Max rows that fit in the usable zone
   const maxRows = Math.max(1, Math.floor((usableH - gap) / (tileH + gap)));
 
   let i = 0;
@@ -4833,12 +5021,12 @@ function _applyFloatLayout(grid, guestCount) {
 
 /* ── Stacked layout: host fills the stage; guests stack in a vertical strip
    along the right edge, growing from bottom to top as more guests join.
-   The strip width is responsive — shrinks on small screens and with many guests.
-   Guests never overlap the chat/reactions (bottom 110px is left clear).     ── */
+   Guests never overlap the UI safe zone at the bottom.                     ── */
 function _applyStackedLayout(grid, guestCount) {
-  const stageW   = grid.offsetWidth  || window.innerWidth;
-  const stageH   = grid.offsetHeight || window.innerHeight;
-  const hostCell = grid.querySelector('.host-cell');
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const hostCell   = grid.querySelector('.host-cell');
 
   // Host fills the full stage behind the guest strip
   if (hostCell) {
@@ -4850,29 +5038,26 @@ function _applyStackedLayout(grid, guestCount) {
   }
 
   // Strip geometry — adaptive to guest count and screen size
-  const maxTileH   = Math.max(64, Math.floor(stageH * 0.15));   // max tile height
-  const reservedB  = Math.min(120, stageH * 0.18);              // bottom reserve (controls)
-  const usableH    = stageH - reservedB - 8;                    // available strip height
+  const topReserve = 8;                                                  // top gap
+  const usableH    = stageH - safeBottom - topReserve;
+  const maxTileH   = Math.max(60, Math.floor(stageH * 0.15));
   const tileH      = Math.max(48, Math.min(maxTileH, Math.floor(usableH / Math.max(1, guestCount))));
-  const tileW      = Math.floor(tileH * (4 / 3));               // 4:3 aspect ratio tiles
+  const tileW      = Math.floor(tileH * (4 / 3));
   const clampedW   = Math.min(tileW, Math.max(56, Math.floor(stageW * 0.22)));
   const gap        = 4;
 
-  const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
-  const totalGuestH = guestCells.length * (tileH + gap) - gap;
-
-  // Stack bottom-to-top: first guest at bottom, newest guest above it
-  guestCells.forEach((cell, i) => {
-    const fromBottom = reservedB + i * (tileH + gap);
-    cell.style.position = 'absolute';
-    cell.style.width    = clampedW + 'px';
-    cell.style.height   = tileH + 'px';
-    cell.style.right    = gap + 'px';
-    cell.style.bottom   = fromBottom + 'px';
-    cell.style.top      = 'auto';
-    cell.style.left     = 'auto';
-    cell.style.flex     = 'none';
-    cell.style.zIndex   = '6';
+  // Stack bottom-to-top: first guest at bottom, newest above
+  Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).forEach((cell, i) => {
+    const fromBottom = safeBottom + topReserve + i * (tileH + gap);
+    cell.style.position     = 'absolute';
+    cell.style.width        = clampedW + 'px';
+    cell.style.height       = tileH + 'px';
+    cell.style.right        = gap + 'px';
+    cell.style.bottom       = fromBottom + 'px';
+    cell.style.top          = 'auto';
+    cell.style.left         = 'auto';
+    cell.style.flex         = 'none';
+    cell.style.zIndex       = '6';
     cell.style.borderRadius = '10px';
   });
 }
@@ -5349,6 +5534,36 @@ function _iqOnLiveEnd() {
   _iqStop();
   _iqHideBadge();
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   COMPACT CONTROLS  (creator only)
+   When enabled: bottom bar shrinks and buttons use smaller size.
+   Preference is saved to localStorage so it persists across sessions.
+   ═══════════════════════════════════════════════════════════════════ */
+function _setCompactControls(on) {
+  if (on) {
+    document.body.classList.add('controls-compact');
+  } else {
+    document.body.classList.remove('controls-compact');
+  }
+  try { localStorage.setItem('snx_compact_controls', on ? '1' : '0'); } catch(_) {}
+  // Re-run layout so guest grid safe-zone updates
+  _applyGuestLayout();
+}
+
+// Restore preference on load
+(function() {
+  try {
+    const saved = localStorage.getItem('snx_compact_controls');
+    if (saved === '1') {
+      document.body.classList.add('controls-compact');
+      const chk = document.getElementById('toggleCompactControls');
+      if (chk) chk.checked = true;
+    }
+  } catch(_) {}
+})();
+
 
 // ── Core: start monitoring ───────────────────────────────────────────
 
