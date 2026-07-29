@@ -3321,11 +3321,19 @@ img:not([loading]), video:not([loading]) { loading: lazy; }
 .storm-messages,
 .support-messages,
 .social-list-body,
-.snx-pwall-comment-list,
-#feedPosts {
+.snx-pwall-comment-list {
     contain: strict;
     will-change: scroll-position;
     /* GPU-accelerated scrolling on WebKit */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+
+/* feedPosts must NOT use contain:strict (which includes contain:size and collapses
+   the element to 0 height when no explicit height is set, hiding all post cards).
+   contain:content = layout + style + paint — safe for a naturally-sized container. */
+#feedPosts {
+    contain: content;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
 }
@@ -11322,9 +11330,10 @@ body.arcade-fs-ios body::after { display:none !important; }
           const loadingEl = container.querySelector('#feedLoadingState');
           if (loadingEl) loadingEl.remove();
 
-          // Filter out expired posts (48h TTL), hidden posts, and live-session posts.
+          // Filter out hidden posts and live-session posts.
           // Live sessions are shown only in the story bar and Live Hub —
           // they must never appear in the main feed scroll.
+          // Regular posts are permanent and are never filtered by time.
           const incomingIds = new Set();
           snapshot.forEach(pDoc => {
               const p = pDoc.data();
@@ -11332,8 +11341,9 @@ body.arcade-fs-ios body::after { display:none !important; }
               if (p.type === 'live' || p.type === 'live_share') return;
               // Skip mod-hidden posts so they don't appear in regular users' feeds
               if (p.hidden === true) return;
-              // Legacy posts (no expiresAt) remain visible indefinitely
-              if (p.expiresAt && p.expiresAt < nowMs) return;
+              // Only apply expiry filter to live/live_share session cards that have
+              // an explicit expiresAt. Regular posts no longer carry this field.
+              if ((p.type === 'live' || p.type === 'live_share') && p.expiresAt && p.expiresAt < nowMs) return;
               incomingIds.add(pDoc.id);
           });
 
@@ -11825,6 +11835,9 @@ body.arcade-fs-ios body::after { display:none !important; }
      Runs once on login then every 5 minutes.
      ═══════════════════════════════════════════════════════════════ */
   async function _cleanExpiredPosts() {
+      // Guard: do not run cleanup before the user is authenticated.
+      // Firestore rules require isSignedIn() for all post operations.
+      if (!currentUser) return;
       try {
           const nowMs = Date.now();
           const snap = await getDocs(
@@ -11834,25 +11847,30 @@ body.arcade-fs-ios body::after { display:none !important; }
           let count = 0;
           snap.forEach(pDoc => {
               const d = pDoc.data();
-              // Skip Shadow Bot posts — only the Founder can delete those,
-              // and they expire naturally; a non-founder cleanup would throw
-              // PERMISSION_DENIED and abort the entire batch.
+              // Only delete live/live_share posts that have an explicit expiresAt.
+              // Regular feed posts no longer carry expiresAt (they are permanent),
+              // so this clause only matches live-session cards that the live module
+              // sets an explicit TTL on. Shadow Bot posts are also excluded.
               if (d.uid === BOT_UID || d.isBot === true) return;
+              // Only auto-delete live/live_share session cards — never regular posts.
+              if (d.type !== 'live' && d.type !== 'live_share') return;
               batch.delete(doc(db, 'posts', pDoc.id));
               count++;
           });
           if (count > 0) {
               await batch.commit();
-              console.log(`[SNX] Cleaned ${count} expired post(s).`);
+              console.log(`[SNX] Cleaned ${count} expired live post(s).`);
           }
       } catch (err) {
           console.warn('[SNX] Post cleanup error:', err);
       }
   }
 
-  // Run immediately on load, then every 5 minutes
-  _cleanExpiredPosts();
-  setInterval(_cleanExpiredPosts, 5 * 60 * 1000);
+  // Run after a short delay (auth must have resolved first), then every 5 minutes.
+  // The immediate call that was here fired before onAuthStateChanged resolved,
+  // which caused silent permission-denied errors and unpredictable cleanup timing.
+  setTimeout(() => { if (currentUser) _cleanExpiredPosts(); }, 10000);
+  setInterval(() => { if (currentUser) _cleanExpiredPosts(); }, 5 * 60 * 1000);
 
   // Infinite scroll — IntersectionObserver fires only when the sentinel enters the viewport,
   // which is far more efficient than listening to every scroll event.
@@ -12133,7 +12151,8 @@ body.arcade-fs-ios body::after { display:none !important; }
 
       try {
           const now = Date.now();
-          const expiresAt = now + 48 * 60 * 60 * 1000; // auto-delete after 48 hours
+          // Posts are permanent — no expiry on regular feed posts.
+          // (Stories and live sessions have their own TTL handled separately.)
           const mediaUrlsRaw = mediaUrl.split(',').map(u => u.trim()).filter(Boolean);
 
           // Determine if this is a photo post (image URL)
@@ -12198,7 +12217,6 @@ body.arcade-fs-ios body::after { display:none !important; }
               imageURL:     mediaUrlsRaw[0] || '',   // explicit alias for clarity
               timestamp:    now,
               createdAt:    now,
-              expiresAt,
               visibility:   'public',
               likes:        0,
               likedBy:      [],
@@ -12498,7 +12516,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           }
 
           const now = Date.now();
-          const expiresAt = now + 48 * 60 * 60 * 1000; // auto-delete after 48 hours
+          // Reposts are permanent — no expiresAt (same as regular posts).
           // Create the repost as a new post document
           await addDoc(collection(db, 'posts'), {
               uid:            currentUser.uid,
@@ -12510,7 +12528,6 @@ body.arcade-fs-ios body::after { display:none !important; }
               mediaUrl:       orig.mediaUrl || '',
               timestamp:      now,
               createdAt:      now,
-              expiresAt,
               likes:          0,
               likedBy:        [],
               comments:       [],
@@ -12869,10 +12886,12 @@ body.arcade-fs-ios body::after { display:none !important; }
       await _cleanExpiredPosts();
   }
 
-  /* ── DOM sweeper: remove expired post nodes every minute without a reload ── */
+  /* ── DOM sweeper: remove expired live-session post nodes every minute ── */
+  // Only removes posts that have a data-expires-at attribute (live/live_share cards).
+  // Regular posts are permanent and never carry this attribute.
   setInterval(() => {
       const nowMs = Date.now();
-      document.querySelectorAll('#feedPosts .postBox[id^="post-"]').forEach(el => {
+      document.querySelectorAll('#feedPosts .postBox[id^="post-"][data-expires-at]').forEach(el => {
           const exp = parseInt(el.dataset.expiresAt || '0', 10);
           if (exp && exp < nowMs) el.remove();
       });
