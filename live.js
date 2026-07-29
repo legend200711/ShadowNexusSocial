@@ -4036,15 +4036,27 @@ function _hostListenForGuestRequests() {
 
   const fsUnsub = onSnapshot(fsReqQuery, snap => {
     snap.docChanges().forEach(change => {
-      // BUG-1 HOST FIX: also handle 'modified' — when a previously-removed guest
-      // re-requests a box, setDoc overwrites the same requestId doc (status: 'pending'),
-      // which fires 'modified' not 'added'.  We must show the card for both types.
+      // Handle 'added' AND 'modified':
+      //  - 'added'    = brand-new request
+      //  - 'modified' = previously declined/removed guest re-requesting.
+      //    The viewer's _viewerRequestBox() deletes the old doc and writes a fresh one
+      //    (status:'pending'), which fires 'modified'.
+      //    We MUST remove the UID from _shownReqUids on 'modified' so the card
+      //    is shown again — without this, the host never sees the re-request.
       if (change.type === 'added' || change.type === 'modified') {
         const d = change.doc.data();
         if (d.status !== 'pending') return; // only show pending requests
-        console.log('[BoxRequest] Request received by host from viewer:', d.viewerId, 'name:', d.viewerName);
+        console.log('[BoxRequest] Request received by host from viewer:', d.viewerId, 'name:', d.viewerName, 'change:', change.type);
+        // For 'modified', always clear the old entry so the card re-shows
+        if (change.type === 'modified') _shownReqUids.delete(d.viewerId);
         if (!_shownReqUids.has(d.viewerId)) {
           _shownReqUids.add(d.viewerId);
+          // Also remove any stale request card for this user before adding a new one
+          const queue = D.guestRequestQueue;
+          if (queue) {
+            const stale = queue.querySelector(`[data-uid="${d.viewerId}"]`);
+            if (stale) stale.remove();
+          }
           _hostShowRequestCard({
             uid:        d.viewerId,
             name:       d.viewerName,

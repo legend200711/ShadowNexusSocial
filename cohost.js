@@ -1,5 +1,5 @@
 /**
- * Shadow Nexus Live - cohost.js  (v6)
+ * Shadow Nexus Live - cohost.js  (v7)
  *
  * Co-Host feature - completely self-contained.
  * Does NOT touch live.js internals, chat, feed, guest boxes,
@@ -13,21 +13,53 @@
  *              coHostInvites/{guestUid}/{hostUid}
  *              liveRooms/{roomId}  (read-only — written by live.js)
  *
- * v6 fixes:
- *  - _declineInvite: writes 'declined' (was 'denied') — now matches
- *    _subscribeDeclineNotifications query (status == 'declined')
- *  - _sendInvite: real error code/message shown in toast instead of generic text
- *  - _sendInvite: automatic retry (up to 2 attempts) on transient network errors
- *  - _sendInvite: atomic cleanup — if RTDB write fails after Firestore write,
- *    Firestore doc is rolled back so state is never half-written
- *  - _sendInvite: stale/expired invite cleanup before sending a new one
- *  - _watchForInvite: TTL guard — ignores invites older than 5 minutes
- *  - _acceptInvite: exact roomId match before navigation (no false-positive indexOf)
- *  - _acceptInvite: buttons disabled during async processing to prevent double-accept
- *  - _wireEvents: Accept/Deny buttons re-wired via event delegation so card
- *    recreation never loses listeners
- *  - _closePanel: resets _friendsLoading so panel re-open can refresh the list
- *  - _watchInviteResponse: handles both 'declined' and 'denied' for safety
+ * v7 fixes (comprehensive):
+ *  INVITE SEND
+ *  - _sendInvite: delete stale RTDB invite node BEFORE writing new one so
+ *    _watchForInvite's listener re-fires (onValue deduplicates same-value writes;
+ *    delete+write guarantees a new change event on every send attempt).
+ *  - _sendInvite: Firestore write is now non-fatal — RTDB is the delivery channel.
+ *  - _sendInvite: clear _pendingInvites[guestId] on final failure so button re-enables.
+ *  - _sendInvite: up to 3 retries with token refresh on permission-denied.
+ *  - Prevent duplicate invites: guard checks _pendingInvites AND _activeCohostUids.
+ *  - Re-invite after decline: _watchInviteResponse + _subscribeDeclineNotifications
+ *    both delete _pendingInvites[guestId] and refresh UI lists.
+ *
+ *  POPUP DELIVERY
+ *  - _watchForInvite: replaced onValue with onChildAdded + onChildChanged so every
+ *    write triggers the popup — including re-invites to the same RTDB path.
+ *  - _watchForInvite: onChildRemoved hides the card when the invite is deleted.
+ *  - Pending invite data now includes _childKey for precise RTDB node targeting.
+ *  - _showInviteCard: always re-enables Accept/Deny buttons.
+ *  - _hideInviteCard: also clears _pendingInviteData (prevents stale data blocks).
+ *
+ *  ACCEPT / DECLINE
+ *  - _acceptInvite: buttons disabled synchronously before any async work.
+ *  - _acceptInvite: removes RTDB invite node (not just status update).
+ *  - _acceptInvite: restores card on error so user can retry.
+ *  - _acceptInvite: graceful fallback when window._viewerRequestBox unavailable.
+ *  - _declineInvite: removes RTDB invite node (guarantees clean state for re-invite).
+ *  - _declineInvite: re-enables buttons on error.
+ *
+ *  PENDING STUCK
+ *  - _watchInviteResponse: properly unsubscribes on all terminal paths.
+ *  - _watchInviteResponse: handles accepted/declined/denied/cancelled uniformly.
+ *  - _subscribeDeclineNotifications: deletes _pendingInvites entry, refreshes UI,
+ *    and cleans up the Firestore doc.
+ *
+ *  FRIEND LIST
+ *  - _loadFriendsList: 3 retries (up from 2), token refresh on auth errors.
+ *  - _loadFriendsList: "Couldn't load" shows a tap-to-retry button.
+ *  - _closePanel: resets _friendsLoading so re-open always fetches fresh.
+ *
+ *  CO-HOST ACTIVE LIST
+ *  - _subscribeActiveCohosts: rebuilds _activeCohostUids set on every update.
+ *  - Remove button clears _pendingInvites[uid] so removed guests can be re-invited.
+ *  - _renderRow: shows "Co-Host ✓" (disabled) for already-active co-hosts.
+ *
+ *  CLEANUP / STABILITY
+ *  - _cleanup: tears down all listeners including onChildAdded/Changed.
+ *  - _applyCoHostEnabled: correctly restarts listeners on feature re-enable.
  */
 
 'use strict';
@@ -54,6 +86,8 @@
   var _friendUidSet = new Set();
   // Whether a friend-list load is currently in flight
   var _friendsLoading = false;
+  // Active co-hosts UIDs — used to block duplicate invites and show "Co-Host ✓" in lists
+  var _activeCohostUids = new Set();
 
   function _importFS()   { return import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'); }
   function _importRTDB() { return import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js'); }
@@ -457,7 +491,7 @@
       + '<span class="cohost-spinner"></span>Loading friends\u2026</div>';
 
     var attempt = 0;
-    while (attempt < 2) {
+    while (attempt < 3) {
       attempt++;
       try {
         var fs   = await _importFS();
@@ -516,8 +550,12 @@
         return;
 
       } catch(e) {
-        console.warn('[CoHost] loadFriendsList attempt ' + attempt + ':', e && e.message);
-        if (attempt < 2) {
+        console.warn('[CoHost] loadFriendsList attempt ' + attempt + ':', e && e.message, e && e.code);
+        // On auth errors, refresh the token before retrying
+        if ((e.code === 'permission-denied' || e.code === 'unauthenticated') && attempt < 3) {
+          await _refreshToken();
+        }
+        if (attempt < 3) {
           await new Promise(function(res) { setTimeout(res, 1500); });
           var elRetry = document.getElementById('cohostFriendsList');
           if (elRetry) {
@@ -528,8 +566,19 @@
         } else {
           var elErr = document.getElementById('cohostFriendsList');
           if (elErr) {
-            elErr.innerHTML = '<div class="cohost-empty">Couldn\'t load friend list.'
-              + ' Tap \uD83C\uDF99\uFE0F to retry.</div>';
+            elErr.innerHTML = '<div class="cohost-empty" style="flex-direction:column;gap:8px;">'
+              + 'Couldn\'t load friend list.'
+              + '<button id="cohostFriendsRetryBtn"'
+              + ' style="margin-top:6px;background:rgba(160,80,255,0.22);border:1px solid rgba(160,80,255,0.5);'
+              + 'color:#c0a0ff;border-radius:8px;padding:5px 14px;cursor:pointer;font-size:12px;">'
+              + 'Tap to retry</button></div>';
+            var retryBtn = document.getElementById('cohostFriendsRetryBtn');
+            if (retryBtn) {
+              retryBtn.addEventListener('click', function() {
+                _friendsLoading = false;
+                _loadFriendsList();
+              });
+            }
           }
           _friendsLoading = false;
         }
@@ -538,7 +587,8 @@
   }
 
   function _renderRow(u, container, isLive) {
-    var sent = !!_pendingInvites[u.uid];
+    var sent     = !!_pendingInvites[u.uid];
+    var isActive = _activeCohostUids.has(u.uid);
     var row  = document.createElement('div'); row.className = 'cohost-user-row';
 
     // ── Avatar ──
@@ -598,13 +648,20 @@
       + '</div>';
 
     var invBtn = document.createElement('button');
-    invBtn.className = 'cohost-invite-btn' + (sent ? ' sent' : '');
-    invBtn.textContent = sent ? 'Sent \u2713' : 'Invite';
-    invBtn.disabled = sent;
-    if (!sent) {
-      (function(userArg, btnArg) {
-        btnArg.addEventListener('click', function() { _sendInvite(userArg, btnArg); });
-      })(u, invBtn);
+    if (isActive) {
+      // Already an active co-host — show status, no action
+      invBtn.className = 'cohost-invite-btn sent';
+      invBtn.textContent = 'Co-Host \u2713';
+      invBtn.disabled = true;
+    } else {
+      invBtn.className = 'cohost-invite-btn' + (sent ? ' sent' : '');
+      invBtn.textContent = sent ? 'Sent \u2713' : 'Invite';
+      invBtn.disabled = sent;
+      if (!sent) {
+        (function(userArg, btnArg) {
+          btnArg.addEventListener('click', function() { _sendInvite(userArg, btnArg); });
+        })(u, invBtn);
+      }
     }
     row.appendChild(av); row.appendChild(info); row.appendChild(invBtn);
     container.appendChild(row);
@@ -646,84 +703,93 @@
     return code === 'unavailable' || code === 'deadline-exceeded' || code === 'internal' || code === 'permission-denied';
   }
 
+  /* ─────────────────────────────────────────────────────────────────────
+     _sendInvite
+     KEY FIX: Delete existing RTDB invite node FIRST, then write new one.
+     onValue / onChildAdded on existing keys only fires on VALUE change.
+     Without the delete, re-sending the same invite produces no RTDB event
+     and the popup never shows again. Delete guarantees fresh event.      */
   async function _sendInvite(user, btn) {
     if (!_db || !_liveDB || !_user || !_roomId) return;
-    if (!_coHostEnabled) { _toast('Co-Hosting is currently unavailable.'); return; }
-    if (!_cohostSettings.allowCohosts) { _toast('Co-Hosting is disabled in Live Settings.'); return; }
+    if (!_coHostEnabled)                          { _toast('Co-Hosting is currently unavailable.'); return; }
+    if (!_cohostSettings.allowCohosts)            { _toast('Co-Hosting is disabled in Live Settings.'); return; }
     if (_cohostSettings.whoCanCohost === 'nobody') { _toast('Co-Hosting is set to nobody.'); return; }
-    if (_pendingInvites[user.uid]) { _toast('Invite already sent to ' + (user.displayName||'this user')); return; }
+    if (_pendingInvites[user.uid])                 { _toast('Invite already sent to ' + (user.displayName || 'this user')); return; }
+    if (_activeCohostUids.has(user.uid))           { _toast((user.displayName || 'This user') + ' is already a co-host.'); return; }
 
     var guestId   = user.uid;
     var requestId = _roomId + '_' + guestId;
 
-    // ── Disable button immediately to prevent double-tap ──
     if (btn) { btn.disabled = true; btn.textContent = 'Sending\u2026'; }
 
     var attempt     = 0;
-    var maxAttempts = 2;
+    var maxAttempts = 3;
 
     while (attempt < maxAttempts) {
       attempt++;
-      var fsWriteDone = false;
+      var rtdbWriteDone = false;
+      var fsWriteDone   = false;
       try {
         var fs   = await _importFS();
         var rtdb = await _importRTDB();
-        var hostName   = _userData.displayName || (_user.email && _user.email.split('@')[0]) || 'Host';
-        var hostAvatar = _userData.avatar || _userData.profilePicture || '';
+        var hostName   = (_userData && _userData.displayName) || (_user.email && _user.email.split('@')[0]) || 'Host';
+        var hostAvatar = (_userData && (_userData.avatar || _userData.profilePicture)) || '';
         var now        = Date.now();
 
-        // ── Step 1: Delete any stale Firestore doc so setDoc is always a clean create ──
+        // ── Step 0: Remove stale RTDB invite (guarantees new event fires) ──
+        try { await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + guestId + '/' + _user.uid)); } catch(_) {}
+
+        // ── Step 1: Delete stale Firestore doc ──
         try { await fs.deleteDoc(fs.doc(_db, 'coHostRequests', requestId)); } catch(_) {}
 
-        await fs.setDoc(fs.doc(_db, 'coHostRequests', requestId), {
-          liveId:     _roomId,
-          hostId:     _user.uid,
-          hostName:   hostName,
-          hostAvatar: hostAvatar,
-          guestId:    guestId,
-          guestName:  user.displayName || '',
-          status:     'pending',
-          createdAt:  fs.serverTimestamp(),
-        });
-        fsWriteDone = true;
+        // ── Step 2: Write Firestore (non-fatal — RTDB is the delivery channel) ──
+        try {
+          await fs.setDoc(fs.doc(_db, 'coHostRequests', requestId), {
+            liveId:     _roomId,
+            hostId:     _user.uid,
+            hostName:   hostName,
+            hostAvatar: hostAvatar,
+            guestId:    guestId,
+            guestName:  user.displayName || '',
+            status:     'pending',
+            createdAt:  fs.serverTimestamp(),
+          });
+          fsWriteDone = true;
+        } catch(fsErr) {
+          console.warn('[CoHost] Firestore coHostRequest write failed (non-fatal):', fsErr && fsErr.code);
+        }
 
-        // ── Step 2: Write RTDB coHostInvites node ──
-        // RTDB payload includes all fields that the guest-side popup reads:
-        //   status  → filtered by _watchForInvite: inv.status === 'pending'
-        //   from    → displayed as sender name
-        //   roomId  → navigation on Accept
-        //   ts      → TTL check: invites older than _INVITE_TTL_MS are ignored
+        // ── Step 3: Write RTDB invite node (the actual popup trigger) ──
         await rtdb.set(rtdb.ref(_liveDB, 'coHostInvites/' + guestId + '/' + _user.uid), {
           status:     'pending',
           from:       hostName,
           fromAvatar: hostAvatar,
           hostUid:    _user.uid,
+          hostName:   hostName,
           roomId:     _roomId,
           liveId:     _roomId,
           requestId:  requestId,
           time:       now,
           ts:         now,
         });
+        rtdbWriteDone = true;
 
-        // ── Both writes succeeded ──
         if (btn) { btn.textContent = 'Sent \u2713'; btn.classList.add('sent'); btn.disabled = true; }
         _pendingInvites[guestId] = requestId;
         _toast('Invite sent to ' + (user.displayName || 'user'));
         _watchInviteResponse(guestId, requestId);
-        return; // success — exit retry loop
+        return;
 
       } catch(e) {
         console.error('[CoHost] sendInvite attempt ' + attempt + ':', e.code, e.message);
 
-        // ── Rollback: if Firestore wrote but RTDB failed, delete the FS doc ──
+        if (rtdbWriteDone) {
+          try { var rtdbRb = await _importRTDB(); await rtdbRb.remove(rtdbRb.ref(_liveDB, 'coHostInvites/' + guestId + '/' + _user.uid)); } catch(_) {}
+        }
         if (fsWriteDone) {
-          try {
-            var fsRb = await _importFS();
-            await fsRb.deleteDoc(fsRb.doc(_db, 'coHostRequests', requestId));
-          } catch(_) {}
+          try { var fsRb = await _importFS(); await fsRb.deleteDoc(fsRb.doc(_db, 'coHostRequests', requestId)); } catch(_) {}
         }
 
-        // For permission-denied, silently refresh the token before retrying
         if ((e.code === 'permission-denied' || e.code === 'unauthenticated') && attempt < maxAttempts) {
           await _refreshToken();
         }
@@ -732,11 +798,9 @@
         var canRetry = _isRetryable(e) && !isLast;
 
         if (canRetry) {
-          // Brief pause then retry
           if (btn) { btn.textContent = 'Retrying\u2026'; btn.disabled = true; }
-          await new Promise(function(res) { setTimeout(res, 1200); });
+          await new Promise(function(res) { setTimeout(res, 1200 * attempt); });
         } else {
-          // Final failure — show real error, restore button
           _toast(_inviteErrorLabel(e));
           if (btn) { btn.textContent = 'Invite'; btn.classList.remove('sent'); btn.disabled = false; }
           delete _pendingInvites[guestId];
@@ -748,62 +812,93 @@
 
   function _watchInviteResponse(guestId, requestId) {
     if (!_db) return;
+    var unsub = null;
     _importFS().then(function(fs) {
-      var unsub = fs.onSnapshot(fs.doc(_db, 'coHostRequests', requestId), function(snap) {
-        if (!snap.exists()) { unsub(); return; }
+      unsub = fs.onSnapshot(fs.doc(_db, 'coHostRequests', requestId), function(snap) {
+        if (!snap.exists()) {
+          if (unsub) { try { unsub(); } catch(e){} unsub = null; }
+          delete _pendingInvites[guestId];
+          return;
+        }
         var status = snap.data().status;
         if (status === 'accepted') {
-          unsub(); _toast('Co-host accepted your invite!');
+          if (unsub) { try { unsub(); } catch(e){} unsub = null; }
+          _toast('Co-host accepted your invite!');
+          delete _pendingInvites[guestId];
           if (_activeUnsub) { try { _activeUnsub(); } catch(e){} _activeUnsub = null; }
           _subscribeActiveCohosts();
-        } else if (status === 'declined' || status === 'denied') {
-          // Accept both spellings for resilience across client versions
-          unsub(); _toast((snap.data().guestName || 'User') + ' declined your invite.');
-          delete _pendingInvites[guestId];
-          // Refresh invite button state in both lists
           _flushLiveMap();
-          _loadFriendsList();
+          if (_panelOpen) _loadFriendsList();
+        } else if (status === 'declined' || status === 'denied' || status === 'cancelled') {
+          if (unsub) { try { unsub(); } catch(e){} unsub = null; }
+          _toast((snap.data().guestName || 'User') + ' declined your invite.');
+          delete _pendingInvites[guestId];
+          // Refresh UI so Invite button re-appears
+          _flushLiveMap();
+          if (_panelOpen) _loadFriendsList();
           setTimeout(function() {
-            try { fs.deleteDoc(fs.doc(_db, 'coHostRequests', requestId)); } catch(e) {}
+            _importFS().then(function(fs2) {
+              try { fs2.deleteDoc(fs2.doc(_db, 'coHostRequests', requestId)); } catch(e) {}
+            });
           }, 3000);
         }
-      }, function() { unsub(); });
+      }, function(err) {
+        console.warn('[CoHost] watchInviteResponse error:', err && err.message);
+        if (unsub) { try { unsub(); } catch(e){} unsub = null; }
+        delete _pendingInvites[guestId];
+      });
     });
   }
 
+  /* ─────────────────────────────────────────────────────────────────────
+     _watchForInvite  (GUEST-SIDE popup listener)
+     KEY FIX: Use onChildAdded + onChildChanged instead of onValue.
+     onValue only fires when the VALUE changes. Delete+re-write of the same
+     data produces no event. onChildAdded fires on NEW nodes; onChildChanged
+     fires on MODIFIED nodes — together they cover every invite attempt.   */
   function _watchForInvite() {
     if (!_liveDB || !_user) return;
-    if (_inviteInboxUnsub) { try { _inviteInboxUnsub(); } catch(e){} _inviteInboxUnsub = null; }
+    if (_inviteInboxUnsub) {
+      try { _inviteInboxUnsub(); } catch(e) {}
+      _inviteInboxUnsub = null;
+    }
+
     _importRTDB().then(function(rtdb) {
       var invRef = rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid);
-      // Store the unsubscribe function returned by onValue()
-      _inviteInboxUnsub = rtdb.onValue(invRef, function(snap) {
-        if (!snap.exists()) { _hideInviteCard(); return; }
+
+      function _handleInviteNode(child) {
+        var inv = child.val();
+        if (!inv) return;
         if (!_coHostEnabled) return;
-        var latestInvite = null, latestTs = 0;
-        var now = Date.now();
-        snap.forEach(function(child) {
-          var inv = child.val();
-          if (!inv) return;
-          // Only consider invites that are still pending (ignore accepted/denied)
-          if (inv.status !== 'pending') return;
-          // ── TTL guard: ignore invites older than _INVITE_TTL_MS ──
-          var invTs = inv.ts || inv.time || 0;
-          if (now - invTs > _INVITE_TTL_MS) {
-            // Clean up expired invite silently
-            try { rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + child.key)); } catch(_) {}
-            return;
-          }
-          if (invTs > latestTs) {
-            latestTs = invTs;
-            latestInvite = Object.assign({ senderUid: child.key }, inv);
-          }
-        });
-        if (!latestInvite) { _hideInviteCard(); return; }
-        if (latestInvite.hostUid === _user.uid) return; // guard: no self-invites
-        _pendingInviteData = latestInvite;
-        _showInviteCard(latestInvite);
+        if (inv.status !== 'pending') return;
+        var invTs = inv.ts || inv.time || 0;
+        if (Date.now() - invTs > _INVITE_TTL_MS) {
+          try { rtdb.remove(child.ref); } catch(_) {}
+          return;
+        }
+        var senderUid = child.key;
+        if (_user && senderUid === _user.uid) return;
+        var inviteObj = Object.assign({ senderUid: senderUid, _childKey: child.key }, inv);
+        _pendingInviteData = inviteObj;
+        _showInviteCard(inviteObj);
+      }
+
+      var unsubAdded   = rtdb.onChildAdded(invRef, _handleInviteNode);
+      var unsubChanged = rtdb.onChildChanged(invRef, _handleInviteNode);
+      var unsubRemoved = rtdb.onChildRemoved(invRef, function(child) {
+        if (_pendingInviteData && _pendingInviteData._childKey === child.key) {
+          _hideInviteCard();
+        }
       });
+
+      _inviteInboxUnsub = function() {
+        try { unsubAdded();   } catch(_) {}
+        try { unsubChanged(); } catch(_) {}
+        try { unsubRemoved(); } catch(_) {}
+        try { rtdb.off(invRef); } catch(_) {}
+      };
+    }).catch(function(e) {
+      console.warn('[CoHost] _watchForInvite import failed:', e && e.message);
     });
   }
 
@@ -812,7 +907,7 @@
     var sub  = document.getElementById('cohostInviteSub');
     var icon = card && card.querySelector('.cohost-invite-icon');
     if (!card) return;
-    // Re-enable buttons in case they were disabled by a previous accept/decline attempt
+    // Always re-enable buttons — card may be reused for a new invite
     var acceptBtn = document.getElementById('cohostAcceptBtn');
     var denyBtn   = document.getElementById('cohostDenyBtn');
     if (acceptBtn) { acceptBtn.disabled = false; acceptBtn.textContent = 'ACCEPT'; }
@@ -838,19 +933,28 @@
   function _hideInviteCard() {
     var card = document.getElementById('cohostInviteCard');
     if (card) card.classList.remove('visible');
+    // Clear stale pending data so a future invite is never blocked
+    _pendingInviteData = null;
   }
 
   async function _acceptInvite() {
     if (!_pendingInviteData) return;
-    if (!_coHostEnabled) { _hideInviteCard(); _pendingInviteData = null; _toast('Co-Hosting is currently unavailable.'); return; }
+    if (!_coHostEnabled) {
+      _hideInviteCard();
+      _toast('Co-Hosting is currently unavailable.');
+      return;
+    }
 
-    // ── Disable buttons immediately to prevent double-accept ──
+    // Disable buttons SYNCHRONOUSLY before any async work (prevents double-accept)
     var acceptBtn = document.getElementById('cohostAcceptBtn');
     var denyBtn   = document.getElementById('cohostDenyBtn');
     if (acceptBtn) { acceptBtn.disabled = true; acceptBtn.textContent = 'Joining\u2026'; }
     if (denyBtn)   { denyBtn.disabled   = true; }
 
-    var inv = _pendingInviteData; _pendingInviteData = null; _hideInviteCard();
+    var inv = _pendingInviteData;
+    _pendingInviteData = null; // clear immediately to block re-entrant calls
+    _hideInviteCard();
+
     try {
       var fs   = await _importFS();
       var rtdb = await _importRTDB();
@@ -858,16 +962,20 @@
                    || (_user && _user.email && _user.email.split('@')[0]) || 'Co-Host';
       var myAvatar = (_userData && (_userData.avatar || _userData.profilePicture)) || '';
 
-      // Update Firestore request status
+      // ── 1. Update Firestore request status to 'accepted' ──
       if (inv.requestId) {
-        try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'accepted' }); } catch(e) {}
+        try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'accepted' }); } catch(e) {
+          console.warn('[CoHost] acceptInvite FS update non-fatal:', e && e.message);
+        }
       }
 
-      // Remove the RTDB invite node
-      var sk = inv.senderUid || inv.hostUid;
-      try { await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + sk)); } catch(e) {}
+      // ── 2. Remove the RTDB invite node ──
+      var nodeKey = inv._childKey || inv.senderUid || inv.hostUid;
+      if (nodeKey && _user) {
+        try { await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + nodeKey)); } catch(e) {}
+      }
 
-      // Write to the active co-hosts list for the live room
+      // ── 3. Write to active co-hosts list ──
       var targetLiveId = inv.liveId || inv.roomId || '';
       if (targetLiveId) {
         await rtdb.set(rtdb.ref(_liveDB, 'cohosts/' + targetLiveId + '/active/' + _user.uid), {
@@ -878,16 +986,19 @@
       _showCohostBadge();
       _toast('You joined as co-host!');
 
-      // Auto-request a guest box so the co-host's video appears on stage.
-      // _viewerRequestBox() is exposed on window by live.js.
+      // ── 4. Auto-request a guest box ──
       if (typeof window._viewerRequestBox === 'function') {
-        try { window._viewerRequestBox(); } catch(e) {
-          console.warn('[CoHost] Auto guest-box request failed:', e && e.message);
+        try {
+          await window._viewerRequestBox();
+        } catch(boxErr) {
+          console.warn('[CoHost] Auto guest-box request failed:', boxErr && boxErr.message);
+          _toast('Joined as co-host. Tap "Request a Box" to appear on screen.');
         }
+      } else {
+        _toast('Joined as co-host. Tap "Request a Box" to appear on screen.');
       }
 
-      // Navigate to the live room only if not already watching it.
-      // Use exact hash comparison to avoid matching partial IDs.
+      // ── 5. Navigate to the live room if not already watching it ──
       if (targetLiveId) {
         var expectedHash = '#watch=' + targetLiveId;
         if (window.location.hash !== expectedHash) {
@@ -897,30 +1008,45 @@
     } catch(e) {
       console.error('[CoHost] acceptInvite:', e.message);
       _toast('Could not join: ' + _inviteErrorLabel(e));
-      // Re-enable buttons so the user can try again
       if (acceptBtn) { acceptBtn.disabled = false; acceptBtn.textContent = 'ACCEPT'; }
       if (denyBtn)   { denyBtn.disabled   = false; }
+      // Restore state so user can retry
+      _pendingInviteData = inv;
+      _showInviteCard(inv);
     }
   }
 
   async function _declineInvite() {
     if (!_pendingInviteData) return;
 
-    // ── Disable buttons immediately to prevent double-tap ──
     var acceptBtn = document.getElementById('cohostAcceptBtn');
     var denyBtn   = document.getElementById('cohostDenyBtn');
     if (acceptBtn) { acceptBtn.disabled = true; }
     if (denyBtn)   { denyBtn.disabled   = true; denyBtn.textContent = 'Declining\u2026'; }
 
-    var inv = _pendingInviteData; _pendingInviteData = null; _hideInviteCard();
+    var inv = _pendingInviteData;
+    _pendingInviteData = null;
+    _hideInviteCard();
+
     try {
-      var fs = await _importFS(); var rtdb = await _importRTDB();
-      // ── FIX: write 'declined' (not 'denied') so _subscribeDeclineNotifications
-      //    Firestore query (status == 'declined') fires correctly on the host side ──
-      if (inv.requestId) { try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'declined' }); } catch(e){} }
-      var sk = inv.senderUid || inv.hostUid;
-      try { await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + sk)); } catch(e){}
-    } catch(e) { console.error('[CoHost] declineInvite:', e.message); }
+      var fs   = await _importFS();
+      var rtdb = await _importRTDB();
+
+      // ── Update Firestore to 'declined' ──
+      if (inv.requestId) {
+        try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'declined' }); } catch(e) {}
+      }
+
+      // ── Remove RTDB invite node so host can re-invite the same user later ──
+      var nodeKey = inv._childKey || inv.senderUid || inv.hostUid;
+      if (nodeKey && _user) {
+        try { await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + nodeKey)); } catch(e) {}
+      }
+    } catch(e) {
+      console.error('[CoHost] declineInvite:', e.message);
+      if (acceptBtn) { acceptBtn.disabled = false; }
+      if (denyBtn)   { denyBtn.disabled   = false; denyBtn.textContent = 'DENY'; }
+    }
     _toast('Co-host invite declined.');
   }
 
@@ -931,8 +1057,19 @@
       var activeRef = rtdb.ref(_liveDB, 'cohosts/' + _roomId + '/active');
       _activeUnsub = rtdb.onValue(activeRef, function(snap) {
         var el = document.getElementById('cohostActiveList');
+
+        // Rebuild active UIDs set for duplicate-invite guard
+        _activeCohostUids = new Set();
+        if (snap.exists()) {
+          snap.forEach(function(child) { _activeCohostUids.add(child.key); });
+        }
+
         if (!el) return;
-        if (!snap.exists()) { el.innerHTML = '<div class="cohost-empty">No active co-hosts.</div>'; return; }
+        if (!snap.exists()) {
+          el.innerHTML = '<div class="cohost-empty">No active co-hosts.</div>';
+          return;
+        }
+
         el.innerHTML = '';
         snap.forEach(function(child) {
           var c = child.val(); if (!c) return;
@@ -959,11 +1096,21 @@
               try { rtdb.remove(rtdb.ref(_liveDB, 'cohosts/' + _roomId + '/active/' + uid)); } catch(e) {}
               try { rtdb.set(rtdb.ref(_liveDB, 'cohosts/' + _roomId + '/removed/' + uid), { ts: Date.now() }); } catch(e) {}
               _toast((name || 'Co-Host') + ' removed.');
+              // Allow re-inviting immediately after removal
+              delete _pendingInvites[uid];
+              _activeCohostUids.delete(uid);
+              _flushLiveMap();
+              if (_panelOpen) _loadFriendsList();
             });
           })(child.key, c.name);
           row.appendChild(av); row.appendChild(info); row.appendChild(rb);
           el.appendChild(row);
         });
+
+        // Refresh invite button state in open panel lists
+        if (_panelOpen) {
+          _renderLiveList(_cachedLiveUsers);
+        }
       });
     });
   }
@@ -978,11 +1125,21 @@
         snap.docChanges().forEach(function(change) {
           if (change.type === 'added') {
             var d = change.doc.data();
-            _toast((d.guestName||'User') + ' declined your co-host invite.');
+            _toast((d.guestName || 'User') + ' declined your co-host invite.');
+            // Clear pending so Invite button re-enables
             delete _pendingInvites[d.guestId];
+            // Refresh UI
+            _flushLiveMap();
+            if (_panelOpen) _loadFriendsList();
+            // Clean up Firestore doc
+            setTimeout(function() {
+              try { change.doc.ref && fs.deleteDoc(change.doc.ref); } catch(e) {}
+            }, 4000);
           }
         });
-      }, function() {});
+      }, function(err) {
+        console.warn('[CoHost] _subscribeDeclineNotifications error:', err && err.message);
+      });
     });
   }
 
@@ -1032,7 +1189,7 @@
     if (_rtdbLiveUnsub)    { try { _rtdbLiveUnsub(); }    catch(e){} _rtdbLiveUnsub    = null; }
     if (_fsLiveUnsub)      { try { _fsLiveUnsub(); }      catch(e){} _fsLiveUnsub      = null; }
     _liveUserMap = {}; _cachedLiveUsers = []; _friendUidSet = new Set();
-    _pendingInvites = {}; _pendingInviteData = null;
+    _pendingInvites = {}; _pendingInviteData = null; _activeCohostUids = new Set();
     _hideInviteCard(); _clearCohostBadge();
     if (_liveDB && _roomId && _user) {
       _importRTDB().then(function(rtdb) {

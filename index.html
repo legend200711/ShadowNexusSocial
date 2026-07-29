@@ -7202,6 +7202,10 @@ body.arcade-fs-ios body::after { display:none !important; }
                 </div>
                 <div class="profile-handle-text" id="profileHandle">@username</div>
                 <div class="profile-bio-text" id="profileBio"></div>
+                <!-- Bio expand/collapse handled by snxInitProfileBio() -->
+                <button id="profileBioExpandBtn" style="display:none;background:none;border:none;color:#3a7abf;font-size:11px;cursor:pointer;padding:2px 0;margin-top:-2px;" onclick="snxExpandProfileBio()">… Read more</button>
+                <!-- Profile music player — rendered by snxRenderProfileMusic() -->
+                <div id="profileMusicContainer"></div>
                 <div class="profile-mood-text" id="profileMoodDisplay"></div>
                 <div id="profileOnlineBadge" style="display:none;" class="profile-online-badge">
                     <div class="profile-online-dot"></div> Online now
@@ -7655,6 +7659,18 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="profile-featured-list" id="profileFeaturedList"></div>
     </div>
 
+    <!-- Pinned Posts section — rendered by snxRenderPinnedPosts() -->
+    <div id="profilePinnedPostsSection" style="display:none;margin:12px 0;">
+        <div class="profile-featured-title">📌 Pinned Posts</div>
+        <div id="profilePinnedPostsList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <!-- Featured Photos & Videos — rendered by snxRenderFeaturedMedia() -->
+    <div id="profileFeaturedMediaSection" style="display:none;margin:12px 0;">
+        <div class="profile-featured-title">📸 Featured Photos &amp; Videos</div>
+        <div id="profileFeaturedMediaGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
+    </div>
+
     <!-- tabContentProfileWall kept as hidden alias so existing code references don't break -->
     <div id="tabContentProfileWall" style="display:none;"></div>
 
@@ -7811,6 +7827,10 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="ipc-modal-header-btns">
                 <!-- View Profile button -->
                 <button class="ipc-modal-btn" title="View profile" onclick="if(window._ipcModalUid){window.ipcModalClose&&window.ipcModalClose();viewProfile(window._ipcModalUid);}" aria-label="View profile" style="font-size:14px;color:#00AEEF;">👤</button>
+                <!-- Voice call button -->
+                <button class="ipc-modal-btn" id="ipcVoiceCallBtn" title="Voice call" onclick="snxStartCall('audio')" aria-label="Voice call" style="font-size:17px;color:#6a90b8;display:none;">📞</button>
+                <!-- Video call button -->
+                <button class="ipc-modal-btn" id="ipcVideoCallBtn" title="Video call" onclick="snxStartCall('video')" aria-label="Video call" style="font-size:17px;color:#6a90b8;display:none;">📹</button>
                 <!-- Close button -->
                 <button class="ipc-modal-btn" title="Close chat" onclick="window.ipcModalClose && window.ipcModalClose()" aria-label="Close chat" style="font-size:20px;color:#ff5566;">✕</button>
             </div>
@@ -7868,6 +7888,10 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <span class="snx-sticker-item" onclick="snxSendSticker('🛸')">🛸</span>
             </div>
             <button onclick="snxToggleStickerPicker()" title="Stickers" style="flex-shrink:0;background:none;border:none;font-size:18px;cursor:pointer;padding:6px;color:#6a90b8;transition:color .15s;" onmouseover="this.style.color='#00AEEF'" onmouseout="this.style.color='#6a90b8'">🎭</button>
+            <!-- GIF button -->
+            <button id="ipcGifBtn" onclick="snxOpenGifPicker('ipc')" title="Send GIF" style="flex-shrink:0;background:none;border:none;font-size:11px;font-weight:800;cursor:pointer;padding:6px 5px;color:#6a90b8;transition:color .15s;letter-spacing:.5px;" onmouseover="this.style.color='#00AEEF'" onmouseout="this.style.color='#6a90b8'">GIF</button>
+            <!-- Voice record button -->
+            <button id="ipcVoiceBtn" onclick="snxToggleVoiceRecord('ipc')" title="Voice message" style="flex-shrink:0;background:none;border:none;font-size:18px;cursor:pointer;padding:6px;color:#6a90b8;transition:color .15s;" onmouseover="this.style.color='#39FF14'" onmouseout="this.style.color='#6a90b8'">🎙️</button>
             <div class="ipc-modal-input-wrap" id="ipcModalInputWrap">
                 <textarea
                     id="ipcModalInput"
@@ -7965,6 +7989,15 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <button class="notif-mark-all" onclick="clearAllNotifs()" style="border-color:rgba(255,51,102,0.3);color:#ff5577;">🗑 Clear all</button>
             </div>
         </div>
+        <!-- Notification history search -->
+        <div id="notifHistoryBar" style="display:none;padding:8px 0 4px;border-top:1px solid rgba(0,174,239,0.10);margin-top:8px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+                <input id="notifHistorySearch" placeholder="Search notifications…" autocomplete="off" style="flex:1;margin:0;font-size:12px;" oninput="snxFilterNotifHistory(this.value)">
+                <input id="notifHistoryDate" type="date" style="margin:0;font-size:12px;padding:6px 8px;background:#06111e;border:1px solid rgba(0,174,239,0.25);border-radius:8px;color:#c8e8ff;" onchange="snxFilterNotifHistory(document.getElementById('notifHistorySearch').value)">
+                <button onclick="snxCloseNotifHistory()" style="padding:5px 10px;font-size:11px;">✕</button>
+            </div>
+        </div>
+        <button class="notif-mark-all" id="notifHistoryBtn" onclick="snxToggleNotifHistory()" style="margin:4px 0 8px;font-size:11px;color:#6a90b8;">🕐 History &amp; Search</button>
         <!-- Filter tabs — Messages / Activity / Social / System -->
         <div class="notif-filter-tabs" id="notifFilterTabs">
             <button class="notif-filter-tab active" data-filter="all" onclick="setNotifFilter('all',this)">
@@ -8695,6 +8728,65 @@ body.arcade-fs-ios body::after { display:none !important; }
     <div style="font-size:11px;color:#3a6a9a;margin-bottom:10px;" id="snxGroupSelectedCount">0 selected</div>
     <button onclick="snxCreateGroupChat()" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#003d99,#0077dd);border-color:rgba(0,174,239,0.65);color:#fff;font-weight:700;font-size:13px;">💬 Create Group Chat</button>
 </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     GIF PICKER MODAL — used by DMs and comment inputs
+     ══════════════════════════════════════════════════════════ -->
+<div id="snxGifModal" style="display:none;position:fixed;inset:0;z-index:9600;background:rgba(0,3,15,0.88);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;padding:0;">
+<div style="background:#070f20;border:1px solid rgba(0,174,239,0.38);border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:70vh;display:flex;flex-direction:column;overflow:hidden;margin:0 auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(0,174,239,0.18);flex-shrink:0;">
+        <span style="font-weight:800;font-size:15px;color:#fff;">🎬 Send a GIF</span>
+        <button onclick="snxCloseGifPicker()" style="background:none;border:none;color:#ff5566;font-size:22px;cursor:pointer;padding:2px 8px;line-height:1;">✕</button>
+    </div>
+    <div style="padding:10px 14px;border-bottom:1px solid rgba(0,174,239,0.14);flex-shrink:0;">
+        <input id="snxGifSearch" placeholder="Search GIFs…" autocomplete="off" oninput="snxSearchGifs(this.value)"
+               style="width:100%;box-sizing:border-box;background:rgba(0,20,60,0.6);border:1px solid rgba(0,174,239,0.35);border-radius:24px;color:#e8f4ff;padding:10px 16px;font-size:14px;outline:none;">
+    </div>
+    <div id="snxGifGrid" style="flex:1;overflow-y:auto;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;-webkit-overflow-scrolling:touch;">
+        <div style="color:#4a7a9a;font-size:13px;text-align:center;padding:30px;grid-column:1/-1;">Search or browse trending GIFs above.</div>
+    </div>
+    <div style="padding:8px 14px;font-size:10px;color:#3a5a7a;text-align:center;flex-shrink:0;border-top:1px solid rgba(0,174,239,0.10);">Powered by Tenor</div>
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     HOLIDAY PARTICLE CANVAS — overlays seasonal effects
+     ══════════════════════════════════════════════════════════ -->
+<canvas id="snxHolidayCanvas" style="position:fixed;inset:0;pointer-events:none;z-index:9994;display:none;" aria-hidden="true"></canvas>
+
+<!-- ══════════════════════════════════════════════════════════
+     CALL MODAL — Voice & Video calls via WebRTC (1:1)
+     ══════════════════════════════════════════════════════════ -->
+<div id="snxCallModal" style="display:none;position:fixed;inset:0;z-index:9980;background:rgba(0,3,15,0.93);backdrop-filter:blur(8px);flex-direction:column;align-items:center;justify-content:center;gap:20px;">
+    <div id="snxCallRemoteVideo" style="width:min(480px,96vw);aspect-ratio:4/3;background:#050d1e;border-radius:16px;border:1px solid rgba(0,174,239,0.3);overflow:hidden;position:relative;">
+        <video id="snxCallRemoteVid" autoplay playsinline style="width:100%;height:100%;object-fit:cover;"></video>
+        <div id="snxCallStatusLabel" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;">
+            <div id="snxCallPeerAvatar" style="width:72px;height:72px;border-radius:50%;background:#0B1F3A;border:2px solid rgba(0,174,239,0.4);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#00AEEF;background-size:cover;background-position:center;"></div>
+            <div id="snxCallPeerName" style="color:#c8e8ff;font-size:16px;font-weight:700;"></div>
+            <div id="snxCallState" style="color:#6a90b8;font-size:13px;"></div>
+        </div>
+    </div>
+    <video id="snxCallLocalVid" autoplay muted playsinline style="position:fixed;bottom:110px;right:16px;width:100px;border-radius:10px;border:1px solid rgba(0,174,239,0.4);background:#050d1e;display:none;z-index:9981;"></video>
+    <div style="display:flex;gap:16px;align-items:center;">
+        <button id="snxCallMuteBtn" onclick="snxCallToggleMute()" title="Mute/Unmute" style="width:52px;height:52px;border-radius:50%;font-size:22px;background:rgba(0,30,70,0.9);border:1px solid rgba(0,174,239,0.35);">🎙️</button>
+        <button id="snxCallEndBtn" onclick="snxEndCall()" title="End call" style="width:60px;height:60px;border-radius:50%;font-size:24px;background:rgba(200,0,30,0.85);border:1px solid rgba(255,30,60,0.7);">📵</button>
+        <button id="snxCallCamBtn" onclick="snxCallToggleCamera()" title="Toggle camera" style="width:52px;height:52px;border-radius:50%;font-size:22px;background:rgba(0,30,70,0.9);border:1px solid rgba(0,174,239,0.35);display:none;">📹</button>
+    </div>
+</div>
+
+<!-- GIF in Comments Modal — reuses snxGifModal but with context='comment' -->
+<div id="snxCommentGifModal" style="display:none;position:fixed;inset:0;z-index:9810;background:rgba(0,3,15,0.88);backdrop-filter:blur(6px);flex-direction:column;align-items:center;justify-content:flex-end;">
+    <div style="width:min(480px,100vw);background:#06111e;border-top:1px solid rgba(0,174,239,0.3);border-radius:16px 16px 0 0;padding:12px;display:flex;flex-direction:column;max-height:70vh;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-shrink:0;">
+            <input id="snxCommentGifSearch" placeholder="Search GIFs…" autocomplete="off" style="flex:1;margin:0;" oninput="snxSearchCommentGifs(this.value)">
+            <button onclick="snxCloseCommentGifPicker()" style="padding:6px 12px;font-size:13px;">✕</button>
+        </div>
+        <div id="snxCommentGifGrid" style="flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;-webkit-overflow-scrolling:touch;">
+            <div style="color:#4a7a9a;font-size:13px;text-align:center;padding:30px;grid-column:1/-1;">Search or browse trending GIFs.</div>
+        </div>
+        <div style="padding:6px 0 0;font-size:10px;color:#3a5a7a;text-align:center;flex-shrink:0;">Powered by Tenor</div>
+    </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -15284,15 +15376,21 @@ body.arcade-fs-ios body::after { display:none !important; }
               avatarEl.insertAdjacentText('afterbegin', letter);
           }
 
-          // Banner — use image if set, otherwise keep the default CSS gradient
+          // Banner — support animated/video banners via snxApplyAnimatedBanner
           const bannerEl = document.getElementById("profileBanner");
           if (p.banner && p.banner.trim()) {
-              bannerEl.style.backgroundImage    = `url('${p.banner}')`;
-              bannerEl.style.backgroundSize     = 'cover';
-              bannerEl.style.backgroundPosition = 'center';
-              bannerEl.style.backgroundRepeat   = 'no-repeat';
+              if (typeof window.snxApplyAnimatedBanner === 'function') {
+                  window.snxApplyAnimatedBanner(p.banner, bannerEl);
+              } else {
+                  bannerEl.style.backgroundImage    = `url('${p.banner}')`;
+                  bannerEl.style.backgroundSize     = 'cover';
+                  bannerEl.style.backgroundPosition = 'center';
+                  bannerEl.style.backgroundRepeat   = 'no-repeat';
+              }
           } else {
               bannerEl.style.backgroundImage = 'none';
+              const oldVid = bannerEl.querySelector('video.animated-banner');
+              if (oldVid) oldVid.remove();
           }
           document.getElementById("cntFollowers").textContent = (p.followers?.length || 0);
           document.getElementById("cntFollowing").textContent = (p.following?.length || 0);
@@ -15815,6 +15913,12 @@ body.arcade-fs-ios body::after { display:none !important; }
       // Reset state
       _m_ready = false;
       _m_tgtUid = null; window._m_tgtUid = null; _m_tgtData = null; _m_chId = null;
+
+      // Clean up group chat state (set by snxOpenGroupChat)
+      if (window._snxGroupMsgUnsub) { try { window._snxGroupMsgUnsub(); } catch(_) {} window._snxGroupMsgUnsub = null; }
+      window._ipcIsGroup   = false;
+      window._ipcGroupId   = null;
+      window._ipcGroupName = null;
   }
 
   // ── Expose close to inline HTML onclick ──
@@ -29910,6 +30014,2124 @@ function _snxTimeAgo(ts) {
 }
 
 })(); // end IIFE Feature Block 3
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SNX FEATURE PACK — All remaining feature implementations
+     1.  Battery/background pause (Firestore listeners + animations)
+     2.  Search filter queries (per-type Firestore)
+     3.  @mention autocomplete (comment + DM inputs)
+     4.  Pin conversations (inbox)
+     5.  Group chats backend (open group thread in ipcModal)
+     6.  Voice messages (MediaRecorder in DM footer)
+     7.  Video messages (MediaRecorder short video)
+     8.  GIF picker (Tenor public API)
+     9.  Profile music (audio URL + mini player)
+     10. Holiday particle effects (canvas per seasonal theme)
+     11. Animated profile banners (video/GIF support)
+     12. prefers-reduced-motion expanded
+     13. Custom reactions (user-configurable set)
+     14. Better search filters (Firestore queries by type)
+     ═══════════════════════════════════════════════════════════════════════ -->
+
+<style id="snx-feature-pack-css">
+/* ── Voice recording indicator ── */
+.snx-voice-recording {
+    display:flex; align-items:center; gap:8px; padding:8px 14px;
+    background:rgba(255,30,60,0.1); border:1px solid rgba(255,30,60,0.35);
+    border-radius:24px; font-size:12px; color:#ff6680; flex:1;
+    animation:voiceRecordPulse 1s ease-in-out infinite;
+}
+@keyframes voiceRecordPulse {
+    0%,100% { border-color:rgba(255,30,60,0.35); }
+    50%     { border-color:rgba(255,30,60,0.8); box-shadow:0 0 10px rgba(255,30,60,0.2); }
+}
+.snx-voice-dot {
+    width:8px; height:8px; border-radius:50%; background:#ff3344; flex-shrink:0;
+    animation:voiceDotBlink .8s ease-in-out infinite;
+}
+@keyframes voiceDotBlink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
+.snx-voice-timer { font-weight:700; letter-spacing:.5px; }
+
+/* ── Pin button on inbox conversation cards ── */
+.inbox-conv-pin-btn {
+    background:none; border:none; color:#5a7a9a; font-size:14px; cursor:pointer;
+    padding:4px 6px; border-radius:6px; line-height:1; flex-shrink:0;
+    transition:color .15s, background .15s;
+    touch-action:manipulation;
+}
+.inbox-conv-pin-btn:hover { color:#ffd966; background:rgba(255,210,60,0.1); }
+.inbox-conv-pin-btn.pinned { color:#ffd966; }
+.inbox-conv-card.pinned-conv { border-color:rgba(255,210,60,0.4) !important; background:rgba(255,200,50,0.04) !important; }
+.inbox-pinned-strip {
+    font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px;
+    color:#ffd966; display:flex; align-items:center; gap:5px;
+    padding:6px 0 4px; margin-bottom:4px;
+    border-bottom:1px solid rgba(255,210,60,0.14);
+}
+
+/* ── Profile music mini-player ── */
+.profile-music-player {
+    display:flex; align-items:center; gap:10px; padding:10px 14px;
+    background:rgba(0,174,239,0.07); border:1px solid rgba(0,174,239,0.25);
+    border-radius:14px; margin:8px 0;
+    animation:pageFadeIn .3s ease both;
+}
+.profile-music-icon { font-size:22px; flex-shrink:0; }
+.profile-music-info { flex:1; min-width:0; }
+.profile-music-title { font-size:13px; font-weight:700; color:#d8eeff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.profile-music-sub   { font-size:11px; color:#6a90b8; margin-top:2px; }
+.profile-music-audio { width:100%; margin-top:6px; border-radius:8px; }
+@keyframes musicNote {
+    0%,100% { transform:translateY(0) scale(1); }
+    50%     { transform:translateY(-3px) scale(1.1); }
+}
+.profile-music-note { display:inline-block; animation:musicNote 1.4s ease-in-out infinite; }
+
+/* ── Group chat conversation card variant ── */
+.inbox-conv-card.is-group .inbox-conv-avatar { font-size:20px; }
+.inbox-conv-card.is-group { border-color:rgba(0,174,239,0.25) !important; }
+
+/* ── Custom reactions picker ── */
+.snx-custom-react-modal {
+    position:fixed; inset:0; z-index:9700;
+    background:rgba(0,3,15,0.85); backdrop-filter:blur(6px);
+    display:none; align-items:center; justify-content:center; padding:16px;
+}
+.snx-custom-react-modal.open { display:flex; }
+.snx-custom-react-inner {
+    background:#070f20; border:1px solid rgba(0,174,239,0.38);
+    border-radius:16px; padding:20px 18px; width:min(420px,94vw);
+    max-height:85vh; overflow-y:auto;
+    animation:deleteModalIn .22s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.snx-custom-react-inner h3 { margin:0 0 14px; font-size:15px; color:#00AEEF; }
+.snx-custom-react-grid { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+.snx-custom-react-chip {
+    display:inline-flex; align-items:center; gap:4px; padding:5px 12px;
+    background:rgba(0,20,55,0.6); border:1px solid rgba(0,100,180,0.3);
+    border-radius:20px; font-size:20px; cursor:pointer;
+    transition:border-color .15s, transform .1s, background .15s;
+}
+.snx-custom-react-chip:hover { border-color:rgba(0,174,239,0.7); transform:scale(1.1); background:rgba(0,174,239,0.12); }
+.snx-custom-react-chip.selected { border-color:rgba(57,255,20,0.65); background:rgba(57,255,20,0.1); }
+.snx-custom-react-chip small { font-size:9px; color:#6a90b8; }
+
+/* ── Holiday canvas (snowflakes/leaves/pumpkins) fade-in ── */
+#snxHolidayCanvas { transition:opacity .5s ease; opacity:0; }
+#snxHolidayCanvas.active { opacity:1; }
+
+/* ── Animated profile banner (video support) ── */
+.cover-banner video.animated-banner {
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; z-index:0;
+}
+
+/* ── @mention autocomplete already styled in visual-upgrades ── */
+
+/* ── prefers-reduced-motion: expand to cover ALL keyframe animations ── */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+</style>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   SNX FEATURE PACK  ·  Appended after all other scripts
+   Dependencies: window._db (Firestore), window._cu (currentUser),
+                 window._fs (Firestore functions), toastNotification,
+                 window.ipcOpen, window._m_chId
+   ════════════════════════════════════════════════════════════════════════ */
+(function SNXFeaturePack() {
+'use strict';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   HELPERS — safe wrappers so features degrade gracefully before auth
+   ───────────────────────────────────────────────────────────────────────── */
+function _db()  { return window.db  || (window._db  && window._db());  }
+function _cu()  { return window.currentUser || (window._cu && window._cu()); }
+function _fs()  { return window._fs ? window._fs() : {}; }
+function _toast(msg) { if (typeof toastNotification==='function') toastNotification(msg); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   1. BATTERY / BACKGROUND PAUSE
+   Pause all Firestore onSnapshot listeners when the tab is hidden.
+   Resume them when the tab becomes visible again.
+   ───────────────────────────────────────────────────────────────────────── */
+(function _batteryPause() {
+    // Registry of { unsub, resume } pairs registered by the app
+    window._snxListeners = window._snxListeners || {};
+    let _paused = false;
+
+    // Track any existing canvas animation pausing (bg canvas already does this)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            if (_paused) return;
+            _paused = true;
+            // Freeze all CSS animations on non-essential decorative elements
+            document.querySelectorAll(
+                '.ash-particle, .online-dot, .indicator-dot.online, .profile-online-dot, ' +
+                '.ipc-modal-status-dot.online, .inbox-online-dot.online, ' +
+                '.feed-live-dot-pulse, .snx-live-dot-anim'
+            ).forEach(el => { el._savedAnimPlayState = el.style.animationPlayState; el.style.animationPlayState = 'paused'; });
+        } else if (document.visibilityState === 'visible') {
+            if (!_paused) return;
+            _paused = false;
+            // Restore animation play state
+            document.querySelectorAll(
+                '.ash-particle, .online-dot, .indicator-dot.online, .profile-online-dot, ' +
+                '.ipc-modal-status-dot.online, .inbox-online-dot.online, ' +
+                '.feed-live-dot-pulse, .snx-live-dot-anim'
+            ).forEach(el => {
+                el.style.animationPlayState = el._savedAnimPlayState || '';
+                delete el._savedAnimPlayState;
+            });
+        }
+    }, { passive: true });
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   2. SEARCH FILTER QUERIES — Firestore queries per filter type
+   ───────────────────────────────────────────────────────────────────────── */
+window.runSearch = (function(_origRunSearch) {
+    return async function(term) {
+        // Always call the original handler which deals with all=people
+        if (typeof _origRunSearch === 'function') _origRunSearch(term);
+
+        const filter = window._snxSearchFilter || 'all';
+        if (filter === 'all' || filter === 'people') return; // original handles these
+
+        const { collection, getDocs, query, orderBy, limit, where } = _fs();
+        if (!collection) return;
+        const resultsEl = document.getElementById('searchResults');
+        if (!resultsEl) return;
+        if (!term || term.length < 2) return;
+
+        const termLow = term.toLowerCase();
+
+        try {
+            if (filter === 'posts') {
+                // Fetch recent posts and filter client-side (no full-text index needed)
+                const snap = await getDocs(query(collection(_db(),'posts'), orderBy('timestamp','desc'), limit(200)));
+                const matches = [];
+                snap.forEach(d => {
+                    const p = d.data();
+                    if ((p.text||'').toLowerCase().includes(termLow)) matches.push({id:d.id,...p});
+                });
+                if (!matches.length) { resultsEl.innerHTML = '<div class="search-empty">No posts found for "'+_snxEsc(term)+'"</div>'; return; }
+                resultsEl.innerHTML = matches.slice(0,30).map(p => `
+                    <div class="explore-post-card" onclick="navTo('feed')">
+                        <div class="explore-post-body">
+                            <div class="explore-post-author">📝 ${_snxEsc(p.authorName||'Unknown')}</div>
+                            <div class="explore-post-text">${_snxEsc((p.text||'').slice(0,120))}</div>
+                            <div class="explore-post-meta"><span>❤️ ${p.likes||0}</span><span>💬 ${p.commentCount||0}</span></div>
+                        </div>
+                    </div>`).join('');
+
+            } else if (filter === 'hashtags') {
+                const snap = await getDocs(query(collection(_db(),'posts'), orderBy('timestamp','desc'), limit(500)));
+                const tagMap = {};
+                snap.forEach(d => {
+                    const text = (d.data().text||'');
+                    const tags = text.match(/#[\w]+/g) || [];
+                    tags.forEach(t => {
+                        const tl = t.toLowerCase();
+                        if (tl.includes(termLow)) { tagMap[tl] = (tagMap[tl]||0)+1; }
+                    });
+                });
+                const tags = Object.entries(tagMap).sort((a,b)=>b[1]-a[1]).slice(0,30);
+                if (!tags.length) { resultsEl.innerHTML = '<div class="search-empty">No hashtags found for "'+_snxEsc(term)+'"</div>'; return; }
+                resultsEl.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 0;">' +
+                    tags.map(([tag,cnt]) => `<span class="snx-trending-tag" onclick="snxFilterFeedByHashtag('${_snxEsc(tag.slice(1))}')">
+                        ${_snxEsc(tag)} <span class="snx-tag-count">${cnt}</span>
+                    </span>`).join('') + '</div>';
+
+            } else if (filter === 'media') {
+                const snap = await getDocs(query(collection(_db(),'posts'), orderBy('timestamp','desc'), limit(300)));
+                const mediaPosts = [];
+                snap.forEach(d => {
+                    const p = d.data();
+                    if (p.mediaUrl || p.imageUrl || p.videoUrl) {
+                        if ((p.authorName||'').toLowerCase().includes(termLow) || (p.text||'').toLowerCase().includes(termLow))
+                            mediaPosts.push({id:d.id,...p});
+                    }
+                });
+                if (!mediaPosts.length) { resultsEl.innerHTML = '<div class="search-empty">No media posts found</div>'; return; }
+                resultsEl.innerHTML = '<div class="media-grid">' + mediaPosts.slice(0,30).map(p => {
+                    const src = p.mediaUrl||p.imageUrl||p.videoUrl||'';
+                    const isVid = /\.(mp4|webm|mov)/i.test(src);
+                    return isVid
+                        ? `<video class="media-grid-item" src="${_snxEsc(src)}" onclick="snxOpenMediaViewer('${_snxEsc(src)}','video')" muted playsinline></video>`
+                        : `<img class="media-grid-item" src="${_snxEsc(src)}" loading="lazy" onclick="snxOpenMediaViewer('${_snxEsc(src)}','image')">`;
+                }).join('') + '</div>';
+            }
+        } catch(e) { console.warn('[SNX Search]', e); }
+    };
+})(window.runSearch);
+
+function _snxEsc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   3. @ MENTION AUTOCOMPLETE — comment inputs + DM input
+   ───────────────────────────────────────────────────────────────────────── */
+(function _initMentionAutocomplete() {
+    let _mentionDropdown = null;
+    let _mentionInput = null;
+    let _mentionStart = -1;
+    let _mentionSelected = 0;
+    let _mentionItems = [];
+
+    function _getDropdown() {
+        if (!_mentionDropdown) {
+            _mentionDropdown = document.createElement('div');
+            _mentionDropdown.className = 'mention-dropdown';
+            _mentionDropdown.style.display = 'none';
+            document.body.appendChild(_mentionDropdown);
+        }
+        return _mentionDropdown;
+    }
+
+    async function _fetchMentionCandidates(query) {
+        const cu = _cu();
+        if (!cu) return [];
+        const { collection, getDocs } = _fs();
+        if (!collection) return [];
+        try {
+            const snap = await getDocs(collection(_db(),'users'));
+            const q = query.toLowerCase();
+            const results = [];
+            snap.forEach(d => {
+                if (d.id === cu.uid) return;
+                const u = d.data();
+                const name = (u.displayName||'').toLowerCase();
+                const handle = (u.username||u.handle||'').toLowerCase();
+                if (name.startsWith(q) || handle.startsWith(q)) {
+                    results.push({ uid:d.id, displayName:u.displayName||'User', handle:u.username||u.handle||'', avatar:u.avatar||'' });
+                }
+            });
+            return results.slice(0,8);
+        } catch(e) { return []; }
+    }
+
+    function _showDropdown(input, items, anchorIdx) {
+        const dd = _getDropdown();
+        if (!items.length) { dd.style.display='none'; return; }
+        _mentionItems = items;
+        _mentionSelected = 0;
+
+        dd.innerHTML = items.map((u,i) => {
+            const avatarStyle = u.avatar ? `background-image:url('${u.avatar}');background-size:cover;` : '';
+            const initials = (u.displayName||'?')[0].toUpperCase();
+            return `<div class="mention-dropdown-item${i===0?' active':''}" data-idx="${i}" data-handle="${_snxEsc(u.handle||u.displayName)}">
+                <div class="mention-dropdown-avatar" style="${avatarStyle}">${u.avatar?'':initials}</div>
+                <div><div class="mention-dropdown-name">${_snxEsc(u.displayName)}</div>
+                     <div class="mention-dropdown-handle">${u.handle?'@'+_snxEsc(u.handle):''}</div></div>
+            </div>`;
+        }).join('');
+
+        // Position below the input
+        const rect = input.getBoundingClientRect();
+        dd.style.display = 'block';
+        dd.style.position = 'fixed';
+        dd.style.left = Math.min(rect.left, window.innerWidth - 240) + 'px';
+        dd.style.top  = (rect.bottom + 4) + 'px';
+        dd.style.zIndex = '9100';
+
+        dd.onclick = (e) => {
+            const item = e.target.closest('.mention-dropdown-item');
+            if (!item) return;
+            _insertMention(input, anchorIdx, item.dataset.handle);
+        };
+    }
+
+    function _hideDropdown() {
+        if (_mentionDropdown) _mentionDropdown.style.display = 'none';
+        _mentionItems = [];
+    }
+
+    function _insertMention(input, atIdx, handle) {
+        const val = input.value || input.innerText || '';
+        const before = val.slice(0, atIdx);
+        const after  = val.slice(input.selectionEnd || (atIdx + 1));
+        const inserted = before + '@' + handle + ' ' + after;
+        if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') {
+            input.value = inserted;
+            const pos = before.length + handle.length + 2;
+            input.setSelectionRange(pos, pos);
+        } else {
+            input.innerText = inserted;
+        }
+        _hideDropdown();
+        input.focus();
+    }
+
+    // Attach to an input element
+    function _attachMention(input) {
+        if (!input || input._mentionAttached) return;
+        input._mentionAttached = true;
+
+        let _debounceTimer;
+        input.addEventListener('input', () => {
+            clearTimeout(_debounceTimer);
+            const val = input.value || '';
+            const pos = input.selectionStart;
+            // Find @ before cursor
+            const before = val.slice(0, pos);
+            const match  = before.match(/@([\w]*)$/);
+            if (!match) { _hideDropdown(); return; }
+            const searchStr = match[1];
+            const atIdx = pos - match[0].length;
+            _mentionInput = input;
+            _mentionStart = atIdx;
+            if (searchStr.length === 0) { _hideDropdown(); return; }
+            _debounceTimer = setTimeout(async () => {
+                const items = await _fetchMentionCandidates(searchStr);
+                _showDropdown(input, items, atIdx);
+            }, 200);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (!_mentionDropdown || _mentionDropdown.style.display === 'none') return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); _selectItem(1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); _selectItem(-1); }
+            else if (e.key === 'Enter' || e.key === 'Tab') {
+                const active = _mentionDropdown.querySelector('.mention-dropdown-item.active');
+                if (active) { e.preventDefault(); active.click(); }
+            }
+            else if (e.key === 'Escape') _hideDropdown();
+        });
+
+        input.addEventListener('blur', () => { setTimeout(_hideDropdown, 200); });
+    }
+
+    function _selectItem(dir) {
+        const items = _mentionDropdown.querySelectorAll('.mention-dropdown-item');
+        if (!items.length) return;
+        items[_mentionSelected]?.classList.remove('active');
+        _mentionSelected = Math.max(0, Math.min(_mentionSelected + dir, items.length - 1));
+        items[_mentionSelected]?.classList.add('active');
+        items[_mentionSelected]?.scrollIntoView({ block:'nearest' });
+    }
+
+    // Attach to the main DM input + dynamically to comment inputs
+    function _tryAttach() {
+        const ipcInput = document.getElementById('ipcModalInput');
+        if (ipcInput) _attachMention(ipcInput);
+    }
+    document.addEventListener('DOMContentLoaded', _tryAttach);
+    setTimeout(_tryAttach, 2000);
+
+    // Expose so comment rows can call it
+    window.snxAttachMentionToInput = _attachMention;
+
+    // Delegate: attach to any .comment-input-row input that gains focus
+    document.addEventListener('focusin', (e) => {
+        const inp = e.target;
+        if (inp && (inp.tagName === 'INPUT' || inp.tagName === 'TEXTAREA')) {
+            const isComment = inp.closest('.comment-input-row, .comment-reply-input-row, .snx-pwall-comment-input-row');
+            if (isComment) _attachMention(inp);
+        }
+    }, true);
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   4. PIN CONVERSATIONS — per-user pinned list stored in Firestore
+   ───────────────────────────────────────────────────────────────────────── */
+window.snxPinConversation = async function(uid, el) {
+    const cu = _cu(); if (!cu) return;
+    const { doc, getDoc, updateDoc } = _fs();
+    if (!doc) return;
+    try {
+        const snap = await getDoc(doc(_db(),'users',cu.uid));
+        const pinned = snap.exists() ? (snap.data().pinnedConvs||[]) : [];
+        let newPinned;
+        if (pinned.includes(uid)) {
+            newPinned = pinned.filter(p => p !== uid);
+            _toast('📌 Conversation unpinned.');
+        } else {
+            newPinned = [uid, ...pinned.filter(p=>p!==uid)];
+            _toast('📌 Conversation pinned!');
+        }
+        await updateDoc(doc(_db(),'users',cu.uid), { pinnedConvs: newPinned });
+        // Patch UI immediately
+        if (el) { el.classList.toggle('pinned', newPinned.includes(uid)); }
+        // Re-render inbox if visible
+        if (typeof window.renderInboxPage === 'function') window.renderInboxPage();
+    } catch(e) { _toast('❌ Could not pin conversation.'); }
+};
+
+// Patch _renderInboxList to show pinned convs first + pin buttons
+(function _patchInboxPins() {
+    const _origRenderInbox = window.renderInboxPage;
+    window.renderInboxPage = function() {
+        if (typeof _origRenderInbox === 'function') _origRenderInbox();
+        // After render, inject pin buttons
+        setTimeout(_injectPinButtons, 80);
+    };
+
+    function _injectPinButtons() {
+        const cu = _cu(); if (!cu) return;
+        const { doc, getDoc } = _fs(); if (!doc) return;
+        getDoc(doc(_db(),'users',cu.uid)).then(snap => {
+            const pinned = snap.exists() ? (snap.data().pinnedConvs||[]) : [];
+            document.querySelectorAll('#inboxConvList .inbox-conv-card[data-uid]').forEach(card => {
+                if (card.querySelector('.inbox-conv-pin-btn')) return; // already injected
+                const uid = card.dataset.uid;
+                const isPinned = pinned.includes(uid);
+                if (isPinned) card.classList.add('pinned-conv');
+                const btn = document.createElement('button');
+                btn.className = 'inbox-conv-pin-btn' + (isPinned ? ' pinned' : '');
+                btn.title = isPinned ? 'Unpin conversation' : 'Pin conversation';
+                btn.textContent = '📌';
+                btn.onclick = (e) => { e.stopPropagation(); snxPinConversation(uid, btn); };
+                const meta = card.querySelector('.inbox-conv-meta');
+                if (meta) meta.prepend(btn);
+            });
+            // Sort: pinned first
+            const list = document.getElementById('inboxConvList');
+            if (!list) return;
+            const cards = Array.from(list.querySelectorAll('.inbox-conv-card[data-uid]'));
+            const pinFirst = [
+                ...cards.filter(c => pinned.includes(c.dataset.uid)),
+                ...cards.filter(c => !pinned.includes(c.dataset.uid))
+            ];
+            pinFirst.forEach(c => list.appendChild(c));
+            // Add "Pinned" strip if needed
+            if (pinFirst.some(c => pinned.includes(c.dataset.uid))) {
+                if (!list.querySelector('.inbox-pinned-strip')) {
+                    const strip = document.createElement('div');
+                    strip.className = 'inbox-pinned-strip';
+                    strip.innerHTML = '📌 Pinned';
+                    list.insertBefore(strip, list.firstChild);
+                }
+            }
+        }).catch(()=>{});
+    }
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   5. GROUP CHATS BACKEND — open group thread in ipcModal
+   ───────────────────────────────────────────────────────────────────────── */
+// Patch snxCreateGroupChat to also render the group in the inbox
+(function _patchGroupChats() {
+    const _orig = window.snxCreateGroupChat;
+    window.snxCreateGroupChat = async function() {
+        await (_orig && _orig());
+        // Reload inbox so the new group appears
+        setTimeout(() => {
+            if (typeof window.renderInboxPage === 'function') window.renderInboxPage();
+        }, 600);
+    };
+
+    // Expose group chat opener — opens ipcModal pointing at the group doc
+    window.snxOpenGroupChat = function(groupId, groupName) {
+        const modal = document.getElementById('ipcModal');
+        if (!modal) return;
+        // Set state for group
+        window._m_tgtUid = null;
+        window._m_chId   = 'group_' + groupId;
+        window._ipcIsGroup   = true;
+        window._ipcGroupId   = groupId;
+        window._ipcGroupName = groupName;
+
+        // Update header
+        const nameEl = document.getElementById('ipcModalName');
+        const subEl  = document.getElementById('ipcModalSub');
+        const avatarEl = document.getElementById('ipcModalAvatar');
+        if (nameEl) nameEl.textContent = groupName || 'Group Chat';
+        if (subEl)  subEl.textContent  = 'Group · tap to see members';
+        if (avatarEl) { avatarEl.style.backgroundImage=''; avatarEl.textContent='👥'; }
+
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        _loadGroupMessages(groupId);
+    };
+
+    function _loadGroupMessages(groupId) {
+        const { collection, onSnapshot, query, orderBy, limit, addDoc, serverTimestamp } = _fs();
+        const msgBox = document.getElementById('ipcModalMessages');
+        if (!collection || !msgBox) return;
+
+        msgBox.innerHTML = '<div class="ipc-modal-loading"><div class="ipc-ldot"></div><div class="ipc-ldot"></div><div class="ipc-ldot"></div><span>Loading group…</span></div>';
+
+        if (window._snxGroupMsgUnsub) { window._snxGroupMsgUnsub(); window._snxGroupMsgUnsub = null; }
+
+        const msgsRef = query(
+            collection(_db(),'groupChats',groupId,'messages'),
+            orderBy('ts','desc'), limit(60)
+        );
+        window._snxGroupMsgUnsub = onSnapshot(msgsRef, snap => {
+            const msgs = [];
+            snap.forEach(d => msgs.unshift({id:d.id,...d.data()}));
+            _renderGroupMessages(msgs, msgBox);
+        }, err => {
+            msgBox.innerHTML = '<div class="ipc-modal-empty"><div class="ipc-modal-empty-icon">⚠️</div><div class="ipc-modal-empty-text">Could not load group messages.</div></div>';
+        });
+
+        // Wire send button
+        const sendBtn = document.getElementById('ipcModalSendBtn');
+        const inp     = document.getElementById('ipcModalInput');
+        if (inp) { inp.placeholder = 'Message group…'; inp.disabled = false; }
+        if (sendBtn) {
+            // Clone to remove existing listeners, then re-add group-specific one
+            const newBtn = sendBtn.cloneNode(true);
+            sendBtn.parentNode.replaceChild(newBtn, newBtn); // no-op for structure, wired below
+            newBtn.onclick = () => _sendGroupMessage(groupId, inp, newBtn);
+            inp && inp.addEventListener('keydown', function _gkd(e) {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _sendGroupMessage(groupId, inp, newBtn); }
+                if (!window._ipcIsGroup) inp.removeEventListener('keydown', _gkd);
+            });
+        }
+    }
+
+    function _renderGroupMessages(msgs, box) {
+        const cu = _cu();
+        if (!msgs.length) {
+            box.innerHTML = '<div class="ipc-modal-empty"><div class="ipc-modal-empty-icon">👥</div><div class="ipc-modal-empty-text">No messages yet. Say hello!</div></div>';
+            return;
+        }
+        box.innerHTML = '';
+        msgs.forEach(m => {
+            const isMe = cu && m.senderId === cu.uid;
+            const wrap = document.createElement('div');
+            wrap.className = 'ipc-modal-bwrap ' + (isMe ? 'me' : 'them');
+            if (!isMe) {
+                const sender = document.createElement('div');
+                sender.className = 'ipc-modal-sender';
+                sender.textContent = m.senderName || 'Member';
+                wrap.appendChild(sender);
+            }
+            const bubble = document.createElement('div');
+            bubble.className = 'ipc-modal-bubble';
+            if (m.gif) {
+                bubble.innerHTML = `<img src="${_snxEsc(m.gif)}" style="max-width:200px;border-radius:8px;" alt="GIF">`;
+            } else if (m.sticker) {
+                bubble.innerHTML = `<span style="font-size:36px;">${m.sticker}</span>`;
+            } else {
+                bubble.textContent = m.text || '';
+            }
+            wrap.appendChild(bubble);
+            const meta = document.createElement('div');
+            meta.className = 'ipc-modal-meta';
+            meta.innerHTML = `<span class="ipc-modal-ts">${_snxTimeAgoLocal(m.ts)}</span>`;
+            wrap.appendChild(meta);
+            box.appendChild(wrap);
+        });
+        box.scrollTop = box.scrollHeight;
+    }
+
+    async function _sendGroupMessage(groupId, inp, btn) {
+        const cu = _cu(); if (!cu || !inp) return;
+        const text = (inp.value || '').trim();
+        if (!text) return;
+        const { collection, addDoc } = _fs(); if (!collection) return;
+        inp.value = ''; inp.style.height = '';
+        if (btn) btn.disabled = true;
+        try {
+            await addDoc(collection(_db(),'groupChats',groupId,'messages'), {
+                text, senderId:cu.uid,
+                senderName: window.userData?.displayName || cu.email || 'Member',
+                ts: Date.now()
+            });
+            // Update lastMsgTs
+            const { doc, updateDoc } = _fs();
+            if (doc) updateDoc(doc(_db(),'groupChats',groupId), { lastMsgTs: Date.now(), lastMsg: text }).catch(()=>{});
+        } catch(e) { inp.value = text; _toast('❌ Could not send.'); }
+        finally { if (btn) btn.disabled = false; inp.focus(); }
+    }
+})();
+
+// Add group chats to inbox rendering
+(function _injectGroupConvs() {
+    const _origRender = window.renderInboxPage;
+    window.renderInboxPage = async function() {
+        if (typeof _origRender === 'function') _origRender();
+        const cu = _cu(); if (!cu) return;
+        const { collection, query, getDocs, where } = _fs(); if (!collection) return;
+        try {
+            const snap = await getDocs(query(collection(_db(),'groupChats'), where('members','array-contains',cu.uid)));
+            if (snap.empty) return;
+            const convList = document.getElementById('inboxConvList');
+            if (!convList) return;
+            snap.forEach(d => {
+                const g = d.data();
+                const gid = d.id;
+                if (convList.querySelector(`[data-group-id="${gid}"]`)) return;
+                const card = document.createElement('div');
+                card.className = 'inbox-conv-card is-group';
+                card.dataset.groupId = gid;
+                card.onclick = () => window.snxOpenGroupChat(gid, g.name);
+                card.innerHTML = `
+                    <div class="inbox-conv-avatar-wrap">
+                        <div class="inbox-conv-avatar" style="display:flex;align-items:center;justify-content:center;font-size:22px;">👥</div>
+                    </div>
+                    <div class="inbox-conv-body">
+                        <div class="inbox-conv-name">${_snxEsc(g.name||'Group Chat')}</div>
+                        <div class="inbox-conv-preview">${_snxEsc(g.lastMsg||'Tap to open group chat')}</div>
+                    </div>
+                    <div class="inbox-conv-meta">
+                        <div class="inbox-conv-time">${g.lastMsgTs ? _snxTimeAgoLocal(g.lastMsgTs) : ''}</div>
+                    </div>`;
+                convList.insertBefore(card, convList.firstChild);
+            });
+        } catch(e) { /* non-critical */ }
+    };
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   6 & 7. VOICE + VIDEO MESSAGES — MediaRecorder in DM footer
+   ───────────────────────────────────────────────────────────────────────── */
+(function _initVoiceVideo() {
+    let _recorder = null;
+    let _chunks   = [];
+    let _timerInterval = null;
+    let _recSeconds = 0;
+    let _recContext = null; // 'ipc'
+
+    window.snxToggleVoiceRecord = async function(context) {
+        _recContext = context;
+        if (_recorder && _recorder.state === 'recording') {
+            _stopRecording();
+        } else {
+            await _startRecording('audio');
+        }
+    };
+
+    window.snxToggleVideoRecord = async function(context) {
+        _recContext = context;
+        if (_recorder && _recorder.state === 'recording') {
+            _stopRecording();
+        } else {
+            await _startRecording('video');
+        }
+    };
+
+    async function _startRecording(mode) {
+        try {
+            const constraints = mode === 'video'
+                ? { audio:true, video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} } }
+                : { audio:true };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            const mimeType = mode === 'video'
+                ? (MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm')
+                : (MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/ogg');
+            _recorder = new MediaRecorder(stream, { mimeType });
+            _chunks = [];
+            _recorder.ondataavailable = e => { if (e.data.size > 0) _chunks.push(e.data); };
+            _recorder.onstop = () => {
+                stream.getTracks().forEach(t => t.stop());
+                const blob = new Blob(_chunks, { type: mimeType });
+                _onRecordingComplete(blob, mode);
+                _chunks = [];
+            };
+            _recorder.start();
+            _recSeconds = 0;
+            _showRecordingUI(mode);
+            _timerInterval = setInterval(() => {
+                _recSeconds++;
+                const el = document.querySelector('.snx-voice-timer');
+                if (el) el.textContent = _fmtTime(_recSeconds);
+                if (_recSeconds >= 120) _stopRecording(); // max 2 min
+            }, 1000);
+        } catch(e) {
+            _toast('🎙️ Microphone access denied. Please allow mic in browser settings.');
+        }
+    }
+
+    function _stopRecording() {
+        clearInterval(_timerInterval);
+        if (_recorder && _recorder.state !== 'inactive') _recorder.stop();
+        _hideRecordingUI();
+    }
+
+    function _showRecordingUI(mode) {
+        const footer = document.querySelector('#ipcModal .ipc-modal-footer');
+        if (!footer) return;
+        const wrap = footer.querySelector('.ipc-modal-input-wrap');
+        if (wrap) {
+            wrap._savedDisplay = wrap.style.display;
+            wrap.style.display = 'none';
+        }
+        const existing = footer.querySelector('.snx-voice-recording');
+        if (!existing) {
+            const recEl = document.createElement('div');
+            recEl.className = 'snx-voice-recording';
+            recEl.innerHTML = `<span class="snx-voice-dot"></span>
+                <span>${mode==='video'?'📹':'🎙️'} Recording…</span>
+                <span class="snx-voice-timer">0:00</span>
+                <span style="margin-left:auto;font-size:11px;color:#9bbdd8;">Tap 🎙️ to stop</span>`;
+            footer.insertBefore(recEl, footer.querySelector('.ipc-modal-send'));
+        }
+        const voiceBtn = document.getElementById('ipcVoiceBtn');
+        if (voiceBtn) { voiceBtn.style.color = '#ff3344'; }
+    }
+
+    function _hideRecordingUI() {
+        const footer = document.querySelector('#ipcModal .ipc-modal-footer');
+        if (footer) {
+            const rec = footer.querySelector('.snx-voice-recording');
+            if (rec) rec.remove();
+            const wrap = footer.querySelector('.ipc-modal-input-wrap');
+            if (wrap && wrap._savedDisplay !== undefined) wrap.style.display = wrap._savedDisplay || '';
+        }
+        const voiceBtn = document.getElementById('ipcVoiceBtn');
+        if (voiceBtn) { voiceBtn.style.color = ''; }
+    }
+
+    async function _onRecordingComplete(blob, mode) {
+        const cu = _cu(); if (!cu) return;
+        const isVid = mode === 'video';
+        _toast(`⏳ Uploading ${isVid?'video':'voice'} message…`);
+        try {
+            // Use the existing R2 upload worker
+            const ext = isVid ? 'webm' : 'webm';
+            const fname = `voice_${cu.uid}_${Date.now()}.${ext}`;
+            const formData = new FormData();
+            formData.append('file', blob, fname);
+            formData.append('uid', cu.uid);
+            const workerUrl = window.SNX_R2_WORKER || 'https://yellow-term-11e6.nthntjrn.workers.dev';
+            const res = await fetch(workerUrl + '/upload', { method:'POST', body: formData });
+            if (!res.ok) throw new Error('Upload failed: ' + res.status);
+            const { url } = await res.json();
+
+            // Send as a message via ipcModal's existing send mechanism
+            const msgData = {
+                type: isVid ? 'video' : 'audio',
+                mediaUrl: url,
+                text: isVid ? '🎬 Video message' : '🎙️ Voice message',
+            };
+            // Inject into chat via window.snxSendMediaMsg if available, else directly to Firestore
+            if (typeof window.snxSendMediaMsg === 'function') {
+                window.snxSendMediaMsg(msgData);
+            } else if (window._m_chId) {
+                const { collection, addDoc } = _fs();
+                if (collection) {
+                    await addDoc(collection(_db(),'chats',window._m_chId,'messages'), {
+                        ...msgData,
+                        senderId: cu.uid,
+                        senderName: window.userData?.displayName || '',
+                        timestamp: Date.now(),
+                        read: false
+                    });
+                }
+            }
+            _toast(`✅ ${isVid?'Video':'Voice'} message sent!`);
+        } catch(e) {
+            console.warn('[SNX Voice]', e);
+            _toast(`❌ Could not send ${isVid?'video':'voice'} message. ${e.message}`);
+        }
+    }
+
+    function _fmtTime(s) {
+        const m = Math.floor(s/60), sec = s%60;
+        return m + ':' + (sec<10?'0':'') + sec;
+    }
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   8. GIF PICKER — Tenor public API (no API key required for basic use)
+   ───────────────────────────────────────────────────────────────────────── */
+(function _initGifPicker() {
+    const TENOR_KEY = 'AIzaSyAyimkuYQYF_FXVALexPzpAknpCuqwFHYY'; // public demo key
+    let _gifContext = 'ipc'; // which context opened the picker
+    let _gifDebounce;
+
+    window.snxOpenGifPicker = function(context) {
+        _gifContext = context || 'ipc';
+        const modal = document.getElementById('snxGifModal');
+        if (!modal) return;
+        modal.style.display = 'flex';
+        const search = document.getElementById('snxGifSearch');
+        if (search) { search.value = ''; search.focus(); }
+        snxSearchGifs(''); // load trending
+    };
+
+    window.snxCloseGifPicker = function() {
+        const modal = document.getElementById('snxGifModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.snxSearchGifs = function(term) {
+        clearTimeout(_gifDebounce);
+        _gifDebounce = setTimeout(() => _doSearch(term), 300);
+    };
+
+    async function _doSearch(term) {
+        const grid = document.getElementById('snxGifGrid');
+        if (!grid) return;
+        grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:20px;grid-column:1/-1;">Loading GIFs…</div>';
+        const endpoint = term
+            ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(term)}&key=${TENOR_KEY}&limit=20&media_filter=gif`
+            : `https://tenor.googleapis.com/v2/featured?key=${TENOR_KEY}&limit=20&media_filter=gif`;
+        try {
+            const res = await fetch(endpoint);
+            if (!res.ok) throw new Error('Tenor API error');
+            const data = await res.json();
+            const results = data.results || [];
+            if (!results.length) { grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:20px;grid-column:1/-1;">No GIFs found.</div>'; return; }
+            grid.innerHTML = '';
+            results.forEach(gif => {
+                const url = gif.media_formats?.gif?.url || gif.media_formats?.tinygif?.url || '';
+                const preview = gif.media_formats?.tinygif?.url || gif.media_formats?.gif?.url || '';
+                if (!url) return;
+                const img = document.createElement('img');
+                img.src = preview;
+                img.style.cssText = 'width:100%;border-radius:8px;cursor:pointer;object-fit:cover;aspect-ratio:1/1;transition:transform .15s;';
+                img.title = gif.title || 'GIF';
+                img.loading = 'lazy';
+                img.onmouseover = () => img.style.transform = 'scale(1.04)';
+                img.onmouseout  = () => img.style.transform = '';
+                img.onclick     = () => _selectGif(url, gif.title || 'GIF');
+                grid.appendChild(img);
+            });
+        } catch(e) {
+            grid.innerHTML = '<div style="color:#ff5577;font-size:13px;text-align:center;padding:20px;grid-column:1/-1;">Could not load GIFs. Check your connection.</div>';
+        }
+    }
+
+    async function _selectGif(url, title) {
+        window.snxCloseGifPicker();
+        const cu = _cu(); if (!cu) return;
+        _toast('📤 Sending GIF…');
+        try {
+            if (_gifContext === 'ipc' && window._m_chId) {
+                const { collection, addDoc } = _fs(); if (!collection) return;
+                const isGroup = window._ipcIsGroup && window._ipcGroupId;
+                const path = isGroup
+                    ? collection(_db(),'groupChats',window._ipcGroupId,'messages')
+                    : collection(_db(),'chats',window._m_chId,'messages');
+                await addDoc(path, {
+                    type: 'gif', gif: url, text: title,
+                    senderId: cu.uid,
+                    senderName: window.userData?.displayName || '',
+                    timestamp: Date.now(), read: false
+                });
+            }
+            // Could also hook into comment context here
+        } catch(e) { _toast('❌ Could not send GIF.'); }
+    }
+
+    // Close on backdrop click
+    document.addEventListener('click', e => {
+        const modal = document.getElementById('snxGifModal');
+        if (modal && e.target === modal) window.snxCloseGifPicker();
+    });
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   9. PROFILE MUSIC — audio URL + animated mini-player
+   ───────────────────────────────────────────────────────────────────────── */
+(function _initProfileMusic() {
+    // Render the music player on any profile view that has profileMusicUrl set
+    window.snxRenderProfileMusic = function(userData, container) {
+        if (!userData || !userData.profileMusicUrl) return;
+        if (!container) return;
+        if (container.querySelector('.profile-music-player')) return; // already rendered
+        const title = userData.profileMusicTitle || '🎵 Profile Track';
+        const player = document.createElement('div');
+        player.className = 'profile-music-player';
+        player.innerHTML = `
+            <div class="profile-music-icon"><span class="profile-music-note">🎵</span></div>
+            <div class="profile-music-info">
+                <div class="profile-music-title">${_snxEsc(title)}</div>
+                <div class="profile-music-sub">Profile Music</div>
+                <audio class="profile-music-audio" controls src="${_snxEsc(userData.profileMusicUrl)}" preload="none">
+                    Your browser does not support audio.
+                </audio>
+            </div>`;
+        container.appendChild(player);
+    };
+
+    // Hook into edit profile saving — add music URL field
+    // (The edit modal already has tab panels; we inject into the 'Profile' tab)
+    function _injectMusicField() {
+        // Find the edit modal's identity/profile tab panel
+        const panels = document.querySelectorAll('.epm-panel');
+        let targetPanel = null;
+        panels.forEach(p => {
+            if (p.querySelector('#editBio') || p.querySelector('[id*="Bio"]') || p.querySelector('[id*="bio"]')) targetPanel = p;
+        });
+        if (!targetPanel) return;
+        if (targetPanel.querySelector('#editProfileMusicUrl')) return; // already injected
+        const wrap = document.createElement('div');
+        wrap.innerHTML = `
+            <label style="font-size:12px;color:#4a7a9a;display:block;margin:12px 0 3px;">🎵 Profile Music URL (MP3 / OGG)</label>
+            <input id="editProfileMusicUrl" placeholder="https://…/track.mp3" style="margin:0;width:100%;">
+            <label style="font-size:12px;color:#4a7a9a;display:block;margin:8px 0 3px;">Track Title (optional)</label>
+            <input id="editProfileMusicTitle" placeholder="e.g. My Anthem" style="margin:0;width:100%;">`;
+        targetPanel.appendChild(wrap);
+    }
+    setTimeout(_injectMusicField, 2000);
+
+    // Patch saveProfile to include music fields
+    const _origSave = window.saveProfile;
+    window.saveProfile = async function() {
+        // Save extra music fields if present
+        const musicUrlEl    = document.getElementById('editProfileMusicUrl');
+        const musicTitleEl  = document.getElementById('editProfileMusicTitle');
+        if (musicUrlEl && musicTitleEl) {
+            const cu = _cu();
+            if (cu) {
+                const { doc, updateDoc } = _fs();
+                if (doc) {
+                    updateDoc(doc(_db(),'users',cu.uid), {
+                        profileMusicUrl:   musicUrlEl.value.trim(),
+                        profileMusicTitle: musicTitleEl.value.trim()
+                    }).catch(()=>{});
+                }
+            }
+        }
+        if (typeof _origSave === 'function') return _origSave(...arguments);
+    };
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   10. HOLIDAY PARTICLE EFFECTS — canvas per seasonal theme
+   ───────────────────────────────────────────────────────────────────────── */
+(function _initHolidayParticles() {
+    let _holidayRaf = null;
+    let _holidayCtx = null;
+    let _particles  = [];
+    let _currentTheme = null;
+
+    function _startParticles(theme) {
+        const canvas = document.getElementById('snxHolidayCanvas');
+        if (!canvas) return;
+        _stopParticles();
+        _currentTheme = theme;
+        canvas.style.display = '';
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
+        _holidayCtx = canvas.getContext('2d');
+        _particles  = [];
+        for (let i = 0; i < _particleCount(theme); i++) _spawnParticle(theme, true);
+        requestAnimationFrame(function tick() {
+            if (_currentTheme !== theme) return;
+            if (document.hidden) { _holidayRaf = requestAnimationFrame(tick); return; }
+            _tick(theme);
+            _holidayRaf = requestAnimationFrame(tick);
+        });
+        setTimeout(() => canvas.classList.add('active'), 50);
+    }
+
+    function _stopParticles() {
+        if (_holidayRaf) { cancelAnimationFrame(_holidayRaf); _holidayRaf = null; }
+        _particles = [];
+        _currentTheme = null;
+        const canvas = document.getElementById('snxHolidayCanvas');
+        if (canvas) {
+            canvas.classList.remove('active');
+            setTimeout(() => { canvas.style.display = 'none'; if (_holidayCtx) _holidayCtx.clearRect(0,0,canvas.width,canvas.height); }, 500);
+        }
+    }
+
+    function _particleCount(theme) {
+        const base = window.innerWidth < 600 ? 30 : 60;
+        if (theme === 'halloween') return Math.floor(base * 0.5);
+        return base;
+    }
+
+    function _spawnParticle(theme, randomY) {
+        const p = {
+            x:    Math.random() * window.innerWidth,
+            y:    randomY ? Math.random() * window.innerHeight : -20,
+            size: 8 + Math.random() * 14,
+            speed:  0.5 + Math.random() * 1.5,
+            drift:  (Math.random() - 0.5) * 1.2,
+            opacity: 0.5 + Math.random() * 0.5,
+            rotation: Math.random() * 360,
+            rotSpeed: (Math.random() - 0.5) * 2,
+            char: _themeChar(theme)
+        };
+        _particles.push(p);
+        return p;
+    }
+
+    function _themeChar(theme) {
+        if (theme === 'winter')    return ['❄','❅','❆','✻','✼'][Math.floor(Math.random()*5)];
+        if (theme === 'autumn')    return ['🍂','🍁','🍃','🌿'][Math.floor(Math.random()*4)];
+        if (theme === 'halloween') return ['🦇','🕷','🕸','💀','🎃'][Math.floor(Math.random()*5)];
+        if (theme === 'christmas') return ['❄','⭐','🎄','🎁','✨'][Math.floor(Math.random()*5)];
+        return '✨';
+    }
+
+    function _tick(theme) {
+        const canvas = document.getElementById('snxHolidayCanvas');
+        if (!canvas || !_holidayCtx) return;
+        if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        }
+        _holidayCtx.clearRect(0,0,canvas.width,canvas.height);
+        _particles.forEach((p, i) => {
+            p.y        += p.speed;
+            p.x        += p.drift;
+            p.rotation += p.rotSpeed;
+            if (p.y > window.innerHeight + 30) {
+                // Reset to top
+                _particles[i] = _spawnParticle(theme, false);
+                return;
+            }
+            _holidayCtx.save();
+            _holidayCtx.globalAlpha = p.opacity;
+            _holidayCtx.font = p.size + 'px serif';
+            _holidayCtx.translate(p.x, p.y);
+            _holidayCtx.rotate(p.rotation * Math.PI / 180);
+            _holidayCtx.fillText(p.char, 0, 0);
+            _holidayCtx.restore();
+        });
+    }
+
+    // Hook into snxApplyTheme
+    const _origApplyTheme = window.snxApplyTheme;
+    window.snxApplyTheme = function(theme) {
+        if (typeof _origApplyTheme === 'function') _origApplyTheme(theme);
+        const activeThemes = ['winter','autumn','halloween','christmas'];
+        if (activeThemes.includes(theme)) {
+            _startParticles(theme);
+        } else {
+            _stopParticles();
+        }
+    };
+
+    // Start on page load if a theme is already active
+    setTimeout(() => {
+        const body = document.body;
+        for (const t of ['winter','autumn','halloween','christmas']) {
+            if (body.classList.contains('theme-'+t)) { _startParticles(t); break; }
+        }
+    }, 1500);
+
+    // Handle resize
+    window.addEventListener('resize', () => {
+        const canvas = document.getElementById('snxHolidayCanvas');
+        if (canvas && canvas.style.display !== 'none') {
+            canvas.width  = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+    });
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   11. ANIMATED PROFILE BANNERS — video/GIF banner support
+   ───────────────────────────────────────────────────────────────────────── */
+(function _initAnimatedBanners() {
+    // Patch renderProfile to support video banners
+    window.snxApplyAnimatedBanner = function(bannerUrl, coverEl) {
+        if (!bannerUrl || !coverEl) return;
+        const isVideo = /\.(mp4|webm|mov|ogg)(\?|$)/i.test(bannerUrl);
+        if (isVideo) {
+            // Remove any existing video
+            const old = coverEl.querySelector('video.animated-banner');
+            if (old) old.remove();
+            const vid = document.createElement('video');
+            vid.className = 'animated-banner';
+            vid.src = bannerUrl;
+            vid.autoplay = true; vid.loop = true; vid.muted = true; vid.playsInline = true;
+            coverEl.prepend(vid);
+            coverEl.style.backgroundImage = ''; // hide static fallback
+        } else {
+            // GIF or image
+            coverEl.style.backgroundImage = `url('${bannerUrl}')`;
+            const old = coverEl.querySelector('video.animated-banner');
+            if (old) old.remove();
+        }
+    };
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   12. CUSTOM REACTIONS — user-configurable reaction set (stored in Firestore)
+   ───────────────────────────────────────────────────────────────────────── */
+(function _initCustomReactions() {
+    const DEFAULT_REACTIONS = ['❤️','👍','😂','😮','😢','😡','🔥','💙','👑','🫶'];
+    const ALL_REACTIONS = [
+        '❤️','💔','👍','👎','😂','😮','😢','😡','🔥','💙','💚','💛','💜','🖤',
+        '👑','🫶','💯','✨','🎉','🙏','💀','😈','🤯','🥰','😎','🤝','💪','👀',
+        '🌙','⚡','🎮','🛸','🦋','🎵','💎','🚀'
+    ];
+    let _userReactions = null;
+
+    async function _loadReactions() {
+        if (_userReactions) return _userReactions;
+        const cu = _cu(); if (!cu) return DEFAULT_REACTIONS;
+        const { doc, getDoc } = _fs(); if (!doc) return DEFAULT_REACTIONS;
+        try {
+            const snap = await getDoc(doc(_db(),'users',cu.uid));
+            _userReactions = snap.exists() ? (snap.data().customReactions || DEFAULT_REACTIONS) : DEFAULT_REACTIONS;
+        } catch(e) { _userReactions = DEFAULT_REACTIONS; }
+        return _userReactions;
+    }
+
+    window.snxGetCustomReactions = async function() { return _loadReactions(); };
+
+    window.snxOpenCustomReactModal = function() {
+        let modal = document.getElementById('snxCustomReactModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'snxCustomReactModal';
+            modal.className = 'snx-custom-react-modal';
+            modal.innerHTML = `
+                <div class="snx-custom-react-inner">
+                    <h3>⚡ Customize Your Reactions</h3>
+                    <p style="font-size:12px;color:#6a90b8;margin:0 0 10px;">Choose up to 10 emojis for your quick-react bar.</p>
+                    <div id="snxCrGrid" class="snx-custom-react-grid"></div>
+                    <div style="display:flex;gap:8px;margin-top:14px;">
+                        <button onclick="snxSaveCustomReactions()" style="flex:1;padding:10px;border-radius:10px;background:linear-gradient(135deg,#003d99,#0077dd);border-color:rgba(0,174,239,0.65);color:#fff;font-weight:700;font-size:13px;">✅ Save</button>
+                        <button onclick="document.getElementById('snxCustomReactModal').classList.remove('open')" style="padding:10px 16px;border-radius:10px;font-size:13px;">Cancel</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+        }
+
+        _loadReactions().then(current => {
+            const grid = document.getElementById('snxCrGrid');
+            if (!grid) return;
+            grid.innerHTML = ALL_REACTIONS.map(e => `
+                <div class="snx-custom-react-chip${current.includes(e)?' selected':''}" data-emoji="${e}" onclick="snxToggleCustomReact(this,'${e}')">
+                    ${e}
+                </div>`).join('');
+            modal.classList.add('open');
+        });
+
+        modal.onclick = e => { if (e.target === modal) modal.classList.remove('open'); };
+    };
+
+    window.snxToggleCustomReact = function(el, emoji) {
+        const selected = Array.from(document.querySelectorAll('#snxCrGrid .snx-custom-react-chip.selected'));
+        if (el.classList.contains('selected')) {
+            el.classList.remove('selected');
+        } else {
+            if (selected.length >= 10) { _toast('⚠️ Max 10 reactions allowed.'); return; }
+            el.classList.add('selected');
+        }
+    };
+
+    window.snxSaveCustomReactions = async function() {
+        const cu = _cu(); if (!cu) return;
+        const selected = Array.from(document.querySelectorAll('#snxCrGrid .snx-custom-react-chip.selected')).map(el => el.dataset.emoji);
+        if (!selected.length) { _toast('⚠️ Select at least 1 reaction.'); return; }
+        const { doc, updateDoc } = _fs(); if (!doc) return;
+        try {
+            await updateDoc(doc(_db(),'users',cu.uid), { customReactions: selected });
+            _userReactions = selected;
+            document.getElementById('snxCustomReactModal')?.classList.remove('open');
+            _toast('⚡ Custom reactions saved!');
+        } catch(e) { _toast('❌ Could not save reactions.'); }
+    };
+
+    // Expose in settings — add a "Customize Reactions" button to Settings page
+    function _injectReactSetting() {
+        const settingsPage = document.getElementById('settingsPage');
+        if (!settingsPage || settingsPage.querySelector('#snxCustomReactSettingRow')) return;
+        const sections = settingsPage.querySelectorAll('.settings-section');
+        if (!sections.length) return;
+        const row = document.createElement('div');
+        row.id = 'snxCustomReactSettingRow';
+        row.className = 'settings-row';
+        row.innerHTML = `
+            <div class="settings-label">⚡ Custom Reactions
+                <small>Set your personal quick-react emojis for posts and messages</small>
+            </div>
+            <button onclick="snxOpenCustomReactModal()" style="flex-shrink:0;padding:7px 14px;font-size:12px;border-radius:10px;">Customize</button>`;
+        sections[0].appendChild(row);
+    }
+    setTimeout(_injectReactSetting, 1500);
+    document.addEventListener('DOMContentLoaded', () => setTimeout(_injectReactSetting, 800));
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SHARED UTILITY — local time-ago (avoids dependency on outer _snxTimeAgo)
+   ───────────────────────────────────────────────────────────────────────── */
+function _snxTimeAgoLocal(ts) {
+    if (!ts) return '';
+    const d = Date.now() - ts;
+    if (d < 60000)   return 'just now';
+    if (d < 3600000) return Math.floor(d/60000) + 'm ago';
+    if (d < 86400000)return Math.floor(d/3600000) + 'h ago';
+    return Math.floor(d/86400000) + 'd ago';
+}
+
+})(); // end SNXFeaturePack
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SNX FEATURE PACK 2 — Remaining feature implementations
+     1.  Profile music call-site (snxRenderProfileMusic hook in viewProfile)
+     2.  Bio improvements (character count, expand/collapse, link detection)
+     3.  Notification history (search + date filter)
+     4.  GIF support in comments
+     5.  Pinned posts on profile
+     6.  Featured photos & videos on profile
+     7.  Voice & Video calls (WebRTC 1:1 via Firestore signaling)
+     8.  Show call buttons when ipcModal opens non-group DM
+     ═══════════════════════════════════════════════════════════════════════ -->
+
+<style id="snx-fp2-css">
+/* ── Call modal ring animation ── */
+@keyframes snxCallRing {
+    0%,100% { box-shadow:0 0 0 0 rgba(0,174,239,0.5); }
+    50%      { box-shadow:0 0 0 16px rgba(0,174,239,0); }
+}
+.snx-call-ringing #snxCallPeerAvatar { animation:snxCallRing 1.2s ease-in-out infinite; }
+
+/* ── Incoming call banner ── */
+#snxIncomingCallBanner {
+    position:fixed; top:60px; left:50%; transform:translateX(-50%);
+    z-index:9985; background:#06111e; border:1px solid rgba(0,174,239,0.5);
+    border-radius:16px; padding:14px 18px; display:none; align-items:center;
+    gap:14px; min-width:280px; max-width:340px;
+    box-shadow:0 4px 32px rgba(0,174,239,0.2);
+    animation:snxCallRing 1s ease-in-out infinite;
+}
+#snxIncomingCallBanner.visible { display:flex; }
+.snx-call-banner-avatar {
+    width:42px; height:42px; border-radius:50%; background:#0B1F3A;
+    border:2px solid rgba(0,174,239,0.4); display:flex; align-items:center;
+    justify-content:center; font-size:16px; font-weight:700; color:#00AEEF;
+    flex-shrink:0; background-size:cover; background-position:center;
+}
+.snx-call-banner-info { flex:1; min-width:0; }
+.snx-call-banner-name { font-size:13px; font-weight:700; color:#c8e8ff; }
+.snx-call-banner-type { font-size:11px; color:#6a90b8; }
+.snx-call-banner-btns { display:flex; gap:8px; }
+.snx-call-accept { background:rgba(57,255,20,0.15); border:1px solid rgba(57,255,20,0.5); color:#39FF14; border-radius:50%; width:36px; height:36px; font-size:18px; cursor:pointer; }
+.snx-call-decline { background:rgba(255,30,60,0.15); border:1px solid rgba(255,30,60,0.5); color:#ff5577; border-radius:50%; width:36px; height:36px; font-size:18px; cursor:pointer; }
+
+/* ── Comment GIF button ── */
+.comment-gif-btn {
+    background:none; border:none; color:#6a90b8; font-size:10px; font-weight:800;
+    cursor:pointer; padding:5px 6px; letter-spacing:.5px; flex-shrink:0;
+    transition:color .15s;
+}
+.comment-gif-btn:hover { color:#00AEEF; }
+
+/* ── Featured media grid items ── */
+#profileFeaturedMediaGrid img,
+#profileFeaturedMediaGrid video {
+    width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:8px;
+    cursor:pointer; border:1px solid rgba(0,174,239,0.15);
+    transition:transform .15s, border-color .15s;
+}
+#profileFeaturedMediaGrid img:hover,
+#profileFeaturedMediaGrid video:hover { transform:scale(1.04); border-color:rgba(0,174,239,0.5); }
+
+/* ── Pinned post card ── */
+.snx-pinned-post-card {
+    background:rgba(0,174,239,0.04); border:1px solid rgba(0,174,239,0.18);
+    border-radius:12px; padding:10px 14px; cursor:pointer;
+    transition:border-color .15s, background .15s;
+}
+.snx-pinned-post-card:hover { border-color:rgba(0,174,239,0.4); background:rgba(0,174,239,0.08); }
+.snx-pinned-post-text { font-size:13px; color:#c8e0f8; line-height:1.4; }
+.snx-pinned-post-meta { font-size:11px; color:#3a6a9a; margin-top:5px; display:flex; gap:10px; }
+</style>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   SNX FEATURE PACK 2
+   ════════════════════════════════════════════════════════════════════════ */
+(function SNXFeaturePack2() {
+'use strict';
+
+function _db()  { return window.db || (window._db && window._db()); }
+function _cu()  { return window.currentUser || (window._cu && window._cu()); }
+function _fs()  { return window._fs ? window._fs() : {}; }
+function _toast(msg) { if (typeof toastNotification==='function') toastNotification(msg); }
+function _esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   1. PROFILE MUSIC CALL-SITE — hook viewProfile to render music player
+   ───────────────────────────────────────────────────────────────────────── */
+(function _hookProfileMusic() {
+    // Patch viewProfile so that when user data includes profileMusicUrl, the
+    // mini-player is rendered into #profileMusicContainer.
+    const _orig = window.viewProfile;
+    if (typeof _orig !== 'function') {
+        // viewProfile not yet defined — defer until it is
+        let _tries = 0;
+        const _poll = setInterval(() => {
+            _tries++;
+            if (typeof window.viewProfile === 'function' || _tries > 60) {
+                clearInterval(_poll);
+                if (typeof window.viewProfile === 'function') _hookProfileMusic();
+            }
+        }, 200);
+        return;
+    }
+
+    window.viewProfile = function(uid, ...args) {
+        const result = _orig(uid, ...args);
+        // After a short delay so the Firestore snapshot has rendered,
+        // check userData on the profile and render music player
+        setTimeout(() => {
+            const container = document.getElementById('profileMusicContainer');
+            if (!container) return;
+            container.innerHTML = ''; // clear previous
+            // Get data from the already-running onSnapshot (userData may be stale for other profiles)
+            const { doc, getDoc } = _fs();
+            if (!doc) return;
+            getDoc(doc(_db(),'users',uid)).then(snap => {
+                if (!snap.exists()) return;
+                if (typeof window.snxRenderProfileMusic === 'function') {
+                    window.snxRenderProfileMusic(snap.data(), container);
+                }
+                // Also fire bio improvements
+                _applyBioImprovements(snap.data().bio || '');
+            }).catch(() => {});
+        }, 700);
+        return result;
+    };
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   2. BIO IMPROVEMENTS — character count in edit form, expand/collapse on profile
+   ───────────────────────────────────────────────────────────────────────── */
+const BIO_PREVIEW_LINES = 3; // number of lines shown before "Read more"
+
+function _applyBioImprovements(bioText) {
+    const bioEl  = document.getElementById('profileBio');
+    const btnEl  = document.getElementById('profileBioExpandBtn');
+    if (!bioEl || !btnEl) return;
+
+    // Linkify URLs + @mentions in bio
+    const linked = _snxLinkifyBio(_esc(bioText));
+    bioEl.innerHTML = linked;
+
+    // Determine if bio needs truncation (> 3 lines ~180 chars)
+    const TRUNC = 180;
+    if (bioText.length > TRUNC) {
+        bioEl.dataset.fullHtml = linked;
+        const truncated = _snxLinkifyBio(_esc(bioText.slice(0, TRUNC)));
+        bioEl.innerHTML = truncated;
+        btnEl.style.display = 'inline-block';
+        btnEl.textContent = '… Read more';
+        btnEl._expanded = false;
+    } else {
+        btnEl.style.display = 'none';
+    }
+}
+
+window.snxExpandProfileBio = function() {
+    const bioEl = document.getElementById('profileBio');
+    const btnEl = document.getElementById('profileBioExpandBtn');
+    if (!bioEl || !btnEl) return;
+    if (btnEl._expanded) {
+        const TRUNC = 180;
+        const full = bioEl.dataset.fullHtml || bioEl.innerHTML;
+        bioEl.dataset.fullHtml = full;
+        bioEl.innerHTML = _snxLinkifyBio(_esc(bioEl.textContent.slice(0, TRUNC)));
+        btnEl.textContent = '… Read more';
+        btnEl._expanded = false;
+    } else {
+        bioEl.innerHTML = bioEl.dataset.fullHtml || bioEl.innerHTML;
+        btnEl.textContent = '▲ Show less';
+        btnEl._expanded = true;
+    }
+};
+
+function _snxLinkifyBio(html) {
+    // Already HTML-escaped — linkify http/https URLs and @handles
+    return html
+        .replace(/(https?:\/\/[^\s&<>"]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#00AEEF;word-break:break-all;">$1</a>')
+        .replace(/@([\w]+)/g, '<span style="color:#00AEEF;cursor:pointer;" onclick="if(typeof viewProfile===\'function\')snxLookupHandle(\'$1\')">@$1</span>');
+}
+
+window.snxLookupHandle = async function(handle) {
+    const { collection, getDocs, query, where } = _fs();
+    if (!collection) return;
+    try {
+        const snap = await getDocs(query(collection(_db(),'users'), where('username','==',handle)));
+        if (!snap.empty) { const uid = snap.docs[0].id; if (typeof viewProfile==='function') viewProfile(uid); }
+        else _toast(`@${handle} not found.`);
+    } catch(e) {}
+};
+
+// Character counter for #editBio in the edit profile modal
+(function _injectBioCharCount() {
+    function _attach() {
+        const bio = document.getElementById('editBio');
+        if (!bio || bio._snxCounterAttached) return;
+        bio._snxCounterAttached = true;
+        const maxLen = 300;
+        bio.maxLength = maxLen;
+        const counter = document.createElement('div');
+        counter.style.cssText = 'font-size:10px;color:#4a7a9a;text-align:right;margin-top:2px;';
+        counter.textContent = '0 / ' + maxLen;
+        bio.insertAdjacentElement('afterend', counter);
+        bio.addEventListener('input', () => {
+            const len = (bio.value || '').length;
+            counter.textContent = len + ' / ' + maxLen;
+            counter.style.color = len > maxLen * 0.9 ? '#ff9944' : '#4a7a9a';
+        });
+    }
+    setTimeout(_attach, 1800);
+    document.addEventListener('DOMContentLoaded', () => setTimeout(_attach, 800));
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   3. NOTIFICATION HISTORY — search + date filter on the notifications page
+   ───────────────────────────────────────────────────────────────────────── */
+window.snxToggleNotifHistory = function() {
+    const bar = document.getElementById('notifHistoryBar');
+    const btn = document.getElementById('notifHistoryBtn');
+    if (!bar) return;
+    const isOpen = bar.style.display !== 'none';
+    bar.style.display = isOpen ? 'none' : 'block';
+    if (btn) btn.textContent = isOpen ? '🕐 History & Search' : '▲ Close Search';
+    if (!isOpen) {
+        const inp = document.getElementById('notifHistorySearch');
+        if (inp) { inp.value = ''; inp.focus(); }
+    } else {
+        // Restore full list
+        snxFilterNotifHistory('');
+    }
+};
+
+window.snxCloseNotifHistory = function() {
+    const bar = document.getElementById('notifHistoryBar');
+    const btn = document.getElementById('notifHistoryBtn');
+    if (bar) bar.style.display = 'none';
+    if (btn) btn.textContent = '🕐 History & Search';
+    snxFilterNotifHistory('');
+};
+
+window.snxFilterNotifHistory = function(term) {
+    const list = window._lastNotifList || [];
+    const dateInput = document.getElementById('notifHistoryDate');
+    const filterDate = dateInput && dateInput.value ? new Date(dateInput.value) : null;
+
+    const termLow = (term || '').toLowerCase();
+    const filtered = list.filter(n => {
+        // Text match
+        const body = ((n.body || n.text || n.fromName || '') + ' ' + (n.type || '')).toLowerCase();
+        if (termLow && !body.includes(termLow)) return false;
+        // Date match
+        if (filterDate && n.ts) {
+            const d = new Date(n.ts);
+            if (d.toDateString() !== filterDate.toDateString()) return false;
+        }
+        return true;
+    });
+
+    // Temporarily override _lastNotifList to re-render filtered
+    const _saved = window._lastNotifList;
+    window._lastNotifList = filtered;
+    if (typeof window.renderNotifications === 'function') window.renderNotifications(filtered);
+    window._lastNotifList = _saved;
+};
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   4. GIF SUPPORT IN COMMENTS — GIF picker for comment inputs
+   ───────────────────────────────────────────────────────────────────────── */
+(function _initCommentGifs() {
+    const TENOR_KEY = 'AIzaSyAyimkuYQYF_FXVALexPzpAknpCuqwFHYY';
+    let _commentGifPostId = null;
+    let _commentGifDebounce;
+
+    window.snxOpenCommentGifPicker = function(postId) {
+        _commentGifPostId = postId;
+        const modal = document.getElementById('snxCommentGifModal');
+        if (!modal) return;
+        modal.style.display = 'flex';
+        const inp = document.getElementById('snxCommentGifSearch');
+        if (inp) { inp.value = ''; inp.focus(); }
+        _loadCommentGifs('');
+    };
+
+    window.snxCloseCommentGifPicker = function() {
+        const modal = document.getElementById('snxCommentGifModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.snxSearchCommentGifs = function(term) {
+        clearTimeout(_commentGifDebounce);
+        _commentGifDebounce = setTimeout(() => _loadCommentGifs(term), 300);
+    };
+
+    async function _loadCommentGifs(term) {
+        const grid = document.getElementById('snxCommentGifGrid');
+        if (!grid) return;
+        grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:20px;grid-column:1/-1;">Loading…</div>';
+        const endpoint = term
+            ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(term)}&key=${TENOR_KEY}&limit=20&media_filter=gif`
+            : `https://tenor.googleapis.com/v2/featured?key=${TENOR_KEY}&limit=20&media_filter=gif`;
+        try {
+            const res = await fetch(endpoint);
+            const data = await res.json();
+            const results = data.results || [];
+            if (!results.length) { grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:20px;grid-column:1/-1;">No GIFs found.</div>'; return; }
+            grid.innerHTML = '';
+            results.forEach(gif => {
+                const url     = gif.media_formats?.gif?.url     || gif.media_formats?.tinygif?.url || '';
+                const preview = gif.media_formats?.tinygif?.url || url;
+                if (!url) return;
+                const img = document.createElement('img');
+                img.src = preview;
+                img.style.cssText = 'width:100%;border-radius:8px;cursor:pointer;object-fit:cover;aspect-ratio:1/1;';
+                img.loading = 'lazy';
+                img.onclick = () => _sendCommentGif(url, gif.title || 'GIF');
+                grid.appendChild(img);
+            });
+        } catch(e) {
+            grid.innerHTML = '<div style="color:#ff5577;font-size:13px;text-align:center;padding:20px;grid-column:1/-1;">Could not load GIFs.</div>';
+        }
+    }
+
+    async function _sendCommentGif(url, title) {
+        window.snxCloseCommentGifPicker();
+        if (!_commentGifPostId) return;
+        const cu = _cu(); if (!cu) return;
+        const { doc, updateDoc, arrayUnion } = _fs();
+        if (!doc) return;
+        _toast('📤 Adding GIF comment…');
+        try {
+            const comment = {
+                uid:    cu.uid,
+                name:   window.userData?.displayName || cu.email || 'User',
+                avatar: window.userData?.avatar || '',
+                text:   title,
+                gif:    url,
+                ts:     Date.now(),
+                type:   'gif'
+            };
+            await updateDoc(doc(_db(),'posts',_commentGifPostId), { comments: arrayUnion(comment) });
+        } catch(e) { _toast('❌ Could not add GIF comment.'); }
+    }
+
+    // Close on backdrop click
+    document.addEventListener('click', e => {
+        const m = document.getElementById('snxCommentGifModal');
+        if (m && e.target === m) window.snxCloseCommentGifPicker();
+    });
+
+    // Inject GIF buttons into comment input rows after feed renders
+    function _injectGifButtons() {
+        document.querySelectorAll('.comment-input-row').forEach(row => {
+            if (row.querySelector('.comment-gif-btn')) return;
+            const postId = row.id.replace('comm-input-row-', '');
+            if (!postId || postId === row.id) return;
+            const btn = document.createElement('button');
+            btn.className = 'comment-gif-btn';
+            btn.title     = 'Send GIF';
+            btn.textContent = 'GIF';
+            btn.onclick   = (e) => { e.preventDefault(); window.snxOpenCommentGifPicker(postId); };
+            const submitBtn = row.querySelector('.comment-submit-btn');
+            if (submitBtn) row.insertBefore(btn, submitBtn);
+            else row.appendChild(btn);
+        });
+    }
+
+    // Observe DOM changes to inject GIF buttons as comments load
+    const _commentGifObs = new MutationObserver(() => _injectGifButtons());
+    setTimeout(() => {
+        const feed = document.getElementById('feedContainer') || document.getElementById('feedList');
+        if (feed) _commentGifObs.observe(feed, { childList:true, subtree:true });
+        _injectGifButtons();
+    }, 2000);
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   5. PINNED POSTS ON PROFILE — show posts with isPinned===true
+   ───────────────────────────────────────────────────────────────────────── */
+window.snxRenderPinnedPosts = async function(uid) {
+    const section = document.getElementById('profilePinnedPostsSection');
+    const list    = document.getElementById('profilePinnedPostsList');
+    if (!section || !list) return;
+    const { collection, getDocs, query, where, orderBy, limit } = _fs();
+    if (!collection) return;
+    try {
+        const snap = await getDocs(query(
+            collection(_db(),'posts'),
+            where('uid','==',uid),
+            where('isPinned','==',true),
+            limit(5)
+        ));
+        if (snap.empty) { section.style.display = 'none'; return; }
+        list.innerHTML = '';
+        snap.forEach(d => {
+            const p = d.data();
+            const card = document.createElement('div');
+            card.className = 'snx-pinned-post-card';
+            card.onclick   = () => { if (typeof navTo==='function') navTo('feed'); };
+            card.innerHTML = `
+                <div class="snx-pinned-post-text">${_esc((p.text||'').slice(0,150))}${p.text&&p.text.length>150?'…':''}</div>
+                <div class="snx-pinned-post-meta">
+                    <span>❤️ ${p.likes||0}</span>
+                    <span>💬 ${(p.comments||[]).length}</span>
+                    <span>${_snxAgo(p.timestamp||p.createdAt)}</span>
+                </div>`;
+            list.appendChild(card);
+        });
+        section.style.display = '';
+    } catch(e) {
+        section.style.display = 'none';
+    }
+};
+
+function _snxAgo(ts) {
+    if (!ts) return '';
+    const d = Date.now() - ts;
+    if (d < 60000)    return 'just now';
+    if (d < 3600000)  return Math.floor(d/60000) + 'm ago';
+    if (d < 86400000) return Math.floor(d/3600000) + 'h ago';
+    return Math.floor(d/86400000) + 'd ago';
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   6. FEATURED PHOTOS & VIDEOS — show media posts for this user
+   ───────────────────────────────────────────────────────────────────────── */
+window.snxRenderFeaturedMedia = async function(uid) {
+    const section = document.getElementById('profileFeaturedMediaSection');
+    const grid    = document.getElementById('profileFeaturedMediaGrid');
+    if (!section || !grid) return;
+    const { collection, getDocs, query, where, orderBy, limit } = _fs();
+    if (!collection) return;
+    try {
+        const snap = await getDocs(query(
+            collection(_db(),'posts'),
+            where('uid','==',uid),
+            orderBy('timestamp','desc'),
+            limit(100)
+        ));
+        const mediaPosts = [];
+        snap.forEach(d => {
+            const p = d.data();
+            const src = p.mediaUrl || p.imageUrl || p.videoUrl || '';
+            if (src) mediaPosts.push({ id:d.id, src, ...p });
+        });
+        if (!mediaPosts.length) { section.style.display = 'none'; return; }
+        grid.innerHTML = '';
+        mediaPosts.slice(0,12).forEach(p => {
+            const isVid = /\.(mp4|webm|mov)/i.test(p.src);
+            let el;
+            if (isVid) {
+                el = document.createElement('video');
+                el.src = p.src;
+                el.muted = true;
+                el.playsInline = true;
+                el.title = p.text ? p.text.slice(0,60) : 'Video';
+                el.onclick = () => { if (typeof window.snxOpenMediaViewer==='function') window.snxOpenMediaViewer(p.src,'video'); };
+            } else {
+                el = document.createElement('img');
+                el.src = p.src;
+                el.loading = 'lazy';
+                el.alt = p.text ? p.text.slice(0,60) : 'Photo';
+                el.onclick = () => { if (typeof window.snxOpenMediaViewer==='function') window.snxOpenMediaViewer(p.src,'image'); };
+            }
+            grid.appendChild(el);
+        });
+        section.style.display = '';
+    } catch(e) {
+        section.style.display = 'none';
+    }
+};
+
+// Hook viewProfile to trigger pinned posts + featured media rendering
+(function _hookViewProfileExtras() {
+    const _orig = window.viewProfile;
+    if (typeof _orig !== 'function') {
+        let _t = 0;
+        const _int = setInterval(() => {
+            _t++;
+            if (typeof window.viewProfile === 'function' || _t > 60) {
+                clearInterval(_int);
+                if (typeof window.viewProfile === 'function') _hookViewProfileExtras();
+            }
+        }, 200);
+        return;
+    }
+    window.viewProfile = function(uid, ...args) {
+        const r = _orig(uid, ...args);
+        setTimeout(() => {
+            window.snxRenderPinnedPosts(uid);
+            window.snxRenderFeaturedMedia(uid);
+        }, 800);
+        return r;
+    };
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   7. VOICE & VIDEO CALLS — WebRTC 1:1 via Firestore signaling
+   ───────────────────────────────────────────────────────────────────────── */
+(function _initCalls() {
+    let _pc = null;           // RTCPeerConnection
+    let _localStream = null;
+    let _callDocId   = null;
+    let _callUnsub   = null;
+    let _callMode    = 'audio'; // 'audio' | 'video'
+    let _isCaller    = false;
+    let _muteState   = false;
+    let _camOn       = true;
+    const _ICE = { iceServers:[{ urls:['stun:stun1.l.google.com:19302','stun:stun2.l.google.com:19302'] }] };
+
+    // ── Show/hide call buttons when ipcModal opens ──
+    // Patch ipcOpen to reveal call buttons for 1:1 chats
+    (function _patchIpcOpen() {
+        const _orig = window.ipcOpen;
+        if (typeof _orig !== 'function') {
+            let _t = 0;
+            const _int = setInterval(() => {
+                _t++;
+                if (typeof window.ipcOpen === 'function' || _t > 80) {
+                    clearInterval(_int);
+                    if (typeof window.ipcOpen === 'function') _patchIpcOpen();
+                }
+            }, 150);
+            return;
+        }
+        window.ipcOpen = function(uid, ...args) {
+            const r = _orig(uid, ...args);
+            // Show call buttons (hidden for group chats)
+            setTimeout(() => {
+                const isGroup = !!window._ipcIsGroup;
+                const voiceBtn = document.getElementById('ipcVoiceCallBtn');
+                const videoBtn = document.getElementById('ipcVideoCallBtn');
+                if (voiceBtn) voiceBtn.style.display = isGroup ? 'none' : '';
+                if (videoBtn) videoBtn.style.display = isGroup ? 'none' : '';
+                window._ipcCallTargetUid = uid;
+            }, 300);
+            return r;
+        };
+    })();
+
+    window.snxStartCall = async function(mode) {
+        const cu = _cu(); if (!cu) return;
+        const targetUid = window._ipcCallTargetUid || window._m_tgtUid;
+        if (!targetUid) { _toast('❌ No active conversation to call.'); return; }
+        _callMode = mode;
+        _isCaller = true;
+
+        try {
+            _localStream = await navigator.mediaDevices.getUserMedia(
+                mode === 'video' ? { audio:true, video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} } } : { audio:true }
+            );
+        } catch(e) {
+            _toast('🎙️ Could not access camera/mic. Please allow in browser settings.');
+            return;
+        }
+
+        // Show local video
+        const localVid = document.getElementById('snxCallLocalVid');
+        if (localVid && mode === 'video') { localVid.srcObject = _localStream; localVid.style.display = ''; }
+
+        // Create Firestore call doc
+        const { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } = _fs();
+        if (!collection) return;
+        try {
+            const callDoc = await addDoc(collection(_db(),'calls'), {
+                caller: cu.uid, callee: targetUid,
+                mode, status:'ringing',
+                callerName: window.userData?.displayName || cu.email || 'User',
+                callerAvatar: window.userData?.avatar || '',
+                createdAt: Date.now()
+            });
+            _callDocId = callDoc.id;
+        } catch(e) { _toast('❌ Could not initiate call.'); return; }
+
+        // Open call modal
+        _openCallModal(mode, window.userData?.displayName || 'Calling…', window.userData?.avatar || '', 'Ringing…');
+
+        // Create peer connection
+        _pc = new RTCPeerConnection(_ICE);
+        _localStream.getTracks().forEach(t => _pc.addTrack(t, _localStream));
+
+        // Remote stream
+        const remoteStream = new MediaStream();
+        const remoteVid = document.getElementById('snxCallRemoteVid');
+        if (remoteVid) remoteVid.srcObject = remoteStream;
+        _pc.ontrack = e => { e.streams[0].getTracks().forEach(t => remoteStream.addTrack(t)); };
+
+        // ICE candidates
+        _pc.onicecandidate = async (e) => {
+            if (e.candidate && _callDocId) {
+                const { collection: c2, addDoc: a2 } = _fs();
+                if (c2) await a2(c2(_db(),'calls',_callDocId,'callerCandidates'), e.candidate.toJSON()).catch(()=>{});
+            }
+        };
+
+        // Create offer
+        const offer = await _pc.createOffer();
+        await _pc.setLocalDescription(offer);
+        const { doc: d2, updateDoc: u2 } = _fs();
+        if (d2) await u2(d2(_db(),'calls',_callDocId), { offer: { type:offer.type, sdp:offer.sdp } }).catch(()=>{});
+
+        // Listen for answer
+        const { onSnapshot: ons } = _fs();
+        if (ons && _callDocId) {
+            const { doc: d3 } = _fs();
+            _callUnsub = ons(d3(_db(),'calls',_callDocId), async snap => {
+                const data = snap.data();
+                if (!data) { snxEndCall(); return; }
+                if (data.status === 'declined' || data.status === 'ended') { snxEndCall(); return; }
+                if (data.answer && _pc && _pc.signalingState === 'have-local-offer') {
+                    await _pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(()=>{});
+                    _updateCallState('Connected ✅');
+                    if (remoteVid) remoteVid.style.display = '';
+                    document.getElementById('snxCallStatusLabel').style.display = 'none';
+                }
+            });
+        }
+
+        // Send call notification to callee
+        _sendCallNotif(targetUid, cu.uid, mode, _callDocId);
+    };
+
+    // ── Callee: accept incoming call ──
+    window.snxAcceptCall = async function(callId) {
+        document.getElementById('snxIncomingCallBanner')?.classList.remove('visible');
+        const cu = _cu(); if (!cu) return;
+        const { doc, getDoc, updateDoc, collection, onSnapshot, addDoc } = _fs();
+        if (!doc) return;
+
+        const snap = await getDoc(doc(_db(),'calls',callId)).catch(() => null);
+        if (!snap || !snap.exists()) { _toast('❌ Call no longer available.'); return; }
+        const callData = snap.data();
+        _callMode = callData.mode || 'audio';
+        _isCaller = false;
+        _callDocId = callId;
+
+        try {
+            _localStream = await navigator.mediaDevices.getUserMedia(
+                _callMode === 'video'
+                    ? { audio:true, video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} } }
+                    : { audio:true }
+            );
+        } catch(e) { _toast('🎙️ Mic/camera access denied.'); return; }
+
+        const localVid = document.getElementById('snxCallLocalVid');
+        if (localVid && _callMode === 'video') { localVid.srcObject = _localStream; localVid.style.display = ''; }
+
+        _openCallModal(_callMode, callData.callerName || 'Caller', callData.callerAvatar || '', 'Connecting…');
+
+        _pc = new RTCPeerConnection(_ICE);
+        _localStream.getTracks().forEach(t => _pc.addTrack(t, _localStream));
+
+        const remoteStream = new MediaStream();
+        const remoteVid = document.getElementById('snxCallRemoteVid');
+        if (remoteVid) remoteVid.srcObject = remoteStream;
+        _pc.ontrack = e => { e.streams[0].getTracks().forEach(t => remoteStream.addTrack(t)); };
+
+        _pc.onicecandidate = async (e) => {
+            if (e.candidate && _callDocId) {
+                const { collection:c2, addDoc:a2 } = _fs();
+                if (c2) await a2(c2(_db(),'calls',_callDocId,'calleeCandidates'), e.candidate.toJSON()).catch(()=>{});
+            }
+        };
+
+        // Set remote offer + create answer
+        await _pc.setRemoteDescription(new RTCSessionDescription(callData.offer)).catch(()=>{});
+        const answer = await _pc.createAnswer();
+        await _pc.setLocalDescription(answer);
+        await updateDoc(doc(_db(),'calls',_callDocId), {
+            answer: { type:answer.type, sdp:answer.sdp },
+            status: 'connected'
+        }).catch(()=>{});
+
+        // Add caller ICE candidates
+        const callerCands = await getDocs ? null : null; // handled by onSnapshot
+        const { onSnapshot: ons2, getDocs: gd2 } = _fs();
+        if (gd2) {
+            const { collection:c3 } = _fs();
+            const candSnap = await gd2(c3(_db(),'calls',_callDocId,'callerCandidates')).catch(()=>null);
+            if (candSnap) candSnap.forEach(c => _pc.addIceCandidate(new RTCIceCandidate(c.data())).catch(()=>{}));
+        }
+
+        // Listen for callee ICE from caller
+        if (ons2) {
+            const { collection: c4 } = _fs();
+            ons2(c4(_db(),'calls',_callDocId,'calleeCandidates'), snap2 => {
+                snap2.docChanges().forEach(change => {
+                    if (change.type === 'added') _pc.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(()=>{});
+                });
+            });
+        }
+
+        _updateCallState('Connected ✅');
+        if (remoteVid) remoteVid.style.display = '';
+        document.getElementById('snxCallStatusLabel').style.display = 'none';
+    };
+
+    window.snxDeclineCall = async function(callId) {
+        document.getElementById('snxIncomingCallBanner')?.classList.remove('visible');
+        const { doc, updateDoc } = _fs();
+        if (doc && callId) await updateDoc(doc(_db(),'calls',callId), { status:'declined' }).catch(()=>{});
+        _toast('📵 Call declined.');
+    };
+
+    window.snxEndCall = function() {
+        if (_callUnsub) { try { _callUnsub(); } catch(_) {} _callUnsub = null; }
+        if (_localStream) { _localStream.getTracks().forEach(t => t.stop()); _localStream = null; }
+        if (_pc) { try { _pc.close(); } catch(_) {} _pc = null; }
+        if (_callDocId) {
+            const { doc, updateDoc } = _fs();
+            if (doc) updateDoc(doc(_db(),'calls',_callDocId), { status:'ended' }).catch(()=>{});
+            _callDocId = null;
+        }
+        const modal = document.getElementById('snxCallModal');
+        if (modal) modal.style.display = 'none';
+        const localVid  = document.getElementById('snxCallLocalVid');
+        const remoteVid = document.getElementById('snxCallRemoteVid');
+        if (localVid)  { localVid.srcObject = null;  localVid.style.display = 'none'; }
+        if (remoteVid) { remoteVid.srcObject = null; }
+    };
+
+    window.snxCallToggleMute = function() {
+        if (!_localStream) return;
+        _muteState = !_muteState;
+        _localStream.getAudioTracks().forEach(t => { t.enabled = !_muteState; });
+        const btn = document.getElementById('snxCallMuteBtn');
+        if (btn) btn.textContent = _muteState ? '🔇' : '🎙️';
+        _toast(_muteState ? '🔇 Muted' : '🎙️ Unmuted');
+    };
+
+    window.snxCallToggleCamera = function() {
+        if (!_localStream) return;
+        _camOn = !_camOn;
+        _localStream.getVideoTracks().forEach(t => { t.enabled = _camOn; });
+        const btn = document.getElementById('snxCallCamBtn');
+        if (btn) btn.textContent = _camOn ? '📹' : '📷';
+        _toast(_camOn ? '📹 Camera on' : '📷 Camera off');
+    };
+
+    function _openCallModal(mode, peerName, peerAvatar, state) {
+        const modal    = document.getElementById('snxCallModal');
+        const nameEl   = document.getElementById('snxCallPeerName');
+        const stateEl  = document.getElementById('snxCallState');
+        const avatarEl = document.getElementById('snxCallPeerAvatar');
+        const camBtn   = document.getElementById('snxCallCamBtn');
+        const remoteVideoBox = document.getElementById('snxCallRemoteVideo');
+        if (!modal) return;
+
+        if (nameEl) nameEl.textContent = peerName || 'User';
+        if (stateEl) stateEl.textContent = state || 'Connecting…';
+        if (avatarEl) {
+            if (peerAvatar) { avatarEl.style.backgroundImage = `url('${peerAvatar}')`; avatarEl.textContent = ''; }
+            else { avatarEl.style.backgroundImage = ''; avatarEl.textContent = (peerName||'?')[0].toUpperCase(); }
+        }
+        if (camBtn) camBtn.style.display = mode === 'video' ? '' : 'none';
+
+        // Hide remote video area in audio-only mode
+        if (remoteVideoBox) remoteVideoBox.style.display = mode === 'video' ? '' : 'none';
+
+        modal.classList.add('snx-call-ringing');
+        modal.style.display = 'flex';
+    }
+
+    function _updateCallState(text) {
+        const stateEl = document.getElementById('snxCallState');
+        if (stateEl) stateEl.textContent = text;
+        const modal = document.getElementById('snxCallModal');
+        if (modal) modal.classList.remove('snx-call-ringing');
+    }
+
+    function _sendCallNotif(targetUid, callerUid, mode, callId) {
+        const cu = _cu(); if (!cu) return;
+        const { doc, getDoc, updateDoc, arrayUnion } = _fs();
+        if (!doc) return;
+        getDoc(doc(_db(),'users',targetUid)).then(snap => {
+            if (!snap.exists()) return;
+            const notif = {
+                type:        'incoming_call',
+                fromUid:     callerUid,
+                fromName:    window.userData?.displayName || cu.email || 'User',
+                fromAvatar:  window.userData?.avatar || '',
+                callMode:    mode,
+                callId:      callId,
+                ts:          Date.now(),
+                read:        false
+            };
+            updateDoc(doc(_db(),'users',targetUid), { notifications: arrayUnion(notif) }).catch(()=>{});
+        }).catch(()=>{});
+    }
+
+    // ── Listen for incoming call notifications ──
+    (function _listenIncoming() {
+        function _setup() {
+            const cu = _cu(); if (!cu) return;
+            const { doc, onSnapshot } = _fs(); if (!doc) return;
+            onSnapshot(doc(_db(),'users',cu.uid), snap => {
+                if (!snap.exists()) return;
+                const notifs = snap.data().notifications || [];
+                const callNotif = notifs.slice().reverse().find(n =>
+                    n.type === 'incoming_call' && !n.read &&
+                    n.ts && (Date.now() - n.ts) < 60000 // within last 60s
+                );
+                if (callNotif) _showIncomingCallBanner(callNotif);
+            });
+        }
+        // Wait until auth resolves
+        if (window._snxAuthResolved || window.currentUser) { _setup(); }
+        else { setTimeout(_setup, 3000); }
+    })();
+
+    function _showIncomingCallBanner(notif) {
+        let banner = document.getElementById('snxIncomingCallBanner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'snxIncomingCallBanner';
+            document.body.appendChild(banner);
+        }
+        banner.innerHTML = `
+            <div class="snx-call-banner-avatar" style="${notif.fromAvatar?'background-image:url(\''+notif.fromAvatar+'\')':''}">${notif.fromAvatar?'':_esc((notif.fromName||'?')[0])}</div>
+            <div class="snx-call-banner-info">
+                <div class="snx-call-banner-name">${_esc(notif.fromName||'Someone')}</div>
+                <div class="snx-call-banner-type">${notif.callMode==='video'?'📹 Video call':'📞 Voice call'}</div>
+            </div>
+            <div class="snx-call-banner-btns">
+                <button class="snx-call-accept" onclick="snxAcceptCall('${notif.callId}')" title="Accept">📞</button>
+                <button class="snx-call-decline" onclick="snxDeclineCall('${notif.callId}')" title="Decline">📵</button>
+            </div>`;
+        banner.classList.add('visible');
+
+        // Auto-dismiss after 30 seconds
+        setTimeout(() => { banner.classList.remove('visible'); }, 30000);
+    }
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   8. INCOMING CALL BANNER HTML injection (if not already in DOM)
+   ───────────────────────────────────────────────────────────────────────── */
+(function _ensureIncomingBanner() {
+    if (!document.getElementById('snxIncomingCallBanner')) {
+        const b = document.createElement('div');
+        b.id = 'snxIncomingCallBanner';
+        document.body.appendChild(b);
+    }
+})();
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SHARED — _snxAgo exposed (used by multiple features above)
+   ───────────────────────────────────────────────────────────────────────── */
+window._snxAgo = _snxAgo;
+
+})(); // end SNXFeaturePack2
 </script>
 
 </body>
