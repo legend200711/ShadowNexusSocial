@@ -7346,6 +7346,8 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <div class="profile-actions-row">
                     <button id="btnFollowAction">+ Follow</button>
                     <button id="btnMessageAction">💬 Message</button>
+                    <button id="btnProfileVoiceCall" title="Voice call" style="display:none;" onclick="window._snxCallTarget=activeProfileUid;snxStartCall('audio')">📞 Call</button>
+                    <button id="btnProfileVideoCall" title="Video call" style="display:none;" onclick="window._snxCallTarget=activeProfileUid;snxStartCall('video')">📹 Video</button>
                     <button id="btnEditProfile" style="display:none;" onclick="openEditProfileModal()">✏️ Edit Profile</button>
                     <!-- Watch Live — shown on OTHER user's profile when they are streaming -->
                     <button id="btnWatchLive" style="display:none;background:linear-gradient(135deg,#880020,#dd1133);border:1px solid rgba(255,34,68,0.7);color:#fff;font-weight:800;letter-spacing:0.5px;box-shadow:0 0 16px rgba(255,30,60,0.45);padding:7px 16px;border-radius:20px;font-size:13px;cursor:pointer;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:#fff;display:inline-block;animation:snxLiveDot 1s ease-in-out infinite;flex-shrink:0;"></span>Watch Live</button>
@@ -8114,6 +8116,9 @@ body.arcade-fs-ios body::after { display:none !important; }
             <button class="notif-filter-tab" data-filter="social" onclick="setNotifFilter('social',this)">
                 👤 Followers
             </button>
+            <button class="notif-filter-tab" data-filter="calls" onclick="setNotifFilter('calls',this)">
+                📞 Calls
+            </button>
             <button class="notif-filter-tab" data-filter="system" onclick="setNotifFilter('system',this)">
                 ⚙️ System
             </button>
@@ -8339,6 +8344,21 @@ body.arcade-fs-ios body::after { display:none !important; }
                     <option value="everyone">Everyone</option>
                     <option value="friends">Friends only</option>
                     <option value="nobody">Nobody (disable game invites)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h4>📞 Calls Privacy</h4>
+            <div class="settings-row" style="border-bottom:none;">
+                <div class="settings-label">
+                    Who can call me?
+                    <small>Controls who can start a voice or video call with you</small>
+                </div>
+                <select id="privCalls" onchange="savePrivacySetting('calls', this.value)">
+                    <option value="everyone">Everyone</option>
+                    <option value="friends">Friends only</option>
+                    <option value="nobody">Nobody (disable calls)</option>
                 </select>
             </div>
         </div>
@@ -8860,21 +8880,55 @@ body.arcade-fs-ios body::after { display:none !important; }
 <!-- ══════════════════════════════════════════════════════════
      CALL MODAL — Voice & Video calls via WebRTC (1:1)
      ══════════════════════════════════════════════════════════ -->
-<div id="snxCallModal" style="display:none;position:fixed;inset:0;z-index:9980;background:rgba(0,3,15,0.93);backdrop-filter:blur(8px);flex-direction:column;align-items:center;justify-content:center;gap:20px;">
-    <div id="snxCallRemoteVideo" style="width:min(480px,96vw);aspect-ratio:4/3;background:#050d1e;border-radius:16px;border:1px solid rgba(0,174,239,0.3);overflow:hidden;position:relative;">
-        <video id="snxCallRemoteVid" autoplay playsinline style="width:100%;height:100%;object-fit:cover;"></video>
-        <div id="snxCallStatusLabel" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;">
-            <div id="snxCallPeerAvatar" style="width:72px;height:72px;border-radius:50%;background:#0B1F3A;border:2px solid rgba(0,174,239,0.4);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#00AEEF;background-size:cover;background-position:center;"></div>
-            <div id="snxCallPeerName" style="color:#c8e8ff;font-size:16px;font-weight:700;"></div>
-            <div id="snxCallState" style="color:#6a90b8;font-size:13px;"></div>
+<div id="snxCallModal" class="snx-call-modal" style="display:none;">
+
+    <!-- Top bar: peer info + timer + quality + minimize -->
+    <div class="snx-call-topbar">
+        <div class="snx-call-topbar-peer">
+            <div id="snxCallPeerAvatarTop" class="snx-call-topbar-av"></div>
+            <div>
+                <div id="snxCallPeerNameTop" class="snx-call-topbar-name"></div>
+                <div id="snxCallStateTop" class="snx-call-topbar-state">Connecting…</div>
+            </div>
+        </div>
+        <div class="snx-call-topbar-right">
+            <span id="snxCallDuration" class="snx-call-duration">0:00</span>
+            <span id="snxCallQuality" class="snx-call-quality" title="Connection quality"></span>
+            <button class="snx-call-topbtn" id="snxCallMinimizeBtn" onclick="snxCallMinimize()" title="Minimize call">⬇️</button>
+            <button class="snx-call-topbtn" id="snxCallFullscreenBtn" onclick="snxCallFullscreen()" title="Full screen" style="display:none;">⛶</button>
         </div>
     </div>
-    <video id="snxCallLocalVid" autoplay muted playsinline style="position:fixed;bottom:110px;right:16px;width:100px;border-radius:10px;border:1px solid rgba(0,174,239,0.4);background:#050d1e;display:none;z-index:9981;"></video>
-    <div style="display:flex;gap:16px;align-items:center;">
-        <button id="snxCallMuteBtn" onclick="snxCallToggleMute()" title="Mute/Unmute" style="width:52px;height:52px;border-radius:50%;font-size:22px;background:rgba(0,30,70,0.9);border:1px solid rgba(0,174,239,0.35);">🎙️</button>
-        <button id="snxCallEndBtn" onclick="snxEndCall()" title="End call" style="width:60px;height:60px;border-radius:50%;font-size:24px;background:rgba(200,0,30,0.85);border:1px solid rgba(255,30,60,0.7);">📵</button>
-        <button id="snxCallCamBtn" onclick="snxCallToggleCamera()" title="Toggle camera" style="width:52px;height:52px;border-radius:50%;font-size:22px;background:rgba(0,30,70,0.9);border:1px solid rgba(0,174,239,0.35);display:none;">📹</button>
+
+    <!-- Remote video area -->
+    <div id="snxCallRemoteVideo" class="snx-call-remote-wrap">
+        <video id="snxCallRemoteVid" autoplay playsinline class="snx-call-remote-vid"></video>
+        <!-- Overlay shown while ringing / connecting (voice call too) -->
+        <div id="snxCallStatusLabel" class="snx-call-status-overlay">
+            <div id="snxCallPeerAvatar" class="snx-call-peer-av"></div>
+            <div id="snxCallPeerName" class="snx-call-peer-name"></div>
+            <div id="snxCallState" class="snx-call-peer-state"></div>
+        </div>
     </div>
+
+    <!-- Local PiP video (bottom-right corner) -->
+    <video id="snxCallLocalVid" autoplay muted playsinline class="snx-call-local-pip" style="display:none;"></video>
+
+    <!-- Call controls bar -->
+    <div class="snx-call-controls">
+        <button id="snxCallMuteBtn"     class="snx-call-ctrl"            onclick="snxCallToggleMute()"     title="Mute / Unmute">🎙️</button>
+        <button id="snxCallCamBtn"      class="snx-call-ctrl"            onclick="snxCallToggleCamera()"   title="Camera on/off"  style="display:none;">📹</button>
+        <button id="snxCallFlipBtn"     class="snx-call-ctrl"            onclick="snxCallFlipCamera()"     title="Switch camera"  style="display:none;">🔄</button>
+        <button id="snxCallEndBtn"      class="snx-call-ctrl snx-call-end" onclick="snxEndCall()"          title="End call">📵</button>
+        <button id="snxCallPipBtn"      class="snx-call-ctrl"            onclick="snxCallPip()"            title="Picture-in-picture" style="display:none;">⧉</button>
+    </div>
+</div>
+
+<!-- Minimized call bar (shown when user minimizes active call) -->
+<div id="snxCallMini" class="snx-call-mini" style="display:none;">
+    <div id="snxCallMiniName" class="snx-call-mini-name"></div>
+    <span id="snxCallMiniDur" class="snx-call-mini-dur">0:00</span>
+    <button onclick="snxCallRestore()" class="snx-call-mini-btn snx-call-mini-restore" title="Restore">🔼</button>
+    <button onclick="snxEndCall()" class="snx-call-mini-btn snx-call-mini-end" title="End call">📵</button>
 </div>
 
 <!-- GIF in Comments Modal — reuses snxGifModal but with context='comment' -->
@@ -11853,6 +11907,7 @@ body.arcade-fs-ios body::after { display:none !important; }
               sel('privSendFamilyRequests',  ps.sendFamilyRequests || 'everyone');
               sel('privTagging',      ps.tagging      || 'everyone');
               sel('privGameInvites',  ps.gameInvites  || 'everyone');
+              sel('privCalls',        ps.calls        || 'everyone');
 
               // ── Notification bell badge ──
               const _notifs = userData.notifications || [];
@@ -15086,12 +15141,14 @@ body.arcade-fs-ios body::after { display:none !important; }
       // Apply filter
       const _activityTypes = new Set(['like','comment','repost','mention','tag','wallPost','announcement']);
       const _socialTypes   = new Set(['friendRequest','friendAccepted','familyInvite','familyAccepted','familyDeclined','follow','game_challenge']);
+      const _callTypes     = new Set(['incoming_call','missedCall']);
       const _systemTypes   = new Set(['system']);
       const filtered = list.filter(n => {
           if (_notifFilter === 'all')      return true;
           if (_notifFilter === 'message')  return n.type === 'message';
           if (_notifFilter === 'activity') return _activityTypes.has(n.type);
           if (_notifFilter === 'social')   return _socialTypes.has(n.type);
+          if (_notifFilter === 'calls')    return _callTypes.has(n.type);
           if (_notifFilter === 'system')   return _systemTypes.has(n.type);
           return true;
       });
@@ -15216,6 +15273,26 @@ body.arcade-fs-ios body::after { display:none !important; }
               icon = '⚙️';
               text = escFeed(n.body || n.text || 'System alert from Shadow Nexus Social');
               navFn = `navTo('notificationsPage')`;
+          } else if (n.type === 'incoming_call') {
+              // Active / ringing incoming call — show accept/decline if still < 60s old
+              const stillActive = n.ts && (Date.now() - n.ts) < 60000;
+              icon = n.callMode === 'video' ? '📹' : '📞';
+              text = `<b>${escFeed(n.fromName || 'Someone')}</b> called you (${n.callMode === 'video' ? 'video' : 'voice'} call)`;
+              if (stillActive && n.callId) {
+                  actHtml = `<div class="notif-actions">
+                      <button class="btn-accept" onclick="event.stopPropagation();snxAcceptCall('${n.callId}');markNotifRead(${origIdx})">📞 Accept</button>
+                      <button class="btn-decline" onclick="event.stopPropagation();snxDeclineCall('${n.callId}');markNotifRead(${origIdx})">📵 Decline</button>
+                  </div>`;
+              }
+              navFn = `viewProfile('${n.fromUid}')`;
+          } else if (n.type === 'missedCall') {
+              icon = n.callMode === 'video' ? '📹' : '📞';
+              text = `Missed ${n.callMode === 'video' ? 'video' : 'voice'} call from <b>${escFeed(n.fromName || 'Someone')}</b>`;
+              actHtml = `<div class="notif-actions">
+                  <button class="btn-accept" style="font-size:11px;" onclick="event.stopPropagation();window._ipcCallTargetUid='${n.fromUid}';snxStartCall('${n.callMode||'audio'}');markNotifRead(${origIdx})">📞 Call back</button>
+                  <button class="notif-mark-all" style="font-size:11px;" onclick="event.stopPropagation();markNotifRead(${origIdx})">✓ Read</button>
+              </div>`;
+              navFn = `viewProfile('${n.fromUid}')`;
           }
 
          if (!text) return; // skip unknown types
@@ -15780,6 +15857,14 @@ body.arcade-fs-ios body::after { display:none !important; }
           const tabMsgBtn = document.getElementById("tabMessagesLink");
           btnMsg.style.display    = (isSelf || !canMessage) ? "none" : "";
           if (tabMsgBtn) tabMsgBtn.style.display = (isSelf || !canMessage) ? "none" : "";
+
+          // Profile call buttons — show on other users' profiles (privacy check happens inside snxStartCall)
+          const btnProfileVoice = document.getElementById('btnProfileVoiceCall');
+          const btnProfileVideo = document.getElementById('btnProfileVideoCall');
+          const callsPriv = p.privacySettings?.calls || 'everyone';
+          const canCall = !isSelf && (callsPriv === 'everyone' || (callsPriv === 'friends' && (userData?.friends||[]).includes(uid)));
+          if (btnProfileVoice) btnProfileVoice.style.display = canCall ? '' : 'none';
+          if (btnProfileVideo) btnProfileVideo.style.display = canCall ? '' : 'none';
           btnMsg.onclick = () => {
               // Open the modal chat window directly on the profile
               if (typeof window.ipcOpen === 'function') {
@@ -31662,6 +31747,111 @@ function _snxTimeAgoLocal(ts) {
 .snx-call-accept { background:rgba(57,255,20,0.15); border:1px solid rgba(57,255,20,0.5); color:#39FF14; border-radius:50%; width:36px; height:36px; font-size:18px; cursor:pointer; }
 .snx-call-decline { background:rgba(255,30,60,0.15); border:1px solid rgba(255,30,60,0.5); color:#ff5577; border-radius:50%; width:36px; height:36px; font-size:18px; cursor:pointer; }
 
+/* ══════════════════════════════════════════
+   CALL MODAL — full redesign
+   ══════════════════════════════════════════ */
+.snx-call-modal {
+    position:fixed; inset:0; z-index:9980;
+    background:rgba(0,3,15,0.95); backdrop-filter:blur(10px);
+    flex-direction:column; align-items:center; justify-content:flex-start;
+    gap:0; padding-bottom:env(safe-area-inset-bottom,0);
+    -webkit-tap-highlight-color:transparent;
+}
+.snx-call-topbar {
+    width:100%; max-width:520px; display:flex; align-items:center;
+    justify-content:space-between; padding:14px 16px 10px;
+    flex-shrink:0; gap:10px;
+}
+.snx-call-topbar-peer { display:flex; align-items:center; gap:10px; min-width:0; }
+.snx-call-topbar-av {
+    width:38px; height:38px; border-radius:50%; flex-shrink:0;
+    background:#0B1F3A; border:2px solid rgba(0,174,239,0.4);
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; font-weight:700; color:#00AEEF;
+    background-size:cover; background-position:center;
+}
+.snx-call-topbar-name  { font-size:14px; font-weight:700; color:#c8e8ff; }
+.snx-call-topbar-state { font-size:11px; color:#6a90b8; margin-top:1px; }
+.snx-call-topbar-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.snx-call-duration {
+    font-size:12px; color:#39FF14; font-variant-numeric:tabular-nums;
+    font-weight:600; letter-spacing:.5px;
+}
+.snx-call-quality { font-size:14px; cursor:default; }
+.snx-call-topbtn {
+    background:rgba(0,174,239,0.08); border:1px solid rgba(0,174,239,0.22);
+    color:#00AEEF; font-size:14px; border-radius:20px; padding:4px 10px;
+    cursor:pointer; transition:background .15s;
+}
+.snx-call-topbtn:hover { background:rgba(0,174,239,0.2); }
+.snx-call-remote-wrap {
+    width:min(500px,100vw); background:#050d1e; overflow:hidden;
+    position:relative; display:flex; align-items:center; justify-content:center;
+    flex:1; max-height:calc(100vh - 200px);
+}
+@media (min-width:600px) {
+    .snx-call-remote-wrap { border-radius:16px; max-height:56vh; }
+}
+.snx-call-remote-vid { width:100%; height:100%; object-fit:cover; }
+.snx-call-status-overlay {
+    position:absolute; inset:0; display:flex; align-items:center;
+    justify-content:center; flex-direction:column; gap:12px;
+    background:rgba(5,13,30,0.85);
+}
+.snx-call-peer-av {
+    width:80px; height:80px; border-radius:50%; background:#0B1F3A;
+    border:3px solid rgba(0,174,239,0.5); display:flex; align-items:center;
+    justify-content:center; font-size:30px; font-weight:700; color:#00AEEF;
+    background-size:cover; background-position:center;
+}
+.snx-call-ringing .snx-call-peer-av { animation:snxCallRing 1.2s ease-in-out infinite; }
+.snx-call-peer-name  { font-size:17px; font-weight:700; color:#c8e8ff; }
+.snx-call-peer-state { font-size:13px; color:#6a90b8; }
+.snx-call-local-pip {
+    position:fixed; bottom:100px; right:14px;
+    width:min(100px,22vw); border-radius:10px;
+    border:2px solid rgba(0,174,239,0.4); background:#050d1e;
+    z-index:9982; object-fit:cover; aspect-ratio:4/3;
+}
+.snx-call-controls {
+    display:flex; gap:14px; align-items:center; justify-content:center;
+    padding:16px 0 12px; flex-shrink:0; flex-wrap:wrap;
+}
+.snx-call-ctrl {
+    width:52px; height:52px; border-radius:50%; font-size:22px;
+    background:rgba(0,30,70,0.9); border:1px solid rgba(0,174,239,0.35);
+    color:#fff; cursor:pointer; transition:background .15s, transform .1s;
+    display:flex; align-items:center; justify-content:center;
+    -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+}
+.snx-call-ctrl:hover  { background:rgba(0,174,239,0.18); transform:scale(1.07); }
+.snx-call-ctrl:active { transform:scale(0.95); }
+.snx-call-end {
+    width:60px; height:60px; font-size:24px;
+    background:rgba(200,0,30,0.85); border-color:rgba(255,30,60,0.7);
+}
+.snx-call-end:hover { background:rgba(220,10,40,0.95); }
+.snx-call-mini {
+    position:fixed; bottom:0; left:0; right:0; z-index:9979;
+    background:#06111e; border-top:1px solid rgba(0,174,239,0.3);
+    padding:10px 16px; display:flex; align-items:center; gap:10px;
+    padding-bottom:calc(10px + env(safe-area-inset-bottom,0));
+}
+.snx-call-mini-name { flex:1; font-size:13px; font-weight:700; color:#c8e8ff; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.snx-call-mini-dur  { font-size:12px; color:#39FF14; font-variant-numeric:tabular-nums; flex-shrink:0; }
+.snx-call-mini-btn  { border-radius:50%; width:34px; height:34px; font-size:16px; cursor:pointer; flex-shrink:0; border:1px solid transparent; }
+.snx-call-mini-restore { background:rgba(0,174,239,0.15); border-color:rgba(0,174,239,0.45); color:#00AEEF; }
+.snx-call-mini-end    { background:rgba(200,0,30,0.8); border-color:rgba(255,30,60,0.7); color:#fff; }
+@media (max-width:599px) {
+    .snx-call-modal { justify-content:space-between; }
+    .snx-call-topbar { padding:10px 12px 8px; }
+    .snx-call-remote-wrap { max-height:none; flex:1; width:100vw; }
+    .snx-call-controls { padding:12px 0 8px; gap:10px; }
+    .snx-call-ctrl { width:46px; height:46px; font-size:20px; }
+    .snx-call-end  { width:54px; height:54px; }
+    .snx-call-local-pip { width:80px; bottom:90px; }
+}
+
 /* ── Comment GIF button ── */
 .comment-gif-btn {
     background:none; border:none; color:#6a90b8; font-size:10px; font-weight:800;
@@ -32124,21 +32314,184 @@ window.snxRenderFeaturedMedia = async function(uid) {
 
 
 /* ─────────────────────────────────────────────────────────────────────────
-   7. VOICE & VIDEO CALLS — WebRTC 1:1 via Firestore signaling
+   7. VOICE & VIDEO CALLS — Full WebRTC 1:1 system
+      Signaling:   Firestore  calls/{callId}  (offer / answer / status)
+                   Firestore  calls/{callId}/callerCandidates
+                   Firestore  calls/{callId}/calleeCandidates
+      ICE:         STUN (Google + Cloudflare) + TURN (OpenRelay metered)
+      Features:    voice & video, mute, camera on/off, flip camera,
+                   full-screen, PiP, minimize, call timer, quality badge,
+                   missed-call notification, privacy enforcement,
+                   auto ICE-restart on disconnect.
    ───────────────────────────────────────────────────────────────────────── */
 (function _initCalls() {
-    let _pc = null;           // RTCPeerConnection
-    let _localStream = null;
-    let _callDocId   = null;
-    let _callUnsub   = null;
-    let _callMode    = 'audio'; // 'audio' | 'video'
-    let _isCaller    = false;
-    let _muteState   = false;
-    let _camOn       = true;
-    const _ICE = { iceServers:[{ urls:['stun:stun1.l.google.com:19302','stun:stun2.l.google.com:19302'] }] };
 
-    // ── Show/hide call buttons when ipcModal opens ──
-    // Patch ipcOpen to reveal call buttons for 1:1 chats
+    /* ── ICE config: STUN + TURN (UDP/TCP/TLS) ── */
+    const _ICE = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            { urls: 'turn:openrelay.metered.ca:80',                 username:'openrelayproject', credential:'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:80?transport=tcp',   username:'openrelayproject', credential:'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443',                username:'openrelayproject', credential:'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443?transport=tcp',  username:'openrelayproject', credential:'openrelayproject' },
+            { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username:'openrelayproject', credential:'openrelayproject' },
+        ],
+        iceCandidatePoolSize: 10,
+    };
+
+    /* ── State ── */
+    let _pc           = null;
+    let _localStream  = null;
+    let _callDocId    = null;
+    let _callUnsub    = null;
+    let _callMode     = 'audio';  // 'audio' | 'video'
+    let _isCaller     = false;
+    let _muteState    = false;
+    let _camOn        = true;
+    let _facingMode   = 'user';   // 'user' | 'environment'
+    let _isMinimized  = false;
+    let _callStart    = null;     // Date.now() when connected
+    let _timerInterval= null;
+    let _qualityTimer = null;
+    let _peerName     = '';
+    let _peerAvatar   = '';
+    let _missedTimer  = null;    // fires if callee never answers
+    let _calleeCandUnsub = null;
+
+    /* ── Helpers ── */
+    const _el = id => document.getElementById(id);
+
+    function _fmtDur(sec) {
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return m + ':' + String(s).padStart(2,'0');
+    }
+
+    function _startTimer() {
+        _callStart = Date.now();
+        _timerInterval && clearInterval(_timerInterval);
+        _timerInterval = setInterval(() => {
+            const secs = Math.floor((Date.now() - _callStart) / 1000);
+            const txt = _fmtDur(secs);
+            const d1 = _el('snxCallDuration');     if (d1) d1.textContent = txt;
+            const d2 = _el('snxCallMiniDur');       if (d2) d2.textContent = txt;
+        }, 1000);
+    }
+
+    function _stopTimer() {
+        if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+        if (_qualityTimer)  { clearInterval(_qualityTimer);  _qualityTimer  = null; }
+    }
+
+    /* Poll ICE connection stats for a quality badge every 4s */
+    function _startQualityPolling() {
+        _qualityTimer && clearInterval(_qualityTimer);
+        _qualityTimer = setInterval(async () => {
+            if (!_pc) return;
+            const qEl = _el('snxCallQuality');
+            if (!qEl) return;
+            const ice = _pc.iceConnectionState;
+            if (ice === 'connected' || ice === 'completed') {
+                try {
+                    const stats = await _pc.getStats();
+                    let rtt = null;
+                    stats.forEach(r => {
+                        if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.currentRoundTripTime != null) {
+                            rtt = r.currentRoundTripTime * 1000; // ms
+                        }
+                    });
+                    if (rtt === null)          { qEl.textContent = '📶'; qEl.title = 'Good'; }
+                    else if (rtt < 80)         { qEl.textContent = '📶'; qEl.title = 'Excellent (' + Math.round(rtt) + 'ms)'; }
+                    else if (rtt < 200)        { qEl.textContent = '📳'; qEl.title = 'Fair (' + Math.round(rtt) + 'ms)'; }
+                    else                       { qEl.textContent = '⚠️'; qEl.title = 'Poor (' + Math.round(rtt) + 'ms)'; }
+                } catch(_) {}
+            } else if (ice === 'disconnected') {
+                qEl.textContent = '🔄'; qEl.title = 'Reconnecting…';
+            } else {
+                qEl.textContent = '';
+            }
+        }, 4000);
+    }
+
+    /* ── Update all state labels (topbar + overlay) ── */
+    function _updateCallState(text) {
+        const els = [_el('snxCallState'), _el('snxCallStateTop')];
+        els.forEach(e => { if (e) e.textContent = text; });
+        const modal = _el('snxCallModal');
+        if (modal) modal.classList.remove('snx-call-ringing');
+    }
+
+    /* ── Open the full call modal ── */
+    function _openCallModal(mode, peerName, peerAvatar, state) {
+        _peerName   = peerName   || 'User';
+        _peerAvatar = peerAvatar || '';
+        const modal = _el('snxCallModal');
+        if (!modal) return;
+
+        // Populate all name/avatar/state elements (topbar + overlay)
+        ['snxCallPeerName','snxCallPeerNameTop'].forEach(id => {
+            const e = _el(id); if (e) e.textContent = _peerName;
+        });
+        ['snxCallState','snxCallStateTop'].forEach(id => {
+            const e = _el(id); if (e) e.textContent = state || 'Connecting…';
+        });
+        ['snxCallPeerAvatar','snxCallPeerAvatarTop'].forEach(id => {
+            const e = _el(id);
+            if (!e) return;
+            if (_peerAvatar) { e.style.backgroundImage = `url('${_peerAvatar}')`; e.textContent = ''; }
+            else { e.style.backgroundImage = ''; e.textContent = (_peerName||'?')[0].toUpperCase(); }
+        });
+        const miniName = _el('snxCallMiniName');
+        if (miniName) miniName.textContent = _peerName;
+
+        // Show/hide video-only controls
+        ['snxCallCamBtn','snxCallFlipBtn','snxCallPipBtn','snxCallFullscreenBtn'].forEach(id => {
+            const e = _el(id); if (e) e.style.display = mode === 'video' ? '' : 'none';
+        });
+        const remoteVideoBox = _el('snxCallRemoteVideo');
+        if (remoteVideoBox) remoteVideoBox.style.display = mode === 'video' ? '' : 'none';
+
+        modal.classList.add('snx-call-ringing');
+        modal.style.display = 'flex';
+        _isMinimized = false;
+        const mini = _el('snxCallMini');
+        if (mini) mini.style.display = 'none';
+    }
+
+    /* ── ICE restart on disconnect (prevents black screen / frozen audio) ── */
+    function _attachIceRestart() {
+        if (!_pc) return;
+        let _iceTimer = null;
+        _pc.oniceconnectionstatechange = () => {
+            const st = _pc.iceConnectionState;
+            if (st === 'disconnected') {
+                _updateCallState('Reconnecting…');
+                const qEl = _el('snxCallQuality'); if (qEl) qEl.textContent = '🔄';
+                _iceTimer && clearTimeout(_iceTimer);
+                _iceTimer = setTimeout(async () => {
+                    if (!_pc || (_pc.iceConnectionState !== 'disconnected' && _pc.iceConnectionState !== 'failed')) return;
+                    try {
+                        if (_isCaller) {
+                            const offer = await _pc.createOffer({ iceRestart:true });
+                            await _pc.setLocalDescription(offer);
+                            const { doc, updateDoc } = _fs();
+                            if (doc && _callDocId) await updateDoc(doc(_db(),'calls',_callDocId), { offer:{ type:offer.type, sdp:offer.sdp }, restartTs:Date.now() }).catch(()=>{});
+                        }
+                    } catch(e) { console.warn('[SNX Call] ICE restart failed:', e.message); }
+                }, 4000);
+            } else if (st === 'connected' || st === 'completed') {
+                _iceTimer && clearTimeout(_iceTimer);
+                _updateCallState('Connected ✅');
+            } else if (st === 'failed') {
+                _iceTimer && clearTimeout(_iceTimer);
+                _updateCallState('Connection failed');
+            }
+        };
+    }
+
+    /* ── Patch ipcOpen to show call buttons in 1:1 chats ── */
     (function _patchIpcOpen() {
         const _orig = window.ipcOpen;
         if (typeof _orig !== 'function') {
@@ -32154,11 +32507,10 @@ window.snxRenderFeaturedMedia = async function(uid) {
         }
         window.ipcOpen = function(uid, ...args) {
             const r = _orig(uid, ...args);
-            // Show call buttons (hidden for group chats)
             setTimeout(() => {
                 const isGroup = !!window._ipcIsGroup;
-                const voiceBtn = document.getElementById('ipcVoiceCallBtn');
-                const videoBtn = document.getElementById('ipcVideoCallBtn');
+                const voiceBtn = _el('ipcVoiceCallBtn');
+                const videoBtn = _el('ipcVideoCallBtn');
                 if (voiceBtn) voiceBtn.style.display = isGroup ? 'none' : '';
                 if (videoBtn) videoBtn.style.display = isGroup ? 'none' : '';
                 window._ipcCallTargetUid = uid;
@@ -32167,89 +32519,153 @@ window.snxRenderFeaturedMedia = async function(uid) {
         };
     })();
 
+    /* ── Check call privacy before initiating ── */
+    async function _checkCallPrivacy(targetUid) {
+        const { doc, getDoc } = _fs();
+        if (!doc) return true; // allow if Firestore not ready
+        try {
+            const snap = await getDoc(doc(_db(),'users',targetUid));
+            if (!snap.exists()) return true;
+            const pref = snap.data().privacySettings?.calls || 'everyone';
+            if (pref === 'nobody') { _toast('🚫 This user has disabled calls.'); return false; }
+            if (pref === 'friends') {
+                const cu = _cu(); if (!cu) return false;
+                const mySnap = await getDoc(doc(_db(),'users',cu.uid));
+                const friends = mySnap.exists() ? (mySnap.data().friends || []) : [];
+                if (!friends.includes(targetUid)) { _toast('🔒 This user only accepts calls from friends.'); return false; }
+            }
+            return true;
+        } catch(_) { return true; }
+    }
+
+    /* ── Start a call (caller side) ── */
     window.snxStartCall = async function(mode) {
         const cu = _cu(); if (!cu) return;
-        const targetUid = window._ipcCallTargetUid || window._m_tgtUid;
+        const targetUid = window._ipcCallTargetUid || window._m_tgtUid || window._snxCallTarget;
         if (!targetUid) { _toast('❌ No active conversation to call.'); return; }
+
+        // Enforce call privacy
+        const allowed = await _checkCallPrivacy(targetUid);
+        if (!allowed) return;
+
         _callMode = mode;
         _isCaller = true;
 
         try {
             _localStream = await navigator.mediaDevices.getUserMedia(
-                mode === 'video' ? { audio:true, video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} } } : { audio:true }
+                mode === 'video'
+                    ? { audio:true, video:{ facingMode:_facingMode, width:{ideal:1280}, height:{ideal:720} } }
+                    : { audio:true }
             );
         } catch(e) {
-            _toast('🎙️ Could not access camera/mic. Please allow in browser settings.');
+            _toast('🎙️ Could not access camera/mic. Please allow access in your browser settings.');
             return;
         }
 
-        // Show local video
-        const localVid = document.getElementById('snxCallLocalVid');
+        // Show local video PiP
+        const localVid = _el('snxCallLocalVid');
         if (localVid && mode === 'video') { localVid.srcObject = _localStream; localVid.style.display = ''; }
 
         // Create Firestore call doc
-        const { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } = _fs();
+        const { collection, addDoc } = _fs();
         if (!collection) return;
         try {
             const callDoc = await addDoc(collection(_db(),'calls'), {
-                caller: cu.uid, callee: targetUid,
-                mode, status:'ringing',
-                callerName: window.userData?.displayName || cu.email || 'User',
+                caller:       cu.uid,
+                callee:       targetUid,
+                mode,
+                status:       'ringing',
+                callerName:   window.userData?.displayName || cu.email || 'User',
                 callerAvatar: window.userData?.avatar || '',
-                createdAt: Date.now()
+                createdAt:    Date.now()
             });
             _callDocId = callDoc.id;
         } catch(e) { _toast('❌ Could not initiate call.'); return; }
 
-        // Open call modal
-        _openCallModal(mode, window.userData?.displayName || 'Calling…', window.userData?.avatar || '', 'Ringing…');
+        // Fetch callee's profile for display
+        let calleeName = 'User', calleeAvatar = '';
+        try {
+            const { doc, getDoc } = _fs();
+            if (doc) {
+                const s = await getDoc(doc(_db(),'users',targetUid));
+                if (s.exists()) { calleeName = s.data().displayName || s.data().username || 'User'; calleeAvatar = s.data().avatar || ''; }
+            }
+        } catch(_) {}
+
+        _openCallModal(mode, calleeName, calleeAvatar, 'Ringing…');
 
         // Create peer connection
         _pc = new RTCPeerConnection(_ICE);
         _localStream.getTracks().forEach(t => _pc.addTrack(t, _localStream));
+        _attachIceRestart();
+        _startQualityPolling();
 
         // Remote stream
         const remoteStream = new MediaStream();
-        const remoteVid = document.getElementById('snxCallRemoteVid');
+        const remoteVid = _el('snxCallRemoteVid');
         if (remoteVid) remoteVid.srcObject = remoteStream;
         _pc.ontrack = e => { e.streams[0].getTracks().forEach(t => remoteStream.addTrack(t)); };
 
         // ICE candidates
         _pc.onicecandidate = async (e) => {
-            if (e.candidate && _callDocId) {
-                const { collection: c2, addDoc: a2 } = _fs();
-                if (c2) await a2(c2(_db(),'calls',_callDocId,'callerCandidates'), e.candidate.toJSON()).catch(()=>{});
-            }
+            if (!e.candidate || !_callDocId) return;
+            const { collection:c2, addDoc:a2 } = _fs();
+            if (c2) await a2(c2(_db(),'calls',_callDocId,'callerCandidates'), e.candidate.toJSON()).catch(()=>{});
         };
 
         // Create offer
         const offer = await _pc.createOffer();
         await _pc.setLocalDescription(offer);
-        const { doc: d2, updateDoc: u2 } = _fs();
-        if (d2) await u2(d2(_db(),'calls',_callDocId), { offer: { type:offer.type, sdp:offer.sdp } }).catch(()=>{});
+        const { doc:d2, updateDoc:u2, onSnapshot:ons } = _fs();
+        if (d2) await u2(d2(_db(),'calls',_callDocId), { offer:{ type:offer.type, sdp:offer.sdp } }).catch(()=>{});
 
-        // Listen for answer
-        const { onSnapshot: ons } = _fs();
+        // Listen for answer + callee ICE candidates
         if (ons && _callDocId) {
-            const { doc: d3 } = _fs();
+            const { doc:d3 } = _fs();
             _callUnsub = ons(d3(_db(),'calls',_callDocId), async snap => {
                 const data = snap.data();
                 if (!data) { snxEndCall(); return; }
-                if (data.status === 'declined' || data.status === 'ended') { snxEndCall(); return; }
+                if (data.status === 'declined') { _toast('📵 Call declined.'); snxEndCall(); return; }
+                if (data.status === 'ended')    { snxEndCall(); return; }
                 if (data.answer && _pc && _pc.signalingState === 'have-local-offer') {
                     await _pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(()=>{});
+                    _clearMissedTimer();
                     _updateCallState('Connected ✅');
+                    _startTimer();
+                    const overlay = _el('snxCallStatusLabel');
+                    if (overlay) overlay.style.display = 'none';
                     if (remoteVid) remoteVid.style.display = '';
-                    document.getElementById('snxCallStatusLabel').style.display = 'none';
+                }
+                // ICE restart: callee sent a new answer after reconnect
+                if (data.restartAnswer && _pc && _pc.signalingState === 'have-local-offer') {
+                    await _pc.setRemoteDescription(new RTCSessionDescription(data.restartAnswer)).catch(()=>{});
                 }
             });
+
+            // Also subscribe to callee's ICE candidates live
+            const { collection:c5, onSnapshot:ons5 } = _fs();
+            if (c5) {
+                _calleeCandUnsub = ons5(c5(_db(),'calls',_callDocId,'calleeCandidates'), snap2 => {
+                    snap2.docChanges().forEach(ch => {
+                        if (ch.type === 'added') _pc?.addIceCandidate(new RTCIceCandidate(ch.doc.data())).catch(()=>{});
+                    });
+                });
+            }
         }
 
         // Send call notification to callee
         _sendCallNotif(targetUid, cu.uid, mode, _callDocId);
+
+        // Missed-call timeout: if not answered in 45s, write missed-call notif
+        _missedTimer = setTimeout(() => {
+            if (_callDocId && _pc && (_pc.signalingState === 'have-local-offer' || _pc.signalingState === 'stable') && !_callStart) {
+                _sendMissedCallNotif(targetUid, cu.uid, mode);
+                snxEndCall();
+            }
+        }, 45000);
     };
 
-    // ── Callee: accept incoming call ──
+    /* ── Accept an incoming call (callee side) ── */
     window.snxAcceptCall = async function(callId) {
         document.getElementById('snxIncomingCallBanner')?.classList.remove('visible');
         const cu = _cu(); if (!cu) return;
@@ -32259,6 +32675,8 @@ window.snxRenderFeaturedMedia = async function(uid) {
         const snap = await getDoc(doc(_db(),'calls',callId)).catch(() => null);
         if (!snap || !snap.exists()) { _toast('❌ Call no longer available.'); return; }
         const callData = snap.data();
+        if (callData.status === 'ended' || callData.status === 'declined') { _toast('📵 Call already ended.'); return; }
+
         _callMode = callData.mode || 'audio';
         _isCaller = false;
         _callDocId = callId;
@@ -32266,29 +32684,30 @@ window.snxRenderFeaturedMedia = async function(uid) {
         try {
             _localStream = await navigator.mediaDevices.getUserMedia(
                 _callMode === 'video'
-                    ? { audio:true, video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} } }
+                    ? { audio:true, video:{ facingMode:_facingMode, width:{ideal:1280}, height:{ideal:720} } }
                     : { audio:true }
             );
         } catch(e) { _toast('🎙️ Mic/camera access denied.'); return; }
 
-        const localVid = document.getElementById('snxCallLocalVid');
+        const localVid = _el('snxCallLocalVid');
         if (localVid && _callMode === 'video') { localVid.srcObject = _localStream; localVid.style.display = ''; }
 
         _openCallModal(_callMode, callData.callerName || 'Caller', callData.callerAvatar || '', 'Connecting…');
 
         _pc = new RTCPeerConnection(_ICE);
         _localStream.getTracks().forEach(t => _pc.addTrack(t, _localStream));
+        _attachIceRestart();
+        _startQualityPolling();
 
         const remoteStream = new MediaStream();
-        const remoteVid = document.getElementById('snxCallRemoteVid');
+        const remoteVid = _el('snxCallRemoteVid');
         if (remoteVid) remoteVid.srcObject = remoteStream;
         _pc.ontrack = e => { e.streams[0].getTracks().forEach(t => remoteStream.addTrack(t)); };
 
         _pc.onicecandidate = async (e) => {
-            if (e.candidate && _callDocId) {
-                const { collection:c2, addDoc:a2 } = _fs();
-                if (c2) await a2(c2(_db(),'calls',_callDocId,'calleeCandidates'), e.candidate.toJSON()).catch(()=>{});
-            }
+            if (!e.candidate || !_callDocId) return;
+            const { collection:c2, addDoc:a2 } = _fs();
+            if (c2) await a2(c2(_db(),'calls',_callDocId,'calleeCandidates'), e.candidate.toJSON()).catch(()=>{});
         };
 
         // Set remote offer + create answer
@@ -32300,30 +32719,47 @@ window.snxRenderFeaturedMedia = async function(uid) {
             status: 'connected'
         }).catch(()=>{});
 
-        // Add caller ICE candidates
-        const callerCands = await getDocs ? null : null; // handled by onSnapshot
-        const { onSnapshot: ons2, getDocs: gd2 } = _fs();
+        // Drain existing caller ICE candidates + watch for new ones
+        const { getDocs:gd2 } = _fs();
         if (gd2) {
             const { collection:c3 } = _fs();
             const candSnap = await gd2(c3(_db(),'calls',_callDocId,'callerCandidates')).catch(()=>null);
             if (candSnap) candSnap.forEach(c => _pc.addIceCandidate(new RTCIceCandidate(c.data())).catch(()=>{}));
         }
-
-        // Listen for callee ICE from caller
-        if (ons2) {
-            const { collection: c4 } = _fs();
-            ons2(c4(_db(),'calls',_callDocId,'calleeCandidates'), snap2 => {
-                snap2.docChanges().forEach(change => {
-                    if (change.type === 'added') _pc.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(()=>{});
+        // Live caller ICE stream
+        const { collection:c4, onSnapshot:ons4 } = _fs();
+        if (c4) {
+            ons4(c4(_db(),'calls',_callDocId,'callerCandidates'), snap2 => {
+                snap2.docChanges().forEach(ch => {
+                    if (ch.type === 'added') _pc?.addIceCandidate(new RTCIceCandidate(ch.doc.data())).catch(()=>{});
                 });
             });
         }
 
         _updateCallState('Connected ✅');
+        _startTimer();
+        const overlay = _el('snxCallStatusLabel');
+        if (overlay) overlay.style.display = 'none';
         if (remoteVid) remoteVid.style.display = '';
-        document.getElementById('snxCallStatusLabel').style.display = 'none';
+
+        // ICE restart: watch for caller re-offer
+        _callUnsub = ons4 ? ons4(doc(_db(),'calls',_callDocId), async snap3 => {
+            const d = snap3.data();
+            if (!d) return;
+            if (d.status === 'ended') { snxEndCall(); return; }
+            if (d.restartTs && d.offer && _pc && _pc.signalingState === 'stable') {
+                try {
+                    await _pc.setRemoteDescription(new RTCSessionDescription(d.offer));
+                    const ans = await _pc.createAnswer();
+                    await _pc.setLocalDescription(ans);
+                    const { doc:dd, updateDoc:uu } = _fs();
+                    if (dd) await uu(dd(_db(),'calls',_callDocId), { restartAnswer:{ type:ans.type, sdp:ans.sdp } }).catch(()=>{});
+                } catch(_) {}
+            }
+        }) : null;
     };
 
+    /* ── Decline a ringing call ── */
     window.snxDeclineCall = async function(callId) {
         document.getElementById('snxIncomingCallBanner')?.classList.remove('visible');
         const { doc, updateDoc } = _fs();
@@ -32331,94 +32767,178 @@ window.snxRenderFeaturedMedia = async function(uid) {
         _toast('📵 Call declined.');
     };
 
+    /* ── End / hang up ── */
     window.snxEndCall = function() {
-        if (_callUnsub) { try { _callUnsub(); } catch(_) {} _callUnsub = null; }
-        if (_localStream) { _localStream.getTracks().forEach(t => t.stop()); _localStream = null; }
-        if (_pc) { try { _pc.close(); } catch(_) {} _pc = null; }
+        _clearMissedTimer();
+        _stopTimer();
+        if (_callUnsub)      { try { _callUnsub(); }      catch(_) {} _callUnsub = null; }
+        if (_calleeCandUnsub){ try { _calleeCandUnsub(); } catch(_) {} _calleeCandUnsub = null; }
+        if (_localStream)    { _localStream.getTracks().forEach(t => t.stop()); _localStream = null; }
+        if (_pc)             { try { _pc.close(); } catch(_) {} _pc = null; }
         if (_callDocId) {
             const { doc, updateDoc } = _fs();
             if (doc) updateDoc(doc(_db(),'calls',_callDocId), { status:'ended' }).catch(()=>{});
             _callDocId = null;
         }
-        const modal = document.getElementById('snxCallModal');
-        if (modal) modal.style.display = 'none';
-        const localVid  = document.getElementById('snxCallLocalVid');
-        const remoteVid = document.getElementById('snxCallRemoteVid');
+        // Hide modal + mini bar
+        const modal = _el('snxCallModal');
+        if (modal) { modal.style.display = 'none'; modal.classList.remove('snx-call-ringing'); }
+        const mini = _el('snxCallMini');
+        if (mini) mini.style.display = 'none';
+        _isMinimized = false;
+        // Clear video elements
+        const localVid  = _el('snxCallLocalVid');
+        const remoteVid = _el('snxCallRemoteVid');
         if (localVid)  { localVid.srcObject = null;  localVid.style.display = 'none'; }
         if (remoteVid) { remoteVid.srcObject = null; }
+        // Reset quality badge + duration
+        const qEl = _el('snxCallQuality');   if (qEl) qEl.textContent = '';
+        const dEl = _el('snxCallDuration');  if (dEl) dEl.textContent = '0:00';
+        _callStart = null;
     };
 
+    /* ── Mute microphone ── */
     window.snxCallToggleMute = function() {
         if (!_localStream) return;
         _muteState = !_muteState;
         _localStream.getAudioTracks().forEach(t => { t.enabled = !_muteState; });
-        const btn = document.getElementById('snxCallMuteBtn');
+        const btn = _el('snxCallMuteBtn');
         if (btn) btn.textContent = _muteState ? '🔇' : '🎙️';
         _toast(_muteState ? '🔇 Muted' : '🎙️ Unmuted');
     };
 
+    /* ── Camera on/off ── */
     window.snxCallToggleCamera = function() {
         if (!_localStream) return;
         _camOn = !_camOn;
         _localStream.getVideoTracks().forEach(t => { t.enabled = _camOn; });
-        const btn = document.getElementById('snxCallCamBtn');
+        const btn = _el('snxCallCamBtn');
         if (btn) btn.textContent = _camOn ? '📹' : '📷';
         _toast(_camOn ? '📹 Camera on' : '📷 Camera off');
     };
 
-    function _openCallModal(mode, peerName, peerAvatar, state) {
-        const modal    = document.getElementById('snxCallModal');
-        const nameEl   = document.getElementById('snxCallPeerName');
-        const stateEl  = document.getElementById('snxCallState');
-        const avatarEl = document.getElementById('snxCallPeerAvatar');
-        const camBtn   = document.getElementById('snxCallCamBtn');
-        const remoteVideoBox = document.getElementById('snxCallRemoteVideo');
-        if (!modal) return;
+    /* ── Flip front/back camera (mobile) ── */
+    window.snxCallFlipCamera = async function() {
+        if (!_localStream || !_pc) return;
+        _facingMode = _facingMode === 'user' ? 'environment' : 'user';
+        try {
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: { facingMode: _facingMode, width:{ideal:1280}, height:{ideal:720} }
+            });
+            // Replace video track on the peer connection
+            const [newVid] = newStream.getVideoTracks();
+            const sender = _pc.getSenders().find(s => s.track?.kind === 'video');
+            if (sender && newVid) await sender.replaceTrack(newVid);
+            // Replace audio track if needed
+            const [newAud] = newStream.getAudioTracks();
+            const audSender = _pc.getSenders().find(s => s.track?.kind === 'audio');
+            if (audSender && newAud) await audSender.replaceTrack(newAud);
+            // Stop old tracks
+            _localStream.getTracks().forEach(t => t.stop());
+            _localStream = newStream;
+            // Update local PiP
+            const localVid = _el('snxCallLocalVid');
+            if (localVid) localVid.srcObject = _localStream;
+            _toast('🔄 Camera switched');
+        } catch(e) { _toast('⚠️ Could not switch camera'); _facingMode = _facingMode === 'user' ? 'environment' : 'user'; }
+    };
 
-        if (nameEl) nameEl.textContent = peerName || 'User';
-        if (stateEl) stateEl.textContent = state || 'Connecting…';
-        if (avatarEl) {
-            if (peerAvatar) { avatarEl.style.backgroundImage = `url('${peerAvatar}')`; avatarEl.textContent = ''; }
-            else { avatarEl.style.backgroundImage = ''; avatarEl.textContent = (peerName||'?')[0].toUpperCase(); }
+    /* ── Full-screen toggle ── */
+    window.snxCallFullscreen = function() {
+        const vid = _el('snxCallRemoteVid');
+        if (!vid) return;
+        if (!document.fullscreenElement) {
+            vid.requestFullscreen().catch(() => vid.webkitRequestFullscreen?.());
+        } else {
+            document.exitFullscreen().catch(() => document.webkitExitFullscreen?.());
         }
-        if (camBtn) camBtn.style.display = mode === 'video' ? '' : 'none';
+    };
 
-        // Hide remote video area in audio-only mode
-        if (remoteVideoBox) remoteVideoBox.style.display = mode === 'video' ? '' : 'none';
+    /* ── Picture-in-picture (native browser PiP) ── */
+    window.snxCallPip = async function() {
+        const vid = _el('snxCallRemoteVid');
+        if (!vid) return;
+        try {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+            } else {
+                await vid.requestPictureInPicture();
+            }
+        } catch(e) { _toast('⚠️ PiP not supported on this device'); }
+    };
 
-        modal.classList.add('snx-call-ringing');
+    /* ── Minimize: hide full modal, show bottom mini bar ── */
+    window.snxCallMinimize = function() {
+        const modal = _el('snxCallModal');
+        const mini  = _el('snxCallMini');
+        if (!modal || !mini) return;
+        modal.style.display = 'none';
+        mini.style.display  = 'flex';
+        _isMinimized = true;
+    };
+
+    /* ── Restore from minimized ── */
+    window.snxCallRestore = function() {
+        const modal = _el('snxCallModal');
+        const mini  = _el('snxCallMini');
+        if (!modal || !mini) return;
         modal.style.display = 'flex';
+        mini.style.display  = 'none';
+        _isMinimized = false;
+    };
+
+    /* ── Clear missed-call timer ── */
+    function _clearMissedTimer() {
+        if (_missedTimer) { clearTimeout(_missedTimer); _missedTimer = null; }
     }
 
-    function _updateCallState(text) {
-        const stateEl = document.getElementById('snxCallState');
-        if (stateEl) stateEl.textContent = text;
-        const modal = document.getElementById('snxCallModal');
-        if (modal) modal.classList.remove('snx-call-ringing');
-    }
-
+    /* ── Send incoming-call notification to callee ── */
     function _sendCallNotif(targetUid, callerUid, mode, callId) {
         const cu = _cu(); if (!cu) return;
         const { doc, getDoc, updateDoc, arrayUnion } = _fs();
         if (!doc) return;
         getDoc(doc(_db(),'users',targetUid)).then(snap => {
             if (!snap.exists()) return;
-            const notif = {
-                type:        'incoming_call',
-                fromUid:     callerUid,
-                fromName:    window.userData?.displayName || cu.email || 'User',
-                fromAvatar:  window.userData?.avatar || '',
-                callMode:    mode,
-                callId:      callId,
-                ts:          Date.now(),
-                read:        false
-            };
-            updateDoc(doc(_db(),'users',targetUid), { notifications: arrayUnion(notif) }).catch(()=>{});
+            updateDoc(doc(_db(),'users',targetUid), {
+                notifications: arrayUnion({
+                    id:         Date.now() + '_call_' + callerUid,
+                    type:       'incoming_call',
+                    fromUid:    callerUid,
+                    fromName:   window.userData?.displayName || cu.email || 'User',
+                    fromAvatar: window.userData?.avatar || '',
+                    callMode:   mode,
+                    callId:     callId,
+                    ts:         Date.now(),
+                    read:       false
+                })
+            }).catch(()=>{});
         }).catch(()=>{});
     }
 
-    // ── Listen for incoming call notifications ──
+    /* ── Write a missed-call notification to callee ── */
+    function _sendMissedCallNotif(targetUid, callerUid, mode) {
+        const cu = _cu(); if (!cu) return;
+        const { doc, updateDoc, arrayUnion } = _fs();
+        if (!doc) return;
+        updateDoc(doc(_db(),'users',targetUid), {
+            notifications: arrayUnion({
+                id:         Date.now() + '_missed_' + callerUid,
+                type:       'missedCall',
+                fromUid:    callerUid,
+                fromName:   window.userData?.displayName || cu.email || 'User',
+                fromAvatar: window.userData?.avatar || '',
+                callMode:   mode,
+                ts:         Date.now(),
+                read:       false
+            })
+        }).catch(()=>{});
+    }
+
+    /* ── Real-time incoming call listener ── */
     (function _listenIncoming() {
+        // Track the last banner callId so we don't flash the same call multiple times
+        let _shownCallId = null;
         function _setup() {
             const cu = _cu(); if (!cu) return;
             const { doc, onSnapshot } = _fs(); if (!doc) return;
@@ -32427,16 +32947,19 @@ window.snxRenderFeaturedMedia = async function(uid) {
                 const notifs = snap.data().notifications || [];
                 const callNotif = notifs.slice().reverse().find(n =>
                     n.type === 'incoming_call' && !n.read &&
-                    n.ts && (Date.now() - n.ts) < 60000 // within last 60s
+                    n.ts && (Date.now() - n.ts) < 60000
                 );
-                if (callNotif) _showIncomingCallBanner(callNotif);
+                if (callNotif && callNotif.callId !== _shownCallId) {
+                    _shownCallId = callNotif.callId;
+                    _showIncomingCallBanner(callNotif);
+                }
             });
         }
-        // Wait until auth resolves
         if (window._snxAuthResolved || window.currentUser) { _setup(); }
         else { setTimeout(_setup, 3000); }
     })();
 
+    /* ── Incoming call banner ── */
     function _showIncomingCallBanner(notif) {
         let banner = document.getElementById('snxIncomingCallBanner');
         if (!banner) {
@@ -32445,32 +32968,27 @@ window.snxRenderFeaturedMedia = async function(uid) {
             document.body.appendChild(banner);
         }
         banner.innerHTML = `
-            <div class="snx-call-banner-avatar" style="${notif.fromAvatar?'background-image:url(\''+notif.fromAvatar+'\')':''}">${notif.fromAvatar?'':_esc((notif.fromName||'?')[0])}</div>
+            <div class="snx-call-banner-avatar" style="${notif.fromAvatar ? 'background-image:url(\''+notif.fromAvatar+'\')' : ''}">${notif.fromAvatar ? '' : _esc((notif.fromName||'?')[0])}</div>
             <div class="snx-call-banner-info">
                 <div class="snx-call-banner-name">${_esc(notif.fromName||'Someone')}</div>
-                <div class="snx-call-banner-type">${notif.callMode==='video'?'📹 Video call':'📞 Voice call'}</div>
+                <div class="snx-call-banner-type">${notif.callMode==='video' ? '📹 Video call' : '📞 Voice call'}</div>
             </div>
             <div class="snx-call-banner-btns">
-                <button class="snx-call-accept" onclick="snxAcceptCall('${notif.callId}')" title="Accept">📞</button>
+                <button class="snx-call-accept"  onclick="snxAcceptCall('${notif.callId}')"  title="Accept">📞</button>
                 <button class="snx-call-decline" onclick="snxDeclineCall('${notif.callId}')" title="Decline">📵</button>
             </div>`;
         banner.classList.add('visible');
-
-        // Auto-dismiss after 30 seconds
-        setTimeout(() => { banner.classList.remove('visible'); }, 30000);
+        // Auto-dismiss after 45s (matches missed-call timeout)
+        setTimeout(() => { banner.classList.remove('visible'); }, 45000);
     }
-})();
 
-
-/* ─────────────────────────────────────────────────────────────────────────
-   8. INCOMING CALL BANNER HTML injection (if not already in DOM)
-   ───────────────────────────────────────────────────────────────────────── */
-(function _ensureIncomingBanner() {
+    /* ── Ensure incoming call banner element exists ── */
     if (!document.getElementById('snxIncomingCallBanner')) {
         const b = document.createElement('div');
         b.id = 'snxIncomingCallBanner';
         document.body.appendChild(b);
     }
+
 })();
 
 

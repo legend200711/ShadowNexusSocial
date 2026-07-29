@@ -160,6 +160,16 @@
       }
     },
 
+    // ── 1:1 Call signaling — Firestore handles this, RTDB rule here for completeness ──
+    // Actual call docs live in Firestore /calls/{callId}; this stub prevents
+    // stale RTDB rules from blocking future migration.
+    "calls": {
+      "$callId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
     // ── User presence — each user owns their own node ─────────────────
     "presence": {
       "$uid": {
