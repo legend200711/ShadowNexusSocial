@@ -954,44 +954,96 @@ input:focus, textarea:focus, select:focus {
 /* ── Social list modal (friends / followers / following) ── */
 .social-list-modal {
     display:none; position:fixed; inset:0; z-index:7500;
-    background:rgba(0,3,15,0.85); align-items:center; justify-content:center;
-    padding:16px; box-sizing:border-box; backdrop-filter:blur(6px);
+    background:rgba(0,3,15,0.88); align-items:flex-end; justify-content:center;
+    padding:0; box-sizing:border-box; backdrop-filter:blur(6px);
 }
 .social-list-modal.open { display:flex; }
 .social-list-inner {
-    background:#060d1e; border:1px solid rgba(0,174,239,0.35);
-    border-radius:16px; width:100%; max-width:400px; max-height:80vh;
+    background:#070e20; border:1px solid rgba(0,174,239,0.32);
+    border-radius:18px 18px 0 0; width:100%; max-width:520px; height:88vh;
     display:flex; flex-direction:column;
-    box-shadow:0 0 60px rgba(0,100,255,0.2);
-    animation:deleteModalIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both;
+    box-shadow:0 -8px 40px rgba(0,80,220,0.25);
+    animation:slSlidIn 0.3s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes slSlidIn {
+    from { transform:translateY(100%); opacity:0.4; }
+    to   { transform:translateY(0);    opacity:1; }
 }
 .social-list-header {
     display:flex; align-items:center; justify-content:space-between;
-    padding:16px 18px 12px; border-bottom:1px solid rgba(0,174,239,0.15); flex-shrink:0;
+    padding:14px 18px 12px; border-bottom:1px solid rgba(0,174,239,0.14); flex-shrink:0;
+    border-radius:18px 18px 0 0;
 }
+/* Drag handle decoration */
+.social-list-header::before {
+    content:''; display:block; position:absolute; top:7px; left:50%;
+    transform:translateX(-50%); width:36px; height:4px;
+    border-radius:2px; background:rgba(0,174,239,0.3);
+}
+.social-list-header { position:relative; }
 .social-list-title { font-size:15px; font-weight:700; color:#fff; }
-.social-list-close { background:none; border:none; color:#556; font-size:22px; cursor:pointer; padding:2px 8px; border-radius:6px; }
-.social-list-close:hover { color:#fff; }
-.social-list-body  { overflow-y:auto; padding:8px 0; flex:1; -webkit-overflow-scrolling:touch; }
-.social-list-item  {
-    display:flex; align-items:center; gap:12px; padding:10px 18px;
-    cursor:pointer; transition:background 0.15s;
+.social-list-close {
+    background:none; border:none; color:#4a6a8a; font-size:22px;
+    cursor:pointer; padding:4px 10px; border-radius:8px;
+    -webkit-tap-highlight-color:transparent; transition:color 0.15s, background 0.15s;
+    min-width:40px; min-height:40px; display:flex; align-items:center; justify-content:center;
 }
-.social-list-item:hover { background:rgba(0,174,239,0.08); }
+.social-list-close:hover, .social-list-close:active { color:#fff; background:rgba(0,174,239,0.12); }
+.social-list-body  {
+    overflow-y:auto; padding:6px 0 16px; flex:1;
+    -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+    scroll-behavior:smooth;
+}
+.social-list-item  {
+    display:flex; align-items:center; gap:12px; padding:11px 18px;
+    cursor:pointer; transition:background 0.15s;
+    -webkit-tap-highlight-color:transparent; min-height:62px;
+}
+.social-list-item:hover, .social-list-item:active { background:rgba(0,174,239,0.09); }
+.social-list-avatar-wrap { position:relative; flex-shrink:0; }
 .social-list-avatar {
-    width:42px; height:42px; border-radius:50%; flex-shrink:0;
+    width:44px; height:44px; border-radius:50%;
     background:#0B1F3A; background-size:cover; background-position:center;
     border:2px solid rgba(0,174,239,0.4);
     display:flex; align-items:center; justify-content:center;
     font-size:16px; font-weight:bold; color:#00AEEF;
 }
-.social-list-name  { font-size:14px; font-weight:600; color:#fff; }
-.social-list-handle{ font-size:12px; color:#6a90b8; }
-.social-list-empty { padding:30px; text-align:center; color:#334; font-size:13px; }
+/* Online / Live status dot on avatar */
+.social-list-status-dot {
+    position:absolute; bottom:1px; right:1px;
+    width:11px; height:11px; border-radius:50%;
+    border:2px solid #070e20; background:#4a6a8a;
+    transition:background 0.3s;
+}
+.social-list-status-dot.online { background:#39FF14; box-shadow:0 0 5px rgba(57,255,20,0.8); }
+.social-list-status-dot.live   { background:#ff3344; box-shadow:0 0 6px rgba(255,51,68,0.85); animation:snxLiveDot 1s ease-in-out infinite; }
+.social-list-name  { font-size:14px; font-weight:600; color:#d8eeff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.social-list-handle{
+    font-size:12px; color:#6a90b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    display:flex; align-items:center; gap:5px; flex-wrap:nowrap;
+}
+.social-list-online-label { font-size:10px; font-weight:600; color:#39FF14; white-space:nowrap; }
+.social-list-live-label   { font-size:10px; font-weight:800; color:#ff3344; white-space:nowrap; animation:snxLiveDot 1s ease-in-out infinite; }
+.social-list-empty { padding:32px; text-align:center; color:#3a5a7a; font-size:13px; }
+.social-list-count { font-size:12px; color:#3a5a7a; padding:4px 18px 10px; flex-shrink:0; }
 
 /* ── Profile stat boxes — make them look tappable ── */
 .profile-stat { cursor:pointer; transition:background 0.15s, transform 0.12s; border-radius:8px; padding:4px 8px; }
 .profile-stat:hover { background:rgba(0,174,239,0.1); transform:scale(1.04); }
+/* Clickable stats get a subtle underline cue */
+.profile-stat[onclick] .stat-label { text-decoration:underline dotted rgba(0,174,239,0.5); }
+@media (max-width:480px) {
+    .social-list-inner { height:92vh; border-radius:14px 14px 0 0; }
+    .social-list-item  { padding:10px 14px; }
+}
+@media (min-width:768px) {
+    .social-list-modal { align-items:center; padding:16px; }
+    .social-list-inner { height:80vh; max-height:640px; border-radius:18px; }
+    @keyframes slSlidIn {
+        from { transform:scale(0.94) translateY(18px); opacity:0.3; }
+        to   { transform:scale(1)    translateY(0);    opacity:1; }
+    }
+}
 
 /* ── Chat header: avatar + name are clickable to view profile ── */
 .ipc-modal-avatar {
@@ -7021,12 +7073,13 @@ body.arcade-fs-ios body::after { display:none !important; }
 <!-- ═══════════════════════════════════════════
      SOCIAL LIST MODAL — friends / followers / following
      ═══════════════════════════════════════════ -->
-<div id="socialListModal" class="social-list-modal" role="dialog" aria-modal="true">
+<div id="socialListModal" class="social-list-modal" role="dialog" aria-modal="true" aria-labelledby="socialListTitle">
     <div class="social-list-inner">
         <div class="social-list-header">
             <span class="social-list-title" id="socialListTitle">Friends</span>
             <button class="social-list-close" onclick="closeSocialList()" aria-label="Close">✕</button>
         </div>
+        <div class="social-list-count" id="socialListCount"></div>
         <div class="social-list-body" id="socialListBody">
             <div class="social-list-empty">Loading…</div>
         </div>
@@ -10985,89 +11038,215 @@ body.arcade-fs-ios body::after { display:none !important; }
      Called by clicking the stat boxes on any profile page.
      type: 'friends' | 'followers' | 'following'
      Uses activeProfileUid to know whose data to load.
+     • Real-time via onSnapshot (unsubscribed when modal closes)
+     • Per-user RTDB online/live presence dots + labels
+     • All list sizes (no truncation)
+     • Slide-up drawer UI, smooth scroll, mobile-optimised touch targets
   ─────────────────────────────────────────────────────────────────── */
-  window.openSocialList = async function(type) {
+  let _slUnsubFirestore = null;   // onSnapshot unsub for the profile doc
+  const _slRtdbUnsubs   = [];     // RTDB per-user unsubs
+
+  function _slTeardown() {
+      if (_slUnsubFirestore) { try { _slUnsubFirestore(); } catch(_) {} _slUnsubFirestore = null; }
+      _slRtdbUnsubs.forEach(fn => { try { fn(); } catch(_) {} });
+      _slRtdbUnsubs.length = 0;
+  }
+
+  /** Attach RTDB presence to a status dot + inline label for one user row */
+  function _slAttachRtdb(uid, dotEl, labelEl) {
+      const api = window._snxRtdbApi;
+      if (!api || !window._snxApp) return;
+      try {
+          const rtdb    = api.getDatabase(window._snxApp);
+          const nodeRef = api.ref(rtdb, 'users/' + uid);
+          const handler = snap => {
+              const s = snap.val();
+              if (!dotEl) return;
+              dotEl.className = 'social-list-status-dot';
+              if (labelEl) labelEl.innerHTML = '';
+              if (s && s.live) {
+                  dotEl.classList.add('live');
+                  if (labelEl) labelEl.innerHTML = '<span class="social-list-live-label">🔴 LIVE</span>';
+              } else if (s && s.online) {
+                  dotEl.classList.add('online');
+                  if (labelEl) labelEl.innerHTML = '<span class="social-list-online-label">● Online</span>';
+              }
+          };
+          api.onValue(nodeRef, handler);
+          _slRtdbUnsubs.push(() => api.off(nodeRef, handler));
+      } catch(_) {}
+  }
+
+  /** Render a single list from an array of user data objects */
+  function _slRenderUsers(users, type, body, countEl) {
+      const labels = { friends: 'Friends', followers: 'Followers', following: 'Following' };
+      if (countEl) countEl.textContent = users.length ? `${users.length} ${labels[type] || type}` : '';
+
+      if (!users.length) {
+          body.innerHTML = `<div class="social-list-empty">No ${labels[type] || type} yet.</div>`;
+          return;
+      }
+
+      // Sort: online first, then alphabetically
+      const sorted = [...users].sort((a, b) => {
+          const ao = window._snxIsUserOnline ? window._snxIsUserOnline(a) : false;
+          const bo = window._snxIsUserOnline ? window._snxIsUserOnline(b) : false;
+          if (ao && !bo) return -1;
+          if (bo && !ao) return 1;
+          return (a.displayName || a.username || '').localeCompare(b.displayName || b.username || '');
+      });
+
+      body.innerHTML = '';
+      sorted.forEach(u => {
+          const item = document.createElement('div');
+          item.className = 'social-list-item';
+          item.setAttribute('role', 'button');
+          item.setAttribute('tabindex', '0');
+          item.onclick = () => { closeSocialList(); viewProfile(u.uid); };
+          item.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeSocialList(); viewProfile(u.uid); } };
+
+          // Avatar wrap (holds avatar + status dot)
+          const wrap = document.createElement('div');
+          wrap.className = 'social-list-avatar-wrap';
+
+          const avatarDiv = document.createElement('div');
+          avatarDiv.className = 'social-list-avatar';
+          if (u.avatar) {
+              avatarDiv.style.backgroundImage = `url('${u.avatar}')`;
+              avatarDiv.style.backgroundSize   = 'cover';
+              avatarDiv.style.backgroundPosition = 'center';
+          } else {
+              avatarDiv.textContent = (u.displayName || u.username || '?')[0].toUpperCase();
+          }
+
+          // Status dot (updated by RTDB listener)
+          const dot = document.createElement('div');
+          dot.className = 'social-list-status-dot';
+          // Seed from Firestore status while RTDB loads
+          if (window._snxIsUserOnline && window._snxIsUserOnline(u)) dot.classList.add('online');
+
+          wrap.appendChild(avatarDiv);
+          wrap.appendChild(dot);
+
+          // Info column
+          const infoDiv = document.createElement('div');
+          infoDiv.style.cssText = 'flex:1;min-width:0;';
+
+          const nameRow = document.createElement('div');
+          nameRow.className = 'social-list-name';
+          nameRow.innerHTML = escFeed(u.displayName || u.username || 'Unknown') + buildBadgeHtml(u.badges || [], u.role || 'member');
+
+          const handleRow = document.createElement('div');
+          handleRow.className = 'social-list-handle';
+          const handleSpan = document.createElement('span');
+          handleSpan.textContent = '@' + (u.username || '');
+          handleRow.appendChild(handleSpan);
+
+          // Inline status label (updated by RTDB listener)
+          const labelSpan = document.createElement('span');
+          if (window._snxIsUserOnline && window._snxIsUserOnline(u)) {
+              labelSpan.innerHTML = '<span class="social-list-online-label">● Online</span>';
+          }
+          handleRow.appendChild(labelSpan);
+
+          infoDiv.appendChild(nameRow);
+          infoDiv.appendChild(handleRow);
+
+          item.appendChild(wrap);
+          item.appendChild(infoDiv);
+          body.appendChild(item);
+
+          // Wire up live RTDB presence (replaces Firestore seed)
+          _slAttachRtdb(u.uid, dot, labelSpan);
+      });
+  }
+
+  window.openSocialList = function(type) {
       const uid = activeProfileUid || (currentUser && currentUser.uid);
       if (!uid) return;
 
-      const modal = document.getElementById('socialListModal');
-      const title = document.getElementById('socialListTitle');
-      const body  = document.getElementById('socialListBody');
+      const modal    = document.getElementById('socialListModal');
+      const titleEl  = document.getElementById('socialListTitle');
+      const body     = document.getElementById('socialListBody');
+      const countEl  = document.getElementById('socialListCount');
       if (!modal) return;
 
+      // Tear down any previous session
+      _slTeardown();
+
       const labels = { friends: 'Friends', followers: 'Followers', following: 'Following' };
-      title.textContent = labels[type] || type;
+      titleEl.textContent = labels[type] || type;
       body.innerHTML = '<div class="social-list-empty">Loading…</div>';
+      if (countEl) countEl.textContent = '';
       modal.classList.add('open');
+      document.body.style.overflow = 'hidden'; // prevent page scroll under modal
 
-      try {
-          const snap = await getDoc(doc(db, 'users', uid));
-          if (!snap.exists()) { body.innerHTML = '<div class="social-list-empty">No data found.</div>'; return; }
+      // ── Real-time listener on the profile doc ──────────────────────────
+      // Each time the doc changes (someone follows/unfollows/friends), we
+      // re-fetch the user docs for the updated UID array and re-render.
+      let _lastUidsKey = null; // avoid re-fetching if UID array hasn't changed
 
-          const data = snap.data();
-          const uids = data[type] || [];
+      _slUnsubFirestore = onSnapshot(doc(db, 'users', uid), async (docSnap) => {
+          if (!docSnap.exists()) {
+              body.innerHTML = '<div class="social-list-empty">No data found.</div>';
+              return;
+          }
+
+          const data  = docSnap.data();
+          const uids  = data[type] || [];
+          const newKey = uids.slice().sort().join(',');
+
+          // Skip re-render if the UID array is identical to what we already show
+          if (newKey === _lastUidsKey && body.children.length > 0 &&
+              !body.querySelector('.social-list-empty')) return;
+          _lastUidsKey = newKey;
+
+          // Tear down old RTDB subs before re-rendering
+          _slRtdbUnsubs.forEach(fn => { try { fn(); } catch(_) {} });
+          _slRtdbUnsubs.length = 0;
 
           if (!uids.length) {
               body.innerHTML = `<div class="social-list-empty">No ${labels[type] || type} yet.</div>`;
+              if (countEl) countEl.textContent = '';
               return;
           }
 
-          // Fetch all user docs in batches of 10 (Firestore 'in' limit)
-          const chunks = [];
-          for (let i = 0; i < uids.length; i += 10) chunks.push(uids.slice(i, i + 10));
+          // Show count immediately while user docs load
+          if (countEl) countEl.textContent = `${uids.length} ${labels[type] || type}`;
 
-          const users = [];
-          for (const chunk of chunks) {
-              const q = query(collection(db, 'users'), where('uid', 'in', chunk));
-              const qs = await getDocs(q);
-              qs.forEach(d => users.push(d.data()));
-          }
-
-          if (!users.length) {
-              body.innerHTML = `<div class="social-list-empty">No ${labels[type] || type} yet.</div>`;
-              return;
-          }
-
-          body.innerHTML = '';
-          users.forEach(u => {
-              const item = document.createElement('div');
-              item.className = 'social-list-item';
-              item.onclick = () => { closeSocialList(); viewProfile(u.uid); };
-
-              const avatarDiv = document.createElement('div');
-              avatarDiv.className = 'social-list-avatar';
-              avatarDiv.setAttribute('data-uid', u.uid);
-              if (u.avatar) {
-                  avatarDiv.style.backgroundImage = `url('${u.avatar}')`;
-              } else {
-                  avatarDiv.textContent = (u.displayName || '?')[0].toUpperCase();
+          try {
+              // Fetch user docs in batches of 10 (Firestore 'in' limit)
+              const chunks = [];
+              for (let i = 0; i < uids.length; i += 10) chunks.push(uids.slice(i, i + 10));
+              const users = [];
+              for (const chunk of chunks) {
+                  const qs = await getDocs(query(collection(db, 'users'), where('uid', 'in', chunk)));
+                  qs.forEach(d => users.push(d.data()));
               }
-
-              const infoDiv = document.createElement('div');
-              infoDiv.style.flex = '1';
-              infoDiv.style.minWidth = '0';
-              infoDiv.innerHTML = `
-                  <div class="social-list-name">${escFeed(u.displayName || u.username || 'Unknown')}${buildBadgeHtml(u.badges||[], u.role||'member')}</div>
-                  <div class="social-list-handle">@${escFeed(u.username || '')}</div>
-              `;
-
-              item.appendChild(avatarDiv);
-              item.appendChild(infoDiv);
-              body.appendChild(item);
-          });
-      } catch(e) {
-          body.innerHTML = `<div class="social-list-empty">Failed to load. Try again.</div>`;
-      }
+              _slRenderUsers(users, type, body, countEl);
+          } catch(e) {
+              body.innerHTML = `<div class="social-list-empty">Failed to load. Try again.</div>`;
+          }
+      });
   };
 
   window.closeSocialList = function() {
       const modal = document.getElementById('socialListModal');
       if (modal) modal.classList.remove('open');
+      document.body.style.overflow = ''; // restore page scroll
+      _slTeardown();
   };
 
   // Close social list on backdrop click
   document.getElementById('socialListModal')?.addEventListener('click', function(e) {
       if (e.target === this) closeSocialList();
+  });
+
+  // Close on Escape key
+  document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && document.getElementById('socialListModal')?.classList.contains('open')) {
+          closeSocialList();
+      }
   });
 
   /* ── Badge tooltip modal ──────────────────────────────────────────────
@@ -14027,7 +14206,14 @@ body.arcade-fs-ios body::after { display:none !important; }
           btnFollow.style.display = isSelf ? "none" : "";
           btnFollow.textContent = isFollowing ? "✓ Following" : "+ Follow";
           if(isFollowing) btnFollow.classList.add("following"); else btnFollow.classList.remove("following");
-          btnFollow.onclick = () => toggleFollowLink(uid, isFollowing);
+          // Use a data attribute so the click handler always reads the *current* state,
+          // not a stale closure from the last snapshot render.
+          btnFollow.dataset.targetUid      = uid;
+          btnFollow.dataset.isFollowing    = isFollowing ? "1" : "0";
+          btnFollow.onclick = () => toggleFollowLink(
+              btnFollow.dataset.targetUid,
+              btnFollow.dataset.isFollowing === "1"
+          );
 
           // Add Friend button (injected once)
           let addFriendBtn = document.getElementById("btnAddFriendAction");
@@ -14328,31 +14514,61 @@ body.arcade-fs-ios body::after { display:none !important; }
   }
 
   async function toggleFollowLink(uid, activeState) {
+      // Guard: must be signed in
+      if (!currentUser) { toastNotification("Sign in to follow users."); return; }
+      // Guard: cannot follow yourself
+      if (uid === currentUser.uid) return;
+
+      const btn = document.getElementById("btnFollowAction");
+
+      // Optimistically update the button UI immediately
+      const nowFollowing = !activeState;
+      if (btn && btn.dataset.targetUid === uid) {
+          btn.disabled = true;
+          btn.textContent = nowFollowing ? "✓ Following" : "+ Follow";
+          btn.dataset.isFollowing = nowFollowing ? "1" : "0";
+          if (nowFollowing) btn.classList.add("following"); else btn.classList.remove("following");
+      }
+
       const targetRef = doc(db, "users", uid);
       const myRef     = doc(db, "users", currentUser.uid);
-      if (activeState) {
-          // Unfollow — safe filter with fallback to empty array
-          const [tSnap, mSnap] = await Promise.all([getDoc(targetRef), getDoc(myRef)]);
-          const fers = (tSnap.data()?.followers || []).filter(x => x !== currentUser.uid);
-          const fing = (mSnap.data()?.following || []).filter(x => x !== uid);
-          await Promise.all([
-              updateDoc(targetRef, { followers: fers }),
-              updateDoc(myRef,     { following: fing })
-          ]);
-          toastNotification("Unfollowed.");
-      } else {
-          // Follow — use arrayUnion to avoid duplicates
-          await Promise.all([
-              updateDoc(targetRef, { followers: arrayUnion(currentUser.uid) }),
-              updateDoc(myRef,     { following: arrayUnion(uid) })
-          ]);
-          await pushNotification(uid, {
-              type: 'follow',
-              fromUid: currentUser.uid,
-              fromName: userData.displayName,
-              fromAvatar: userData.avatar || ''
-          });
-          toastNotification("Following!");
+      try {
+          if (activeState) {
+              // Unfollow — safe filter with fallback to empty array
+              const [tSnap, mSnap] = await Promise.all([getDoc(targetRef), getDoc(myRef)]);
+              const fers = (tSnap.data()?.followers || []).filter(x => x !== currentUser.uid);
+              const fing = (mSnap.data()?.following || []).filter(x => x !== uid);
+              await Promise.all([
+                  updateDoc(targetRef, { followers: fers }),
+                  updateDoc(myRef,     { following: fing })
+              ]);
+              toastNotification("Unfollowed.");
+          } else {
+              // Follow — use arrayUnion to avoid duplicates
+              await Promise.all([
+                  updateDoc(targetRef, { followers: arrayUnion(currentUser.uid) }),
+                  updateDoc(myRef,     { following: arrayUnion(uid) })
+              ]);
+              // Fire notification non-blocking so a slow write doesn't block UI
+              pushNotification(uid, {
+                  type: 'follow',
+                  fromUid:    currentUser.uid,
+                  fromName:   userData.displayName,
+                  fromAvatar: userData.avatar || ''
+              }).catch(() => {});
+              toastNotification("Following!");
+          }
+      } catch (err) {
+          // Revert optimistic UI on failure
+          if (btn && btn.dataset.targetUid === uid) {
+              btn.textContent = activeState ? "✓ Following" : "+ Follow";
+              btn.dataset.isFollowing = activeState ? "1" : "0";
+              if (activeState) btn.classList.add("following"); else btn.classList.remove("following");
+          }
+          toastNotification("Could not update follow — please try again.");
+          console.error("[follow]", err);
+      } finally {
+          if (btn && btn.dataset.targetUid === uid) btn.disabled = false;
       }
   }
 
