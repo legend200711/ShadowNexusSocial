@@ -4718,6 +4718,41 @@ function _getUISafeBottom(stageH) {
   return Math.max(56 + safeAreaBottom, Math.floor(stageH * 0.13));
 }
 
+/* ── Helper: compute precise stack-column bounds for Right/Left Stack layouts.
+   Returns { topStart, availH } in pixels relative to the stage top.
+   • topStart — first pixel the column may use (just below the top bar)
+   • availH   — total usable column height (topStart → above controls/chat)  ── */
+function _getStackBounds(stageH) {
+  // ── Top boundary: measure actual top bar height when available ──
+  const topBarEl = D.topBar || document.querySelector('.live-top-bar');
+  const topBarH  = (topBarEl && topBarEl.offsetHeight) ? topBarEl.offsetHeight : 52;
+  const topStart = topBarH + 6;   // 6 px breathing room below top bar
+
+  // ── Bottom boundary: above the controls bar (creator) or chat input (viewer) ──
+  let bottomEdge;
+  if (_mode === 'creator') {
+    const bbEl = document.querySelector('.live-bottom-bar');
+    const bbH  = (bbEl && bbEl.offsetHeight) ? bbEl.offsetHeight
+               : (document.body.classList.contains('controls-compact') ? 44 : 56);
+    const safeAreaBottom = parseFloat(
+      getComputedStyle(document.documentElement)
+        .getPropertyValue('--safe-area-inset-bottom') || '0'
+    ) || 0;
+    bottomEdge = stageH - bbH - safeAreaBottom - 8;
+  } else {
+    const chatInputEl = document.querySelector('.live-chat-input-row');
+    const chatInputH  = (chatInputEl && chatInputEl.offsetHeight) ? chatInputEl.offsetHeight : 56;
+    const safeAreaBottom = parseFloat(
+      getComputedStyle(document.documentElement)
+        .getPropertyValue('--safe-area-inset-bottom') || '0'
+    ) || 0;
+    bottomEdge = stageH - chatInputH - safeAreaBottom - 8;
+  }
+
+  const availH = Math.max(0, bottomEdge - topStart);
+  return { topStart, availH };
+}
+
 function _doApplyGuestLayout() {
   const grid = D.guestGrid;
   if (!grid) return;
@@ -4982,12 +5017,11 @@ function _applySplitLayout(grid, guestCount) {
    No box is cut off, none overlap, host stays fully visible.
    ═══════════════════════════════════════════════════════════════════ */
 function _applyHostFullLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const hostCell   = grid.querySelector('.host-cell');
+  const stageW   = grid.offsetWidth  || window.innerWidth;
+  const stageH   = grid.offsetHeight || window.innerHeight;
+  const hostCell = grid.querySelector('.host-cell');
 
-  // Host fills the full stage
+  // Host fills the full stage behind the guest strip
   if (hostCell) {
     hostCell.style.position = 'absolute';
     hostCell.style.inset    = '0';
@@ -5000,30 +5034,7 @@ function _applyHostFullLayout(grid, guestCount) {
   const cappedCount = Math.min(guestCount, _MAX_GUESTS);
   if (cappedCount === 0) return;
 
-  // Reserve room for top bar (approx 52px) and comments area below it
-  const topReserve  = 56;
-  const gap         = 4;
-  const availH      = stageH - safeBottom - topReserve - gap;
-  // Tile height: divide available height evenly among all guests
-  const tileH       = Math.max(44, Math.floor((availH - gap * (cappedCount - 1)) / cappedCount));
-  // Tile width: 4:3 ratio, clamped to 22% of stage width max (keeps host visible)
-  const maxTileW    = Math.max(64, Math.floor(stageW * 0.22));
-  const tileW       = Math.min(Math.floor(tileH * (4 / 3)), maxTileW);
-  const rightMargin = gap;
-
-  Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).slice(0, cappedCount).forEach((cell, i) => {
-    cell.style.position     = 'absolute';
-    cell.style.width        = tileW + 'px';
-    cell.style.height       = tileH + 'px';
-    cell.style.right        = rightMargin + 'px';
-    cell.style.top          = (topReserve + i * (tileH + gap)) + 'px';
-    cell.style.left         = 'auto';
-    cell.style.bottom       = 'auto';
-    cell.style.flex         = 'none';
-    cell.style.zIndex       = '6';
-    cell.style.borderRadius = '10px';
-    cell.style.overflow     = 'hidden';
-  });
+  _placeStackColumn(grid, cappedCount, stageW, stageH, 'right');
 }
 
 /* ── Host Big: host takes most of the width, guests in a vertical strip ── */
@@ -5150,12 +5161,11 @@ function _applyStackedLayout(grid, guestCount) {
    No box is cut off, none overlap, host stays fully visible.
    ═══════════════════════════════════════════════════════════════════ */
 function _applyHostFullLeftLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const hostCell   = grid.querySelector('.host-cell');
+  const stageW   = grid.offsetWidth  || window.innerWidth;
+  const stageH   = grid.offsetHeight || window.innerHeight;
+  const hostCell = grid.querySelector('.host-cell');
 
-  // Host fills the full stage
+  // Host fills the full stage behind the guest strip
   if (hostCell) {
     hostCell.style.position = 'absolute';
     hostCell.style.inset    = '0';
@@ -5168,40 +5178,20 @@ function _applyHostFullLeftLayout(grid, guestCount) {
   const cappedCount = Math.min(guestCount, _MAX_GUESTS);
   if (cappedCount === 0) return;
 
-  const topReserve  = 56;
-  const gap         = 4;
-  const availH      = stageH - safeBottom - topReserve - gap;
-  const tileH       = Math.max(44, Math.floor((availH - gap * (cappedCount - 1)) / cappedCount));
-  const maxTileW    = Math.max(64, Math.floor(stageW * 0.22));
-  const tileW       = Math.min(Math.floor(tileH * (4 / 3)), maxTileW);
-  const leftMargin  = gap;
-
-  Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).slice(0, cappedCount).forEach((cell, i) => {
-    cell.style.position     = 'absolute';
-    cell.style.width        = tileW + 'px';
-    cell.style.height       = tileH + 'px';
-    cell.style.left         = leftMargin + 'px';
-    cell.style.top          = (topReserve + i * (tileH + gap)) + 'px';
-    cell.style.right        = 'auto';
-    cell.style.bottom       = 'auto';
-    cell.style.flex         = 'none';
-    cell.style.zIndex       = '6';
-    cell.style.borderRadius = '10px';
-    cell.style.overflow     = 'hidden';
-  });
+  _placeStackColumn(grid, cappedCount, stageW, stageH, 'left');
 }
 
 /* ═══════════════════════════════════════════════════════════════════
    FEATURED GUEST LAYOUT
    One guest is featured in the large video area (like a host swap).
-   The featured cell fills most of the screen. All remaining guests
-   (including the host cell) stack on the side using the current
-   layout side preference (right or left).
+   The featured cell fills the full screen. All remaining guests
+   (including the host cell) stack on the side in small thumbnails —
+   same size and spacing as the normal Right/Left Stack layouts.
+   Switching featured guests at any time does not resize any other box.
    ═══════════════════════════════════════════════════════════════════ */
 function _applyFeaturedGuestLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
+  const stageW       = grid.offsetWidth  || window.innerWidth;
+  const stageH       = grid.offsetHeight || window.innerHeight;
   const featuredCell = grid.querySelector(`[data-uid="${_featuredGuestUid}"]`);
   if (!featuredCell) { _featuredGuestUid = null; _applyHostFullLayout(grid, guestCount); return; }
 
@@ -5220,30 +5210,63 @@ function _applyFeaturedGuestLayout(grid, guestCount) {
   featuredCell.style.overflow     = 'hidden';
 
   // Collect all other cells (host + non-featured guests) for the side stack
-  const sideCells = Array.from(grid.querySelectorAll('.guest-cell'))
+  const sideCells  = Array.from(grid.querySelectorAll('.guest-cell'))
     .filter(c => c !== featuredCell);
-  const sideCount = sideCells.length;
-
+  const sideCount  = sideCells.length;
   if (sideCount === 0) return;
 
-  const topReserve  = 56;
-  const gap         = 4;
-  const availH      = stageH - safeBottom - topReserve - gap;
-  const cappedSide  = Math.min(sideCount, _MAX_GUESTS);
-  const tileH       = Math.max(44, Math.floor((availH - gap * (cappedSide - 1)) / cappedSide));
-  const maxTileW    = Math.max(64, Math.floor(stageW * 0.22));
-  const tileW       = Math.min(Math.floor(tileH * (4 / 3)), maxTileW);
+  const cappedSide = Math.min(sideCount, _MAX_GUESTS);
+  const side       = (_guestLayout === 'host-full-left') ? 'left' : 'right';
 
-  // Side to stack on — mirrors current layout preference
-  const useLeft = (_guestLayout === 'host-full-left');
+  // Use the same precise bounds + placement as normal stack layouts
+  _placeStackColumn(grid, cappedSide, stageW, stageH, side, sideCells);
+}
 
-  sideCells.slice(0, cappedSide).forEach((cell, i) => {
+/* ═══════════════════════════════════════════════════════════════════
+   _placeStackColumn  —  shared placement helper.
+   Used by Right Stack, Left Stack and Featured Guest layouts.
+
+   Ensures every guest box:
+   • Starts just below the top bar (above the LIVE indicator).
+   • Ends just above the chat input / bottom controls bar.
+   • Is the same small thumbnail size (4:3, max 22% stage width).
+   • Auto-adjusts spacing so all N boxes fit without overlap or clipping.
+
+   grid       — the #guestGrid element
+   count      — number of cells to place (already capped to _MAX_GUESTS)
+   stageW/H   — live-video-wrap dimensions in px
+   side       — 'right' | 'left'
+   cells      — (optional) pre-filtered cell list; defaults to all
+                non-host guest cells
+   ═══════════════════════════════════════════════════════════════════ */
+function _placeStackColumn(grid, count, stageW, stageH, side, cells) {
+  const gap = 5;   // px gap between boxes
+
+  // ── Precise vertical bounds (top bar → bottom bar / chat input) ──
+  const { topStart, availH } = _getStackBounds(stageH);
+
+  // ── Tile height: divide available space evenly, never below 44 px ──
+  const maxTileH = Math.floor(stageH * 0.33);
+  const tileH    = Math.max(44, Math.min(maxTileH,
+    Math.floor((availH - gap * (count - 1)) / Math.max(1, count))
+  ));
+
+  // ── Tile width: 4:3 aspect ratio, clamped to 22% of stage width ──
+  const maxTileW = Math.max(64, Math.floor(stageW * 0.22));
+  const tileW    = Math.min(Math.floor(tileH * (4 / 3)), maxTileW);
+
+  // ── Resolve cell list ──
+  const cellList = cells
+    ? cells.slice(0, count)
+    : Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).slice(0, count);
+
+  cellList.forEach((cell, i) => {
     cell.style.position     = 'absolute';
     cell.style.width        = tileW + 'px';
     cell.style.height       = tileH + 'px';
-    cell.style.top          = (topReserve + i * (tileH + gap)) + 'px';
-    cell.style.left         = useLeft ? gap + 'px' : 'auto';
-    cell.style.right        = useLeft ? 'auto' : gap + 'px';
+    cell.style.top          = (topStart + i * (tileH + gap)) + 'px';
+    cell.style.left         = side === 'left'  ? gap + 'px' : 'auto';
+    cell.style.right        = side === 'right' ? gap + 'px' : 'auto';
     cell.style.bottom       = 'auto';
     cell.style.flex         = 'none';
     cell.style.zIndex       = '6';
