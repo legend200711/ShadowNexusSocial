@@ -246,6 +246,8 @@ const _MAX_GUESTS = 9;   // Maximum simultaneous guest boxes (1–9 supported)
 /* ── Guest Box State ── */
 let _guestLayout       = 'auto';   // current layout preference
 let _guestBoxSize      = 'sm';     // 'sm' | 'md' | 'lg'
+let _savedLayout       = null;     // creator's saved favourite layout (localStorage)
+let _savedBoxSize      = null;     // creator's saved favourite box size
 let _guestPeers        = {};       // uid → { pc, stream, cell, name }
 let _guestReqUnsub     = null;     // RTDB listener for incoming requests (host)
 let _guestStatusUnsub  = null;     // RTDB listener for request status (viewer)
@@ -259,6 +261,14 @@ let _layoutSyncUnsub   = null;     // viewer/guest: RTDB listener for layout syn
 let _guestPc           = null;     // viewer-in-box: their own guest RTCPeerConnection (for disconnect cleanup)
 let _guestSigUnsub     = null;     // viewer-in-box: unsubscribe for host-ICE signaling onValue listener
 let _hostSigUnsubs     = {};       // host: uid → onValue unsubscribe for per-guest signaling listener
+
+/* ── Speaker-focus state ── */
+let _speakerUid           = null;   // UID of the current active speaker
+let _speakerCheckInterval = null;   // setInterval handle for audio-level polling
+let _dragState            = null;   // { uid, startX, startY, origLeft, origTop } for drag layout
+
+/* ── Drag positions ── */
+const _dragPositions = {};  // uid → { left, top } in px (absolute)
 
 /* ── Disconnect / heartbeat state ── */
 let _guestHeartbeatInterval = null;  // guest: periodic presence keep-alive writer
@@ -420,6 +430,8 @@ document.addEventListener('DOMContentLoaded', () => {
       _applyGuestLayout();
       // Broadcast layout change to all viewers and guests
       _broadcastLayout();
+      // Sidebar body class
+      _applySidebarBodyClass();
     });
   });
 
@@ -434,6 +446,36 @@ document.addEventListener('DOMContentLoaded', () => {
       _broadcastLayout();
     });
   });
+
+  // Save / Load favourite layout buttons
+  const _btnSave = document.getElementById('btnSaveLayout');
+  const _btnLoad = document.getElementById('btnLoadLayout');
+  if (_btnSave) _btnSave.addEventListener('click', _saveLayoutFavourite);
+  if (_btnLoad) _btnLoad.addEventListener('click', _loadLayoutFavourite);
+
+  // Layout search filter
+  const _layoutSearchInput = document.getElementById('layoutSearch');
+  if (_layoutSearchInput) {
+    _layoutSearchInput.addEventListener('input', () => {
+      const q = _layoutSearchInput.value.trim().toLowerCase();
+      document.querySelectorAll('.layout-option-btn').forEach(btn => {
+        if (!q) { btn.classList.remove('search-hidden'); return; }
+        const text = (btn.title + ' ' + btn.textContent).toLowerCase();
+        btn.classList.toggle('search-hidden', !text.includes(q));
+      });
+      // Show/hide section headers based on visible buttons
+      document.querySelectorAll('.layout-panel-section').forEach(sec => {
+        const grid = sec.nextElementSibling;
+        if (!grid) return;
+        const hasVisible = Array.from(grid.querySelectorAll('.layout-option-btn'))
+          .some(b => !b.classList.contains('search-hidden'));
+        sec.style.display = hasVisible || !q ? '' : 'none';
+      });
+    });
+  }
+
+  // Restore saved favourite indicator
+  _refreshLoadBtn();
 
   D.stage && D.stage.addEventListener('click', e => {
     // Selectors that should never trigger a like or a controls-hide
@@ -4676,6 +4718,10 @@ function _doApplyGuestLayout() {
   const grid = D.guestGrid;
   if (!grid) return;
 
+  // ── Smooth transition flash ──
+  grid.classList.add('layout-transitioning');
+  requestAnimationFrame(() => grid.classList.remove('layout-transitioning'));
+
   // ── Shared setup for both modes ──
   grid.dataset.layout = _guestLayout;
   grid.classList.remove('box-sm', 'box-md', 'box-lg');
@@ -4692,6 +4738,7 @@ function _doApplyGuestLayout() {
 
   if (guestCount === 0) {
     grid.classList.remove('has-guests');
+    _applySidebarBodyClass();
     return;
   }
   grid.classList.add('has-guests');
@@ -4712,6 +4759,8 @@ function _doApplyGuestLayout() {
     c.style.flex         = '';
     c.style.zIndex       = '';
     c.style.borderRadius = '';
+    c.style.transform    = '';
+    c.style.opacity      = '';
   });
   // Reset grid flex properties
   grid.style.flexDirection = '';
@@ -4720,35 +4769,168 @@ function _doApplyGuestLayout() {
   grid.style.alignItems    = '';
   grid.style.paddingBottom = '';
 
+  // ── Sidebar body class (sync on every layout apply) ──
+  _applySidebarBodyClass();
+
   const totalCells = guestCount + 1; // +1 for host
 
-  // ── Named layout modes (host manually selected) ──
-  if (_guestLayout === 'grid') {
-    _applyEqualGrid(grid, totalCells);
+  // ── Auto-select best layout when 'auto' ──
+  if (_guestLayout === 'auto') {
+    _applyAutoLayout(grid, guestCount, totalCells);
     return;
   }
-  if (_guestLayout === 'float') {
-    _applyFloatLayout(grid, guestCount);
+
+  // ── Smart layouts ──
+  if (_guestLayout === 'speaker') {
+    _applySpeakerLayout(grid, guestCount);
     return;
   }
-  if (_guestLayout === 'split') {
-    _applySplitLayout(grid, guestCount);
+  if (_guestLayout === 'host-focus') {
+    _applyHostFocusLayout(grid, guestCount);
     return;
   }
+
+  // ── Host layouts ──
   if (_guestLayout === 'host-full') {
     _applyHostFullLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'host-full-left') {
+    _applyHostFullLeftLayout(grid, guestCount);
     return;
   }
   if (_guestLayout === 'host-big') {
     _applyHostBigLayout(grid, guestCount);
     return;
   }
+  if (_guestLayout === 'pip') {
+    _applyPipLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'theater') {
+    _applyTheaterLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'audience') {
+    _applyAudienceLayout(grid, guestCount);
+    return;
+  }
+
+  // ── Filmstrip layouts ──
+  if (_guestLayout === 'bottom-strip') {
+    _applyBottomStripLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'top-strip') {
+    _applyTopStripLayout(grid, guestCount);
+    return;
+  }
   if (_guestLayout === 'stacked') {
     _applyStackedLayout(grid, guestCount);
     return;
   }
+  if (_guestLayout === 'left-strip') {
+    _applyLeftStripLayout(grid, guestCount);
+    return;
+  }
 
-  // ── 'auto' layout: pick best layout for current count ──
+  // ── Grid layouts ──
+  if (_guestLayout === 'grid') {
+    _applyEqualGrid(grid, totalCells);
+    return;
+  }
+  if (_guestLayout === 'grid-2x2') {
+    _applyFixedGrid(grid, 2, 2);
+    return;
+  }
+  if (_guestLayout === 'grid-3x3') {
+    _applyFixedGrid(grid, 3, 3);
+    return;
+  }
+  if (_guestLayout === 'honeycomb') {
+    _applyHoneycombLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'diamond') {
+    _applyDiamondLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'circular') {
+    _applyCircularLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'corner') {
+    _applyCornerLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'float') {
+    _applyFloatLayout(grid, guestCount);
+    return;
+  }
+
+  // ── Split layouts ──
+  if (_guestLayout === 'split') {
+    _applySplitLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'split-2') {
+    _applySplit2Layout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'triple') {
+    _applyTripleLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'quad') {
+    _applyQuadLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'vertical-stack') {
+    _applyVerticalStackLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'horizontal-stack') {
+    _applyHorizontalStackLayout(grid, guestCount);
+    return;
+  }
+
+  // ── Style layouts ──
+  if (_guestLayout === 'stage') {
+    _applyStageLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'podcast') {
+    _applyPodcastLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'interview') {
+    _applyInterviewLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'gaming') {
+    _applyGamingLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'tiktok') {
+    _applyTikTokLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'discord') {
+    _applyDiscordLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'sidebar') {
+    _applySidebarLayout(grid, guestCount);
+    return;
+  }
+
+  // ── Custom drag layout ──
+  if (_guestLayout === 'drag') {
+    _applyDragLayout(grid, guestCount);
+    return;
+  }
+
+  // Fallback: auto
   _applyAutoLayout(grid, guestCount, totalCells);
 }
 
@@ -5090,6 +5272,1089 @@ function _applyStackedLayout(grid, guestCount) {
     cell.style.borderRadius = '10px';
   });
 }
+
+/* ═════════════════════════════════════════════════════════════════
+   NEW LAYOUT HELPERS — Layouts 1–30
+   ═════════════════════════════════════════════════════════════════ */
+
+/* ── Layout 2: Full Screen Host + Left Side Stack ── */
+function _applyHostFullLeftLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const hostCell   = grid.querySelector('.host-cell');
+
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+  }
+
+  const tileW   = Math.max(60, Math.min(160, Math.floor(stageW * 0.18)));
+  const tileH   = Math.floor(tileW * 0.75);
+  const gap     = Math.max(4, Math.floor(stageW * 0.012));
+  const cols    = Math.max(1, Math.floor((stageW * 0.38) / (tileW + gap)));
+  const maxRows = Math.max(1, Math.floor((usableH - gap) / (tileH + gap)));
+
+  let i = 0;
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
+    const col = i % cols;
+    const row = Math.min(Math.floor(i / cols), maxRows - 1);
+    cell.style.position = 'absolute';
+    cell.style.width    = tileW + 'px';
+    cell.style.height   = tileH + 'px';
+    cell.style.left     = (gap + col * (tileW + gap)) + 'px';
+    cell.style.top      = (gap + row * (tileH + gap)) + 'px';
+    cell.style.right    = 'auto';
+    cell.style.bottom   = 'auto';
+    i++;
+  });
+}
+
+/* ── Layout 3: Host Full + Bottom Filmstrip ── */
+function _applyBottomStripLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const stripH     = Math.max(52, Math.min(100, Math.floor(stageH * 0.14)));
+  const hostCell   = grid.querySelector('.host-cell');
+
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+  }
+
+  const tileW   = Math.floor((stageW - (guestCount + 1) * 4) / guestCount);
+  const bottom  = safeBottom + 4;
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach((cell, i) => {
+    cell.style.position = 'absolute';
+    cell.style.width    = tileW + 'px';
+    cell.style.height   = stripH + 'px';
+    cell.style.left     = (i * (tileW + 4)) + 'px';
+    cell.style.bottom   = bottom + 'px';
+    cell.style.top      = 'auto';
+    cell.style.right    = 'auto';
+  });
+}
+
+/* ── Layout 4: Host Full + Top Filmstrip ── */
+function _applyTopStripLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const stripH     = Math.max(52, Math.min(100, Math.floor(stageH * 0.14)));
+  const hostCell   = grid.querySelector('.host-cell');
+
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+  }
+
+  const tileW = Math.floor((stageW - (guestCount + 1) * 4) / guestCount);
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach((cell, i) => {
+    cell.style.position = 'absolute';
+    cell.style.width    = tileW + 'px';
+    cell.style.height   = stripH + 'px';
+    cell.style.left     = (i * (tileW + 4)) + 'px';
+    cell.style.top      = '4px';
+    cell.style.bottom   = 'auto';
+    cell.style.right    = 'auto';
+  });
+}
+
+/* ── Layout 4b: Left Side Vertical Strip ── */
+function _applyLeftStripLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const hostCell   = grid.querySelector('.host-cell');
+
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+    hostCell.style.flex     = 'none';
+  }
+
+  const topReserve = 8;
+  const usableH    = stageH - safeBottom - topReserve;
+  const maxTileH   = Math.max(60, Math.floor(stageH * 0.15));
+  const tileH      = Math.max(48, Math.min(maxTileH, Math.floor(usableH / Math.max(1, guestCount))));
+  const tileW      = Math.min(Math.floor(tileH * (4 / 3)), Math.floor(stageW * 0.22));
+  const gap        = 4;
+
+  Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).forEach((cell, i) => {
+    const fromBottom = safeBottom + topReserve + i * (tileH + gap);
+    cell.style.position     = 'absolute';
+    cell.style.width        = tileW + 'px';
+    cell.style.height       = tileH + 'px';
+    cell.style.left         = gap + 'px';
+    cell.style.bottom       = fromBottom + 'px';
+    cell.style.top          = 'auto';
+    cell.style.right        = 'auto';
+    cell.style.flex         = 'none';
+    cell.style.zIndex       = '6';
+    cell.style.borderRadius = '10px';
+  });
+}
+
+/* ── Layout 5b: 2×2 Fixed Grid ── */
+function _applyFixedGrid(grid, cols, rows) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const w          = (100 / cols).toFixed(4) + '%';
+  const h          = Math.floor(usableH / rows) + 'px';
+  grid.style.flexDirection = 'row';
+  grid.style.flexWrap      = 'wrap';
+  grid.style.alignContent  = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
+  grid.querySelectorAll('.guest-cell').forEach(cell => {
+    cell.style.width  = w;
+    cell.style.height = h;
+  });
+}
+
+/* ── Layout 16: Honeycomb ── */
+function _applyHoneycombLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const total      = guestCount + 1;
+  const cols       = Math.ceil(Math.sqrt(total * 1.1));
+  const hexW       = Math.floor((stageW - 8) / cols);
+  const hexH       = Math.floor(hexW * 0.866); // cos(30°) ≈ 0.866
+  const gap        = 4;
+
+  grid.style.flexDirection = 'row';
+  grid.style.flexWrap      = 'wrap';
+  grid.style.alignContent  = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
+
+  grid.querySelectorAll('.guest-cell').forEach((cell, i) => {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    const offset = (row % 2 === 1) ? (hexW / 2) : 0;
+    cell.style.position = 'absolute';
+    cell.style.width    = (hexW - gap) + 'px';
+    cell.style.height   = (hexH - gap) + 'px';
+    cell.style.left     = (col * hexW + offset) + 'px';
+    cell.style.top      = (row * (hexH * 0.75)) + 'px';
+    cell.style.zIndex   = '5';
+  });
+}
+
+/* ── Layout 17: Circular ── */
+function _applyCircularLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const cx         = stageW / 2;
+  const cy         = (stageH - safeBottom) / 2;
+  const tileSize   = Math.max(56, Math.min(140, Math.floor(Math.min(stageW, stageH - safeBottom) * 0.22)));
+  const radius     = Math.max(tileSize, Math.min(stageW * 0.38, (stageH - safeBottom) * 0.35));
+
+  grid.style.position = 'relative';
+
+  // Place host in center
+  const hostCell = grid.querySelector('.host-cell');
+  if (hostCell) {
+    const hostSize = Math.floor(tileSize * 1.6);
+    hostCell.style.position = 'absolute';
+    hostCell.style.width    = hostSize + 'px';
+    hostCell.style.height   = hostSize + 'px';
+    hostCell.style.left     = (cx - hostSize / 2) + 'px';
+    hostCell.style.top      = (cy - hostSize / 2) + 'px';
+    hostCell.style.zIndex   = '4';
+    hostCell.style.borderRadius = '50%';
+  }
+
+  // Distribute guests evenly around the circle
+  Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).forEach((cell, i) => {
+    const angle = (i / guestCount) * 2 * Math.PI - Math.PI / 2;
+    const x     = cx + radius * Math.cos(angle) - tileSize / 2;
+    const y     = cy + radius * Math.sin(angle) - tileSize / 2;
+    cell.style.position = 'absolute';
+    cell.style.width    = tileSize + 'px';
+    cell.style.height   = tileSize + 'px';
+    cell.style.left     = x + 'px';
+    cell.style.top      = y + 'px';
+    cell.style.zIndex   = '6';
+  });
+}
+
+/* ── Layout 18: Floating Bubble (alias of float with rounded cells) ── */
+// (reuses _applyFloatLayout — CSS gives circular border-radius for bubble feel)
+
+/* ── Layout 10: Picture-in-Picture ── */
+function _applyPipLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const hostCell   = grid.querySelector('.host-cell');
+
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+  }
+
+  const pipW    = Math.max(90, Math.min(200, Math.floor(stageW * 0.26)));
+  const pipH    = Math.floor(pipW * 0.75);
+  const gap     = 12;
+  const maxCols = Math.max(1, Math.floor((stageW - gap) / (pipW + gap)));
+  const maxRows = Math.max(1, Math.floor((stageH - safeBottom - gap) / (pipH + gap)));
+
+  let i = 0;
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
+    const col = i % maxCols;
+    const row = Math.min(Math.floor(i / maxCols), maxRows - 1);
+    cell.style.position = 'absolute';
+    cell.style.width    = pipW + 'px';
+    cell.style.height   = pipH + 'px';
+    cell.style.right    = (gap + col * (pipW + gap)) + 'px';
+    cell.style.bottom   = (safeBottom + gap + row * (pipH + gap)) + 'px';
+    cell.style.top      = 'auto';
+    cell.style.left     = 'auto';
+    i++;
+  });
+}
+
+/* ── Layout 9: Host Focus — host always full-screen, guests tiny overlay ── */
+function _applyHostFocusLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const hostCell   = grid.querySelector('.host-cell');
+
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+    hostCell.style.zIndex   = '4';
+  }
+
+  const tileW   = Math.max(52, Math.min(110, Math.floor(stageW * 0.13)));
+  const tileH   = Math.floor(tileW * 0.75);
+  const gap     = 5;
+  const cols    = Math.max(1, Math.floor((stageW * 0.5) / (tileW + gap)));
+  const maxRows = Math.max(1, Math.floor((stageH - safeBottom * 1.2) / (tileH + gap)));
+
+  let i = 0;
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
+    const col = i % cols;
+    const row = Math.min(Math.floor(i / cols), maxRows - 1);
+    cell.style.position     = 'absolute';
+    cell.style.width        = tileW + 'px';
+    cell.style.height       = tileH + 'px';
+    cell.style.right        = (gap + col * (tileW + gap)) + 'px';
+    cell.style.top          = (gap + row * (tileH + gap)) + 'px';
+    cell.style.bottom       = 'auto';
+    cell.style.left         = 'auto';
+    cell.style.zIndex       = '6';
+    cell.style.borderRadius = '8px';
+    cell.style.opacity      = '0.88';
+    i++;
+  });
+}
+
+/* ── Layout 8: Speaker Focus ── */
+function _applySpeakerLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const cells      = Array.from(grid.querySelectorAll('.guest-cell'));
+  const hostCell   = grid.querySelector('.host-cell');
+
+  // Active speaker gets 70% of width, others share the strip
+  const speakerCell = grid.querySelector('.guest-cell.speaker-active') || hostCell;
+  const otherCells  = cells.filter(c => c !== speakerCell);
+
+  const stripW  = otherCells.length > 0 ? Math.max(70, Math.min(140, Math.floor(stageW * 0.20))) : 0;
+  const mainW   = stageW - stripW;
+  const mainH   = usableH;
+
+  if (speakerCell) {
+    speakerCell.style.position = 'absolute';
+    speakerCell.style.left     = '0';
+    speakerCell.style.top      = '0';
+    speakerCell.style.width    = mainW + 'px';
+    speakerCell.style.height   = mainH + 'px';
+    speakerCell.style.zIndex   = '5';
+  }
+
+  const gH = otherCells.length > 0 ? Math.floor(usableH / otherCells.length) : 0;
+  otherCells.forEach((cell, i) => {
+    cell.style.position     = 'absolute';
+    cell.style.right        = '0';
+    cell.style.top          = (i * gH) + 'px';
+    cell.style.width        = stripW + 'px';
+    cell.style.height       = gH + 'px';
+    cell.style.left         = 'auto';
+    cell.style.zIndex       = '4';
+    cell.style.borderRadius = '0';
+  });
+
+  // Start/restart audio level polling
+  _startSpeakerDetection();
+}
+
+/* ── Layout 24: Theater Mode ── */
+function _applyTheaterLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const hostH      = Math.floor(usableH * 0.72);
+  const guestH     = usableH - hostH;
+  const hostCell   = grid.querySelector('.host-cell');
+
+  grid.style.flexDirection = 'row';
+  grid.style.flexWrap      = 'wrap';
+  grid.style.alignContent  = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
+
+  if (hostCell) {
+    hostCell.style.width  = '100%';
+    hostCell.style.height = hostH + 'px';
+    hostCell.style.flex   = 'none';
+  }
+
+  const gW = (100 / guestCount).toFixed(4) + '%';
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
+    cell.style.width  = gW;
+    cell.style.height = guestH + 'px';
+    cell.style.flex   = 'none';
+  });
+}
+
+/* ── Layout 25: Audience Mode — host full, guests hidden ── */
+function _applyAudienceLayout(grid, guestCount) {
+  const hostCell = grid.querySelector('.host-cell');
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+    hostCell.style.zIndex   = '4';
+  }
+  // Guest cells hidden via CSS (opacity: 0)
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
+    cell.style.position = 'absolute';
+    cell.style.width    = '0';
+    cell.style.height   = '0';
+    cell.style.overflow = 'hidden';
+    cell.style.opacity  = '0';
+  });
+}
+
+/* ── Layout 11: Vertical Stack ── */
+function _applyVerticalStackLayout(grid, guestCount) {
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const total      = guestCount + 1;
+  const h          = Math.floor(usableH / total);
+
+  grid.style.flexDirection = 'column';
+  grid.style.flexWrap      = 'nowrap';
+  grid.style.alignItems    = 'stretch';
+  grid.style.paddingBottom = safeBottom + 'px';
+
+  grid.querySelectorAll('.guest-cell').forEach(cell => {
+    cell.style.width  = '100%';
+    cell.style.height = h + 'px';
+    cell.style.flex   = 'none';
+  });
+}
+
+/* ── Layout 12: Horizontal Stack ── */
+function _applyHorizontalStackLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const total      = guestCount + 1;
+  const w          = Math.floor(stageW / total);
+
+  grid.style.flexDirection = 'row';
+  grid.style.flexWrap      = 'nowrap';
+  grid.style.alignItems    = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
+
+  grid.querySelectorAll('.guest-cell').forEach(cell => {
+    cell.style.width  = w + 'px';
+    cell.style.height = usableH + 'px';
+    cell.style.flex   = 'none';
+  });
+}
+
+/* ── Layout 13: Split Screen (Host + 1 Guest, equal 50/50) ── */
+function _applySplit2Layout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const cells      = Array.from(grid.querySelectorAll('.guest-cell'));
+
+  grid.style.flexDirection = 'row';
+  grid.style.flexWrap      = 'wrap';
+  grid.style.alignContent  = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
+
+  // Host + first guest: equal halves
+  const mainCells = cells.slice(0, 2);
+  mainCells.forEach(c => { c.style.width = '50%'; c.style.height = usableH + 'px'; c.style.flex = 'none'; });
+
+  // Any extra guests: small thumbnails in a bottom row
+  const extraCells = cells.slice(2);
+  if (extraCells.length > 0) {
+    const extraH = Math.min(80, Math.floor(usableH * 0.25));
+    const extraW = (100 / extraCells.length).toFixed(4) + '%';
+    extraCells.forEach(c => { c.style.width = extraW; c.style.height = extraH + 'px'; c.style.flex = 'none'; });
+    // Shrink main cells to make room
+    const mainH = usableH - extraH;
+    mainCells.forEach(c => { c.style.height = mainH + 'px'; });
+  }
+}
+
+/* ── Layout 14: Triple Split (Host + 2 Guests) ── */
+function _applyTripleLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const cells      = Array.from(grid.querySelectorAll('.guest-cell'));
+  const isLandscape = stageW >= stageH;
+
+  grid.style.flexDirection = 'row';
+  grid.style.flexWrap      = 'wrap';
+  grid.style.alignContent  = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
+
+  if (isLandscape) {
+    // Three equal vertical strips
+    const w = (100 / 3).toFixed(4) + '%';
+    cells.slice(0, 3).forEach(c => { c.style.width = w; c.style.height = usableH + 'px'; c.style.flex = 'none'; });
+  } else {
+    // Host top 55%, two guests 45% split side by side
+    const hostH  = Math.floor(usableH * 0.55);
+    const guestH = usableH - hostH;
+    if (cells[0]) { cells[0].style.width = '100%'; cells[0].style.height = hostH + 'px'; cells[0].style.flex = 'none'; }
+    cells.slice(1, 3).forEach(c => { c.style.width = '50%'; c.style.height = guestH + 'px'; c.style.flex = 'none'; });
+  }
+  // Extra guests: small strip below
+  const extra = cells.slice(3);
+  if (extra.length > 0) {
+    const eH = Math.min(70, Math.floor(usableH * 0.15));
+    const eW = (100 / extra.length).toFixed(4) + '%';
+    extra.forEach(c => { c.style.width = eW; c.style.height = eH + 'px'; c.style.flex = 'none'; });
+  }
+}
+
+/* ── Layout 15: Quad Split ── */
+function _applyQuadLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const cells      = Array.from(grid.querySelectorAll('.guest-cell'));
+
+  grid.style.flexDirection = 'row';
+  grid.style.flexWrap      = 'wrap';
+  grid.style.alignContent  = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
+
+  // First 4 cells: 2×2
+  const quadH = Math.floor(usableH / 2);
+  cells.slice(0, 4).forEach(c => { c.style.width = '50%'; c.style.height = quadH + 'px'; c.style.flex = 'none'; });
+  // Extra cells: equal strip below
+  const extra = cells.slice(4);
+  if (extra.length > 0) {
+    const eH = Math.min(70, usableH - quadH * 2 + Math.floor(usableH * 0.1));
+    const eW = (100 / extra.length).toFixed(4) + '%';
+    extra.forEach(c => { c.style.width = eW; c.style.height = Math.max(48, eH) + 'px'; c.style.flex = 'none'; });
+  }
+}
+
+/* ── Layout 26: Stage Mode ── */
+function _applyStageLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const hostH      = Math.floor(usableH * 0.65);
+  const guestH     = usableH - hostH;
+  const hostCell   = grid.querySelector('.host-cell');
+
+  grid.style.flexDirection = 'row';
+  grid.style.flexWrap      = 'wrap';
+  grid.style.alignContent  = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
+
+  // Host: centered top area
+  if (hostCell) {
+    hostCell.style.width     = '60%';
+    hostCell.style.height    = hostH + 'px';
+    hostCell.style.flex      = 'none';
+    hostCell.style.marginLeft = '20%'; // center via margin
+  }
+
+  const gW = (100 / guestCount).toFixed(4) + '%';
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
+    cell.style.width  = gW;
+    cell.style.height = guestH + 'px';
+    cell.style.flex   = 'none';
+    cell.style.marginLeft = ''; // clear any center margin
+  });
+}
+
+/* ── Layout 21: Podcast Layout ── */
+function _applyPodcastLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const isLandscape = stageW >= stageH;
+  const total      = guestCount + 1;
+
+  grid.style.flexDirection = isLandscape ? 'row' : 'column';
+  grid.style.flexWrap      = 'nowrap';
+  grid.style.alignItems    = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
+
+  if (isLandscape) {
+    // Equal side-by-side columns
+    const w = Math.floor(stageW / total);
+    grid.querySelectorAll('.guest-cell').forEach(cell => {
+      cell.style.width  = w + 'px';
+      cell.style.height = usableH + 'px';
+      cell.style.flex   = 'none';
+    });
+  } else {
+    // Stacked portrait rows — host taller
+    const hostH  = Math.floor(usableH * 0.5);
+    const guestH = Math.floor((usableH - hostH) / guestCount);
+    const hostCell = grid.querySelector('.host-cell');
+    if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH + 'px'; hostCell.style.flex = 'none'; }
+    grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
+      cell.style.width  = '100%';
+      cell.style.height = guestH + 'px';
+      cell.style.flex   = 'none';
+    });
+  }
+}
+
+/* ── Layout 22: Interview Layout (host left 60%, guest right 40%) ── */
+function _applyInterviewLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const hostCell   = grid.querySelector('.host-cell');
+  const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
+  const isLandscape = stageW >= stageH;
+
+  grid.style.flexDirection = 'row';
+  grid.style.flexWrap      = 'wrap';
+  grid.style.alignContent  = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
+
+  if (isLandscape) {
+    const hostW = Math.floor(stageW * 0.55);
+    if (hostCell) { hostCell.style.width = hostW + 'px'; hostCell.style.height = usableH + 'px'; hostCell.style.flex = 'none'; }
+    const gW = Math.floor((stageW - hostW) / guestCount);
+    guestCells.forEach(c => { c.style.width = gW + 'px'; c.style.height = usableH + 'px'; c.style.flex = 'none'; });
+  } else {
+    const hostH  = Math.floor(usableH * 0.55);
+    const guestH = Math.floor((usableH - hostH) / Math.max(1, guestCount));
+    if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH + 'px'; hostCell.style.flex = 'none'; }
+    const gW = (100 / guestCount).toFixed(4) + '%';
+    guestCells.forEach(c => { c.style.width = gW; c.style.height = guestH + 'px'; c.style.flex = 'none'; });
+  }
+}
+
+/* ── Layout 23: Gaming Layout ── */
+function _applyGamingLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const camH       = Math.max(52, Math.min(120, Math.floor(stageH * 0.15)));
+  const camW       = Math.floor(camH * (4 / 3));
+  const gap        = 6;
+  const hostCell   = grid.querySelector('.host-cell');
+
+  // Host (gameplay) fills the stage
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+    hostCell.style.zIndex   = '3';
+  }
+
+  // Cameras in a row along the bottom-right
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach((cell, i) => {
+    cell.style.position     = 'absolute';
+    cell.style.width        = camW + 'px';
+    cell.style.height       = camH + 'px';
+    cell.style.right        = (gap + i * (camW + gap)) + 'px';
+    cell.style.bottom       = (safeBottom + gap) + 'px';
+    cell.style.top          = 'auto';
+    cell.style.left         = 'auto';
+    cell.style.zIndex       = '7';
+    cell.style.borderRadius = '8px';
+  });
+}
+
+/* ── Layout 19: TikTok Style ── */
+function _applyTikTokLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const hostCell   = grid.querySelector('.host-cell');
+  const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
+
+  // Host takes full left half (or full screen on portrait)
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = guestCount > 0 ? Math.floor(stageW * 0.55) + 'px' : '100%';
+    hostCell.style.height   = usableH + 'px';
+    hostCell.style.top      = '0';
+    hostCell.style.left     = '0';
+    hostCell.style.zIndex   = '4';
+  }
+
+  // Guests stack vertically in right 45%
+  const gW  = Math.floor(stageW * 0.42);
+  const gH  = guestCells.length > 0 ? Math.floor(usableH / guestCells.length) : 0;
+  guestCells.forEach((cell, i) => {
+    cell.style.position = 'absolute';
+    cell.style.width    = gW + 'px';
+    cell.style.height   = gH + 'px';
+    cell.style.right    = '0';
+    cell.style.top      = (i * gH) + 'px';
+    cell.style.left     = 'auto';
+    cell.style.bottom   = 'auto';
+    cell.style.zIndex   = '5';
+  });
+}
+
+/* ── Layout 20: Discord Style ── */
+function _applyDiscordLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const thumbH     = Math.max(52, Math.min(96, Math.floor(stageH * 0.12)));
+  const thumbW     = Math.floor(thumbH * (4 / 3));
+  const gap        = 5;
+  const hostCell   = grid.querySelector('.host-cell');
+
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+    hostCell.style.zIndex   = '3';
+  }
+
+  // Thumbnail strip — centered at top
+  const totalW = guestCount * (thumbW + gap) - gap;
+  const startX = Math.max(0, Math.floor((stageW - totalW) / 2));
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach((cell, i) => {
+    cell.style.position     = 'absolute';
+    cell.style.width        = thumbW + 'px';
+    cell.style.height       = thumbH + 'px';
+    cell.style.left         = (startX + i * (thumbW + gap)) + 'px';
+    cell.style.top          = gap + 'px';
+    cell.style.right        = 'auto';
+    cell.style.bottom       = 'auto';
+    cell.style.zIndex       = '6';
+    cell.style.borderRadius = '8px';
+  });
+}
+
+/* ── Layout 27: Diamond Layout ── */
+function _applyDiamondLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const cx         = stageW / 2;
+  const cy         = (stageH - safeBottom) / 2;
+  const tileSize   = Math.max(60, Math.min(160, Math.floor(Math.min(stageW, stageH) * 0.22)));
+  const spacing    = Math.max(tileSize + 10, Math.floor(Math.min(stageW, stageH - safeBottom) * 0.35));
+
+  // Positions for diamond pattern: top, left, right, bottom, center, then ring
+  const positions = [
+    [cx, cy - spacing],               // top
+    [cx - spacing, cy],               // left
+    [cx + spacing, cy],               // right
+    [cx, cy + spacing * 0.8],         // bottom (above safe zone)
+    [cx - spacing / 2, cy - spacing / 2], // upper-left
+    [cx + spacing / 2, cy - spacing / 2], // upper-right
+    [cx - spacing / 2, cy + spacing / 2], // lower-left
+    [cx + spacing / 2, cy + spacing / 2], // lower-right
+    [cx, cy],                         // center
+  ];
+
+  const allCells = Array.from(grid.querySelectorAll('.guest-cell'));
+  allCells.forEach((cell, i) => {
+    const pos = positions[i] || [cx, cy];
+    const clampedY = Math.min(pos[1], stageH - safeBottom - tileSize - 4);
+    cell.style.position = 'absolute';
+    cell.style.width    = tileSize + 'px';
+    cell.style.height   = tileSize + 'px';
+    cell.style.left     = (pos[0] - tileSize / 2) + 'px';
+    cell.style.top      = (clampedY - tileSize / 2) + 'px';
+    cell.style.zIndex   = '5';
+  });
+}
+
+/* ── Layout 28: Corner Layout ── */
+function _applyCornerLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const tileW      = Math.max(80, Math.min(180, Math.floor(stageW * 0.22)));
+  const tileH      = Math.floor(tileW * 0.75);
+  const gap        = 8;
+  const hostCell   = grid.querySelector('.host-cell');
+
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+    hostCell.style.zIndex   = '3';
+  }
+
+  // Four corners: TL, TR, BL, BR, then middle-edges
+  const corners = [
+    { left: gap,                              top: gap,                    right: 'auto', bottom: 'auto' },
+    { right: gap,                             top: gap,                    left: 'auto',  bottom: 'auto' },
+    { left: gap,                              bottom: safeBottom + gap,    right: 'auto', top: 'auto'    },
+    { right: gap,                             bottom: safeBottom + gap,    left: 'auto',  top: 'auto'    },
+    { left: Math.floor(stageW / 2 - tileW / 2), top: gap,                  right: 'auto', bottom: 'auto' },
+    { left: Math.floor(stageW / 2 - tileW / 2), bottom: safeBottom + gap,  right: 'auto', top: 'auto'    },
+    { left: gap, top: Math.floor((stageH - safeBottom) / 2 - tileH / 2),   right: 'auto', bottom: 'auto' },
+    { right: gap, top: Math.floor((stageH - safeBottom) / 2 - tileH / 2),  left: 'auto',  bottom: 'auto' },
+  ];
+
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach((cell, i) => {
+    const pos = corners[i % corners.length];
+    cell.style.position = 'absolute';
+    cell.style.width    = tileW + 'px';
+    cell.style.height   = tileH + 'px';
+    cell.style.left     = typeof pos.left   === 'number' ? pos.left + 'px'   : pos.left;
+    cell.style.right    = typeof pos.right  === 'number' ? pos.right + 'px'  : pos.right;
+    cell.style.top      = typeof pos.top    === 'number' ? pos.top + 'px'    : pos.top;
+    cell.style.bottom   = typeof pos.bottom === 'number' ? pos.bottom + 'px' : pos.bottom;
+    cell.style.zIndex   = '6';
+  });
+}
+
+/* ── Layout 29: Sidebar Layout ── */
+function _applySidebarLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const sideW      = Math.min(200, Math.floor(stageW * 0.28));
+  const hostCell   = grid.querySelector('.host-cell');
+  const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
+
+  grid.style.flexDirection = 'row';
+  grid.style.flexWrap      = 'nowrap';
+  grid.style.alignItems    = 'flex-start';
+  grid.style.paddingBottom = safeBottom + 'px';
+  grid.style.paddingLeft   = sideW + 'px'; // leave room for chat sidebar (CSS-positioned)
+
+  if (hostCell) {
+    hostCell.style.flex   = '1';
+    hostCell.style.height = usableH + 'px';
+  }
+
+  const gH = Math.floor(usableH / Math.max(1, guestCells.length));
+  guestCells.forEach(c => {
+    c.style.width  = Math.floor(stageW * 0.22) + 'px';
+    c.style.height = gH + 'px';
+    c.style.flex   = 'none';
+  });
+}
+
+/* ── Layout 30: Drag-and-Drop Layout ── */
+function _applyDragLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const usableH    = stageH - safeBottom;
+  const tileW      = Math.max(80, Math.min(200, Math.floor(stageW * 0.25)));
+  const tileH      = Math.floor(tileW * 0.75);
+  const gap        = 10;
+  const hostCell   = grid.querySelector('.host-cell');
+
+  // Host fills stage
+  if (hostCell) {
+    hostCell.style.position = 'absolute';
+    hostCell.style.inset    = '0';
+    hostCell.style.width    = '100%';
+    hostCell.style.height   = '100%';
+    hostCell.style.zIndex   = '3';
+  }
+
+  // Place each guest at its saved drag position, or default cascade
+  let i = 0;
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
+    const uid  = cell.dataset.uid;
+    const saved = uid && _dragPositions[uid];
+    const defLeft = gap + (i % 3) * (tileW + gap);
+    const defTop  = gap + Math.floor(i / 3) * (tileH + gap);
+    const clampedTop = Math.min(defTop, usableH - tileH - gap);
+
+    cell.style.position = 'absolute';
+    cell.style.width    = tileW + 'px';
+    cell.style.height   = tileH + 'px';
+    cell.style.left     = (saved ? saved.left : defLeft) + 'px';
+    cell.style.top      = (saved ? saved.top  : clampedTop) + 'px';
+    cell.style.right    = 'auto';
+    cell.style.bottom   = 'auto';
+    cell.style.zIndex   = '6';
+    cell.style.cursor   = 'grab';
+
+    // Ensure drag hint tooltip element exists
+    if (!cell.querySelector('.guest-cell-drag-hint')) {
+      const hint = document.createElement('div');
+      hint.className = 'guest-cell-drag-hint';
+      hint.textContent = 'Drag to move';
+      cell.appendChild(hint);
+    }
+
+    // Attach drag listener once
+    if (!cell._dragAttached) {
+      cell._dragAttached = true;
+      cell.addEventListener('pointerdown', _onDragStart, { passive: false });
+    }
+    i++;
+  });
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   SMART FEATURES
+   ═════════════════════════════════════════════════════════════════ */
+
+/* ── Speaker Detection: poll audio levels of all peer connections ── */
+function _startSpeakerDetection() {
+  if (_speakerCheckInterval) return; // already running
+  _speakerCheckInterval = setInterval(_checkActiveSpeaker, 1200);
+}
+
+function _stopSpeakerDetection() {
+  if (_speakerCheckInterval) {
+    clearInterval(_speakerCheckInterval);
+    _speakerCheckInterval = null;
+  }
+}
+
+async function _checkActiveSpeaker() {
+  if (!D.guestGrid || _guestLayout !== 'speaker') {
+    _stopSpeakerDetection();
+    return;
+  }
+
+  let maxLevel = 0;
+  let loudestUid = null;
+
+  // Check each guest peer connection audio levels
+  for (const [uid, peer] of Object.entries(_guestPeers || {})) {
+    if (!peer.pc) continue;
+    try {
+      const stats = await peer.pc.getStats();
+      stats.forEach(report => {
+        if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+          const level = report.audioLevel || 0;
+          if (level > maxLevel) { maxLevel = level; loudestUid = uid; }
+        }
+      });
+    } catch (_) {}
+  }
+
+  // Check host's own audio if we're the creator
+  if (_mode === 'creator' && _localStream) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const analyser = ctx.createAnalyser();
+      const src = ctx.createMediaStreamSource(_localStream);
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteTimeDomainData(data);
+      const peak = Math.max(...data) / 128 - 1;
+      ctx.close();
+      if (Math.abs(peak) > maxLevel) { maxLevel = Math.abs(peak); loudestUid = 'host'; }
+    } catch (_) {}
+  }
+
+  const newSpeaker = loudestUid && maxLevel > 0.02 ? loudestUid : (_speakerUid || 'host');
+  if (newSpeaker !== _speakerUid) {
+    _speakerUid = newSpeaker;
+    _updateSpeakerHighlight();
+    _applyGuestLayout(); // re-layout so speaker cell gets promoted
+  }
+}
+
+function _updateSpeakerHighlight() {
+  if (!D.guestGrid) return;
+  D.guestGrid.querySelectorAll('.guest-cell').forEach(cell => {
+    const uid = cell.dataset.uid;
+    const isActive = (uid === _speakerUid) || (_speakerUid === 'host' && cell.classList.contains('host-cell'));
+    cell.classList.toggle('speaker-active', isActive);
+
+    // Speaker badge
+    let badge = cell.querySelector('.guest-cell-speaker-badge');
+    if (isActive) {
+      if (!badge) {
+        badge = document.createElement('div');
+        badge.className = 'guest-cell-speaker-badge';
+        badge.textContent = 'Speaking';
+        cell.appendChild(badge);
+      }
+    } else {
+      if (badge) badge.remove();
+    }
+  });
+}
+
+/* ── Sidebar body class helper ── */
+function _applySidebarBodyClass() {
+  document.body.classList.toggle('layout-sidebar', _guestLayout === 'sidebar');
+}
+
+/* ── Drag-and-Drop event handlers ── */
+function _onDragStart(e) {
+  if (_guestLayout !== 'drag') return;
+  const cell = e.currentTarget;
+  const rect = cell.getBoundingClientRect();
+  const gridRect = D.guestGrid.getBoundingClientRect();
+
+  _dragState = {
+    cell,
+    startClientX: e.clientX,
+    startClientY: e.clientY,
+    origLeft: rect.left - gridRect.left,
+    origTop:  rect.top  - gridRect.top,
+  };
+
+  cell.style.cursor  = 'grabbing';
+  cell.style.zIndex  = '20';
+  cell.setPointerCapture(e.pointerId);
+
+  cell.addEventListener('pointermove', _onDragMove, { passive: false });
+  cell.addEventListener('pointerup',   _onDragEnd);
+  e.preventDefault();
+}
+
+function _onDragMove(e) {
+  if (!_dragState) return;
+  const { cell, startClientX, startClientY, origLeft, origTop } = _dragState;
+  const grid     = D.guestGrid;
+  const stageW   = grid.offsetWidth;
+  const stageH   = grid.offsetHeight;
+  const safeBot  = _getUISafeBottom(stageH);
+  const newLeft  = origLeft + (e.clientX - startClientX);
+  const newTop   = origTop  + (e.clientY - startClientY);
+  const maxLeft  = stageW - cell.offsetWidth;
+  const maxTop   = stageH - safeBot - cell.offsetHeight;
+
+  const clampedLeft = Math.max(0, Math.min(maxLeft, newLeft));
+  const clampedTop  = Math.max(0, Math.min(maxTop,  newTop));
+
+  cell.style.left = clampedLeft + 'px';
+  cell.style.top  = clampedTop  + 'px';
+  e.preventDefault();
+}
+
+function _onDragEnd(e) {
+  if (!_dragState) return;
+  const { cell } = _dragState;
+  cell.style.cursor = 'grab';
+  cell.style.zIndex = '6';
+
+  // Persist position
+  const uid = cell.dataset.uid;
+  if (uid) {
+    _dragPositions[uid] = {
+      left: parseFloat(cell.style.left) || 0,
+      top:  parseFloat(cell.style.top)  || 0,
+    };
+  }
+
+  cell.removeEventListener('pointermove', _onDragMove);
+  cell.removeEventListener('pointerup',   _onDragEnd);
+  _dragState = null;
+}
+
+/* ── Save / Load favourite layout ── */
+const _LS_KEY_LAYOUT   = 'snx_fav_layout';
+const _LS_KEY_BOXSIZE  = 'snx_fav_boxsize';
+
+function _saveLayoutFavourite() {
+  _savedLayout  = _guestLayout;
+  _savedBoxSize = _guestBoxSize;
+  try {
+    localStorage.setItem(_LS_KEY_LAYOUT,  _savedLayout);
+    localStorage.setItem(_LS_KEY_BOXSIZE, _savedBoxSize);
+  } catch (_) {}
+  toast('Layout saved ★');
+  _refreshLoadBtn();
+}
+
+function _loadLayoutFavourite() {
+  const layout  = _savedLayout  || localStorage.getItem(_LS_KEY_LAYOUT);
+  const boxSize = _savedBoxSize || localStorage.getItem(_LS_KEY_BOXSIZE);
+  if (!layout) { toast('No saved layout yet'); return; }
+
+  _guestLayout  = layout;
+  _guestBoxSize = boxSize || 'sm';
+
+  // Sync active state in panel
+  document.querySelectorAll('.layout-option-btn').forEach(b => b.classList.toggle('active', b.dataset.layout === _guestLayout));
+  document.querySelectorAll('.layout-size-btn').forEach(b => b.classList.toggle('active', b.dataset.size === _guestBoxSize));
+
+  _applyGuestLayout();
+  _broadcastLayout();
+  _applySidebarBodyClass();
+  toast('Favourite layout loaded');
+}
+
+function _refreshLoadBtn() {
+  const btn = document.getElementById('btnLoadLayout');
+  if (!btn) return;
+  const has = !!(localStorage.getItem(_LS_KEY_LAYOUT));
+  btn.classList.toggle('has-saved', has);
+  btn.title = has ? `Load saved: ${localStorage.getItem(_LS_KEY_LAYOUT)}` : 'No saved layout';
+}
+
+/* ── Restore saved layout preference on page load ── */
+(function _restoreLayoutPreference() {
+  try {
+    const l = localStorage.getItem(_LS_KEY_LAYOUT);
+    const s = localStorage.getItem(_LS_KEY_BOXSIZE);
+    if (l) { _savedLayout = l; _savedBoxSize = s || 'sm'; }
+  } catch (_) {}
+})();
 
 /* ── Update the guest count indicator inside the layout panel ── */
 function _updateLayoutPanelCounter(guestCount) {

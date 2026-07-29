@@ -284,36 +284,191 @@
         ">0 / 9 guests</span>
       </div>
 
+      <!-- Saved favourite layout row -->
+      <div class="layout-saved-row">
+        <span class="layout-saved-label">Saved</span>
+        <button id="btnSaveLayout" class="layout-save-btn" title="Save current layout as favourite">💾 Save</button>
+        <button id="btnLoadLayout" class="layout-load-btn" title="Load saved favourite layout">★ Load</button>
+      </div>
+
+      <!-- Search / filter -->
+      <input id="layoutSearch" class="layout-search-input" type="search" placeholder="Search layouts…" autocomplete="off" spellcheck="false">
+
+      <!-- Category: Smart -->
+      <div class="layout-panel-section">Smart</div>
       <div class="layout-panel-grid">
-        <button class="layout-option-btn active" data-layout="auto" title="Auto">
+        <button class="layout-option-btn active" data-layout="auto" title="Auto — best layout for current guest count">
           <span class="layout-icon">✦</span>
           <span>Auto</span>
         </button>
-        <button class="layout-option-btn" data-layout="host-full" title="Host Full">
+        <button class="layout-option-btn" data-layout="speaker" title="Speaker Focus — active speaker becomes large">
+          <span class="layout-icon">🔊</span>
+          <span>Speaker</span>
+        </button>
+        <button class="layout-option-btn" data-layout="host-focus" title="Host Focus — host always full screen">
+          <span class="layout-icon">★</span>
+          <span>Host Focus</span>
+        </button>
+      </div>
+
+      <!-- Category: Host Layouts -->
+      <div class="layout-panel-section">Host Layouts</div>
+      <div class="layout-panel-grid">
+        <button class="layout-option-btn" data-layout="host-full" title="Host Full Screen + right side stack">
           <span class="layout-icon">⬛</span>
           <span>Host Full</span>
         </button>
-        <button class="layout-option-btn" data-layout="split" title="Split">
-          <span class="layout-icon">⬜⬜</span>
-          <span>Split</span>
+        <button class="layout-option-btn" data-layout="host-full-left" title="Host Full Screen + left side stack">
+          <span class="layout-icon">▐⬛</span>
+          <span>Left Stack</span>
         </button>
-        <button class="layout-option-btn" data-layout="host-big" title="Host Big">
+        <button class="layout-option-btn" data-layout="host-big" title="Host Big + side strip">
           <span class="layout-icon">▬▪</span>
           <span>Host Big</span>
         </button>
-        <button class="layout-option-btn" data-layout="grid" title="Grid">
-          <span class="layout-icon">▦</span>
-          <span>Grid</span>
+        <button class="layout-option-btn" data-layout="pip" title="Picture-in-Picture — guest small over host">
+          <span class="layout-icon">◱</span>
+          <span>PiP</span>
         </button>
-        <button class="layout-option-btn" data-layout="float" title="Floating">
+        <button class="layout-option-btn" data-layout="theater" title="Theater — host large, guests dimmed below">
+          <span class="layout-icon">🎬</span>
+          <span>Theater</span>
+        </button>
+        <button class="layout-option-btn" data-layout="audience" title="Audience Mode — host fills screen, guests hidden">
+          <span class="layout-icon">👁</span>
+          <span>Audience</span>
+        </button>
+      </div>
+
+      <!-- Category: Filmstrip -->
+      <div class="layout-panel-section">Filmstrip</div>
+      <div class="layout-panel-grid">
+        <button class="layout-option-btn" data-layout="bottom-strip" title="Host Full + Bottom Filmstrip">
+          <span class="layout-icon">▬▬</span>
+          <span>Bottom Strip</span>
+        </button>
+        <button class="layout-option-btn" data-layout="top-strip" title="Host Full + Top Filmstrip">
+          <span class="layout-icon">▀▀</span>
+          <span>Top Strip</span>
+        </button>
+        <button class="layout-option-btn" data-layout="stacked" title="Right side vertical strip">
+          <span class="layout-icon">▮▮</span>
+          <span>Right Strip</span>
+        </button>
+        <button class="layout-option-btn" data-layout="left-strip" title="Left side vertical strip">
+          <span class="layout-icon">▮</span>
+          <span>Left Strip</span>
+        </button>
+      </div>
+
+      <!-- Category: Grid -->
+      <div class="layout-panel-section">Grid</div>
+      <div class="layout-panel-grid">
+        <button class="layout-option-btn" data-layout="grid" title="Equal Auto Grid">
+          <span class="layout-icon">▦</span>
+          <span>Auto Grid</span>
+        </button>
+        <button class="layout-option-btn" data-layout="grid-2x2" title="2×2 Grid">
+          <span class="layout-icon">⊞</span>
+          <span>2×2</span>
+        </button>
+        <button class="layout-option-btn" data-layout="grid-3x3" title="3×3 Grid">
+          <span class="layout-icon">⊟</span>
+          <span>3×3</span>
+        </button>
+        <button class="layout-option-btn" data-layout="honeycomb" title="Honeycomb Layout">
+          <span class="layout-icon">⬡</span>
+          <span>Honeycomb</span>
+        </button>
+        <button class="layout-option-btn" data-layout="diamond" title="Diamond Layout">
+          <span class="layout-icon">◆</span>
+          <span>Diamond</span>
+        </button>
+        <button class="layout-option-btn" data-layout="circular" title="Circular Layout">
+          <span class="layout-icon">◎</span>
+          <span>Circular</span>
+        </button>
+        <button class="layout-option-btn" data-layout="corner" title="Corner Layout — guests in screen corners">
+          <span class="layout-icon">⌐</span>
+          <span>Corners</span>
+        </button>
+        <button class="layout-option-btn" data-layout="float" title="Floating Bubble Layout">
           <span class="layout-icon">◈</span>
           <span>Float</span>
         </button>
-        <button class="layout-option-btn" data-layout="stacked" title="Stacked (side strip)">
-          <span class="layout-icon">▮▮</span>
-          <span>Stacked</span>
+      </div>
+
+      <!-- Category: Split -->
+      <div class="layout-panel-section">Split</div>
+      <div class="layout-panel-grid">
+        <button class="layout-option-btn" data-layout="split" title="Equal side-by-side split">
+          <span class="layout-icon">⬜⬜</span>
+          <span>Split</span>
+        </button>
+        <button class="layout-option-btn" data-layout="split-2" title="Split Screen: Host + 1 Guest">
+          <span class="layout-icon">◧</span>
+          <span>2-Split</span>
+        </button>
+        <button class="layout-option-btn" data-layout="triple" title="Triple Split: Host + 2 Guests">
+          <span class="layout-icon">⊟</span>
+          <span>Triple</span>
+        </button>
+        <button class="layout-option-btn" data-layout="quad" title="Quad Split">
+          <span class="layout-icon">⊠</span>
+          <span>Quad</span>
+        </button>
+        <button class="layout-option-btn" data-layout="vertical-stack" title="Vertical Stack">
+          <span class="layout-icon">☰</span>
+          <span>V-Stack</span>
+        </button>
+        <button class="layout-option-btn" data-layout="horizontal-stack" title="Horizontal Stack">
+          <span class="layout-icon">≡</span>
+          <span>H-Stack</span>
         </button>
       </div>
+
+      <!-- Category: Style -->
+      <div class="layout-panel-section">Style</div>
+      <div class="layout-panel-grid">
+        <button class="layout-option-btn" data-layout="stage" title="Stage Mode — host centred, guests below">
+          <span class="layout-icon">🎤</span>
+          <span>Stage</span>
+        </button>
+        <button class="layout-option-btn" data-layout="podcast" title="Podcast Layout">
+          <span class="layout-icon">🎙</span>
+          <span>Podcast</span>
+        </button>
+        <button class="layout-option-btn" data-layout="interview" title="Interview Layout">
+          <span class="layout-icon">💬</span>
+          <span>Interview</span>
+        </button>
+        <button class="layout-option-btn" data-layout="gaming" title="Gaming — gameplay large, cameras small">
+          <span class="layout-icon">🎮</span>
+          <span>Gaming</span>
+        </button>
+        <button class="layout-option-btn" data-layout="tiktok" title="TikTok Style — vertical full-screen">
+          <span class="layout-icon">▲</span>
+          <span>TikTok</span>
+        </button>
+        <button class="layout-option-btn" data-layout="discord" title="Discord Style — thumbnail row">
+          <span class="layout-icon">◑</span>
+          <span>Discord</span>
+        </button>
+        <button class="layout-option-btn" data-layout="sidebar" title="Sidebar — comments left, guests right">
+          <span class="layout-icon">▐</span>
+          <span>Sidebar</span>
+        </button>
+      </div>
+
+      <!-- Category: Custom -->
+      <div class="layout-panel-section">Custom</div>
+      <div class="layout-panel-grid">
+        <button class="layout-option-btn" data-layout="drag" title="Drag-and-Drop — position guests freely">
+          <span class="layout-icon">✥</span>
+          <span>Drag</span>
+        </button>
+      </div>
+
       <div class="layout-panel-section">Box Size</div>
       <div class="layout-size-row">
         <button class="layout-size-btn active" data-size="sm">S</button>

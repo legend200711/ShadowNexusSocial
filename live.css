@@ -1697,3 +1697,223 @@ button, input, a, [role="button"] {
 #iqBadge.iq-poor      { border-color: rgba(255,50,70,0.65);  color: #ff7788; }
 
 /* IQ quality-change toast — reuses existing #liveToast; colours are set inline via JS */
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LAYOUT PANEL — NEW UI ELEMENTS
+   (Saved row, search box, scrollable panel)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Make panel scrollable when content exceeds viewport height */
+.layout-settings-panel {
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,174,239,0.3) transparent;
+}
+.layout-settings-panel::-webkit-scrollbar { width: 4px; }
+.layout-settings-panel::-webkit-scrollbar-track { background: transparent; }
+.layout-settings-panel::-webkit-scrollbar-thumb { background: rgba(0,174,239,0.35); border-radius: 4px; }
+
+/* Saved layout row */
+.layout-saved-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+.layout-saved-label {
+  font-size: 10px; font-weight: 700; color: #6a90b8;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  flex: 1;
+}
+.layout-save-btn,
+.layout-load-btn {
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 10px; font-weight: 700;
+  cursor: pointer; transition: all 0.15s; touch-action: manipulation;
+  border: 1.5px solid rgba(0,174,239,0.35);
+  background: rgba(0,20,55,0.8);
+  color: #6a90b8;
+}
+.layout-save-btn:hover { border-color: rgba(0,174,239,0.7); color: #00AEEF; background: rgba(0,60,180,0.25); }
+.layout-load-btn:hover { border-color: rgba(255,200,0,0.7); color: #ffe066; background: rgba(60,40,0,0.35); }
+.layout-load-btn.has-saved { border-color: rgba(255,200,0,0.5); color: #ffe066; }
+
+/* Layout search input */
+.layout-search-input {
+  width: 100%; box-sizing: border-box;
+  background: rgba(0,20,55,0.8);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 11px; color: #a8d4f0;
+  margin-bottom: 4px;
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none; appearance: none;
+}
+.layout-search-input::placeholder { color: rgba(100,150,200,0.45); }
+.layout-search-input:focus { border-color: rgba(0,174,239,0.55); }
+.layout-search-input::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+/* Hide non-matching layout buttons when searching */
+.layout-option-btn.search-hidden { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LAYOUT MODES — CSS-ONLY PROPERTIES
+   All geometry is set by the JS engine.  These rules provide
+   border/shadow decoration and z-index stacking for each named mode.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Absolute-positioned layouts: shared decoration ── */
+.guest-grid[data-layout="host-focus"]    .guest-cell:not(.host-cell),
+.guest-grid[data-layout="host-full-left"] .guest-cell:not(.host-cell),
+.guest-grid[data-layout="pip"]           .guest-cell:not(.host-cell),
+.guest-grid[data-layout="theater"]       .guest-cell:not(.host-cell),
+.guest-grid[data-layout="left-strip"]    .guest-cell:not(.host-cell),
+.guest-grid[data-layout="bottom-strip"]  .guest-cell:not(.host-cell),
+.guest-grid[data-layout="top-strip"]     .guest-cell:not(.host-cell),
+.guest-grid[data-layout="honeycomb"]     .guest-cell:not(.host-cell),
+.guest-grid[data-layout="circular"]      .guest-cell:not(.host-cell),
+.guest-grid[data-layout="diamond"]       .guest-cell:not(.host-cell),
+.guest-grid[data-layout="corner"]        .guest-cell:not(.host-cell),
+.guest-grid[data-layout="discord"]       .guest-cell:not(.host-cell),
+.guest-grid[data-layout="speaker"]       .guest-cell:not(.host-cell),
+.guest-grid[data-layout="drag"]          .guest-cell:not(.host-cell) {
+  border-radius: 10px;
+  border: 1.5px solid rgba(0,174,239,0.35);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+  z-index: 6;
+  overflow: hidden;
+}
+
+/* ── Host Full Left: mirror of host-full, absolute tiles on the LEFT side ── */
+.guest-grid[data-layout="host-full-left"] .host-cell {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+}
+
+/* ── PiP: guest-cell tiles absolutely positioned ── */
+.guest-grid[data-layout="pip"] .host-cell {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+}
+.guest-grid[data-layout="pip"] .guest-cell:not(.host-cell) {
+  border-radius: 14px;
+  border: 2px solid rgba(0,174,239,0.6);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.75);
+  cursor: move;
+}
+
+/* ── Theater: host top area, guests dimmed strip ── */
+.guest-grid[data-layout="theater"] .guest-cell:not(.host-cell) {
+  opacity: 0.85;
+}
+
+/* ── Audience mode: guests hidden behind host ── */
+.guest-grid[data-layout="audience"] .guest-cell:not(.host-cell) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Honeycomb: clip each cell to a hexagon shape ── */
+.guest-grid[data-layout="honeycomb"] .guest-cell {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  border-radius: 0 !important;
+  overflow: visible;
+}
+.guest-grid[data-layout="honeycomb"] .guest-cell-name {
+  clip-path: none;
+  border-radius: 0 0 4px 4px;
+}
+
+/* ── Circular: clip cells to circles ── */
+.guest-grid[data-layout="circular"] .guest-cell {
+  border-radius: 50% !important;
+  overflow: hidden;
+}
+.guest-grid[data-layout="circular"] .guest-cell-name { display: none; }
+
+/* ── Corner layout: absolute, border-radius on outer corners only ── */
+.guest-grid[data-layout="corner"] .guest-cell:not(.host-cell) {
+  border-radius: 14px;
+}
+
+/* ── Drag layout: cells draggable ── */
+.guest-grid[data-layout="drag"] .guest-cell:not(.host-cell) {
+  cursor: grab;
+  user-select: none;
+}
+.guest-grid[data-layout="drag"] .guest-cell:not(.host-cell):active {
+  cursor: grabbing;
+}
+
+/* ── Speaker layout: active-speaker cell highlighted ── */
+.guest-grid[data-layout="speaker"] .guest-cell.speaker-active {
+  border-color: rgba(0,255,136,0.8) !important;
+  box-shadow: 0 0 20px rgba(0,255,136,0.5) !important;
+  z-index: 7;
+}
+
+/* ── Grid variants: thin borders ── */
+.guest-grid[data-layout="grid-2x2"] .guest-cell,
+.guest-grid[data-layout="grid-3x3"] .guest-cell {
+  border: 1px solid rgba(0,0,0,0.35);
+}
+
+/* ── Vertical/horizontal stack: thin separators ── */
+.guest-grid[data-layout="vertical-stack"] .guest-cell,
+.guest-grid[data-layout="horizontal-stack"] .guest-cell {
+  border: 1px solid rgba(0,20,50,0.8);
+}
+
+/* ── Discord: thumbnail row ── */
+.guest-grid[data-layout="discord"] .host-cell {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+}
+
+/* ── Sidebar layout: chat panel reposition handled by JS body class ── */
+body.layout-sidebar .live-chat-panel {
+  right: auto !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  top: 0 !important;
+  height: 100% !important;
+  width: 220px !important;
+  border-radius: 0 !important;
+  border-right: 1.5px solid rgba(0,174,239,0.3) !important;
+}
+
+/* ── Viewer right-gutter: extend the exclusion list for new absolute layouts ── */
+body.is-viewer .guest-grid.has-guests:not([data-layout="float"]):not([data-layout="stacked"]):not([data-layout="host-full"]):not([data-layout="host-full-left"]):not([data-layout="host-focus"]):not([data-layout="pip"]):not([data-layout="theater"]):not([data-layout="discord"]):not([data-layout="speaker"]):not([data-layout="drag"]):not([data-layout="corner"]):not([data-layout="circular"]):not([data-layout="honeycomb"]):not([data-layout="diamond"]):not([data-layout="bottom-strip"]):not([data-layout="top-strip"]):not([data-layout="left-strip"]):not([data-layout="audience"]):not([data-layout="gaming"]):not([data-layout="tiktok"]):not([data-layout="sidebar"]) {
+  padding-right: 58px;
+}
+
+/* ── Layout transition: smooth cross-fade when switching modes ── */
+.guest-grid {
+  transition: opacity 0.18s ease;
+}
+.guest-grid.layout-transitioning {
+  opacity: 0.6;
+}
+
+/* ── Speaker badge on active speaker cell ── */
+.guest-cell-speaker-badge {
+  position: absolute; top: 5px; left: 5px;
+  background: rgba(0,200,80,0.8);
+  border-radius: 6px; padding: 2px 6px;
+  font-size: 9px; font-weight: 800; color: #fff;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* ── Drag handle tooltip ── */
+.guest-cell-drag-hint {
+  position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.65); border-radius: 6px; padding: 2px 8px;
+  font-size: 9px; color: #a8d4f0; pointer-events: none; z-index: 11;
+  white-space: nowrap;
+  opacity: 0; transition: opacity 0.2s;
+}
+.guest-grid[data-layout="drag"] .guest-cell:not(.host-cell):hover .guest-cell-drag-hint {
+  opacity: 1;
+}
