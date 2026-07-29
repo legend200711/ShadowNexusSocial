@@ -3542,78 +3542,6 @@ img, video { max-width: 100%; height: auto; }
 .profile-featured-post-meta { font-size:11px; color:#3a6a9a; margin-top:5px; display:flex; gap:10px; }
 
 /* ════════════════════════════════════════════════════════════
-   CREATOR DASHBOARD
-   ════════════════════════════════════════════════════════════ */
-.creator-stat-grid {
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:10px;
-    margin-bottom:16px;
-}
-.creator-stat-card {
-    background:rgba(0,20,55,0.65); border:1px solid rgba(0,100,200,0.22);
-    border-radius:12px; padding:14px 12px; text-align:center;
-}
-.creator-stat-num  { font-size:24px; font-weight:800; color:#00d4ff; line-height:1; }
-.creator-stat-delta { font-size:11px; color:#39FF14; margin-top:2px; }
-.creator-stat-label { font-size:11px; color:#4a7a9a; margin-top:4px; text-transform:uppercase; letter-spacing:.5px; }
-.creator-section-title {
-    font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.7px;
-    color:#00AEEF; margin:0 0 10px; border-bottom:1px solid rgba(0,174,239,0.18);
-    padding-bottom:6px; text-shadow:0 0 8px rgba(0,174,239,0.3);
-}
-.creator-post-row {
-    display:flex; align-items:center; gap:10px; padding:9px 0;
-    border-bottom:1px solid rgba(0,50,120,0.18); flex-wrap:wrap;
-}
-.creator-post-row:last-child { border-bottom:none; }
-.creator-post-text { flex:1; min-width:0; font-size:13px; color:#c8e0f8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.creator-post-stats { display:flex; gap:12px; flex-shrink:0; font-size:12px; color:#4a7a9a; }
-.creator-post-stat { display:flex; align-items:center; gap:3px; }
-.creator-event-row {
-    display:flex; align-items:flex-start; gap:12px; padding:10px 0;
-    border-bottom:1px solid rgba(0,50,120,0.18); flex-wrap:wrap;
-}
-.creator-event-row:last-child { border-bottom:none; }
-.creator-event-date {
-    font-size:11px; font-weight:700; color:#ffd966; background:rgba(255,210,60,0.1);
-    border:1px solid rgba(255,210,60,0.3); border-radius:8px; padding:4px 9px;
-    white-space:nowrap; flex-shrink:0;
-}
-.creator-event-body { flex:1; min-width:0; }
-.creator-event-title { font-size:13px; font-weight:700; color:#e0f0ff; }
-.creator-event-desc  { font-size:12px; color:#6a90b8; margin-top:2px; line-height:1.4; }
-.creator-event-del {
-    background:none; border:1px solid rgba(255,51,102,0.3); color:#ff5577;
-    font-size:11px; padding:3px 9px; border-radius:8px; cursor:pointer; flex-shrink:0;
-    transition:background .15s; align-self:center;
-}
-.creator-event-del:hover { background:rgba(255,51,102,0.1); }
-.creator-dashboard-tabs {
-    display:flex; gap:0; border-bottom:1px solid rgba(0,174,239,0.18);
-    margin-bottom:16px; overflow-x:auto; scrollbar-width:none;
-}
-.creator-dashboard-tabs::-webkit-scrollbar { display:none; }
-.creator-dash-tab {
-    flex-shrink:0; padding:8px 16px; font-size:12px; font-weight:700;
-    color:#6a90b8; cursor:pointer; border-bottom:2px solid transparent;
-    background:none; border-top:none; border-left:none; border-right:none;
-    transition:color .15s, border-color .15s; font-family:inherit; white-space:nowrap;
-}
-.creator-dash-tab:hover { color:#c8e8ff; }
-.creator-dash-tab.active { color:#00AEEF; border-bottom-color:#00AEEF; }
-.creator-dash-panel { display:none; }
-.creator-dash-panel.active { display:block; animation:pageFadeIn .2s ease both; }
-/* Audience bar chart */
-.creator-bar-chart { display:flex; align-items:flex-end; gap:4px; height:80px; margin:10px 0; }
-.creator-bar-wrap  { display:flex; flex-direction:column; align-items:center; flex:1; }
-.creator-bar       { width:100%; background:rgba(0,174,239,0.55); border-radius:4px 4px 0 0; min-height:4px; transition:height .4s ease; }
-.creator-bar-label { font-size:9px; color:#3a6a9a; margin-top:3px; white-space:nowrap; }
-
-/* Nav item for creator dashboard */
-.nav-item-creator { color:#39FF14 !important; }
-.nav-item-creator:hover { background:rgba(57,255,20,0.08) !important; color:#00ff88 !important; box-shadow:inset 2px 0 0 rgba(57,255,20,0.55) !important; }
-.nav-item-creator.active-nav { background:rgba(57,255,20,0.1) !important; color:#39FF14 !important; box-shadow:inset 3px 0 0 #39FF14, inset 0 0 14px rgba(57,255,20,0.07) !important; }
-
-/* ════════════════════════════════════════════════════════════
    COMMUNITIES SYSTEM
    ════════════════════════════════════════════════════════════ */
 .comm-hub-tabs {
@@ -7120,9 +7048,6 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="nav-item" id="navExplore" onclick="navTo('explorePage')">
             <span class="nav-icon">🌐</span> Explore
         </button>
-        <button class="nav-item nav-item-creator" id="navCreatorDash" onclick="navTo('creatorDashPage')">
-            <span class="nav-icon">📊</span> Creator Dashboard
-        </button>
         <button class="nav-item" id="navCommunity" onclick="navTo('communityPage')">
             <span class="nav-icon">💙</span> Community Hub
         </button>
@@ -10625,59 +10550,6 @@ body.arcade-fs-ios body::after { display:none !important; }
     </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     CREATOR DASHBOARD PAGE
-     ═══════════════════════════════════════════════════════════ -->
-<div class="page" id="creatorDashPage">
-    <h2 class="eclipse-title">📊 Creator Dashboard</h2>
-    <div class="creator-stat-grid">
-        <div class="creator-stat-card"><div class="creator-stat-num" id="cdTotalPosts">—</div><div class="creator-stat-label">Posts</div></div>
-        <div class="creator-stat-card"><div class="creator-stat-num" id="cdTotalLikes">—</div><div class="creator-stat-label">Total Likes</div></div>
-        <div class="creator-stat-card"><div class="creator-stat-num" id="cdTotalComments">—</div><div class="creator-stat-label">Comments</div></div>
-        <div class="creator-stat-card"><div class="creator-stat-num" id="cdFollowers">—</div><div class="creator-stat-label">Followers</div></div>
-    </div>
-    <div class="section-card">
-        <div class="creator-dashboard-tabs">
-            <button class="creator-dash-tab active" onclick="snxSwitchCreatorTab('posts',this)">📝 Post Analytics</button>
-            <button class="creator-dash-tab" onclick="snxSwitchCreatorTab('followers',this)">👥 Followers</button>
-            <button class="creator-dash-tab" onclick="snxSwitchCreatorTab('audience',this)">📈 Audience</button>
-            <button class="creator-dash-tab" onclick="snxSwitchCreatorTab('events',this)">📅 Events</button>
-        </div>
-        <div class="creator-dash-panel active" id="cdPanelPosts">
-            <div class="creator-section-title">📝 Your Recent Posts</div>
-            <div id="cdPostList"><div style="color:#4a7a9a;font-size:13px;padding:16px 0;">Loading your posts…</div></div>
-        </div>
-        <div class="creator-dash-panel" id="cdPanelFollowers">
-            <div class="creator-section-title">👥 Follower Analytics</div>
-            <div class="creator-stat-grid" style="margin-bottom:12px;">
-                <div class="creator-stat-card"><div class="creator-stat-num" id="cdFollowersTotal">—</div><div class="creator-stat-label">Total Followers</div></div>
-                <div class="creator-stat-card"><div class="creator-stat-num" id="cdFollowingTotal">—</div><div class="creator-stat-label">Following</div></div>
-                <div class="creator-stat-card"><div class="creator-stat-num" id="cdFriendsTotal">—</div><div class="creator-stat-label">Friends</div></div>
-            </div>
-            <div class="creator-section-title">Recent Followers</div>
-            <div id="cdFollowerList"><div style="color:#4a7a9a;font-size:13px;padding:8px 0;">Loading…</div></div>
-        </div>
-        <div class="creator-dash-panel" id="cdPanelAudience">
-            <div class="creator-section-title">📈 Engagement This Week</div>
-            <div class="creator-bar-chart" id="cdAudienceChart"></div>
-            <div style="font-size:11px;color:#3a6a9a;margin-top:4px;">Likes per day (last 7 days)</div>
-            <div class="creator-section-title" style="margin-top:16px;">Top Performing Post</div>
-            <div id="cdTopPost"><div style="color:#4a7a9a;font-size:13px;padding:8px 0;">Loading…</div></div>
-        </div>
-        <div class="creator-dash-panel" id="cdPanelEvents">
-            <div class="creator-section-title">📅 Scheduled Events</div>
-            <div id="cdEventList"><div style="color:#4a7a9a;font-size:13px;padding:8px 0;">No events yet.</div></div>
-            <div style="margin-top:14px;border-top:1px solid rgba(0,80,160,0.18);padding-top:14px;">
-                <div class="creator-section-title">+ Schedule New Event</div>
-                <input id="cdEventTitle" placeholder="Event title…" style="margin-bottom:8px;">
-                <textarea id="cdEventDesc" rows="2" placeholder="Description (optional)…" style="resize:vertical;margin-bottom:8px;"></textarea>
-                <input type="datetime-local" id="cdEventDate" style="margin-bottom:8px;color-scheme:dark;">
-                <button onclick="snxSaveCreatorEvent()" style="width:100%;border-radius:10px;padding:10px;background:linear-gradient(135deg,#003d99,#0077dd);border-color:rgba(0,174,239,0.65);color:#fff;">📅 Schedule Event</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="page" id="liveHubPage">
 
   <div class="live-hub-header">
@@ -10839,6 +10711,23 @@ body.arcade-fs-ios body::after { display:none !important; }
     } catch(e) {
       console.warn('[SNX Auth] Token refresh failed:', e.message);
       return false;
+    }
+  };
+
+  // ── Refresh-and-retry helper ──────────────────────────────────────────────
+  // Calls an async fn().  If fn() throws permission-denied, forces a token
+  // refresh and calls fn() once more.  If the second attempt also fails, or if
+  // we are genuinely signed out, rejects with the original error.
+  // Exposed globally so non-module IIFE scripts can use it without importing auth.
+  window._snxRefreshAndRetry = async function(fn) {
+    try {
+      return await fn();
+    } catch (e) {
+      if ((e && e.code === 'permission-denied') && auth.currentUser) {
+        try { await getIdToken(auth.currentUser, true); } catch(_) {}
+        return await fn(); // second attempt — throws if still denied
+      }
+      throw e;
     }
   };
 
@@ -19363,8 +19252,7 @@ function navTo(pageId) {
         communityPage:'navCommunity', supportRoomsPage:'navSupport',
         communityRulesPage:'navCommunityRules',
         liveHubPage:'navLiveHub',
-        explorePage:'navExplore',
-        creatorDashPage:'navCreatorDash'
+        explorePage:'navExplore'
     };
     const navEl = document.getElementById(map[pageId]);
     if (navEl) navEl.classList.add('active-nav');
@@ -19374,8 +19262,6 @@ function navTo(pageId) {
     if (pageId === 'inboxPage' && typeof renderInboxPage === 'function') renderInboxPage();
     // Load Explore page
     if (pageId === 'explorePage' && typeof window.snxLoadExplorePage === 'function') window.snxLoadExplorePage();
-    // Load Creator Dashboard
-    if (pageId === 'creatorDashPage' && typeof window.snxLoadCreatorDash === 'function') window.snxLoadCreatorDash();
     // Render admin panel on navigation (re-fetches latest data each time)
     if (pageId === 'adminPage' && typeof renderAdminPanel === 'function') {
         renderAdminPanel();
@@ -29584,214 +29470,6 @@ window.snxLoadProfileFeatured = async function(uid) {
 };
 
 /* ════════════════════════════════════════════════════════════
-   CREATOR DASHBOARD
-   ════════════════════════════════════════════════════════════ */
-
-window.snxSwitchCreatorTab = function(tab, btn) {
-    document.querySelectorAll('.creator-dash-tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.creator-dash-panel').forEach(p => p.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    const id = 'cdPanel' + tab.charAt(0).toUpperCase() + tab.slice(1);
-    const el = document.getElementById(id); if (el) el.classList.add('active');
-};
-
-let _cdLoaded = false;
-window.snxLoadCreatorDash = async function() {
-    const cu = _cu(); if (!cu) return;
-    if (_cdLoaded) return;
-    _cdLoaded = true;
-    const fs = _fs();
-    const { collection, query, where, orderBy, limit, getDocs, getDoc, doc } = fs;
-    if (!collection) return;
-    const $ = id => document.getElementById(id);
-
-    try {
-        const snap = await getDocs(query(collection(_db(),'posts'), where('uid','==',cu.uid), orderBy('createdAt','desc'), limit(30)));
-        const posts = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-        const totalLikes    = posts.reduce((s,p) => s+(p.likes||0), 0);
-        const totalComments = posts.reduce((s,p) => s+(p.comments?.length||0), 0);
-        if ($('cdTotalPosts'))    $('cdTotalPosts').textContent    = posts.length;
-        if ($('cdTotalLikes'))    $('cdTotalLikes').textContent    = totalLikes;
-        if ($('cdTotalComments')) $('cdTotalComments').textContent = totalComments;
-
-        const uSnap = await getDoc(doc(_db(),'users',cu.uid));
-        if (uSnap.exists()) {
-            const u = uSnap.data();
-            const fc = u.followersCount || u.followers?.length || 0;
-            if ($('cdFollowers'))      $('cdFollowers').textContent      = fc;
-            if ($('cdFollowersTotal')) $('cdFollowersTotal').textContent = fc;
-            if ($('cdFollowingTotal')) $('cdFollowingTotal').textContent = u.following?.length || 0;
-            if ($('cdFriendsTotal'))   $('cdFriendsTotal').textContent   = u.friends?.length  || 0;
-
-            // Recent followers list
-            const followers = u.followers || [];
-            if (followers.length && $('cdFollowerList')) {
-                const recent = followers.slice(-8).reverse();
-                const fDocs = await Promise.all(recent.map(fid => getDoc(doc(_db(),'users',fid))));
-                $('cdFollowerList').innerHTML = fDocs.map(fd => {
-                    if (!fd.exists()) return '';
-                    const fu = fd.data();
-                    const avS = fu.avatar ? `background-image:url('${_e(fu.avatar)}');background-size:cover;background-position:center;` : '';
-                    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(0,50,120,0.15);cursor:pointer;" onclick="if(typeof viewProfile==='function')viewProfile('${_e(fu.uid)}')">
-                        <div style="width:36px;height:36px;border-radius:50%;${avS}background:#071428;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;color:#00AEEF;border:1.5px solid rgba(0,174,239,0.4);flex-shrink:0;">${fu.avatar?'':_e((fu.displayName||'?')[0].toUpperCase())}</div>
-                        <div><div style="font-size:13px;font-weight:600;color:#e0f0ff;">${_e(fu.displayName||fu.username||'?')}</div><div style="font-size:11px;color:#4a7a9a;">@${_e(fu.username||'')}</div></div>
-                    </div>`;
-                }).filter(Boolean).join('') || '<div style="color:#4a7a9a;font-size:13px;">No followers yet.</div>';
-            }
-        }
-
-        // Post list
-        if ($('cdPostList')) {
-            $('cdPostList').innerHTML = posts.length ? posts.map(p =>
-                `<div class="creator-post-row">
-                    <div class="creator-post-text">${_e((p.text||'[Media Post]').slice(0,80))}</div>
-                    <div class="creator-post-stats">
-                        <span class="creator-post-stat">❤️ ${p.likes||0}</span>
-                        <span class="creator-post-stat">💬 ${p.comments?.length||0}</span>
-                        <span class="creator-post-stat" style="color:#4a7a9a;">${_ago(p.createdAt||p.timestamp)}</span>
-                    </div>
-                </div>`
-            ).join('') : '<div style="color:#4a7a9a;padding:12px 0;">No posts yet.</div>';
-        }
-
-        // Audience chart
-        if ($('cdAudienceChart')) {
-            const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-            const buckets = new Array(7).fill(0);
-            posts.forEach(p => { const day = new Date(p.createdAt||p.timestamp||0).getDay(); buckets[day] += (p.likes||0); });
-            const max = Math.max(...buckets, 1);
-            $('cdAudienceChart').innerHTML = days.map((d,i) => {
-                const val = buckets[(i+1)%7];
-                const pct = Math.round(val/max*100);
-                return `<div class="creator-bar-wrap"><div class="creator-bar" style="height:${Math.max(pct,4)}%;"></div><div class="creator-bar-label">${d}</div></div>`;
-            }).join('');
-        }
-
-        // Top post
-        const topPost = [...posts].sort((a,b) => (b.likes||0)-(a.likes||0))[0];
-        if ($('cdTopPost') && topPost) {
-            $('cdTopPost').innerHTML = `<div class="creator-post-row">
-                <div class="creator-post-text">${_e((topPost.text||'[Media Post]').slice(0,100))}</div>
-                <div class="creator-post-stats"><span class="creator-post-stat">❤️ ${topPost.likes||0}</span><span class="creator-post-stat">💬 ${topPost.comments?.length||0}</span></div>
-            </div>`;
-        }
-
-        _cdLoadEvents();
-    } catch(e) { console.error('[CreatorDash]', e); _cdLoaded = false; }
-};
-
-async function _cdLoadEvents() {
-    const cu = _cu(); if (!cu) return;
-    const fs = _fs();
-    if (!fs || !fs.collection) return; // Firestore not ready yet
-    const { collection, query, where, orderBy, getDocs } = fs;
-    const el = document.getElementById('cdEventList'); if (!el) return;
-    try {
-        const snap = await getDocs(query(collection(_db(),'creatorEvents'), where('uid','==',cu.uid), orderBy('eventAt','asc')));
-        if (snap.empty) { el.innerHTML = '<div style="color:#4a7a9a;font-size:13px;padding:8px 0;">No events scheduled yet.</div>'; return; }
-        el.innerHTML = snap.docs.map(d => {
-            const ev = d.data();
-            const ds = new Date(ev.eventAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-            return `<div class="creator-event-row">
-                <div class="creator-event-date">${ds}</div>
-                <div class="creator-event-body">
-                    <div class="creator-event-title">${_e(ev.title||'Untitled')}</div>
-                    ${ev.desc?`<div class="creator-event-desc">${_e(ev.desc)}</div>`:''}
-                </div>
-                <button class="creator-event-del" onclick="snxDeleteCreatorEvent('${d.id}')">✕</button>
-            </div>`;
-        }).join('');
-    } catch(e) {
-        const msg = (e && e.message) ? e.message : String(e);
-        el.innerHTML = `<div style="color:#ff5577;font-size:13px;padding:8px 0;">Could not load events: ${msg.slice(0,80)}</div>`;
-        console.warn('[CreatorEvents] Load failed:', e);
-    }
-}
-
-window.snxSaveCreatorEvent = async function() {
-    const _t = msg => { if (typeof toastNotification === 'function') toastNotification(msg); };
-
-    const cu = _cu();
-    if (!cu) { _t('⚠️ Sign in to schedule an event.'); return; }
-
-    // Guard: Firestore must be ready
-    const fs = _fs();
-    if (!fs || !fs.collection) { _t('⚠️ Still connecting — please try again in a moment.'); return; }
-
-    const title = document.getElementById('cdEventTitle')?.value.trim();
-    const desc  = document.getElementById('cdEventDesc')?.value.trim();
-    const dateV = document.getElementById('cdEventDate')?.value;
-    if (!title) { _t('⚠️ Event title required.'); return; }
-    if (!dateV)  { _t('⚠️ Pick a date and time.'); return; }
-    const eventAt = new Date(dateV).getTime();
-    if (isNaN(eventAt) || eventAt <= Date.now()) { _t('⚠️ Pick a future date and time.'); return; }
-
-    const { collection, addDoc } = fs;
-    const saveBtn = document.querySelector('#cdPanelEvents button');
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
-
-    // Retry helper for transient network errors
-    async function _trySave(attemptsLeft) {
-        try {
-            await addDoc(collection(_db(),'creatorEvents'), {
-                uid: cu.uid, title, desc: desc || '', eventAt, createdAt: Date.now()
-            });
-            const titleEl = document.getElementById('cdEventTitle');
-            const descEl  = document.getElementById('cdEventDesc');
-            const dateEl  = document.getElementById('cdEventDate');
-            if (titleEl) titleEl.value = '';
-            if (descEl)  descEl.value  = '';
-            if (dateEl)  dateEl.value  = '';
-            _t('📅 Event scheduled!');
-            _cdLoadEvents();
-        } catch(e) {
-            const msg = (e && e.message) ? e.message : String(e);
-            const isTransient = msg.includes('unavailable') || msg.includes('network') || msg.includes('timeout') || msg.includes('Failed to fetch');
-            if (isTransient && attemptsLeft > 0) {
-                _t(`⚠️ Connection issue — retrying… (${attemptsLeft} left)`);
-                await new Promise(r => setTimeout(r, 2000));
-                return _trySave(attemptsLeft - 1);
-            }
-            if (msg.includes('permission') || msg.includes('Missing or insufficient')) {
-                _t('❌ Permission denied. Make sure you are signed in and try again.');
-            } else if (isTransient) {
-                _t('❌ Network error. Check your connection and try again.');
-            } else {
-                _t('❌ Could not save event: ' + msg.slice(0, 80));
-            }
-            console.error('[SNX Events] Save failed:', e);
-        }
-    }
-
-    try {
-        await _trySave(2);
-    } finally {
-        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '📅 Schedule Event'; }
-    }
-};
-
-window.snxDeleteCreatorEvent = async function(id) {
-    const _t = msg => { if (typeof toastNotification === 'function') toastNotification(msg); };
-    const fs = _fs();
-    if (!fs || !fs.doc) { _t('⚠️ Still connecting — please try again.'); return; }
-    if (!confirm('Delete this event?')) return;
-    const { doc, deleteDoc } = fs;
-    try {
-        await deleteDoc(doc(_db(),'creatorEvents',id));
-        _t('🗑 Event deleted.');
-        _cdLoadEvents();
-    } catch(e) {
-        const msg = (e && e.message) ? e.message : String(e);
-        if (msg.includes('permission') || msg.includes('Missing or insufficient')) {
-            _t('❌ Permission denied.');
-        } else {
-            _t('❌ Could not delete event: ' + msg.slice(0, 80));
-        }
-        console.error('[SNX Events] Delete failed:', e);
-    }
-};
-
-/* ════════════════════════════════════════════════════════════
    HOOK viewProfile — visitor counter + achievements + featured
    ════════════════════════════════════════════════════════════ */
 (function _hookViewProfile() {
@@ -29825,6 +29503,58 @@ function _db()  { return window._snxDb; }
 function _cu()  { return window._snxCurrentUser; }
 function _toast(msg) { if (typeof toastNotification==='function') toastNotification(msg); }
 
+/* ── Auth-ready guard ──────────────────────────────────────────────────────
+   Calls fn() immediately if Firebase auth has already resolved, otherwise
+   waits up to 8 s (polling every 100 ms) before calling fn().
+   This prevents "Permission denied — Make sure you sign in" errors that
+   occur when the browser restores a persisted session but our IIFE code
+   runs before onAuthStateChanged has fired.
+   ───────────────────────────────────────────────────────────────────────── */
+function _whenAuthReady(fn) {
+    if (window._snxAuthResolved && window._snxCurrentUser) { fn(); return; }
+    if (typeof window._snxOnAuthReady === 'function') {
+        window._snxOnAuthReady(fn);
+        return;
+    }
+    // Fallback poll (in case module script hasn't set up _snxOnAuthReady yet)
+    let tries = 0;
+    const t = setInterval(() => {
+        tries++;
+        if (window._snxAuthResolved && window._snxCurrentUser) {
+            clearInterval(t);
+            fn();
+        } else if (tries >= 80) {
+            clearInterval(t);
+            fn(); // give up waiting — let the function decide what to show
+        }
+    }, 100);
+}
+
+/* ── permission-denied + token refresh wrapper ─────────────────────────────
+   Calls an async fn().  If it throws permission-denied and the user appears
+   to be signed in, forces a token refresh and retries once.
+   Falls back to _snxRefreshAndRetry (module-scope) when available.
+   ───────────────────────────────────────────────────────────────────────── */
+async function _tryWithAuthRefresh(fn) {
+    if (typeof window._snxRefreshAndRetry === 'function') {
+        return window._snxRefreshAndRetry(fn);
+    }
+    try {
+        return await fn();
+    } catch (e) {
+        if (e && e.code === 'permission-denied' && window._snxCurrentUser) {
+            if (typeof window._snxRefreshToken === 'function') {
+                await window._snxRefreshToken();
+            }
+            return await fn();
+        }
+        throw e;
+    }
+}
+// Expose globally so other IIFE script blocks can use it before Feature Block 3 runs.
+// This is safe — window._snxRefreshAndRetry (from the module) is preferred when available.
+window._snxTryWithAuthRefresh = window._snxTryWithAuthRefresh || _tryWithAuthRefresh;
+
 /* ════════════════════════════════════════════════════════════
    COMMUNITIES SYSTEM
    Full Firestore-backed public / private communities
@@ -29851,6 +29581,15 @@ window.snxSwitchCommHubTab = function(tab, btn) {
 window.snxLoadCommunities = async function() {
     const grid = document.getElementById('snxCommDiscoverGrid');
     if (!grid) return;
+
+    // Wait for auth to resolve so membership badges render correctly and
+    // permission-denied errors don't fire for signed-in users mid-restore
+    if (!window._snxAuthResolved) {
+        grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Loading…</div>';
+        _whenAuthReady(() => window.snxLoadCommunities());
+        return;
+    }
+
     const fs = _fs();
     if (!fs || !fs.collection) {
         grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Still connecting…</div>';
@@ -29862,7 +29601,7 @@ window.snxLoadCommunities = async function() {
         const topic = document.getElementById('commTopicFilter')?.value || '';
         let q = query(collection(_db(),'communities'), orderBy('memberCount','desc'), limit(24));
         if (topic) q = query(collection(_db(),'communities'), where('topic','==',topic), orderBy('memberCount','desc'), limit(24));
-        const snap = await getDocs(q);
+        const snap = await _tryWithAuthRefresh(() => getDocs(q));
         const cu = _cu();
         if (snap.empty) { grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">No communities yet. Be the first to create one!</div>'; return; }
         grid.innerHTML = '';
@@ -29884,7 +29623,12 @@ window.snxLoadCommunities = async function() {
         });
     } catch(e) {
         const msg = (e && e.message) ? e.message : String(e);
-        grid.innerHTML = `<div style="color:#ff5577;font-size:13px;text-align:center;padding:16px;grid-column:1/-1;">Could not load communities: ${msg.slice(0,80)}</div>`;
+        const isDenied = e && e.code === 'permission-denied';
+        grid.innerHTML = `<div style="color:#ff5577;font-size:13px;text-align:center;padding:16px;grid-column:1/-1;">${
+            isDenied && !window._snxCurrentUser
+                ? '🔒 Please sign in to view communities.'
+                : 'Could not load communities: ' + msg.slice(0,80)
+        }</div>`;
         console.warn('[SNX Comm] Load failed:', e);
     }
 };
@@ -29899,9 +29643,17 @@ window.snxSearchCommunities = function(val) {
 
 /* ── Load My Communities ── */
 window.snxLoadMyCommunities = async function() {
-    const cu = _cu();
     const grid = document.getElementById('snxCommMyGrid');
     if (!grid) return;
+
+    // Wait for auth to resolve before deciding if the user is signed in
+    if (!window._snxAuthResolved) {
+        grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Loading…</div>';
+        _whenAuthReady(() => window.snxLoadMyCommunities());
+        return;
+    }
+
+    const cu = _cu();
     if (!cu) { grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Sign in to see your communities.</div>'; return; }
     const fs = _fs();
     if (!fs || !fs.collection) {
@@ -29911,7 +29663,7 @@ window.snxLoadMyCommunities = async function() {
     grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">Loading…</div>';
     const { collection, query, where, getDocs } = fs;
     try {
-        const snap = await getDocs(query(collection(_db(),'communities'), where('members','array-contains',cu.uid)));
+        const snap = await _tryWithAuthRefresh(() => getDocs(query(collection(_db(),'communities'), where('members','array-contains',cu.uid))));
         if (snap.empty) { grid.innerHTML = '<div style="color:#4a7a9a;font-size:13px;text-align:center;padding:28px 0;grid-column:1/-1;">You haven\'t joined any communities yet.</div>'; return; }
         grid.innerHTML = '';
         snap.forEach(d => {
@@ -29939,8 +29691,21 @@ window.snxSelectCommIcon = function(el) {
 };
 
 window.snxCreateCommunity = async function() {
+    // Wait for auth before performing any Firestore write
+    if (!window._snxAuthResolved) {
+        let waited = 0;
+        while (!window._snxAuthResolved && waited < 4000) {
+            await new Promise(r => setTimeout(r, 200));
+            waited += 200;
+        }
+    }
     const cu = _cu();
-    if (!cu) { _toast('⚠️ Sign in to create a community.'); return; }
+    if (!cu) {
+        _toast(window._snxAuthResolved
+            ? '⚠️ You are signed out. Please sign in to create a community.'
+            : '⚠️ Still signing you in — please try again in a moment.');
+        return;
+    }
 
     // Guard: Firestore must be ready
     const fs = _fs();
@@ -30002,7 +29767,11 @@ window.snxCreateCommunity = async function() {
                 return _tryCreate(attemptsLeft - 1);
             }
             // Show actual reason
-            if (msg.includes('permission') || msg.includes('Missing or insufficient')) {
+            if (e && e.code === 'permission-denied') {
+                _toast(window._snxCurrentUser
+                    ? '❌ Session error — your login refreshed. Please try again.'
+                    : '❌ You are signed out. Please sign in and try again.');
+            } else if (msg.includes('permission') || msg.includes('Missing or insufficient')) {
                 _toast('❌ Permission denied. Make sure you are signed in and try again.');
             } else if (isTransient) {
                 _toast('❌ Network error. Check your connection and try again.');
@@ -30027,21 +29796,31 @@ window.snxCommJoinToggle = async function(commId, btn, isPrivate) {
     const { doc, getDoc, updateDoc, arrayUnion, arrayRemove, increment } = _fs();
     const ref = doc(_db(),'communities',commId);
     try {
-        const snap = await getDoc(ref);
-        if (!snap.exists()) return;
-        const data = snap.data();
-        const isMember = Array.isArray(data.members) && data.members.includes(cu.uid);
-        if (isMember) {
-            if (data.ownerUid === cu.uid) { _toast('⚠️ You can\'t leave your own community.'); return; }
-            await updateDoc(ref, { members:arrayRemove(cu.uid), memberCount:increment(-1) });
-            if (btn) { btn.textContent='Join'; btn.classList.remove('joined'); }
-            _toast('Left community.');
+        await _tryWithAuthRefresh(async () => {
+            const snap = await getDoc(ref);
+            if (!snap.exists()) return;
+            const data = snap.data();
+            const isMember = Array.isArray(data.members) && data.members.includes(cu.uid);
+            if (isMember) {
+                if (data.ownerUid === cu.uid) { _toast('⚠️ You can\'t leave your own community.'); return; }
+                await updateDoc(ref, { members:arrayRemove(cu.uid), memberCount:increment(-1) });
+                if (btn) { btn.textContent='Join'; btn.classList.remove('joined'); }
+                _toast('Left community.');
+            } else {
+                await updateDoc(ref, { members:arrayUnion(cu.uid), memberCount:increment(1) });
+                if (btn) { btn.textContent='✓ Joined'; btn.classList.add('joined'); }
+                _toast('💙 Joined!');
+            }
+        });
+    } catch(e) {
+        if (e && e.code === 'permission-denied') {
+            _toast(window._snxCurrentUser
+                ? '❌ Session error — your login refreshed. Please try again.'
+                : '❌ You are signed out. Please sign in and try again.');
         } else {
-            await updateDoc(ref, { members:arrayUnion(cu.uid), memberCount:increment(1) });
-            if (btn) { btn.textContent='✓ Joined'; btn.classList.add('joined'); }
-            _toast('💙 Joined!');
+            _toast('❌ Could not update membership.');
         }
-    } catch(e) { _toast('❌ Could not update membership.'); }
+    }
 };
 
 /* ── Open community detail ── */
@@ -30168,16 +29947,26 @@ window.snxSubmitCommPost = async function() {
     if (!text) { _toast('⚠️ Write something first.'); return; }
     const { collection, addDoc, doc, updateDoc, increment, getDoc } = _fs();
     try {
-        const ud = await getDoc(doc(_db(),'users',cu.uid));
-        const name = ud.exists() ? (ud.data().displayName||'User') : 'User';
-        await addDoc(collection(_db(),'communities',_snxCommDetailId,'posts'), {
-            text, authorUid:cu.uid, authorName:name, createdAt:Date.now(), likes:0, likedBy:[]
+        await _tryWithAuthRefresh(async () => {
+            const ud = await getDoc(doc(_db(),'users',cu.uid));
+            const name = ud.exists() ? (ud.data().displayName||'User') : 'User';
+            await addDoc(collection(_db(),'communities',_snxCommDetailId,'posts'), {
+                text, authorUid:cu.uid, authorName:name, createdAt:Date.now(), likes:0, likedBy:[]
+            });
+            await updateDoc(doc(_db(),'communities',_snxCommDetailId), { postCount:increment(1) });
         });
-        await updateDoc(doc(_db(),'communities',_snxCommDetailId), { postCount:increment(1) });
         if (inp) inp.value = '';
         _toast('📝 Posted!');
         _snxLoadCommPosts(_snxCommDetailId);
-    } catch(e) { _toast('❌ Could not post.'); }
+    } catch(e) {
+        if (e && e.code === 'permission-denied') {
+            _toast(window._snxCurrentUser
+                ? '❌ Session error — your login refreshed. Please try again.'
+                : '❌ You are signed out. Please sign in and try again.');
+        } else {
+            _toast('❌ Could not post.');
+        }
+    }
 };
 
 window.snxCommLikePost = async function(commId, postId, btn) {
@@ -30185,29 +29974,49 @@ window.snxCommLikePost = async function(commId, postId, btn) {
     const { doc, getDoc, updateDoc, arrayUnion, arrayRemove, increment } = _fs();
     const ref = doc(_db(),'communities',commId,'posts',postId);
     try {
-        const snap = await getDoc(ref);
-        if (!snap.exists()) return;
-        const d = snap.data();
-        const hasLiked = Array.isArray(d.likedBy) && d.likedBy.includes(cu.uid);
-        if (hasLiked) {
-            await updateDoc(ref, { likes:increment(-1), likedBy:arrayRemove(cu.uid) });
-            if (btn) { btn.innerHTML = '🤍 ' + Math.max(0,(d.likes||1)-1); btn.classList.remove('liked'); }
+        await _tryWithAuthRefresh(async () => {
+            const snap = await getDoc(ref);
+            if (!snap.exists()) return;
+            const d = snap.data();
+            const hasLiked = Array.isArray(d.likedBy) && d.likedBy.includes(cu.uid);
+            if (hasLiked) {
+                await updateDoc(ref, { likes:increment(-1), likedBy:arrayRemove(cu.uid) });
+                if (btn) { btn.innerHTML = '🤍 ' + Math.max(0,(d.likes||1)-1); btn.classList.remove('liked'); }
+            } else {
+                await updateDoc(ref, { likes:increment(1), likedBy:arrayUnion(cu.uid) });
+                if (btn) { btn.innerHTML = '❤️ ' + ((d.likes||0)+1); btn.classList.add('liked'); }
+            }
+        });
+    } catch(e) {
+        if (e && e.code === 'permission-denied') {
+            _toast(window._snxCurrentUser
+                ? '❌ Session error — your login refreshed. Please try again.'
+                : '❌ You are signed out. Please sign in and try again.');
         } else {
-            await updateDoc(ref, { likes:increment(1), likedBy:arrayUnion(cu.uid) });
-            if (btn) { btn.innerHTML = '❤️ ' + ((d.likes||0)+1); btn.classList.add('liked'); }
+            _toast('❌ Could not update like.');
         }
-    } catch(e) { _toast('❌ Could not update like.'); }
+    }
 };
 
 window.snxCommDeletePost = async function(commId, postId) {
     if (!confirm('Delete this post?')) return;
     const { doc, deleteDoc, updateDoc, increment } = _fs();
     try {
-        await deleteDoc(doc(_db(),'communities',commId,'posts',postId));
-        await updateDoc(doc(_db(),'communities',commId), { postCount:increment(-1) });
+        await _tryWithAuthRefresh(async () => {
+            await deleteDoc(doc(_db(),'communities',commId,'posts',postId));
+            await updateDoc(doc(_db(),'communities',commId), { postCount:increment(-1) });
+        });
         _toast('🗑 Post deleted.');
         _snxLoadCommPosts(commId);
-    } catch(e) { _toast('❌ Could not delete.'); }
+    } catch(e) {
+        if (e && e.code === 'permission-denied') {
+            _toast(window._snxCurrentUser
+                ? '❌ Session error — your login refreshed. Please try again.'
+                : '❌ You are signed out. Please sign in and try again.');
+        } else {
+            _toast('❌ Could not delete.');
+        }
+    }
 };
 
 async function _snxLoadCommMembers(commId) {
@@ -30852,16 +30661,21 @@ function _snxTimeAgo(ts) {
 (function _hookCommInit() {
     const origNavTo = window.navTo;
     if (typeof origNavTo !== 'function') { setTimeout(_hookCommInit, 600); return; }
-    // Already hooked by the navTo map — just ensure snxLoadCommunities is called
-    // The navTo hook at line 18687 calls commInitPage() — we piggyback here
+    // Already hooked by the navTo map — just ensure snxLoadCommunities is called.
+    // We wrap commInitPage so that the Discover grid waits for auth to resolve
+    // before issuing the Firestore getDocs() that requires authentication.
     const origCommInit = window.commInitPage;
     if (typeof origCommInit === 'function') {
         window.commInitPage = function() {
             origCommInit();
-            setTimeout(() => {
-                const activePanel = document.querySelector('.comm-hub-panel.active');
-                if (activePanel && activePanel.id === 'commHubPanelDiscover') snxLoadCommunities();
-            }, 100);
+            // Defer the communities grid load until auth is confirmed to prevent
+            // permission-denied errors when the page is opened during session restore.
+            _whenAuthReady(function() {
+                setTimeout(() => {
+                    const activePanel = document.querySelector('.comm-hub-panel.active');
+                    if (activePanel && activePanel.id === 'commHubPanelDiscover') snxLoadCommunities();
+                }, 100);
+            });
         };
     }
 })();
