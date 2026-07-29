@@ -3372,11 +3372,19 @@ img:not([loading]), video:not([loading]) { loading: lazy; }
 .ipc-modal-messages,
 .storm-messages,
 .support-messages,
-.social-list-body,
-.snx-pwall-comment-list {
+.social-list-body {
     contain: strict;
     will-change: scroll-position;
     /* GPU-accelerated scrolling on WebKit */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+/* Wall comment list: cannot use contain:strict (include contain:size) because the
+   list has no fixed height — only max-height — so strict would collapse it to 0.
+   Use contain:content (layout+style+paint) which is safe for auto-height containers. */
+.snx-pwall-comment-list {
+    contain: content;
+    will-change: scroll-position;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
 }
@@ -14073,6 +14081,14 @@ body.arcade-fs-ios body::after { display:none !important; }
       // Tear down previous snapshot listener
       if(activeProfileUnsubscribe) { activeProfileUnsubscribe(); activeProfileUnsubscribe = null; }
 
+      // Tear down any open wall comment listeners from the previous profile view
+      if (typeof _snxWallCommentUnsubs !== 'undefined') {
+          Object.keys(_snxWallCommentUnsubs).forEach(id => {
+              try { _snxWallCommentUnsubs[id](); } catch(_) {}
+              delete _snxWallCommentUnsubs[id];
+          });
+      }
+
       activeProfileUnsubscribe = onSnapshot(doc(db, "users", uid), (docSnap) => {
           if(!docSnap.exists()) return;
           let p = docSnap.data();
@@ -18382,9 +18398,8 @@ async function snxLoadProfileWall(uid) {
                 </div>
 
                 <!-- Inline comments -->
-                <div class="snx-pwall-comments" id="pwcomments-${w.id}">
+                <div class="snx-pwall-comments" id="pwcomments-${w.id}" data-owner-uid="${uid}">
                     <div class="snx-pwall-comment-list" id="pwclist-${w.id}">
-                        <div style="color:#4a6a8a;font-size:12px;text-align:center;padding:8px 0;">Loading comments…</div>
                     </div>
                     <div class="snx-pwall-comment-input-row">
                         <input class="snx-pwall-comment-input" id="pwcinput-${w.id}"
@@ -18478,7 +18493,10 @@ async function snxToggleWallPostLike(wallDocId, wallOwnerUid) {
     }
 }
 
-/** Toggle comment panel open/closed; loads comments on first open */
+/** Map of wallDocId → onSnapshot unsubscribe function for comment listeners */
+const _snxWallCommentUnsubs = {};
+
+/** Toggle comment panel open/closed; subscribes to real-time comments on first open */
 function snxToggleWallComments(wallDocId) {
     const panel = document.getElementById('pwcomments-' + wallDocId);
     if (!panel) return;
@@ -18495,37 +18513,61 @@ function snxToggleWallComments(wallDocId) {
     }
 }
 
-/** Load comments for a wall post */
-async function snxLoadWallComments(wallDocId) {
+/**
+ * Subscribe to real-time comments for a wall post via onSnapshot.
+ * Replaces the previous one-shot getDocs approach so comments appear
+ * immediately for all users without a page refresh.
+ * Listener is kept alive while the profile is open; previous listener
+ * for the same wallDocId is automatically cancelled before re-subscribing.
+ */
+function snxLoadWallComments(wallDocId) {
     const listEl = document.getElementById('pwclist-' + wallDocId);
     if (!listEl) return;
     const _fs = window._snxFirestore;
     if (!_fs) { listEl.innerHTML = '<div style="color:#ff5577;font-size:12px;padding:8px 0;">Not ready.</div>'; return; }
-    const { db, collection, query, orderBy, getDocs } = _fs;
-    try {
-        const snap = await getDocs(
-            query(collection(db, 'wallPostComments', wallDocId, 'comments'), orderBy('createdAt', 'asc'))
-        );
+    const { db, collection, query, orderBy, onSnapshot } = _fs;
+
+    // Cancel any existing listener for this post to avoid duplicates
+    if (_snxWallCommentUnsubs[wallDocId]) {
+        _snxWallCommentUnsubs[wallDocId]();
+        delete _snxWallCommentUnsubs[wallDocId];
+    }
+
+    // Show a loading indicator while the first snapshot arrives
+    listEl.innerHTML = '<div class="snx-pwc-loading" style="color:#4a6a8a;font-size:12px;text-align:center;padding:8px 0;">Loading comments…</div>';
+
+    const _esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    const _ago = (ts) => {
+        if (!ts) return '';
+        const d = Math.floor((Date.now() - ts) / 1000);
+        if (d < 60)    return d + 's ago';
+        if (d < 3600)  return Math.floor(d / 60) + 'm ago';
+        if (d < 86400) return Math.floor(d / 3600) + 'h ago';
+        return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    const q = query(
+        collection(db, 'wallPostComments', wallDocId, 'comments'),
+        orderBy('createdAt', 'asc')
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+        const me = window._snxCurrentUser;
+        // Re-render the full list on every snapshot (additions, deletions, edits)
         if (snap.empty) {
             listEl.innerHTML = '<div style="color:#4a6a8a;font-size:12px;text-align:center;padding:8px 0;">No comments yet. Be the first!</div>';
+            // Sync the count badge to 0 if it still shows a stale value
+            const countEl = document.getElementById('pwccount-' + wallDocId);
+            if (countEl && parseInt(countEl.textContent, 10) > 0) countEl.textContent = '0';
             return;
         }
-        const me = window._snxCurrentUser;
-        const _esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-        const _ago = (ts) => {
-            const d = Math.floor((Date.now() - ts) / 1000);
-            if (d < 60) return d + 's';
-            if (d < 3600) return Math.floor(d/60) + 'm';
-            if (d < 86400) return Math.floor(d/3600) + 'h';
-            return new Date(ts).toLocaleDateString();
-        };
         listEl.innerHTML = '';
         snap.forEach(d => {
             const c = d.data();
             const av = c.authorAvatar
                 ? `<div class="snx-pwall-comment-avatar" style="background-image:url('${_esc(c.authorAvatar)}');background-size:cover;background-position:center;"></div>`
-                : `<div class="snx-pwall-comment-avatar">${(c.authorName||'?')[0].toUpperCase()}</div>`;
-            const canDel = me && (me.uid === c.authorUid);
+                : `<div class="snx-pwall-comment-avatar">${(c.authorName || '?')[0].toUpperCase()}</div>`;
+            const canDel = me && (me.uid === c.authorUid || me.uid === c.wallOwnerUid);
             const delBtn = canDel
                 ? `<button class="snx-pwall-comment-del" onclick="snxDeleteWallComment('${wallDocId}','${d.id}')" title="Delete">✕</button>`
                 : '';
@@ -18540,10 +18582,17 @@ async function snxLoadWallComments(wallDocId) {
                 </div>
             `);
         });
-    } catch(e) {
-        console.warn('[WallComments] load error:', e);
+        // Keep the count badge in sync with the real number of comments
+        const countEl = document.getElementById('pwccount-' + wallDocId);
+        if (countEl) countEl.textContent = snap.size;
+        // Auto-scroll to the bottom so the newest comment is visible
+        listEl.scrollTop = listEl.scrollHeight;
+    }, (e) => {
+        console.warn('[WallComments] listener error:', e);
         listEl.innerHTML = '<div style="color:#ff5577;font-size:12px;text-align:center;padding:8px 0;">Failed to load comments.</div>';
-    }
+    });
+
+    _snxWallCommentUnsubs[wallDocId] = unsub;
 }
 
 /** Submit a comment on a wall post */
@@ -18574,38 +18623,16 @@ async function snxSubmitWallComment(wallDocId, wallOwnerUid) {
             createdAt:    Date.now(),
         });
 
-        // Increment comment count on the wall post
+        // Increment comment count on the wall post document (non-fatal if it fails)
         try {
             await updateDoc(doc(db, 'users', wallOwnerUid, 'profileWall', wallDocId), {
                 commentCount: increment(1),
             });
-            const countEl = document.getElementById('pwccount-' + wallDocId);
-            if (countEl) countEl.textContent = (parseInt(countEl.textContent, 10) || 0) + 1;
         } catch(_) { /* non-fatal */ }
 
         inp.value = '';
-        // Append comment immediately to the list
-        const listEl = document.getElementById('pwclist-' + wallDocId);
-        if (listEl) {
-            const _esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-            const av = userData.avatar
-                ? `<div class="snx-pwall-comment-avatar" style="background-image:url('${_esc(userData.avatar)}');background-size:cover;background-position:center;"></div>`
-                : `<div class="snx-pwall-comment-avatar">${(userData.displayName || '?')[0].toUpperCase()}</div>`;
-            // Remove "no comments" placeholder if present
-            const empty = listEl.querySelector('[style*="No comments"]');
-            if (empty) empty.remove();
-            listEl.insertAdjacentHTML('beforeend', `
-                <div class="snx-pwall-comment-item">
-                    ${av}
-                    <div class="snx-pwall-comment-body">
-                        <div class="snx-pwall-comment-author">${_esc(userData.displayName || 'User')}</div>
-                        <div class="snx-pwall-comment-text">${_esc(text)}</div>
-                        <div class="snx-pwall-comment-ts">just now</div>
-                    </div>
-                </div>
-            `);
-            listEl.scrollTop = listEl.scrollHeight;
-        }
+        // The onSnapshot listener in snxLoadWallComments will automatically re-render
+        // the comment list — no manual DOM insertion needed here.
     } catch(e) {
         console.warn('[WallComment] submit error:', e);
         toastNotification('Failed to post comment.');
@@ -18621,11 +18648,21 @@ async function snxDeleteWallComment(wallDocId, commentId) {
     if (!confirm('Delete this comment?')) return;
     const _fs = window._snxFirestore;
     if (!_fs) return;
-    const { db, doc, deleteDoc } = _fs;
+    const { db, doc, deleteDoc, updateDoc, increment } = _fs;
     try {
         await deleteDoc(doc(db, 'wallPostComments', wallDocId, 'comments', commentId));
-        const el = document.getElementById('pwc-' + commentId);
-        if (el) el.remove();
+        // The onSnapshot listener will remove the comment from the DOM automatically.
+        // Also decrement the count on the wall post (non-fatal)
+        try {
+            // We need wallOwnerUid to decrement — look it up from the panel element's data attribute
+            const panel = document.getElementById('pwcomments-' + wallDocId);
+            const ownerUid = panel && panel.dataset.ownerUid;
+            if (ownerUid) {
+                await updateDoc(doc(db, 'users', ownerUid, 'profileWall', wallDocId), {
+                    commentCount: increment(-1),
+                });
+            }
+        } catch(_) { /* non-fatal */ }
     } catch(e) {
         toastNotification('Failed to delete comment.');
     }
