@@ -315,8 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btnShareCreator: document.getElementById('btnShareLiveCreator'),
 
     // Viewer controls
-    likeBtn:         document.getElementById('btnLike'),
-    likeBtnCount:    document.getElementById('likeBtnCount'),
     profileBtn:      document.getElementById('btnCreatorProfile'),
     btnShare:        document.getElementById('btnShareLive'),
 
@@ -359,7 +357,6 @@ document.addEventListener('DOMContentLoaded', () => {
   D.btnFS   && D.btnFS.addEventListener('click',    toggleFullscreen);
   D.btnEnd  && D.btnEnd.addEventListener('click',   endLive);
 
-  D.likeBtn          && D.likeBtn.addEventListener('click',          sendLike);
   D.btnShare         && D.btnShare.addEventListener('click',         shareLive);
   D.btnShareCreator  && D.btnShareCreator.addEventListener('click',  shareLive);
   D.chatSend  && D.chatSend.addEventListener('click',  sendChat);
@@ -439,18 +436,27 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   D.stage && D.stage.addEventListener('click', e => {
-    if (_mode !== 'creator') return;
+    // Selectors that should never trigger a like or a controls-hide
     const ignore = ['.live-ctrl-btn','#btnEndLive','.live-chat-input','.live-chat-send',
                     '.live-close-btn','.live-creator-pill','.live-badge',
                     '.layout-settings-panel','.layout-option-btn','.layout-size-btn',
-                    '.live-settings-panel','#liveSettingsPanel','.lsp-row','.lsp-toggle','.lsp-slider'];
+                    '.live-settings-panel','#liveSettingsPanel','.lsp-row','.lsp-toggle','.lsp-slider',
+                    '.live-viewer-actions','.live-request-box-btn','.live-leave-box-btn',
+                    '.live-like-btn','.live-profile-btn','.live-share-btn',
+                    '.live-stats-ribbon','.live-top-bar','.snx-confirm-overlay'];
     if (ignore.some(s => e.target.closest(s))) return;
-    // Close layout panel on tap-away
-    if (_layoutPanelOpen) { _closeLayoutPanel(); return; }
-    // Close settings panel on tap-away
-    const sp = document.getElementById('liveSettingsPanel');
-    if (sp && sp.style.display !== 'none') { sp.style.display = 'none'; return; }
-    D.stage.classList.toggle('live-controls-hidden');
+
+    if (_mode === 'creator') {
+      // Close layout panel on tap-away
+      if (_layoutPanelOpen) { _closeLayoutPanel(); return; }
+      // Close settings panel on tap-away
+      const sp = document.getElementById('liveSettingsPanel');
+      if (sp && sp.style.display !== 'none') { sp.style.display = 'none'; return; }
+      D.stage.classList.toggle('live-controls-hidden');
+    } else if (_mode === 'viewer') {
+      // Viewer taps anywhere on video → send a Like
+      sendLike(e.clientX, e.clientY);
+    }
   });
 
   onAuthStateChanged(_auth, async user => {
@@ -730,6 +736,9 @@ async function startLive() {
      stream, but it's a single RTDB set (~80ms) and we don't block the
      stage on it — the stage is already shown above. We just need this
      to complete before the WebRTC listener starts watching for viewers. */
+  // Clear any stale viewer presence from a previous crashed session for this roomId
+  try { remove(ref(_liveDB, `liveViewers/${_roomId}`)).catch(() => {}); } catch(_) {}
+
   let _roomWriteOk = true;
   try {
     await set(ref(_liveDB, `liveRooms/${_roomId}`), creatorData);
@@ -2466,18 +2475,24 @@ async function sendChat() {
 /* ═══════════════════════════════════════════════════
    LIKES — LIVE RTDB
    ═══════════════════════════════════════════════════ */
-let _hasLiked = false;
+let _hasLiked    = false;
+let _likeCoolEnd = 0;   // timestamp when the tap cooldown expires
 
-async function sendLike() {
-  if (!_user || !_roomId || _hasLiked) return;
+async function sendLike(clientX, clientY) {
+  if (!_user || !_roomId) return;
+  // Short tap cooldown (800 ms) to prevent accidental rapid-fire likes
+  const now = Date.now();
+  if (now < _likeCoolEnd) return;
+  _likeCoolEnd = now + 800;
+
+  // Spawn floating hearts at the tap position (or near the right edge as fallback)
+  _spawnHeartBurst(clientX, clientY);
+
+  // Only increment the like counter once per 5-second window per user
+  if (_hasLiked) return;
   _hasLiked = true;
-  if (D.likeBtn)      D.likeBtn.classList.add('liked');
-  if (D.likeBtnCount) D.likeBtnCount.textContent = '❤️';
 
-  _spawnHeartBurst();
-
-  // Use RTDB transactions-style increment via set with existing value
-  // For RTDB we still need a get, but fire-and-forget to keep UI instant
+  // Fire-and-forget RTDB increment (keeps UI instant)
   (async () => {
     try {
       const likesRef = ref(_liveDB, `liveRooms/${_roomId}/likes`);
@@ -2486,24 +2501,31 @@ async function sendLike() {
     } catch (_) {}
   })();
 
-  setTimeout(() => {
-    _hasLiked = false;
-    if (D.likeBtn) D.likeBtn.classList.remove('liked');
-  }, 5000);
+  setTimeout(() => { _hasLiked = false; }, 5000);
 }
 
-function _spawnHeartBurst() {
+function _spawnHeartBurst(clientX, clientY) {
   const stage = D.stage;
   if (!stage) return;
-  const el = document.createElement('div');
-  el.className = 'like-burst';
-  el.textContent = '❤️';
   const rect = stage.getBoundingClientRect();
-  el.style.left     = (rect.width  * 0.75 + (Math.random() - 0.5) * 60) + 'px';
-  el.style.bottom   = (80 + Math.random() * 60) + 'px';
-  el.style.position = 'absolute';
-  stage.appendChild(el);
-  el.addEventListener('animationend', () => el.remove());
+
+  // Spawn 3 hearts with slight random offsets for a burst effect
+  const baseX = (clientX != null) ? (clientX - rect.left) : rect.width  * 0.75;
+  const baseY = (clientY != null) ? (clientY - rect.top)  : rect.height * 0.65;
+
+  const hearts = ['❤️', '💕', '❤️'];
+  hearts.forEach((emoji, i) => {
+    const el = document.createElement('div');
+    el.className = 'like-burst';
+    el.textContent = emoji;
+    el.style.left     = (baseX + (Math.random() - 0.5) * 50) + 'px';
+    el.style.top      = (baseY + (Math.random() - 0.5) * 30) + 'px';
+    el.style.bottom   = '';   // use top instead of bottom so position is tap-relative
+    el.style.position = 'absolute';
+    el.style.animationDelay = (i * 80) + 'ms';
+    stage.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+  });
 }
 
 /* ═══════════════════════════════════════════════════
@@ -4633,14 +4655,21 @@ document.addEventListener('visibilitychange', () => {
 
 /* ── Helper: compute the UI safe zone bottom margin (controls + chat input) ── */
 function _getUISafeBottom(stageH) {
-  // Creator: bottom bar + chat-input.  Compact mode has a smaller bar.
-  // Viewer: chat input only.
-  // We add 8px padding so content never kisses the edge.
+  /* Creator: bottom bar + chat-input row height.
+     Compact mode has a smaller bar.
+     Viewer: chat input row height only — the action column is to the
+     right so it doesn't add vertical height we need to clear.
+     We add 8px padding so content never kisses the edge. */
   if (_mode === 'creator') {
     const barH = document.body.classList.contains('controls-compact') ? 44 : 56;
     return Math.max(barH + 52, Math.floor(stageH * 0.17));
   }
-  return Math.max(64, Math.floor(stageH * 0.14));
+  // Viewer: reserve enough for the chat input row (≈56px) plus safe-area inset
+  const safeAreaBottom = parseFloat(
+    getComputedStyle(document.documentElement)
+      .getPropertyValue('--safe-area-inset-bottom') || '0'
+  ) || 0;
+  return Math.max(56 + safeAreaBottom, Math.floor(stageH * 0.13));
 }
 
 function _doApplyGuestLayout() {
