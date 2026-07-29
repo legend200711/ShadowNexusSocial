@@ -1008,6 +1008,27 @@ body.controls-compact .live-chat-panel {
 }
 .layout-option-btn .layout-icon { font-size: 18px; line-height: 1; }
 .layout-option-btn:hover { background: rgba(0,60,180,0.3); border-color: rgba(0,174,239,0.4); color: #a8d4f0; }
+
+/* ── Return to Host View button in layout panel ── */
+.layout-clear-featured-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 7px 10px;
+  background: rgba(0,20,55,0.8);
+  border: 1.5px solid rgba(255,210,0,0.35);
+  border-radius: 8px;
+  color: rgba(255,220,60,0.75); font-size: 11px; font-weight: 700;
+  cursor: pointer; touch-action: manipulation;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  width: 100%; box-sizing: border-box;
+}
+.layout-clear-featured-btn .layout-icon { font-size: 16px; line-height: 1; }
+.layout-clear-featured-btn:hover {
+  background: rgba(255,160,0,0.2);
+  border-color: rgba(255,220,50,0.7);
+  color: #ffe066;
+}
+.layout-clear-featured-btn:active { transform: scale(0.97); }
+
 .layout-option-btn.active {
   background: rgba(0,80,200,0.35);
   border-color: rgba(0,174,239,0.75);
@@ -1050,22 +1071,8 @@ body.controls-compact .live-chat-panel {
 }
 .guest-grid.has-guests { display: flex; }
 
-/* Viewer mode: leave a right-side gutter so the action column is never
-   covered by flex-layout guest cells.  Only for non-float/non-stacked
-   layouts where cells are in the normal flow (JS handles absolute ones). */
-body.is-viewer .guest-grid.has-guests:not([data-layout="float"]):not([data-layout="stacked"]):not([data-layout="host-full"]) {
-  padding-right: 58px;
-}
-@media (max-width: 380px) {
-  body.is-viewer .guest-grid.has-guests:not([data-layout="float"]):not([data-layout="stacked"]):not([data-layout="host-full"]) {
-    padding-right: 50px;
-  }
-}
-@media (min-width: 768px) {
-  body.is-viewer .guest-grid.has-guests:not([data-layout="float"]):not([data-layout="stacked"]):not([data-layout="host-full"]) {
-    padding-right: 64px;
-  }
-}
+/* Both stack layouts use absolute positioning — no viewer right-gutter needed.
+   The guest cells are placed by JS and never enter the normal flex flow. */
 
 /* ── Individual guest cell ── */
 .guest-cell {
@@ -1107,6 +1114,34 @@ body.is-viewer .guest-grid.has-guests:not([data-layout="float"]):not([data-layou
   /* Name stays legible even on tiny cells */
   text-shadow: 0 1px 4px rgba(0,0,0,0.9);
 }
+/* ── Feature star button (host only) ── */
+.guest-cell-feature {
+  position: absolute; top: 5px; left: 5px;
+  width: clamp(20px, 4vw, 26px); height: clamp(20px, 4vw, 26px);
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,210,0,0.35);
+  color: rgba(255,220,50,0.7); font-size: clamp(10px, 2vw, 12px);
+  display: none; /* shown only on host's view */
+  align-items: center; justify-content: center;
+  cursor: pointer; z-index: 9;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  touch-action: manipulation;
+}
+/* Only the host sees the feature button */
+body.is-creator .guest-cell-feature { display: flex; }
+.guest-cell-feature:hover {
+  background: rgba(255,180,0,0.35);
+  border-color: rgba(255,210,0,0.7);
+  color: #ffe066;
+}
+.guest-cell-feature.featured-active {
+  background: rgba(255,160,0,0.55);
+  border-color: rgba(255,220,50,0.9);
+  color: #ffe066;
+  box-shadow: 0 0 10px rgba(255,200,0,0.5);
+}
+
 .guest-cell-remove {
   position: absolute; top: 5px; right: 5px;
   width: clamp(20px, 4vw, 26px); height: clamp(20px, 4vw, 26px);
@@ -1131,10 +1166,11 @@ body.is-viewer .guest-grid.has-guests:not([data-layout="float"]):not([data-layou
 /* Grid hidden when no guests */
 .guest-grid[data-count="0"] { display: none !important; }
 
-/* ── Float / Host-Full: absolute guest tiles need border + shadow ── */
-.guest-grid[data-layout="float"]     .guest-cell:not(.host-cell),
-.guest-grid[data-layout="host-full"] .guest-cell:not(.host-cell) {
-  border-radius: 12px;
+/* ── Right Stack / Left Stack / Float: absolute guest tiles get border + shadow ── */
+.guest-grid[data-layout="host-full"]      .guest-cell:not(.host-cell),
+.guest-grid[data-layout="host-full-left"] .guest-cell:not(.host-cell),
+.guest-grid[data-layout="float"]          .guest-cell:not(.host-cell) {
+  border-radius: 10px;
   border: 1.5px solid rgba(0,174,239,0.4);
   box-shadow: 0 4px 20px rgba(0,0,0,0.65);
   z-index: 6;
@@ -1142,6 +1178,13 @@ body.is-viewer .guest-grid.has-guests:not([data-layout="float"]):not([data-layou
 }
 .guest-grid[data-layout="float"] .guest-cell:not(.host-cell) {
   cursor: move;
+}
+
+/* ── Featured guest: fills screen, no border radius ── */
+.guest-grid .guest-cell.featured-cell {
+  border-radius: 0 !important;
+  border: none !important;
+  z-index: 4 !important;
 }
 
 /* ── Grid layout: thin dividing border between cells ── */
@@ -1715,32 +1758,21 @@ button, input, a, [role="button"] {
 .layout-settings-panel::-webkit-scrollbar-track { background: transparent; }
 .layout-settings-panel::-webkit-scrollbar-thumb { background: rgba(0,174,239,0.35); border-radius: 4px; }
 
-/* Saved layout row */
-.layout-saved-row {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 10px;
+/* Featured guest row in layout panel */
+.featured-guest-row {
+  margin-bottom: 6px;
 }
-.layout-saved-label {
-  font-size: 10px; font-weight: 700; color: #6a90b8;
-  text-transform: uppercase; letter-spacing: 0.6px;
-  flex: 1;
+.featured-guest-hint {
+  font-size: 11px; color: #5a80a8; line-height: 1.5;
+  display: block;
 }
-.layout-save-btn,
-.layout-load-btn {
-  padding: 5px 10px;
-  border-radius: 8px;
-  font-size: 10px; font-weight: 700;
-  cursor: pointer; transition: all 0.15s; touch-action: manipulation;
-  border: 1.5px solid rgba(0,174,239,0.35);
-  background: rgba(0,20,55,0.8);
-  color: #6a90b8;
-}
-.layout-save-btn:hover { border-color: rgba(0,174,239,0.7); color: #00AEEF; background: rgba(0,60,180,0.25); }
-.layout-load-btn:hover { border-color: rgba(255,200,0,0.7); color: #ffe066; background: rgba(60,40,0,0.35); }
-.layout-load-btn.has-saved { border-color: rgba(255,200,0,0.5); color: #ffe066; }
+
+/* Saved layout row — kept for legacy but hidden since panel is simplified */
+.layout-saved-row { display: none; }
 
 /* Layout search input */
 .layout-search-input {
+  display: none; /* removed from simplified panel */
   width: 100%; box-sizing: border-box;
   background: rgba(0,20,55,0.8);
   border: 1.5px solid rgba(255,255,255,0.1);
@@ -1882,9 +1914,11 @@ body.layout-sidebar .live-chat-panel {
   border-right: 1.5px solid rgba(0,174,239,0.3) !important;
 }
 
-/* ── Viewer right-gutter: extend the exclusion list for new absolute layouts ── */
-body.is-viewer .guest-grid.has-guests:not([data-layout="float"]):not([data-layout="stacked"]):not([data-layout="host-full"]):not([data-layout="host-full-left"]):not([data-layout="host-focus"]):not([data-layout="pip"]):not([data-layout="theater"]):not([data-layout="discord"]):not([data-layout="speaker"]):not([data-layout="drag"]):not([data-layout="corner"]):not([data-layout="circular"]):not([data-layout="honeycomb"]):not([data-layout="diamond"]):not([data-layout="bottom-strip"]):not([data-layout="top-strip"]):not([data-layout="left-strip"]):not([data-layout="audience"]):not([data-layout="gaming"]):not([data-layout="tiktok"]):not([data-layout="sidebar"]) {
-  padding-right: 58px;
+/* ── Both stack layouts use absolute positioning, so no viewer right-gutter needed ── */
+body.is-viewer .guest-grid.has-guests[data-layout="host-full"],
+body.is-viewer .guest-grid.has-guests[data-layout="host-full-left"] {
+  padding-right: 0;
+  padding-left: 0;
 }
 
 /* ── Layout transition: smooth cross-fade when switching modes ── */

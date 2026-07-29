@@ -241,11 +241,11 @@ let _creatorEndedFlag = false;  // guard: prevent beforeunload re-running endLiv
 /* ══════════════════════════════════════════════════
    GUEST BOX CONFIGURATION — change here to update max
    ══════════════════════════════════════════════════ */
-const _MAX_GUESTS = 9;   // Maximum simultaneous guest boxes (1–9 supported)
+const _MAX_GUESTS = 8;   // Maximum simultaneous guest boxes (up to 8 supported)
 
 /* ── Guest Box State ── */
-let _guestLayout       = 'auto';   // current layout preference
-let _guestBoxSize      = 'sm';     // 'sm' | 'md' | 'lg'
+let _guestLayout       = 'host-full'; // current layout: 'host-full' (right stack) or 'host-full-left' (left stack)
+let _guestBoxSize      = 'sm';        // 'sm' | 'md' | 'lg'
 let _savedLayout       = null;     // creator's saved favourite layout (localStorage)
 let _savedBoxSize      = null;     // creator's saved favourite box size
 let _guestPeers        = {};       // uid → { pc, stream, cell, name }
@@ -261,6 +261,9 @@ let _layoutSyncUnsub   = null;     // viewer/guest: RTDB listener for layout syn
 let _guestPc           = null;     // viewer-in-box: their own guest RTCPeerConnection (for disconnect cleanup)
 let _guestSigUnsub     = null;     // viewer-in-box: unsubscribe for host-ICE signaling onValue listener
 let _hostSigUnsubs     = {};       // host: uid → onValue unsubscribe for per-guest signaling listener
+
+/* ── Featured Guest state ── */
+let _featuredGuestUid  = null;     // UID of the currently featured guest (null = host is featured)
 
 /* ── Speaker-focus state ── */
 let _speakerUid           = null;   // UID of the current active speaker
@@ -447,35 +450,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Save / Load favourite layout buttons
-  const _btnSave = document.getElementById('btnSaveLayout');
-  const _btnLoad = document.getElementById('btnLoadLayout');
-  if (_btnSave) _btnSave.addEventListener('click', _saveLayoutFavourite);
-  if (_btnLoad) _btnLoad.addEventListener('click', _loadLayoutFavourite);
-
-  // Layout search filter
-  const _layoutSearchInput = document.getElementById('layoutSearch');
-  if (_layoutSearchInput) {
-    _layoutSearchInput.addEventListener('input', () => {
-      const q = _layoutSearchInput.value.trim().toLowerCase();
-      document.querySelectorAll('.layout-option-btn').forEach(btn => {
-        if (!q) { btn.classList.remove('search-hidden'); return; }
-        const text = (btn.title + ' ' + btn.textContent).toLowerCase();
-        btn.classList.toggle('search-hidden', !text.includes(q));
-      });
-      // Show/hide section headers based on visible buttons
-      document.querySelectorAll('.layout-panel-section').forEach(sec => {
-        const grid = sec.nextElementSibling;
-        if (!grid) return;
-        const hasVisible = Array.from(grid.querySelectorAll('.layout-option-btn'))
-          .some(b => !b.classList.contains('search-hidden'));
-        sec.style.display = hasVisible || !q ? '' : 'none';
-      });
-    });
-  }
-
-  // Restore saved favourite indicator
-  _refreshLoadBtn();
+  // "Return to Host View" button in layout panel
+  const _btnClearFeatured = document.getElementById('btnClearFeatured');
+  if (_btnClearFeatured) _btnClearFeatured.addEventListener('click', _clearFeaturedGuest);
 
   D.stage && D.stage.addEventListener('click', e => {
     // Selectors that should never trigger a like or a controls-hide
@@ -1502,6 +1479,9 @@ async function _startViewer() {
     // Sync layout changes from host
     if (d.guestLayout  && d.guestLayout  !== _guestLayout)  { _guestLayout  = d.guestLayout;  _applyGuestLayout(); }
     if (d.guestBoxSize && d.guestBoxSize !== _guestBoxSize)  { _guestBoxSize = d.guestBoxSize; _applyGuestLayout(); }
+    // Sync featured guest changes from host
+    const incomingFeatured = d.featuredGuestUid || null;
+    if (incomingFeatured !== _featuredGuestUid) { _featuredGuestUid = incomingFeatured; _applyGuestLayout(); }
     if (!_roomWatchSeenFirst) {
       _roomWatchSeenFirst = true;
       return;
@@ -2950,6 +2930,8 @@ function _startLayoutSync() {
     let changed = false;
     if (d.guestLayout  && d.guestLayout  !== _guestLayout)  { _guestLayout  = d.guestLayout;  changed = true; }
     if (d.guestBoxSize && d.guestBoxSize !== _guestBoxSize)  { _guestBoxSize = d.guestBoxSize; changed = true; }
+    const incomingFeatured = d.featuredGuestUid || null;
+    if (incomingFeatured !== _featuredGuestUid) { _featuredGuestUid = incomingFeatured; changed = true; }
     if (changed) _applyGuestLayout();
   });
 }
@@ -4265,6 +4247,22 @@ function _hostAddGuestCell(uid, name, avatar, stream, pc) {
   nameEl.textContent = name || 'Guest';
   cell.appendChild(nameEl);
 
+  // Host can feature a guest (★ button) to make them the large video
+  const featureBtn = document.createElement('button');
+  featureBtn.className = 'guest-cell-feature';
+  featureBtn.textContent = '★';
+  featureBtn.title = 'Feature this guest (make large)';
+  featureBtn.dataset.uid = uid;
+  featureBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (_featuredGuestUid === uid) {
+      _clearFeaturedGuest();
+    } else {
+      _setFeaturedGuest(uid);
+    }
+  });
+  cell.appendChild(featureBtn);
+
   // Host can remove a guest by tapping ✕
   const removeBtn = document.createElement('button');
   removeBtn.className = 'guest-cell-remove';
@@ -4441,6 +4439,12 @@ async function _hostRemoveGuest(uid) {
 
 /* ── Internal: perform the host-side guest removal ── */
 function _hostDoRemoveGuest(uid) {
+  // If the removed guest was featured, clear the featured state
+  if (_featuredGuestUid === uid) {
+    _featuredGuestUid = null;
+    document.querySelectorAll('.guest-cell-feature').forEach(btn => btn.classList.remove('featured-active'));
+    _broadcastFeaturedGuest();
+  }
   // ── Signal the guest client to disconnect gracefully ──
   // Write removedByHost flag BEFORE closing the peer so the guest's listener fires
   try {
@@ -4769,169 +4773,21 @@ function _doApplyGuestLayout() {
   grid.style.alignItems    = '';
   grid.style.paddingBottom = '';
 
-  // ── Sidebar body class (sync on every layout apply) ──
-  _applySidebarBodyClass();
+  // ── Dispatch to the two supported layouts (with featured-guest override) ──
 
-  const totalCells = guestCount + 1; // +1 for host
-
-  // ── Auto-select best layout when 'auto' ──
-  if (_guestLayout === 'auto') {
-    _applyAutoLayout(grid, guestCount, totalCells);
+  // If a guest is featured and is still present, use featured layout
+  if (_featuredGuestUid && grid.querySelector(`[data-uid="${_featuredGuestUid}"]`)) {
+    _applyFeaturedGuestLayout(grid, guestCount);
     return;
   }
 
-  // ── Smart layouts ──
-  if (_guestLayout === 'speaker') {
-    _applySpeakerLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'host-focus') {
-    _applyHostFocusLayout(grid, guestCount);
-    return;
-  }
-
-  // ── Host layouts ──
-  if (_guestLayout === 'host-full') {
-    _applyHostFullLayout(grid, guestCount);
-    return;
-  }
+  // Default dispatch: right stack or left stack
   if (_guestLayout === 'host-full-left') {
     _applyHostFullLeftLayout(grid, guestCount);
-    return;
+  } else {
+    // Default: 'host-full' (right stack) — also handles any legacy saved layout values
+    _applyHostFullLayout(grid, guestCount);
   }
-  if (_guestLayout === 'host-big') {
-    _applyHostBigLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'pip') {
-    _applyPipLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'theater') {
-    _applyTheaterLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'audience') {
-    _applyAudienceLayout(grid, guestCount);
-    return;
-  }
-
-  // ── Filmstrip layouts ──
-  if (_guestLayout === 'bottom-strip') {
-    _applyBottomStripLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'top-strip') {
-    _applyTopStripLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'stacked') {
-    _applyStackedLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'left-strip') {
-    _applyLeftStripLayout(grid, guestCount);
-    return;
-  }
-
-  // ── Grid layouts ──
-  if (_guestLayout === 'grid') {
-    _applyEqualGrid(grid, totalCells);
-    return;
-  }
-  if (_guestLayout === 'grid-2x2') {
-    _applyFixedGrid(grid, 2, 2);
-    return;
-  }
-  if (_guestLayout === 'grid-3x3') {
-    _applyFixedGrid(grid, 3, 3);
-    return;
-  }
-  if (_guestLayout === 'honeycomb') {
-    _applyHoneycombLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'diamond') {
-    _applyDiamondLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'circular') {
-    _applyCircularLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'corner') {
-    _applyCornerLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'float') {
-    _applyFloatLayout(grid, guestCount);
-    return;
-  }
-
-  // ── Split layouts ──
-  if (_guestLayout === 'split') {
-    _applySplitLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'split-2') {
-    _applySplit2Layout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'triple') {
-    _applyTripleLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'quad') {
-    _applyQuadLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'vertical-stack') {
-    _applyVerticalStackLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'horizontal-stack') {
-    _applyHorizontalStackLayout(grid, guestCount);
-    return;
-  }
-
-  // ── Style layouts ──
-  if (_guestLayout === 'stage') {
-    _applyStageLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'podcast') {
-    _applyPodcastLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'interview') {
-    _applyInterviewLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'gaming') {
-    _applyGamingLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'tiktok') {
-    _applyTikTokLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'discord') {
-    _applyDiscordLayout(grid, guestCount);
-    return;
-  }
-  if (_guestLayout === 'sidebar') {
-    _applySidebarLayout(grid, guestCount);
-    return;
-  }
-
-  // ── Custom drag layout ──
-  if (_guestLayout === 'drag') {
-    _applyDragLayout(grid, guestCount);
-    return;
-  }
-
-  // Fallback: auto
-  _applyAutoLayout(grid, guestCount, totalCells);
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -5117,44 +4973,56 @@ function _applySplitLayout(grid, guestCount) {
   cells.forEach(c => { c.style.width = w; c.style.height = usableH + 'px'; });
 }
 
-/* ── Host full-screen — guests as responsive floating tiles ──
-   Tiles stack from top-right downward; the safe zone prevents
-   overlap with chat, reactions, or controls.                  */
+/* ═══════════════════════════════════════════════════════════════════
+   LAYOUT 1 — RIGHT STACK
+   Host video fills the full screen. Up to 8 guest boxes are stacked
+   in a single vertical column on the right side, anchored from just
+   below the top-bar down to just above the bottom controls bar.
+   All 8 boxes are auto-sized to fill the available height evenly.
+   No box is cut off, none overlap, host stays fully visible.
+   ═══════════════════════════════════════════════════════════════════ */
 function _applyHostFullLayout(grid, guestCount) {
   const stageW     = grid.offsetWidth  || window.innerWidth;
   const stageH     = grid.offsetHeight || window.innerHeight;
   const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
   const hostCell   = grid.querySelector('.host-cell');
+
+  // Host fills the full stage
   if (hostCell) {
     hostCell.style.position = 'absolute';
     hostCell.style.inset    = '0';
     hostCell.style.width    = '100%';
     hostCell.style.height   = '100%';
+    hostCell.style.flex     = 'none';
+    hostCell.style.zIndex   = '4';
   }
 
-  // Tile size: shrink with more guests to avoid overflow
-  const maxPerRow = Math.min(guestCount, Math.ceil(Math.sqrt(guestCount * 2)));
-  const baseW     = Math.max(60, Math.min(160, Math.floor(stageW * 0.18)));
-  const tileW     = Math.floor(baseW * (maxPerRow > 4 ? 0.75 : 1));
-  const tileH     = Math.floor(tileW * 0.75);
-  const gap       = Math.max(4, Math.floor(stageW * 0.012));
-  const cols      = Math.max(1, Math.floor((stageW - gap) / (tileW + gap)));
-  // Max rows that fit in the usable zone (excludes UI safe zone)
-  const maxRows   = Math.max(1, Math.floor((usableH - gap) / (tileH + gap)));
+  const cappedCount = Math.min(guestCount, _MAX_GUESTS);
+  if (cappedCount === 0) return;
 
-  let i = 0;
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
-    const col = i % cols;
-    const row = Math.min(Math.floor(i / cols), maxRows - 1);
-    cell.style.position = 'absolute';
-    cell.style.width    = tileW + 'px';
-    cell.style.height   = tileH + 'px';
-    cell.style.right    = (gap + col * (tileW + gap)) + 'px';
-    cell.style.top      = (gap + row * (tileH + gap)) + 'px';
-    cell.style.bottom   = 'auto';
-    cell.style.left     = 'auto';
-    i++;
+  // Reserve room for top bar (approx 52px) and comments area below it
+  const topReserve  = 56;
+  const gap         = 4;
+  const availH      = stageH - safeBottom - topReserve - gap;
+  // Tile height: divide available height evenly among all guests
+  const tileH       = Math.max(44, Math.floor((availH - gap * (cappedCount - 1)) / cappedCount));
+  // Tile width: 4:3 ratio, clamped to 22% of stage width max (keeps host visible)
+  const maxTileW    = Math.max(64, Math.floor(stageW * 0.22));
+  const tileW       = Math.min(Math.floor(tileH * (4 / 3)), maxTileW);
+  const rightMargin = gap;
+
+  Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).slice(0, cappedCount).forEach((cell, i) => {
+    cell.style.position     = 'absolute';
+    cell.style.width        = tileW + 'px';
+    cell.style.height       = tileH + 'px';
+    cell.style.right        = rightMargin + 'px';
+    cell.style.top          = (topReserve + i * (tileH + gap)) + 'px';
+    cell.style.left         = 'auto';
+    cell.style.bottom       = 'auto';
+    cell.style.flex         = 'none';
+    cell.style.zIndex       = '6';
+    cell.style.borderRadius = '10px';
+    cell.style.overflow     = 'hidden';
   });
 }
 
@@ -5273,44 +5141,146 @@ function _applyStackedLayout(grid, guestCount) {
   });
 }
 
-/* ═════════════════════════════════════════════════════════════════
-   NEW LAYOUT HELPERS — Layouts 1–30
-   ═════════════════════════════════════════════════════════════════ */
-
-/* ── Layout 2: Full Screen Host + Left Side Stack ── */
+/* ═══════════════════════════════════════════════════════════════════
+   LAYOUT 2 — LEFT STACK
+   Host video fills the full screen. Up to 8 guest boxes are stacked
+   in a single vertical column on the left side, anchored from just
+   below the top-bar down to just above the bottom controls bar.
+   All 8 boxes are auto-sized to fill the available height evenly.
+   No box is cut off, none overlap, host stays fully visible.
+   ═══════════════════════════════════════════════════════════════════ */
 function _applyHostFullLeftLayout(grid, guestCount) {
   const stageW     = grid.offsetWidth  || window.innerWidth;
   const stageH     = grid.offsetHeight || window.innerHeight;
   const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
   const hostCell   = grid.querySelector('.host-cell');
 
+  // Host fills the full stage
   if (hostCell) {
     hostCell.style.position = 'absolute';
     hostCell.style.inset    = '0';
     hostCell.style.width    = '100%';
     hostCell.style.height   = '100%';
+    hostCell.style.flex     = 'none';
+    hostCell.style.zIndex   = '4';
   }
 
-  const tileW   = Math.max(60, Math.min(160, Math.floor(stageW * 0.18)));
-  const tileH   = Math.floor(tileW * 0.75);
-  const gap     = Math.max(4, Math.floor(stageW * 0.012));
-  const cols    = Math.max(1, Math.floor((stageW * 0.38) / (tileW + gap)));
-  const maxRows = Math.max(1, Math.floor((usableH - gap) / (tileH + gap)));
+  const cappedCount = Math.min(guestCount, _MAX_GUESTS);
+  if (cappedCount === 0) return;
 
-  let i = 0;
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
-    const col = i % cols;
-    const row = Math.min(Math.floor(i / cols), maxRows - 1);
-    cell.style.position = 'absolute';
-    cell.style.width    = tileW + 'px';
-    cell.style.height   = tileH + 'px';
-    cell.style.left     = (gap + col * (tileW + gap)) + 'px';
-    cell.style.top      = (gap + row * (tileH + gap)) + 'px';
-    cell.style.right    = 'auto';
-    cell.style.bottom   = 'auto';
-    i++;
+  const topReserve  = 56;
+  const gap         = 4;
+  const availH      = stageH - safeBottom - topReserve - gap;
+  const tileH       = Math.max(44, Math.floor((availH - gap * (cappedCount - 1)) / cappedCount));
+  const maxTileW    = Math.max(64, Math.floor(stageW * 0.22));
+  const tileW       = Math.min(Math.floor(tileH * (4 / 3)), maxTileW);
+  const leftMargin  = gap;
+
+  Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).slice(0, cappedCount).forEach((cell, i) => {
+    cell.style.position     = 'absolute';
+    cell.style.width        = tileW + 'px';
+    cell.style.height       = tileH + 'px';
+    cell.style.left         = leftMargin + 'px';
+    cell.style.top          = (topReserve + i * (tileH + gap)) + 'px';
+    cell.style.right        = 'auto';
+    cell.style.bottom       = 'auto';
+    cell.style.flex         = 'none';
+    cell.style.zIndex       = '6';
+    cell.style.borderRadius = '10px';
+    cell.style.overflow     = 'hidden';
   });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURED GUEST LAYOUT
+   One guest is featured in the large video area (like a host swap).
+   The featured cell fills most of the screen. All remaining guests
+   (including the host cell) stack on the side using the current
+   layout side preference (right or left).
+   ═══════════════════════════════════════════════════════════════════ */
+function _applyFeaturedGuestLayout(grid, guestCount) {
+  const stageW     = grid.offsetWidth  || window.innerWidth;
+  const stageH     = grid.offsetHeight || window.innerHeight;
+  const safeBottom = _getUISafeBottom(stageH);
+  const featuredCell = grid.querySelector(`[data-uid="${_featuredGuestUid}"]`);
+  if (!featuredCell) { _featuredGuestUid = null; _applyHostFullLayout(grid, guestCount); return; }
+
+  // Mark featured cell visually (removes border/shadow via CSS)
+  grid.querySelectorAll('.guest-cell').forEach(c => c.classList.remove('featured-cell'));
+  featuredCell.classList.add('featured-cell');
+
+  // Featured guest fills the whole screen (like host)
+  featuredCell.style.position     = 'absolute';
+  featuredCell.style.inset        = '0';
+  featuredCell.style.width        = '100%';
+  featuredCell.style.height       = '100%';
+  featuredCell.style.flex         = 'none';
+  featuredCell.style.zIndex       = '4';
+  featuredCell.style.borderRadius = '0';
+  featuredCell.style.overflow     = 'hidden';
+
+  // Collect all other cells (host + non-featured guests) for the side stack
+  const sideCells = Array.from(grid.querySelectorAll('.guest-cell'))
+    .filter(c => c !== featuredCell);
+  const sideCount = sideCells.length;
+
+  if (sideCount === 0) return;
+
+  const topReserve  = 56;
+  const gap         = 4;
+  const availH      = stageH - safeBottom - topReserve - gap;
+  const cappedSide  = Math.min(sideCount, _MAX_GUESTS);
+  const tileH       = Math.max(44, Math.floor((availH - gap * (cappedSide - 1)) / cappedSide));
+  const maxTileW    = Math.max(64, Math.floor(stageW * 0.22));
+  const tileW       = Math.min(Math.floor(tileH * (4 / 3)), maxTileW);
+
+  // Side to stack on — mirrors current layout preference
+  const useLeft = (_guestLayout === 'host-full-left');
+
+  sideCells.slice(0, cappedSide).forEach((cell, i) => {
+    cell.style.position     = 'absolute';
+    cell.style.width        = tileW + 'px';
+    cell.style.height       = tileH + 'px';
+    cell.style.top          = (topReserve + i * (tileH + gap)) + 'px';
+    cell.style.left         = useLeft ? gap + 'px' : 'auto';
+    cell.style.right        = useLeft ? 'auto' : gap + 'px';
+    cell.style.bottom       = 'auto';
+    cell.style.flex         = 'none';
+    cell.style.zIndex       = '6';
+    cell.style.borderRadius = '10px';
+    cell.style.overflow     = 'hidden';
+  });
+}
+
+/* ── Set a featured guest — makes their box the large video ── */
+function _setFeaturedGuest(uid) {
+  _featuredGuestUid = uid;
+  // Update star button highlights
+  document.querySelectorAll('.guest-cell-feature').forEach(btn => {
+    btn.classList.toggle('featured-active', btn.dataset.uid === uid);
+  });
+  _applyGuestLayout();
+  _broadcastFeaturedGuest();
+  toast('Featured guest set — tap ★ again or "Return to Host View" to switch back');
+}
+
+/* ── Clear featured guest — return host to the large view ── */
+function _clearFeaturedGuest() {
+  _featuredGuestUid = null;
+  document.querySelectorAll('.guest-cell-feature').forEach(btn => btn.classList.remove('featured-active'));
+  document.querySelectorAll('.guest-cell.featured-cell').forEach(c => c.classList.remove('featured-cell'));
+  _applyGuestLayout();
+  _broadcastFeaturedGuest();
+}
+
+/* ── Broadcast featured guest UID so viewers see the same large video ── */
+function _broadcastFeaturedGuest() {
+  if (!_roomId) return;
+  try {
+    update(ref(_liveDB, `liveRooms/${_roomId}`), {
+      featuredGuestUid: _featuredGuestUid || null,
+    });
+  } catch(_) {}
 }
 
 /* ── Layout 3: Host Full + Bottom Filmstrip ── */
@@ -6347,12 +6317,20 @@ function _refreshLoadBtn() {
   btn.title = has ? `Load saved: ${localStorage.getItem(_LS_KEY_LAYOUT)}` : 'No saved layout';
 }
 
-/* ── Restore saved layout preference on page load ── */
+/* ── Restore saved layout preference on page load ──
+   Only 'host-full' and 'host-full-left' are supported now.
+   Any other legacy saved value is remapped to 'host-full'. */
 (function _restoreLayoutPreference() {
   try {
     const l = localStorage.getItem(_LS_KEY_LAYOUT);
     const s = localStorage.getItem(_LS_KEY_BOXSIZE);
-    if (l) { _savedLayout = l; _savedBoxSize = s || 'sm'; }
+    if (l) {
+      const validLayouts = ['host-full', 'host-full-left'];
+      const mapped = validLayouts.includes(l) ? l : 'host-full';
+      _guestLayout  = mapped;
+      _savedLayout  = mapped;
+      _savedBoxSize = s || 'sm';
+    }
   } catch (_) {}
 })();
 
