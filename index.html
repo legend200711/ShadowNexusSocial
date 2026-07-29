@@ -29595,10 +29595,19 @@ function _renderProfileMusic(pc, isSelf) {
     const player = document.getElementById('profileMusicPlayer');
     if (!player) return;
 
-    const safeUrl    = (music.url    || '').replace(/"/g, '&quot;');
+    // Validate URL before rendering — reject obvious non-audio URLs
+    const rawUrl = (music.url || '').trim();
+    if (!rawUrl) { card.style.display = 'none'; return; }
+
+    const safeUrl    = rawUrl.replace(/"/g, '&quot;');
     const safeTitle  = (music.title  || 'Profile Track').replace(/[<>]/g, '');
     const safeArtist = (music.artist || '').replace(/[<>]/g, '');
-    const pId = 'snxMusicAudio_' + Date.now();
+    // Use a stable ID so the audio element survives re-renders on the same profile.
+    const pId = 'snxProfileAudio';
+
+    // Stop and detach any previously playing audio before replacing the DOM
+    const prevAudio = document.getElementById(pId);
+    if (prevAudio) { try { prevAudio.pause(); prevAudio.src = ''; } catch(_) {} }
 
     player.innerHTML = `
         <div class="profile-music-player-inner" id="snxMusicPlayerUI">
@@ -29606,7 +29615,8 @@ function _renderProfileMusic(pc, isSelf) {
             <div class="profile-music-info">
                 <div class="profile-music-title">${safeTitle}</div>
                 ${safeArtist ? `<div class="profile-music-artist">${safeArtist}</div>` : ''}
-                <audio id="${pId}" src="${safeUrl}" preload="metadata"${music.repeat === 'yes' ? ' loop' : ''} style="display:none;"></audio>
+                <audio id="${pId}" src="${safeUrl}" preload="metadata"${music.repeat === 'yes' ? ' loop' : ''} style="display:none;" crossorigin="anonymous"></audio>
+                <div id="snxMusicError" style="display:none;font-size:11px;color:#ff5566;margin-top:4px;"></div>
                 <div class="profile-music-controls">
                     <button class="pm-ctrl-btn" id="snxMusicPlayBtn" onclick="snxMusicTogglePlay('${pId}')" title="Play / Pause" aria-label="Play or pause">▶</button>
                     <div class="pm-progress-wrap">
@@ -29633,6 +29643,15 @@ function _renderProfileMusic(pc, isSelf) {
 
     audio.volume = 0.8;
 
+    const _showMusicError = (msg) => {
+        const errEl = document.getElementById('snxMusicError');
+        if (errEl) { errEl.textContent = msg; errEl.style.display = msg ? '' : 'none'; }
+        // Only disable the Play button for load errors (not for play-blocked messages
+        // which the user can resolve by tapping again).
+        const btn = document.getElementById('snxMusicPlayBtn');
+        if (btn) btn.disabled = !!(msg && !msg.includes('Tap Play again'));
+    };
+
     audio.addEventListener('timeupdate', () => {
         const fill  = document.getElementById('snxMusicFill');
         const seek  = document.getElementById('snxMusicSeek');
@@ -29643,9 +29662,10 @@ function _renderProfileMusic(pc, isSelf) {
         if (tEl)   tEl.textContent = _snxMusicFmt(audio.currentTime) + ' / ' + _snxMusicFmt(audio.duration || 0);
     });
     audio.addEventListener('play', () => {
+        _showMusicError('');
         const btn  = document.getElementById('snxMusicPlayBtn');
         const icon = document.getElementById('snxMusicNoteIcon');
-        if (btn)  btn.textContent = '⏸';
+        if (btn)  { btn.textContent = '⏸'; btn.disabled = false; }
         if (icon) icon.style.animationPlayState = 'running';
     });
     audio.addEventListener('pause', () => {
@@ -29660,12 +29680,37 @@ function _renderProfileMusic(pc, isSelf) {
         if (btn)  btn.textContent = '▶';
         if (icon) icon.style.animationPlayState = 'paused';
     });
+    // Show a clear error if the audio fails to load (broken URL, network issue, etc.).
+    // We attempt one silent retry without crossorigin first (some servers reject it),
+    // and only show the error message if the retry also fails.
+    let _musicLoadAttempt = 0;
+    audio.addEventListener('error', () => {
+        _musicLoadAttempt++;
+        if (_musicLoadAttempt === 1 && audio.hasAttribute('crossorigin')) {
+            // Silent retry: remove crossorigin attribute and reload
+            audio.removeAttribute('crossorigin');
+            audio.load();
+            return;
+        }
+        const code = audio.error ? audio.error.code : 0;
+        const msgs = {
+            1: 'Playback aborted.',
+            2: 'Network error \u2014 check your connection.',
+            3: 'Audio file could not be decoded.',
+            4: 'Audio source not found or not accessible.'
+        };
+        _showMusicError('\u26a0\ufe0f ' + (msgs[code] || 'Could not load audio. Check the URL or try re-uploading.'));
+    });
 
     // Autoplay with muted fallback (browsers block autoplay with sound)
     if (music.autoplay === 'yes') {
         audio.play().catch(() => {
+            // First try: muted autoplay (allowed by most browsers)
             audio.muted = true;
-            audio.play().catch(() => {});
+            audio.play().catch(() => {
+                // Autoplay fully blocked — reset to paused state, user must tap Play
+                audio.muted = false;
+            });
             const volIcon = player.querySelector('.pm-vol-icon');
             if (volIcon) volIcon.textContent = '🔇';
             const volSlider = document.getElementById('snxMusicVol');
@@ -29684,8 +29729,32 @@ function _snxMusicFmt(s) {
 window.snxMusicTogglePlay = function(pId) {
     const audio = document.getElementById(pId);
     if (!audio) return;
-    if (audio.paused) { audio.play().catch(() => {}); }
-    else              { audio.pause(); }
+    if (audio.paused) {
+        const p = audio.play();
+        if (p && p.catch) {
+            p.catch(err => {
+                // NotAllowedError means autoplay/play was blocked by the browser
+                // (common on mobile). Show a helpful message rather than silently failing.
+                if (err && err.name === 'NotAllowedError') {
+                    const errEl = document.getElementById('snxMusicError');
+                    if (errEl) {
+                        errEl.textContent = '⚠️ Tap Play again — your browser requires a direct tap to start audio.';
+                        errEl.style.display = '';
+                    }
+                }
+                // NotSupportedError means the URL/format is invalid
+                else if (err && err.name === 'NotSupportedError') {
+                    const errEl = document.getElementById('snxMusicError');
+                    if (errEl) {
+                        errEl.textContent = '⚠️ Audio format not supported or URL is not accessible.';
+                        errEl.style.display = '';
+                    }
+                }
+            });
+        }
+    } else {
+        audio.pause();
+    }
 };
 
 window.snxMusicSeek = function(pId, pct) {
@@ -31154,7 +31223,9 @@ window._snxOnAuthReady && window._snxOnAuthReady(function() {
 
 /* ── helpers ── */
 function _gcFs()  { return window._snxFirestore || null; }
-function _gcUser(){ return window.currentUser || null; }
+// _snxCurrentUser is the reliably-set global (assigned in onAuthStateChanged at line ~11968).
+// window.currentUser is a module-scoped local that is never exposed on window — always null here.
+function _gcUser(){ return window._snxCurrentUser || null; }
 function _gcEsc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function _gcTime(ts){
     if (!ts) return '';
@@ -31215,7 +31286,16 @@ window.snxOpenCreateGroupModal = function() {
     const srchEl = document.getElementById('snxGroupFriendSearch'); if (srchEl) srchEl.value = '';
     _gcRenderSelectedChips();
     modal.style.display = '';
-    _gcLoadFriendList('');
+    // Wait for auth to resolve before loading friends — prevents "Sign in to load friends"
+    // appearing when the user is already signed in but auth state hasn't propagated yet.
+    if (window._snxAuthResolved) {
+        _gcLoadFriendList('');
+    } else {
+        const listEl = document.getElementById('snxGroupFriendList');
+        if (listEl) listEl.innerHTML = '<div style="color:#6a90b8;font-size:12px;padding:8px;">Loading\u2026</div>';
+        if (!Array.isArray(window._snxAuthReadyQueue)) window._snxAuthReadyQueue = [];
+        window._snxAuthReadyQueue.push(() => _gcLoadFriendList(''));
+    }
 };
 
 window.snxCloseCreateGroupModal = function() {
@@ -31359,9 +31439,16 @@ let _gcInboxUnsub  = null;
 let _gcInboxGroups = [];
 
 window.snxRenderGroupInbox = function() {
-    const user = _gcUser(); const fs = _gcFs();
     const listEl = document.getElementById('inboxGroupList');
     if (!listEl) return;
+    // If auth hasn't resolved yet, wait for it then retry — prevents false "Sign in" prompt
+    if (!window._snxAuthResolved) {
+        listEl.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">&#x1F465;</div>Loading\u2026</div>';
+        if (!Array.isArray(window._snxAuthReadyQueue)) window._snxAuthReadyQueue = [];
+        window._snxAuthReadyQueue.push(() => window.snxRenderGroupInbox());
+        return;
+    }
+    const user = _gcUser(); const fs = _gcFs();
     if (!user || !fs) {
         listEl.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">&#x1F512;</div>Sign in to see your groups.</div>';
         return;
@@ -31941,16 +32028,24 @@ window.snxSubmitInviteMore = async function(existingSet) {
     window.renderInboxPage = function() {
         if (typeof orig === 'function') orig.apply(this, arguments);
         // Continuously track group unread count for badge even when DMs tab is active
-        const user = _gcUser(); const fs = _gcFs();
-        if (!user || !fs) return;
-        try {
-            const q = fs.query(fs.collection(fs.db,'groupChats'), fs.where('members','array-contains',user.uid));
-            fs.onSnapshot(q, snap => {
-                _gcInboxGroups = [];
-                snap.forEach(d => _gcInboxGroups.push({ id:d.id, ...d.data() }));
-                _gcUpdateGroupBadge();
-            }, ()=>{});
-        } catch(_) {}
+        const _doSubscribe = () => {
+            const user = _gcUser(); const fs = _gcFs();
+            if (!user || !fs) return;
+            try {
+                const q = fs.query(fs.collection(fs.db,'groupChats'), fs.where('members','array-contains',user.uid));
+                fs.onSnapshot(q, snap => {
+                    _gcInboxGroups = [];
+                    snap.forEach(d => _gcInboxGroups.push({ id:d.id, ...d.data() }));
+                    _gcUpdateGroupBadge();
+                }, ()=>{});
+            } catch(_) {}
+        };
+        if (window._snxAuthResolved) {
+            _doSubscribe();
+        } else {
+            if (!Array.isArray(window._snxAuthReadyQueue)) window._snxAuthReadyQueue = [];
+            window._snxAuthReadyQueue.push(_doSubscribe);
+        }
     };
 })();
 
