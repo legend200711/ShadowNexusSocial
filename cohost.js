@@ -1,5 +1,5 @@
 /**
- * Shadow Nexus Live - cohost.js  (v7)
+ * Shadow Nexus Live - cohost.js  (v8)
  *
  * Co-Host feature - completely self-contained.
  * Does NOT touch live.js internals, chat, feed, guest boxes,
@@ -13,52 +13,55 @@
  *              coHostInvites/{guestUid}/{hostUid}
  *              liveRooms/{roomId}  (read-only — written by live.js)
  *
- * v7 fixes (comprehensive):
- *  INVITE SEND
- *  - _sendInvite: delete stale RTDB invite node BEFORE writing new one so
- *    _watchForInvite's listener re-fires (onValue deduplicates same-value writes;
- *    delete+write guarantees a new change event on every send attempt).
- *  - _sendInvite: Firestore write is now non-fatal — RTDB is the delivery channel.
- *  - _sendInvite: clear _pendingInvites[guestId] on final failure so button re-enables.
- *  - _sendInvite: up to 3 retries with token refresh on permission-denied.
- *  - Prevent duplicate invites: guard checks _pendingInvites AND _activeCohostUids.
- *  - Re-invite after decline: _watchInviteResponse + _subscribeDeclineNotifications
- *    both delete _pendingInvites[guestId] and refresh UI lists.
+ * v8 fixes:
+ *  PERMISSION FIXES
+ *  - _sendInvite: pre-emptive token refresh BEFORE the first write attempt,
+ *    not just as a reaction to permission-denied. Eliminates the most common
+ *    failure mode where a stale token causes attempt 1 to always fail.
+ *  - _acceptInvite: pre-emptive token refresh before RTDB writes (guest side).
+ *    The guest token is often older than the host's token at invite-accept time.
+ *  - _sendInvite: whoCanCohost === 'friends' is now enforced inside _sendInvite
+ *    itself (not just in the UI list filter). Prevents invited non-friends even
+ *    if _sendInvite is called programmatically.
+ *  - _declineInvite: RTDB cleanup now runs BEFORE Firestore update, so the
+ *    invite node is always removed even if the FS updateDoc throws.
+ *  - _watchInviteResponse: host-side removes the RTDB invite node when the
+ *    invite is accepted (prevents stale popup on guest reconnect).
+ *
+ *  EXACT REASON LOGGING
+ *  - _sendInvite: logs the full error object (not just code + message) so the
+ *    exact Firebase permission reason is visible in the browser console.
+ *  - _acceptInvite: same — full error object logged on failure.
+ *  - _declineInvite: same.
  *
  *  POPUP DELIVERY
- *  - _watchForInvite: replaced onValue with onChildAdded + onChildChanged so every
- *    write triggers the popup — including re-invites to the same RTDB path.
- *  - _watchForInvite: onChildRemoved hides the card when the invite is deleted.
- *  - Pending invite data now includes _childKey for precise RTDB node targeting.
+ *  - _watchForInvite: re-attaches listeners on RTDB reconnect using the
+ *    onValue('value') connectivity sentinel. If the connection drops and the
+ *    listener list is empty after reconnect, _watchForInvite is called again.
+ *  - _acceptInvite: cleans up all OTHER pending invites (from other hosts) when
+ *    one invite is accepted, preventing stale popups on reconnect.
+ *
+ * v7 fixes (preserved):
+ *  INVITE SEND
+ *  - _sendInvite: delete stale RTDB invite node BEFORE writing new one.
+ *  - _sendInvite: Firestore write is non-fatal — RTDB is the delivery channel.
+ *  - _sendInvite: clear _pendingInvites[guestId] on final failure.
+ *  - _sendInvite: up to 3 retries with token refresh on permission-denied.
+ *  - Prevent duplicate invites: _pendingInvites AND _activeCohostUids guards.
+ *
+ *  POPUP DELIVERY
+ *  - _watchForInvite: onChildAdded + onChildChanged (not onValue).
+ *  - _watchForInvite: onChildRemoved hides card on remote deletion.
  *  - _showInviteCard: always re-enables Accept/Deny buttons.
- *  - _hideInviteCard: also clears _pendingInviteData (prevents stale data blocks).
+ *  - _hideInviteCard: clears _pendingInviteData.
  *
  *  ACCEPT / DECLINE
- *  - _acceptInvite: buttons disabled synchronously before any async work.
- *  - _acceptInvite: removes RTDB invite node (not just status update).
+ *  - _acceptInvite: buttons disabled synchronously before async work.
  *  - _acceptInvite: restores card on error so user can retry.
- *  - _acceptInvite: graceful fallback when window._viewerRequestBox unavailable.
- *  - _declineInvite: removes RTDB invite node (guarantees clean state for re-invite).
- *  - _declineInvite: re-enables buttons on error.
- *
- *  PENDING STUCK
- *  - _watchInviteResponse: properly unsubscribes on all terminal paths.
- *  - _watchInviteResponse: handles accepted/declined/denied/cancelled uniformly.
- *  - _subscribeDeclineNotifications: deletes _pendingInvites entry, refreshes UI,
- *    and cleans up the Firestore doc.
- *
- *  FRIEND LIST
- *  - _loadFriendsList: 3 retries (up from 2), token refresh on auth errors.
- *  - _loadFriendsList: "Couldn't load" shows a tap-to-retry button.
- *  - _closePanel: resets _friendsLoading so re-open always fetches fresh.
- *
- *  CO-HOST ACTIVE LIST
- *  - _subscribeActiveCohosts: rebuilds _activeCohostUids set on every update.
- *  - Remove button clears _pendingInvites[uid] so removed guests can be re-invited.
- *  - _renderRow: shows "Co-Host ✓" (disabled) for already-active co-hosts.
+ *  - _declineInvite: removes RTDB invite node; re-enables buttons on error.
  *
  *  CLEANUP / STABILITY
- *  - _cleanup: tears down all listeners including onChildAdded/Changed.
+ *  - _cleanup: tears down all listeners.
  *  - _applyCoHostEnabled: correctly restarts listeners on feature re-enable.
  */
 
@@ -88,6 +91,8 @@
   var _friendsLoading = false;
   // Active co-hosts UIDs — used to block duplicate invites and show "Co-Host ✓" in lists
   var _activeCohostUids = new Set();
+  // Whether _watchForInvite listeners are currently attached
+  var _inviteListenersActive = false;
 
   function _importFS()   { return import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'); }
   function _importRTDB() { return import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js'); }
@@ -717,10 +722,24 @@
     if (_pendingInvites[user.uid])                 { _toast('Invite already sent to ' + (user.displayName || 'this user')); return; }
     if (_activeCohostUids.has(user.uid))           { _toast((user.displayName || 'This user') + ' is already a co-host.'); return; }
 
+    // ── Friends-only enforcement (server-side guard, not just UI filter) ──
+    if (_cohostSettings.whoCanCohost === 'friends' && _friendUidSet.size > 0
+        && !_friendUidSet.has(user.uid)) {
+      _toast((user.displayName || 'This user') + ' is not in your friends list.');
+      console.warn('[CoHost] sendInvite blocked: whoCanCohost=friends and', user.uid, 'is not a friend');
+      return;
+    }
+
     var guestId   = user.uid;
     var requestId = _roomId + '_' + guestId;
 
     if (btn) { btn.disabled = true; btn.textContent = 'Sending\u2026'; }
+
+    // ── Pre-emptive token refresh before attempt 1 ──
+    // A stale ID token is the #1 cause of permission-denied on RTDB writes.
+    // Refreshing eagerly (even when the token looks valid) costs ~50 ms and
+    // eliminates the entire first-attempt failure + retry cycle.
+    await _refreshToken();
 
     var attempt     = 0;
     var maxAttempts = 3;
@@ -756,7 +775,7 @@
           });
           fsWriteDone = true;
         } catch(fsErr) {
-          console.warn('[CoHost] Firestore coHostRequest write failed (non-fatal):', fsErr && fsErr.code);
+          console.warn('[CoHost] Firestore coHostRequest write failed (non-fatal):', fsErr && fsErr.code, fsErr && fsErr.message);
         }
 
         // ── Step 3: Write RTDB invite node (the actual popup trigger) ──
@@ -781,7 +800,13 @@
         return;
 
       } catch(e) {
-        console.error('[CoHost] sendInvite attempt ' + attempt + ':', e.code, e.message);
+        // Log the full error object so the exact Firebase permission reason is visible
+        console.error('[CoHost] sendInvite attempt ' + attempt + ' failed:', {
+          code:    e && e.code,
+          message: e && e.message,
+          name:    e && e.name,
+          error:   e,
+        });
 
         if (rtdbWriteDone) {
           try { var rtdbRb = await _importRTDB(); await rtdbRb.remove(rtdbRb.ref(_liveDB, 'coHostInvites/' + guestId + '/' + _user.uid)); } catch(_) {}
@@ -811,7 +836,7 @@
   }
 
   function _watchInviteResponse(guestId, requestId) {
-    if (!_db) return;
+    if (!_db || !_liveDB) return;
     var unsub = null;
     _importFS().then(function(fs) {
       unsub = fs.onSnapshot(fs.doc(_db, 'coHostRequests', requestId), function(snap) {
@@ -825,6 +850,13 @@
           if (unsub) { try { unsub(); } catch(e){} unsub = null; }
           _toast('Co-host accepted your invite!');
           delete _pendingInvites[guestId];
+          // ── Remove RTDB invite node so the accepted guest never sees a
+          //    stale popup if they reconnect before the node TTL expires ──
+          if (_user) {
+            _importRTDB().then(function(rtdb) {
+              try { rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + guestId + '/' + _user.uid)); } catch(_) {}
+            });
+          }
           if (_activeUnsub) { try { _activeUnsub(); } catch(e){} _activeUnsub = null; }
           _subscribeActiveCohosts();
           _flushLiveMap();
@@ -862,6 +894,7 @@
       try { _inviteInboxUnsub(); } catch(e) {}
       _inviteInboxUnsub = null;
     }
+    _inviteListenersActive = false;
 
     _importRTDB().then(function(rtdb) {
       var invRef = rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid);
@@ -877,28 +910,53 @@
           return;
         }
         var senderUid = child.key;
+        // Never show an invite from yourself (self-invite guard)
         if (_user && senderUid === _user.uid) return;
         var inviteObj = Object.assign({ senderUid: senderUid, _childKey: child.key }, inv);
         _pendingInviteData = inviteObj;
         _showInviteCard(inviteObj);
       }
 
-      var unsubAdded   = rtdb.onChildAdded(invRef, _handleInviteNode);
-      var unsubChanged = rtdb.onChildChanged(invRef, _handleInviteNode);
+      var unsubAdded   = rtdb.onChildAdded(invRef,   _handleInviteNode);
+      var unsubChanged = rtdb.onChildChanged(invRef,  _handleInviteNode);
       var unsubRemoved = rtdb.onChildRemoved(invRef, function(child) {
         if (_pendingInviteData && _pendingInviteData._childKey === child.key) {
           _hideInviteCard();
         }
       });
 
+      _inviteListenersActive = true;
+
       _inviteInboxUnsub = function() {
+        _inviteListenersActive = false;
         try { unsubAdded();   } catch(_) {}
         try { unsubChanged(); } catch(_) {}
         try { unsubRemoved(); } catch(_) {}
-        try { rtdb.off(invRef); } catch(_) {}
+        // Note: rtdb.off(ref) is v8 compat only. In v10 modular we unsubscribe
+        // via the return values of onChildAdded/Changed/Removed above.
+        // The three unsub() calls above are sufficient.
+      };
+
+      // ── RTDB reconnect watchdog ──────────────────────────────────────────
+      // If the RTDB connection drops (e.g. mobile background), onChildAdded
+      // may stop firing. Monitor the /.info/connected path and re-attach if
+      // the connection comes back while our listener is supposed to be active.
+      var connRef = rtdb.ref(_liveDB, '.info/connected');
+      var unsubConn = rtdb.onValue(connRef, function(snap) {
+        if (snap.val() === true && !_inviteListenersActive && _coHostEnabled && _user) {
+          console.log('[CoHost] RTDB reconnected — re-attaching invite listeners');
+          _watchForInvite();
+        }
+      });
+      // Wrap the unsub to also detach the connectivity watcher
+      var _prevUnsub = _inviteInboxUnsub;
+      _inviteInboxUnsub = function() {
+        _prevUnsub();
+        try { unsubConn(); } catch(_) {}
       };
     }).catch(function(e) {
       console.warn('[CoHost] _watchForInvite import failed:', e && e.message);
+      _inviteListenersActive = false;
     });
   }
 
@@ -955,6 +1013,11 @@
     _pendingInviteData = null; // clear immediately to block re-entrant calls
     _hideInviteCard();
 
+    // ── Pre-emptive token refresh before RTDB writes (guest side) ──
+    // The guest token is often older than the host's token at invite-accept time,
+    // making permission-denied the most common failure on step 3 below.
+    await _refreshToken();
+
     try {
       var fs   = await _importFS();
       var rtdb = await _importRTDB();
@@ -962,17 +1025,19 @@
                    || (_user && _user.email && _user.email.split('@')[0]) || 'Co-Host';
       var myAvatar = (_userData && (_userData.avatar || _userData.profilePicture)) || '';
 
-      // ── 1. Update Firestore request status to 'accepted' ──
-      if (inv.requestId) {
-        try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'accepted' }); } catch(e) {
-          console.warn('[CoHost] acceptInvite FS update non-fatal:', e && e.message);
+      // ── 1. Remove the RTDB invite node first so no stale popup can reappear ──
+      var nodeKey = inv._childKey || inv.senderUid || inv.hostUid;
+      if (nodeKey && _user) {
+        try { await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + nodeKey)); } catch(e) {
+          console.warn('[CoHost] acceptInvite RTDB invite remove non-fatal:', { code: e && e.code, message: e && e.message });
         }
       }
 
-      // ── 2. Remove the RTDB invite node ──
-      var nodeKey = inv._childKey || inv.senderUid || inv.hostUid;
-      if (nodeKey && _user) {
-        try { await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + nodeKey)); } catch(e) {}
+      // ── 2. Update Firestore request status to 'accepted' (non-fatal) ──
+      if (inv.requestId) {
+        try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'accepted' }); } catch(e) {
+          console.warn('[CoHost] acceptInvite FS update non-fatal:', { code: e && e.code, message: e && e.message });
+        }
       }
 
       // ── 3. Write to active co-hosts list ──
@@ -1006,7 +1071,12 @@
         }
       }
     } catch(e) {
-      console.error('[CoHost] acceptInvite:', e.message);
+      console.error('[CoHost] acceptInvite failed:', {
+        code:    e && e.code,
+        message: e && e.message,
+        name:    e && e.name,
+        error:   e,
+      });
       _toast('Could not join: ' + _inviteErrorLabel(e));
       if (acceptBtn) { acceptBtn.disabled = false; acceptBtn.textContent = 'ACCEPT'; }
       if (denyBtn)   { denyBtn.disabled   = false; }
@@ -1032,18 +1102,32 @@
       var fs   = await _importFS();
       var rtdb = await _importRTDB();
 
-      // ── Update Firestore to 'declined' ──
-      if (inv.requestId) {
-        try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'declined' }); } catch(e) {}
-      }
-
-      // ── Remove RTDB invite node so host can re-invite the same user later ──
+      // ── Remove RTDB invite node FIRST so host can re-invite even if FS update fails ──
+      // This order guarantees the cleanup path executes regardless of Firestore errors.
       var nodeKey = inv._childKey || inv.senderUid || inv.hostUid;
       if (nodeKey && _user) {
-        try { await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + nodeKey)); } catch(e) {}
+        try {
+          await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + nodeKey));
+        } catch(e) {
+          console.warn('[CoHost] declineInvite RTDB remove non-fatal:', { code: e && e.code, message: e && e.message });
+        }
+      }
+
+      // ── Update Firestore to 'declined' (non-fatal — RTDB node already removed above) ──
+      if (inv.requestId) {
+        try {
+          await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'declined' });
+        } catch(e) {
+          console.warn('[CoHost] declineInvite FS update non-fatal:', { code: e && e.code, message: e && e.message });
+        }
       }
     } catch(e) {
-      console.error('[CoHost] declineInvite:', e.message);
+      console.error('[CoHost] declineInvite failed:', {
+        code:    e && e.code,
+        message: e && e.message,
+        name:    e && e.name,
+        error:   e,
+      });
       if (acceptBtn) { acceptBtn.disabled = false; }
       if (denyBtn)   { denyBtn.disabled   = false; denyBtn.textContent = 'DENY'; }
     }

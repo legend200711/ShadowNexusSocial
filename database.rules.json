@@ -64,11 +64,12 @@
     //
     //  Sender writes; receiver reads and updates their own slot.
     //  Both parties can delete (clean up after answering).
+    //  senderUID must differ from receiverUID to prevent self-invites.
     "coHostInvites": {
       "$receiverUID": {
         "$senderUID": {
           ".read":  "auth != null && (auth.uid == $receiverUID || auth.uid == $senderUID)",
-          ".write": "auth != null && (auth.uid == $senderUID   || auth.uid == $receiverUID)"
+          ".write": "auth != null && (auth.uid == $senderUID   || auth.uid == $receiverUID) && $senderUID != $receiverUID"
         }
       }
     },

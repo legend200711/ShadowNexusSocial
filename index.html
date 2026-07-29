@@ -3930,11 +3930,20 @@ img:not([loading]), video:not([loading]) { loading: lazy; }
 .ipc-modal-messages,
 .storm-messages,
 .support-messages,
-.social-list-body,
-.snx-pwall-comment-list {
+.social-list-body {
     contain: strict;
     will-change: scroll-position;
     /* GPU-accelerated scrolling on WebKit */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+
+/* Profile wall comment list uses max-height (not a fixed height), so contain:strict
+   would collapse it to 0px via contain:size — use contain:content instead which is
+   safe for a naturally-sized scrollable container. */
+.snx-pwall-comment-list {
+    contain: content;
+    will-change: scroll-position;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
 }
@@ -19601,16 +19610,14 @@ async function snxLoadProfileWall(uid) {
                     </button>
                     <button class="snx-pwall-social-btn"
                             onclick="snxToggleWallComments('${w.id}')">
-                        💬 <span id="pwccount-${w.id}">${commentCount}</span>
+                        💬 <span id="pwccount-${w.id}">${commentCount}</span> Comment${commentCount === 1 ? '' : 's'}
                     </button>
                     ${ownerActions ? `<div style="flex:1;display:flex;justify-content:flex-end;gap:6px;">${ownerActions}</div>` : ''}
                 </div>
 
                 <!-- Inline comments -->
                 <div class="snx-pwall-comments" id="pwcomments-${w.id}">
-                    <div class="snx-pwall-comment-list" id="pwclist-${w.id}">
-                        <div style="color:#4a6a8a;font-size:12px;text-align:center;padding:8px 0;">Loading comments…</div>
-                    </div>
+                    <div class="snx-pwall-comment-list" id="pwclist-${w.id}"></div>
                     <div class="snx-pwall-comment-input-row">
                         <input class="snx-pwall-comment-input" id="pwcinput-${w.id}"
                                maxlength="280" placeholder="Add a comment…"
@@ -19621,6 +19628,10 @@ async function snxLoadProfileWall(uid) {
                 </div>
             `;
             container.appendChild(card);
+            // Start the real-time comment listener immediately for every post card.
+            // Comments will be ready in the background before the user even clicks
+            // the comment button, so the panel shows live data the instant it opens.
+            snxStartWallCommentsListener(w.id);
         });
     } catch(e) {
         console.error('[ProfileWall] load error:', e);
@@ -19717,17 +19728,25 @@ function snxUnsubAllWallComments() {
     Object.keys(map).forEach(k => delete map[k]);
 }
 
-/** Toggle comment panel open/closed; starts real-time listener on first open */
+/** Toggle comment panel open/closed.
+    The real-time listener is now started eagerly when the wall loads, so
+    we only need to (re)start it here if it was somehow not yet running. */
 function snxToggleWallComments(wallDocId) {
     const panel = document.getElementById('pwcomments-' + wallDocId);
     if (!panel) return;
     const isOpen = panel.classList.contains('open');
     panel.classList.toggle('open', !isOpen);
     if (!isOpen) {
-        // Start (or restart) the real-time listener every time the panel opens
-        snxStartWallCommentsListener(wallDocId);
+        // Ensure the listener is running (it should already be, but guard against
+        // edge cases where the panel was rendered before the listener could start).
+        if (!window._snxWallCommentUnsubs[wallDocId]) {
+            snxStartWallCommentsListener(wallDocId);
+        }
         const inp = document.getElementById('pwcinput-' + wallDocId);
         if (inp) setTimeout(() => inp.focus(), 120);
+        // Scroll list to bottom so newest comments are visible on open
+        const listEl = document.getElementById('pwclist-' + wallDocId);
+        if (listEl) setTimeout(() => { listEl.scrollTop = listEl.scrollHeight; }, 80);
     }
 }
 
@@ -19782,7 +19801,8 @@ function snxStartWallCommentsListener(wallDocId) {
                 const av = c.authorAvatar
                     ? `<div class="snx-pwall-comment-avatar" style="background-image:url('${_esc(c.authorAvatar)}');background-size:cover;background-position:center;"></div>`
                     : `<div class="snx-pwall-comment-avatar">${(c.authorName || '?')[0].toUpperCase()}</div>`;
-                const canDel = me && (me.uid === c.authorUid);
+                // Allow deletion by: the comment author OR the wall owner
+                const canDel = me && (me.uid === c.authorUid || me.uid === c.wallOwnerUid);
                 const delBtn = canDel
                     ? `<button class="snx-pwall-comment-del" onclick="snxDeleteWallComment('${wallDocId}','${d.id}')" title="Delete">✕</button>`
                     : '';
@@ -19893,13 +19913,17 @@ async function snxDeleteWallComment(wallDocId, commentId) {
     if (!_fs) return;
     const { db, doc, deleteDoc, updateDoc, increment } = _fs;
     try {
-        // Fetch the comment first to confirm the current user owns it
+        // Fetch the comment first to verify ownership: allow deletion by comment
+        // author OR by the wall owner (so owners can moderate their own wall).
         const me = window._snxCurrentUser;
         const { getDoc } = _fs;
         const cSnap = await getDoc(doc(db, 'wallPostComments', wallDocId, 'comments', commentId));
-        if (cSnap.exists() && cSnap.data().authorUid !== me.uid) {
-            toastNotification('You can only delete your own comments.');
-            return;
+        if (cSnap.exists()) {
+            const cData = cSnap.data();
+            if (cData.authorUid !== me.uid && cData.wallOwnerUid !== me.uid) {
+                toastNotification('You can only delete your own comments.');
+                return;
+            }
         }
 
         await deleteDoc(doc(db, 'wallPostComments', wallDocId, 'comments', commentId));
