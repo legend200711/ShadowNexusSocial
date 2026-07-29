@@ -1,5 +1,5 @@
 /**
- * Shadow Nexus Live - cohost.js  (v5)
+ * Shadow Nexus Live - cohost.js  (v6)
  *
  * Co-Host feature - completely self-contained.
  * Does NOT touch live.js internals, chat, feed, guest boxes,
@@ -13,20 +13,21 @@
  *              coHostInvites/{guestUid}/{hostUid}
  *              liveRooms/{roomId}  (read-only — written by live.js)
  *
- * v5 fixes:
- *  - Friend list: loading spinner, retry-on-failure, per-friend error isolation
- *  - Friend list: checks multiple field names (friends, friendList, friendIds)
- *  - Live Now: real-time RTDB + Firestore listeners that fire immediately
- *  - Live Now: respects whoCanCohost='friends' filter (only shows live friends)
- *  - Live Now: friends who are live appear in both Live Now AND Friends sections
- *  - Live Now: profile picture, username, LIVE badge on every row
- *  - Live Now: search works immediately on each keystroke
- *  - Live Now: invite button sends invite to any listed live user
- *  - Invite card: pop-up notification with Accept / Decline
- *  - Accept invite: automatically triggers guest box request
- *  - Empty list guard: list never shows empty when users are live
- *  - Real-time removal: user disappears the instant their stream ends
- *  - RTDB listeners: always use the unsubscribe fn returned by onValue()
+ * v6 fixes:
+ *  - _declineInvite: writes 'declined' (was 'denied') — now matches
+ *    _subscribeDeclineNotifications query (status == 'declined')
+ *  - _sendInvite: real error code/message shown in toast instead of generic text
+ *  - _sendInvite: automatic retry (up to 2 attempts) on transient network errors
+ *  - _sendInvite: atomic cleanup — if RTDB write fails after Firestore write,
+ *    Firestore doc is rolled back so state is never half-written
+ *  - _sendInvite: stale/expired invite cleanup before sending a new one
+ *  - _watchForInvite: TTL guard — ignores invites older than 5 minutes
+ *  - _acceptInvite: exact roomId match before navigation (no false-positive indexOf)
+ *  - _acceptInvite: buttons disabled during async processing to prevent double-accept
+ *  - _wireEvents: Accept/Deny buttons re-wired via event delegation so card
+ *    recreation never loses listeners
+ *  - _closePanel: resets _friendsLoading so panel re-open can refresh the list
+ *  - _watchInviteResponse: handles both 'declined' and 'denied' for safety
  */
 
 'use strict';
@@ -40,6 +41,9 @@
   // Real-time live-user listeners — unsubscribe functions returned by onValue / onSnapshot
   var _rtdbLiveUnsub = null;
   var _fsLiveUnsub   = null;
+  // How long (ms) an invite stays valid before it is considered stale
+  var _INVITE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
   var _pendingInvites = {}, _panelOpen = false;
   var _cohostSettings = { allowCohosts: true, whoCanCohost: 'everyone' };
   var _pendingInviteData = null;
@@ -257,10 +261,13 @@
     if (btn) btn.addEventListener('click', _togglePanel);
     var closeBtn = document.getElementById('cohostPanelClose');
     if (closeBtn) closeBtn.addEventListener('click', _closePanel);
-    var acceptBtn = document.getElementById('cohostAcceptBtn');
-    if (acceptBtn) acceptBtn.addEventListener('click', _acceptInvite);
-    var denyBtn = document.getElementById('cohostDenyBtn');
-    if (denyBtn) denyBtn.addEventListener('click', _declineInvite);
+    // ── Accept / Deny via event delegation on document.body ──────────────
+    // This pattern survives card re-creation because the listener lives on
+    // document.body, not on the card itself. Buttons matched by stable IDs.
+    document.body.addEventListener('click', function(e) {
+      if (e.target && e.target.id === 'cohostAcceptBtn') _acceptInvite();
+      if (e.target && e.target.id === 'cohostDenyBtn')   _declineInvite();
+    });
     if (_isHost) {
       var toggleAllow = document.getElementById('toggleAllowCohost');
       if (toggleAllow) toggleAllow.addEventListener('change', function(e) {
@@ -309,6 +316,8 @@
     if (!panel) return;
     panel.classList.remove('visible'); if (btn) btn.classList.remove('cohost-active');
     _panelOpen = false;
+    // Reset so the next open re-fetches a fresh friend list
+    _friendsLoading = false;
   }
 
   /* ── RTDB listener: fires within milliseconds of any stream start/end ── */
@@ -601,47 +610,119 @@
     container.appendChild(row);
   }
 
+  /* ── Human-readable label for Firebase error codes ── */
+  function _inviteErrorLabel(e) {
+    if (!e) return 'Unknown error.';
+    var code = e.code || '';
+    if (code === 'permission-denied')    return 'Permission denied. Are you signed in?';
+    if (code === 'unavailable')          return 'Service unavailable \u2014 try again.';
+    if (code === 'deadline-exceeded')    return 'Request timed out \u2014 try again.';
+    if (code === 'not-found')            return 'Live session not found. Has it ended?';
+    if (code === 'already-exists')       return 'An invite was already sent.';
+    if (code === 'unauthenticated')      return 'Not signed in. Please reload and try again.';
+    if (code === 'resource-exhausted')   return 'Too many requests. Please wait a moment.';
+    if (e.message && e.message.length < 120) return e.message;
+    return 'Could not send invite (' + (code || 'unknown') + '). Try again.';
+  }
+
+  /* ── Determine if an error is safe to retry (transient) ── */
+  function _isRetryable(e) {
+    var code = (e && e.code) || '';
+    return code === 'unavailable' || code === 'deadline-exceeded' || code === 'internal';
+  }
+
   async function _sendInvite(user, btn) {
     if (!_db || !_liveDB || !_user || !_roomId) return;
     if (!_coHostEnabled) { _toast('Co-Hosting is currently unavailable.'); return; }
     if (!_cohostSettings.allowCohosts) { _toast('Co-Hosting is disabled in Live Settings.'); return; }
     if (_cohostSettings.whoCanCohost === 'nobody') { _toast('Co-Hosting is set to nobody.'); return; }
     if (_pendingInvites[user.uid]) { _toast('Invite already sent to ' + (user.displayName||'this user')); return; }
-    var guestId = user.uid, requestId = _roomId + '_' + guestId;
-    try {
-      var fs = await _importFS(); var rtdb = await _importRTDB();
-      var hostName = _userData.displayName || (_user.email && _user.email.split('@')[0]) || 'Host';
-      var hostAvatar = _userData.avatar || _userData.profilePicture || '';
-      await fs.setDoc(fs.doc(_db, 'coHostRequests', requestId), {
-        liveId: _roomId, hostId: _user.uid, hostName: hostName, hostAvatar: hostAvatar,
-        guestId: guestId, guestName: user.displayName || '', status: 'pending', createdAt: fs.serverTimestamp(),
-      });
-      // RTDB payload includes all fields that the guest-side popup reads:
-      //   status  → filtered by index.html: v.status === 'pending'
-      //   from    → displayed as sender name:  data.from || 'Someone'
-      //   roomId  → navigation on Accept:      data.roomId
-      //   time    → sort order:                b.time - a.time
-      await rtdb.set(rtdb.ref(_liveDB, 'coHostInvites/' + guestId + '/' + _user.uid), {
-        status: 'pending',
-        from: hostName,
-        fromAvatar: hostAvatar,
-        hostUid: _user.uid,
-        roomId: _roomId,
-        liveId: _roomId,
-        requestId: requestId,
-        time: Date.now(),
-        ts: Date.now(),
-      });
-      // Mark as sent only after the write succeeds
-      if (btn) { btn.textContent = 'Sent'; btn.classList.add('sent'); btn.disabled = true; }
-      _pendingInvites[guestId] = requestId;
-      _toast('Invite sent to ' + (user.displayName || 'user'));
-      _watchInviteResponse(guestId, requestId);
-    } catch(e) {
-      console.error('[CoHost] sendInvite failed:', e.code, e.message);
-      _toast('Could not send invite. Try again.');
-      if (btn) { btn.textContent = 'Invite'; btn.classList.remove('sent'); btn.disabled = false; }
-      delete _pendingInvites[guestId];
+
+    var guestId   = user.uid;
+    var requestId = _roomId + '_' + guestId;
+
+    // ── Disable button immediately to prevent double-tap ──
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending\u2026'; }
+
+    var attempt     = 0;
+    var maxAttempts = 2;
+
+    while (attempt < maxAttempts) {
+      attempt++;
+      var fsWriteDone = false;
+      try {
+        var fs   = await _importFS();
+        var rtdb = await _importRTDB();
+        var hostName   = _userData.displayName || (_user.email && _user.email.split('@')[0]) || 'Host';
+        var hostAvatar = _userData.avatar || _userData.profilePicture || '';
+        var now        = Date.now();
+
+        // ── Step 1: Delete any stale Firestore doc so setDoc is always a clean create ──
+        try { await fs.deleteDoc(fs.doc(_db, 'coHostRequests', requestId)); } catch(_) {}
+
+        await fs.setDoc(fs.doc(_db, 'coHostRequests', requestId), {
+          liveId:     _roomId,
+          hostId:     _user.uid,
+          hostName:   hostName,
+          hostAvatar: hostAvatar,
+          guestId:    guestId,
+          guestName:  user.displayName || '',
+          status:     'pending',
+          createdAt:  fs.serverTimestamp(),
+        });
+        fsWriteDone = true;
+
+        // ── Step 2: Write RTDB coHostInvites node ──
+        // RTDB payload includes all fields that the guest-side popup reads:
+        //   status  → filtered by _watchForInvite: inv.status === 'pending'
+        //   from    → displayed as sender name
+        //   roomId  → navigation on Accept
+        //   ts      → TTL check: invites older than _INVITE_TTL_MS are ignored
+        await rtdb.set(rtdb.ref(_liveDB, 'coHostInvites/' + guestId + '/' + _user.uid), {
+          status:     'pending',
+          from:       hostName,
+          fromAvatar: hostAvatar,
+          hostUid:    _user.uid,
+          roomId:     _roomId,
+          liveId:     _roomId,
+          requestId:  requestId,
+          time:       now,
+          ts:         now,
+        });
+
+        // ── Both writes succeeded ──
+        if (btn) { btn.textContent = 'Sent \u2713'; btn.classList.add('sent'); btn.disabled = true; }
+        _pendingInvites[guestId] = requestId;
+        _toast('Invite sent to ' + (user.displayName || 'user'));
+        _watchInviteResponse(guestId, requestId);
+        return; // success — exit retry loop
+
+      } catch(e) {
+        console.error('[CoHost] sendInvite attempt ' + attempt + ':', e.code, e.message);
+
+        // ── Rollback: if Firestore wrote but RTDB failed, delete the FS doc ──
+        if (fsWriteDone) {
+          try {
+            var fsRb = await _importFS();
+            await fsRb.deleteDoc(fsRb.doc(_db, 'coHostRequests', requestId));
+          } catch(_) {}
+        }
+
+        var isLast   = attempt >= maxAttempts;
+        var canRetry = _isRetryable(e) && !isLast;
+
+        if (canRetry) {
+          // Brief pause then retry
+          if (btn) { btn.textContent = 'Retrying\u2026'; btn.disabled = true; }
+          await new Promise(function(res) { setTimeout(res, 1200); });
+        } else {
+          // Final failure — show real error, restore button
+          _toast(_inviteErrorLabel(e));
+          if (btn) { btn.textContent = 'Invite'; btn.classList.remove('sent'); btn.disabled = false; }
+          delete _pendingInvites[guestId];
+          return;
+        }
+      }
     }
   }
 
@@ -655,7 +736,8 @@
           unsub(); _toast('Co-host accepted your invite!');
           if (_activeUnsub) { try { _activeUnsub(); } catch(e){} _activeUnsub = null; }
           _subscribeActiveCohosts();
-        } else if (status === 'denied' || status === 'declined') {
+        } else if (status === 'declined' || status === 'denied') {
+          // Accept both spellings for resilience across client versions
           unsub(); _toast((snap.data().guestName || 'User') + ' declined your invite.');
           delete _pendingInvites[guestId];
           // Refresh invite button state in both lists
@@ -679,11 +761,21 @@
         if (!snap.exists()) { _hideInviteCard(); return; }
         if (!_coHostEnabled) return;
         var latestInvite = null, latestTs = 0;
+        var now = Date.now();
         snap.forEach(function(child) {
           var inv = child.val();
+          if (!inv) return;
           // Only consider invites that are still pending (ignore accepted/denied)
-          if (inv && inv.status === 'pending' && inv.ts > latestTs) {
-            latestTs = inv.ts;
+          if (inv.status !== 'pending') return;
+          // ── TTL guard: ignore invites older than _INVITE_TTL_MS ──
+          var invTs = inv.ts || inv.time || 0;
+          if (now - invTs > _INVITE_TTL_MS) {
+            // Clean up expired invite silently
+            try { rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + child.key)); } catch(_) {}
+            return;
+          }
+          if (invTs > latestTs) {
+            latestTs = invTs;
             latestInvite = Object.assign({ senderUid: child.key }, inv);
           }
         });
@@ -700,8 +792,13 @@
     var sub  = document.getElementById('cohostInviteSub');
     var icon = card && card.querySelector('.cohost-invite-icon');
     if (!card) return;
+    // Re-enable buttons in case they were disabled by a previous accept/decline attempt
+    var acceptBtn = document.getElementById('cohostAcceptBtn');
+    var denyBtn   = document.getElementById('cohostDenyBtn');
+    if (acceptBtn) { acceptBtn.disabled = false; acceptBtn.textContent = 'ACCEPT'; }
+    if (denyBtn)   { denyBtn.disabled   = false; denyBtn.textContent   = 'DENY'; }
     if (icon) {
-      var avUrl = inv.hostAvatar || '';
+      var avUrl = inv.hostAvatar || inv.fromAvatar || '';
       if (avUrl) {
         icon.innerHTML = '';
         var img = document.createElement('img');
@@ -714,7 +811,7 @@
         icon.textContent = '\uD83C\uDFA5';
       }
     }
-    if (sub) sub.textContent = (inv.hostName || 'Someone') + ' invited you to co-host their live stream.';
+    if (sub) sub.textContent = (inv.hostName || inv.from || 'Someone') + ' invited you to co-host their live stream.';
     card.classList.add('visible');
   }
 
@@ -726,6 +823,13 @@
   async function _acceptInvite() {
     if (!_pendingInviteData) return;
     if (!_coHostEnabled) { _hideInviteCard(); _pendingInviteData = null; _toast('Co-Hosting is currently unavailable.'); return; }
+
+    // ── Disable buttons immediately to prevent double-accept ──
+    var acceptBtn = document.getElementById('cohostAcceptBtn');
+    var denyBtn   = document.getElementById('cohostDenyBtn');
+    if (acceptBtn) { acceptBtn.disabled = true; acceptBtn.textContent = 'Joining\u2026'; }
+    if (denyBtn)   { denyBtn.disabled   = true; }
+
     var inv = _pendingInviteData; _pendingInviteData = null; _hideInviteCard();
     try {
       var fs   = await _importFS();
@@ -733,18 +837,27 @@
       var myName   = (_userData && _userData.displayName)
                    || (_user && _user.email && _user.email.split('@')[0]) || 'Co-Host';
       var myAvatar = (_userData && (_userData.avatar || _userData.profilePicture)) || '';
+
+      // Update Firestore request status
       if (inv.requestId) {
         try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'accepted' }); } catch(e) {}
       }
+
+      // Remove the RTDB invite node
       var sk = inv.senderUid || inv.hostUid;
       try { await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + sk)); } catch(e) {}
-      if (inv.liveId) {
-        await rtdb.set(rtdb.ref(_liveDB, 'cohosts/' + inv.liveId + '/active/' + _user.uid), {
+
+      // Write to the active co-hosts list for the live room
+      var targetLiveId = inv.liveId || inv.roomId || '';
+      if (targetLiveId) {
+        await rtdb.set(rtdb.ref(_liveDB, 'cohosts/' + targetLiveId + '/active/' + _user.uid), {
           uid: _user.uid, name: myName, avatar: myAvatar, role: 'cohost', joinedAt: Date.now(),
         });
       }
+
       _showCohostBadge();
       _toast('You joined as co-host!');
+
       // Auto-request a guest box so the co-host's video appears on stage.
       // _viewerRequestBox() is exposed on window by live.js.
       if (typeof window._viewerRequestBox === 'function') {
@@ -752,18 +865,39 @@
           console.warn('[CoHost] Auto guest-box request failed:', e && e.message);
         }
       }
-      if (inv.liveId && window.location.hash.indexOf(inv.liveId) === -1) {
-        window.location.href = 'live.html#watch=' + inv.liveId;
+
+      // Navigate to the live room only if not already watching it.
+      // Use exact hash comparison to avoid matching partial IDs.
+      if (targetLiveId) {
+        var expectedHash = '#watch=' + targetLiveId;
+        if (window.location.hash !== expectedHash) {
+          window.location.href = 'live.html' + expectedHash;
+        }
       }
-    } catch(e) { console.error('[CoHost] acceptInvite:', e.message); _toast('Could not join. Please try again.'); }
+    } catch(e) {
+      console.error('[CoHost] acceptInvite:', e.message);
+      _toast('Could not join: ' + _inviteErrorLabel(e));
+      // Re-enable buttons so the user can try again
+      if (acceptBtn) { acceptBtn.disabled = false; acceptBtn.textContent = 'ACCEPT'; }
+      if (denyBtn)   { denyBtn.disabled   = false; }
+    }
   }
 
   async function _declineInvite() {
     if (!_pendingInviteData) return;
+
+    // ── Disable buttons immediately to prevent double-tap ──
+    var acceptBtn = document.getElementById('cohostAcceptBtn');
+    var denyBtn   = document.getElementById('cohostDenyBtn');
+    if (acceptBtn) { acceptBtn.disabled = true; }
+    if (denyBtn)   { denyBtn.disabled   = true; denyBtn.textContent = 'Declining\u2026'; }
+
     var inv = _pendingInviteData; _pendingInviteData = null; _hideInviteCard();
     try {
       var fs = await _importFS(); var rtdb = await _importRTDB();
-      if (inv.requestId) { try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'denied' }); } catch(e){} }
+      // ── FIX: write 'declined' (not 'denied') so _subscribeDeclineNotifications
+      //    Firestore query (status == 'declined') fires correctly on the host side ──
+      if (inv.requestId) { try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'declined' }); } catch(e){} }
       var sk = inv.senderUid || inv.hostUid;
       try { await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + sk)); } catch(e){}
     } catch(e) { console.error('[CoHost] declineInvite:', e.message); }

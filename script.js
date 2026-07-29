@@ -24,7 +24,6 @@
   const isGH    = location.pathname.startsWith('/ShadowNexusSocial');
   const base    = isGH ? '/ShadowNexusSocial/' : './';
   const swPath  = base + 'sw.js';
-  const fcmPath = base + 'firebase-messaging-sw.js';
 
   window.addEventListener('load', async () => {
 
@@ -33,9 +32,9 @@
       const reg = await navigator.serviceWorker.register(swPath, { scope: base });
       console.log('[SW] Registered, scope:', reg.scope);
 
-      // If a new SW is already waiting on first load, show the update toast now
+      // If a new SW is already waiting on first load, show the update bar now
       if (reg.waiting) {
-        showUpdateToast(reg.waiting);
+        _showSWUpdateBar(reg.waiting);
       }
 
       // Detect new SW installing while the page is open
@@ -43,19 +42,24 @@
         const newWorker = reg.installing;
         if (!newWorker) return;
         newWorker.addEventListener('statechange', () => {
+          // Only show update bar when a truly NEW version is waiting.
+          // navigator.serviceWorker.controller is null on the very first install,
+          // so this branch is skipped — no update bar on first visit.
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New version ready — prompt user to reload
-            showUpdateToast(newWorker);
+            _showSWUpdateBar(newWorker);
           }
         });
       });
 
-      // When the new SW takes control, reload so the fresh files are used
+      // ── controllerchange reload guard ──
+      // Only reload when the user explicitly clicked "Update" in the update bar.
+      // This prevents auto-reloads on first install and on every page open.
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!sessionStorage.getItem('snx-sw-reloading')) {
-          sessionStorage.setItem('snx-sw-reloading', '1');
+        if (sessionStorage.getItem('snx-sw-user-update')) {
+          sessionStorage.removeItem('snx-sw-user-update');
           window.location.reload();
         }
+        // Otherwise silently adopt the new controller — no reload needed.
       });
     } catch (err) {
       console.warn('[SW] Registration failed:', err);
@@ -69,6 +73,79 @@
   });
 
 })();
+
+/* ═══════════════════════════════════════════════════════════
+   3. SW UPDATE BAR
+   Shows a slim "New version available" bar at the bottom of
+   the screen.  User must tap it to apply the update.
+   No automatic reloads — ever.
+   ═══════════════════════════════════════════════════════════ */
+
+/**
+ * Show (or refresh) the SW update bar.
+ * @param {ServiceWorker} worker - the waiting service worker
+ */
+function _showSWUpdateBar(worker) {
+  // De-duplicate: only one bar at a time
+  if (document.getElementById('snx-update-bar')) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'snx-update-bar';
+  bar.setAttribute('role', 'status');
+  bar.setAttribute('aria-live', 'polite');
+  bar.style.cssText = [
+    'position:fixed',
+    'bottom:70px',
+    'left:50%',
+    'transform:translateX(-50%)',
+    'z-index:99998',
+    'background:rgba(0,15,45,0.97)',
+    'border:1px solid rgba(0,174,239,0.65)',
+    'border-radius:10px',
+    'padding:10px 20px',
+    'font-size:13px',
+    'color:#00AEEF',
+    'cursor:pointer',
+    'white-space:nowrap',
+    'box-shadow:0 4px 18px rgba(0,0,0,0.55)',
+    'display:flex',
+    'align-items:center',
+    'gap:10px',
+  ].join(';');
+
+  const label = document.createElement('span');
+  label.textContent = '🔄 Update available — tap to refresh';
+
+  const dismissBtn = document.createElement('button');
+  dismissBtn.textContent = '✕';
+  dismissBtn.setAttribute('aria-label', 'Dismiss update notification');
+  dismissBtn.style.cssText = 'background:none;border:none;color:#7aadcc;font-size:14px;cursor:pointer;padding:0 2px;line-height:1;';
+  dismissBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    bar.remove();
+  });
+
+  bar.appendChild(label);
+  bar.appendChild(dismissBtn);
+
+  // Tapping the bar applies the update and reloads once (user-initiated)
+  bar.addEventListener('click', () => {
+    label.textContent = 'Updating…';
+    dismissBtn.style.display = 'none';
+    // Signal the controllerchange handler that THIS reload is intentional
+    sessionStorage.setItem('snx-sw-user-update', '1');
+    worker.postMessage({ type: 'SKIP_WAITING' });
+  });
+
+  document.body.appendChild(bar);
+
+  // Auto-dismiss after 20 s — user can always refresh manually later
+  setTimeout(() => { if (bar.parentNode) bar.remove(); }, 20000);
+}
+
+// Expose globally so index.html inline scripts can call it if needed
+window.showUpdateToast = _showSWUpdateBar;
+
 
 /* ═══════════════════════════════════════════════
    4. PWA INSTALL BANNER

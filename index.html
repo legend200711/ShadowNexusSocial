@@ -3751,9 +3751,24 @@ input:focus, textarea:focus, select:focus {
     background: rgba(0,20,55,0.7); border: 1px solid rgba(0,100,180,0.25);
     border-radius: 12px; padding: 10px 14px; cursor: pointer; min-width: 60px;
     transition: border-color 0.18s, box-shadow 0.18s, transform 0.12s;
+    -webkit-tap-highlight-color: rgba(0,174,239,0.18);
+    user-select: none;
 }
-.comm-react-btn:hover { border-color: rgba(0,174,239,0.55); transform: scale(1.06); }
-.comm-react-btn.active { border-color: rgba(57,255,20,0.6); box-shadow: 0 0 10px rgba(57,255,20,0.2); }
+.comm-react-btn:hover:not(.active) { border-color: rgba(0,174,239,0.55); transform: scale(1.06); }
+.comm-react-btn:active:not(.active) { transform: scale(0.94); }
+.comm-react-btn.active {
+    border-color: rgba(57,255,20,0.6);
+    box-shadow: 0 0 10px rgba(57,255,20,0.2);
+    cursor: default;
+    background: rgba(0,30,10,0.7);
+}
+@keyframes commReactPop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.22); }
+    70%  { transform: scale(0.92); }
+    100% { transform: scale(1); }
+}
+.comm-react-btn.pop { animation: commReactPop 0.32s ease-out both; }
 .comm-react-emoji { font-size: 22px; }
 .comm-react-count { font-size: 11px; color: #6a90b8; font-weight: 700; }
 .comm-react-btn.active .comm-react-count { color: #39FF14; }
@@ -9714,8 +9729,8 @@ body.arcade-fs-ios body::after { display:none !important; }
   let userData = null;
   let _authFirstResolved = false; // prevents login-flash on initial page load
   let activeProfileUid = null;
-  let scrollLimit = 8;
-  const BATCH_SIZE = 4;               // posts to add per "load more" trigger
+  let scrollLimit = 30;
+  const BATCH_SIZE = 10;              // posts to add per "load more" trigger
   let totalUnread = 0;
   let feedUnsubscribe      = null;    // timeline feed
   let presenceUnsubscribe  = null;    // all-users presence strip
@@ -11292,7 +11307,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (diff < 60)   return diff + 's ago';
       if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
       if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-      // Older than 24h — shouldn't normally be visible, but format as full date
+      // Older than 24 hours — format as a readable date
       return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
            + ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   }
@@ -11319,12 +11334,15 @@ body.arcade-fs-ios body::after { display:none !important; }
             </div>`;
       }
 
+      console.log('[Feed] initTimelineStream — subscribing with limit=' + scrollLimit + ', uid=' + (currentUser && currentUser.uid));
       const qElements = query(collection(db, "posts"), orderBy("timestamp", "desc"), limit(scrollLimit));
       feedUnsubscribe = onSnapshot(qElements, (snapshot) => {
           try {
           const container = document.getElementById("feedPosts");
           if (!container) return;
           const nowMs = Date.now();
+
+          console.log('[Feed] Snapshot received — docs=' + snapshot.size + ', empty=' + snapshot.empty);
 
           // Clear loading state on first real snapshot
           const loadingEl = container.querySelector('#feedLoadingState');
@@ -11335,17 +11353,20 @@ body.arcade-fs-ios body::after { display:none !important; }
           // they must never appear in the main feed scroll.
           // Regular posts are permanent and are never filtered by time.
           const incomingIds = new Set();
+          let filteredOutCount = 0; // tracks how many docs Firestore returned but were filtered
           snapshot.forEach(pDoc => {
               const p = pDoc.data();
               // Skip live/live_share posts — they belong in the Live Hub, not the feed
-              if (p.type === 'live' || p.type === 'live_share') return;
+              if (p.type === 'live' || p.type === 'live_share') { filteredOutCount++; return; }
               // Skip mod-hidden posts so they don't appear in regular users' feeds
-              if (p.hidden === true) return;
+              if (p.hidden === true) { filteredOutCount++; return; }
               // Only apply expiry filter to live/live_share session cards that have
               // an explicit expiresAt. Regular posts no longer carry this field.
-              if ((p.type === 'live' || p.type === 'live_share') && p.expiresAt && p.expiresAt < nowMs) return;
+              if ((p.type === 'live' || p.type === 'live_share') && p.expiresAt && p.expiresAt < nowMs) { filteredOutCount++; return; }
               incomingIds.add(pDoc.id);
           });
+
+          console.log('[Feed] After filter — visible=' + incomingIds.size + ', filteredOut=' + filteredOutCount);
 
           // Remove DOM nodes for posts no longer in the snapshot (deleted/hidden/expired)
           container.querySelectorAll('.postBox[id^="post-"]').forEach(el => {
@@ -11382,6 +11403,16 @@ body.arcade-fs-ios body::after { display:none !important; }
                   console.warn('[Feed] Empty snapshot but DOM has posts — skipping wipe.');
                   return;
               }
+              // If Firestore returned documents but ALL were filtered out (live/hidden),
+              // widen the query and retry rather than showing "empty" to the user.
+              if (filteredOutCount > 0 && snapshot.size >= scrollLimit) {
+                  console.log('[Feed] All ' + snapshot.size + ' docs were live/hidden — widening query to find regular posts.');
+                  scrollLimit += BATCH_SIZE;
+                  setTimeout(() => { if (currentUser) initTimelineStream(); }, 300);
+                  return;
+              }
+              // Genuine empty state — Firestore has no regular posts at all
+              console.log('[Feed] Genuine empty feed — snapshot.size=' + snapshot.size + ', filteredOut=' + filteredOutCount);
               container.innerHTML = `
                 <div style="text-align:center;padding:48px 20px;color:#3a5a7a;">
                     <div style="font-size:40px;margin-bottom:14px;">🌑</div>
@@ -19982,6 +20013,29 @@ window.clearBannerUpload   = clearBannerUpload;
         return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
+    /* ── Cleanup expired anon posts from Firestore (server-side delete) ──
+       Runs once per page open. Queries posts with expiresAt in the past
+       and batch-deletes them so they don't accumulate in the database. */
+    async function _cleanExpiredAnonPosts() {
+        const fs = window._snxFirestore;
+        if (!fs) return;
+        try {
+            const { db, doc, collection, query, where, getDocs, writeBatch } = fs;
+            const anonRef = collection(doc(collection(db,'community'),'anonBoard'),'posts');
+            const nowMs = Date.now();
+            const expiredSnap = await getDocs(
+                query(anonRef, where('expiresAt', '<', nowMs))
+            );
+            if (expiredSnap.empty) return;
+            const batch = writeBatch(db);
+            expiredSnap.forEach(d => batch.delete(d.ref));
+            await batch.commit();
+            console.log('[Comm] Cleaned ' + expiredSnap.size + ' expired anon post(s).');
+        } catch (e) {
+            console.warn('[Comm] Anon post cleanup error:', e.message || e);
+        }
+    }
+
     /* ── Init — called every time the Community Hub page opens ── */
     window.commInitPage = function() {
         _renderQuote();
@@ -19990,6 +20044,8 @@ window.clearBannerUpload   = clearBannerUpload;
         _startReactionsListener();  // live onSnapshot for Community Pulse counts
         _startGoalsListener();      // live onSnapshot for Community Goals
         _loadAnonPosts();           // live onSnapshot for Anonymous Support Board
+        // Silently delete posts older than 24 hours from Firestore
+        _cleanExpiredAnonPosts();
     };
 
     /* ── Teardown — called on logout or page unload ── */
@@ -20161,13 +20217,30 @@ window.clearBannerUpload   = clearBannerUpload;
     }
 
     window.commSendReaction = function(key) {
-        if (_myReacts[key]) return; // one reaction per key per session
+        const btn = document.getElementById('commReact_' + key);
+        const cnt = document.getElementById('commReactCount_' + key);
+        if (_myReacts[key]) {
+            // Already reacted — give tactile feedback so the user knows it registered
+            if (btn) {
+                btn.classList.remove('pop');
+                // Force reflow so the animation replays
+                void btn.offsetWidth;
+                btn.classList.add('pop');
+                btn.addEventListener('animationend', () => btn.classList.remove('pop'), { once: true });
+            }
+            toastNotification('💚 You already sent this reaction!');
+            return;
+        }
         _myReacts[key] = true;
         localStorage.setItem('snx_comm_reacts', JSON.stringify(_myReacts));
         _reactCache[key] = (_reactCache[key] || 0) + 1;
-        const btn = document.getElementById('commReact_' + key);
-        const cnt = document.getElementById('commReactCount_' + key);
-        if (btn) btn.classList.add('active');
+        if (btn) {
+            btn.classList.add('active');
+            btn.classList.remove('pop');
+            void btn.offsetWidth;
+            btn.classList.add('pop');
+            btn.addEventListener('animationend', () => btn.classList.remove('pop'), { once: true });
+        }
         if (cnt) cnt.textContent = _reactCache[key];
         // Floating emoji
         if (btn) {
@@ -20180,6 +20253,7 @@ window.clearBannerUpload   = clearBannerUpload;
             document.body.appendChild(fe);
             fe.addEventListener('animationend', () => fe.remove());
         }
+        toastNotification('💙 Your ' + (REACTIONS.find(r => r.key === key)?.label || 'reaction') + ' was sent to the community!');
         // Persist increment to Firestore
         const fs = window._snxFirestore;
         if (fs) {
@@ -20211,17 +20285,29 @@ window.clearBannerUpload   = clearBannerUpload;
         // Path: /community/anonBoard/posts
         const anonRef = collection(doc(collection(db,'community'),'anonBoard'),'posts');
         _anonUnsub = onSnapshot(
-            query(anonRef, orderBy('ts','desc'), limit(30)),
+            query(anonRef, orderBy('ts','desc'), limit(50)),
             snap => {
-                if (snap.empty) {
+                const nowMs = Date.now();
+                // Filter out posts whose 24-hour window has elapsed (client-side guard)
+                const liveDocs = snap.docs.filter(d => {
+                    const exp = d.data().expiresAt;
+                    // Posts without expiresAt are legacy — keep them visible
+                    return !exp || exp > nowMs;
+                });
+                if (liveDocs.length === 0) {
                     feed.innerHTML = '<div style="text-align:center;color:#4a7a9a;font-size:13px;padding:20px;">No posts yet. Be the first to share 💙</div>';
                     return;
                 }
                 feed.innerHTML = '';
-                snap.forEach(d => {
+                liveDocs.forEach(d => {
                     const data     = d.data();
                     const tagLabel = TAG_LABELS[data.tag] || data.tag || '';
                     const hugged   = data.hugs || 0;
+                    const msLeft   = data.expiresAt ? Math.max(0, data.expiresAt - nowMs) : null;
+                    const hrsLeft  = msLeft !== null ? Math.ceil(msLeft / 3600000) : null;
+                    const expiryLabel = hrsLeft !== null
+                        ? `<span style="font-size:10px;color:#3a5a7a;margin-left:4px;">⏳ ${hrsLeft}h left</span>`
+                        : '';
                     const el       = document.createElement('div');
                     el.className   = 'comm-anon-post' + (data.tag === 'support' ? ' support-post' : '');
                     el.dataset.docId = d.id;
@@ -20230,7 +20316,7 @@ window.clearBannerUpload   = clearBannerUpload;
                             <div class="comm-anon-avatar">${data.anon ? '🌑' : _esc(data.initials || '?')}</div>
                             <span class="comm-anon-name">${data.anon ? 'Anonymous' : _esc(data.displayName || 'Member')}</span>
                             <span class="comm-anon-tag ${data.tag === 'support' ? 'support' : ''}">${_esc(tagLabel)}</span>
-                            <span class="comm-anon-ts">${_relTime(data.ts)}</span>
+                            <span class="comm-anon-ts">${_relTime(data.ts)}${expiryLabel}</span>
                         </div>
                         <div class="comm-anon-text">${_esc(data.text)}</div>
                         <div class="comm-anon-actions">
@@ -20268,6 +20354,7 @@ window.clearBannerUpload   = clearBannerUpload;
             tag:         tagVal,
             anon:        isAnon,
             ts:          serverTimestamp(),
+            expiresAt:   Date.now() + 24 * 60 * 60 * 1000,  // auto-delete after 24 hours
             hugs:        0,
             uid:         isAnon ? null : cu.uid,
             displayName: isAnon ? null : (ud?.displayName || 'Member'),

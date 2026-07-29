@@ -2734,9 +2734,13 @@ function _checkForUpdate() {
   _updateChecked = true;
   if (!('serviceWorker' in navigator)) return;
 
-  // When a new SW takes over (after SKIP_WAITING), reload the page to apply updates
+  // When a new SW takes over (after SKIP_WAITING), reload the page to apply updates.
+  // Only reload when the user explicitly clicked the update bar — not on first install.
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    window.location.reload();
+    if (sessionStorage.getItem('snx-sw-user-update')) {
+      sessionStorage.removeItem('snx-sw-user-update');
+      window.location.reload();
+    }
   });
 
   navigator.serviceWorker.ready.then(reg => {
@@ -2776,6 +2780,8 @@ function _showUpdateBarIfWaiting(reg) {
   bar.textContent = '🔄 New version available — tap to refresh';
   bar.addEventListener('click', () => {
     bar.textContent = 'Updating…';
+    // Signal the controllerchange handler that this reload is user-initiated
+    sessionStorage.setItem('snx-sw-user-update', '1');
     reg.waiting.postMessage({ type: 'SKIP_WAITING' });
     // Reload will be triggered by the controllerchange event above
   });

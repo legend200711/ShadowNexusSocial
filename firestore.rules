@@ -495,10 +495,14 @@ service cloud.firestore {
     match /community/anonBoard/posts/{postId} {
       allow read:   if isSignedIn();
       allow create: if isSignedIn();
-      // Only Founder can delete; updates only allowed for incrementing hugs
+      // Only Founder can delete normally; updates only allowed for incrementing hugs.
+      // Any signed-in user may delete a post that has already expired (expiresAt in the past)
+      // so the client-side cleanup job can sweep old posts without founder access.
       allow update: if isSignedIn()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hugs']);
-      allow delete: if isFounder();
+      allow delete: if isFounder()
+        || (isSignedIn() && resource.data.expiresAt != null
+            && resource.data.expiresAt < request.time.toMillis());
     }
 
     // ── Live Users (presence) ──────────────────────────────────────────────────

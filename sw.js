@@ -65,6 +65,11 @@ const NETWORK_ONLY_HOSTS = [
    INSTALL — pre-cache the app shell
    ───────────────────────────────────────────── */
 self.addEventListener('install', (event) => {
+  // Pre-cache the app shell.
+  // Do NOT call skipWaiting() here — let the SW wait until the user explicitly
+  // requests an update (via the update bar in script.js / live.js).
+  // Calling skipWaiting() automatically on install causes a controllerchange
+  // event on every first visit, which previously triggered an unwanted page reload.
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) =>
@@ -76,7 +81,6 @@ self.addEventListener('install', (event) => {
           )
         )
       )
-      .then(() => self.skipWaiting())
   );
 });
 
@@ -233,7 +237,8 @@ let _snxOffline     = false;
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
-    // Take over immediately — all clients will reload via controllerchange
+    // User clicked the update bar — take over immediately.
+    // The page will reload via the guarded controllerchange handler in script.js / live.js.
     self.skipWaiting();
   }
   if (event.data?.type === 'CLEAR_CACHE') {
