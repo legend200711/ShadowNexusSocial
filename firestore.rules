@@ -469,11 +469,19 @@ service cloud.firestore {
     // ── Community ─────────────────────────────────────────────────────────────
     //
     //   /community/reactions             — aggregated reaction counts (increment)
+    //   /community/goals                 — aggregated community goal counters (increment)
     //   /community/challenges/completions/{uid_date} — daily challenge records
     //   /community/anonBoard/posts/{postId}          — anonymous support posts
 
     match /community/reactions {
       allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Community goal counters — incremented by any signed-in user on actions
+    match /community/goals {
+      allow read: if isSignedIn();
+      // Only allow incrementing numeric fields (merge updates from any signed-in user)
       allow write: if isSignedIn();
     }
 

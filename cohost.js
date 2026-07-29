@@ -608,8 +608,6 @@
     if (_cohostSettings.whoCanCohost === 'nobody') { _toast('Co-Hosting is set to nobody.'); return; }
     if (_pendingInvites[user.uid]) { _toast('Invite already sent to ' + (user.displayName||'this user')); return; }
     var guestId = user.uid, requestId = _roomId + '_' + guestId;
-    if (btn) { btn.textContent = 'Sent'; btn.classList.add('sent'); btn.disabled = true; }
-    _pendingInvites[guestId] = requestId;
     try {
       var fs = await _importFS(); var rtdb = await _importRTDB();
       var hostName = _userData.displayName || (_user.email && _user.email.split('@')[0]) || 'Host';
@@ -618,10 +616,25 @@
         liveId: _roomId, hostId: _user.uid, hostName: hostName, hostAvatar: hostAvatar,
         guestId: guestId, guestName: user.displayName || '', status: 'pending', createdAt: fs.serverTimestamp(),
       });
+      // RTDB payload includes all fields that the guest-side popup reads:
+      //   status  → filtered by index.html: v.status === 'pending'
+      //   from    → displayed as sender name:  data.from || 'Someone'
+      //   roomId  → navigation on Accept:      data.roomId
+      //   time    → sort order:                b.time - a.time
       await rtdb.set(rtdb.ref(_liveDB, 'coHostInvites/' + guestId + '/' + _user.uid), {
-        liveId: _roomId, hostUid: _user.uid, hostName: hostName, hostAvatar: hostAvatar,
-        requestId: requestId, ts: Date.now(),
+        status: 'pending',
+        from: hostName,
+        fromAvatar: hostAvatar,
+        hostUid: _user.uid,
+        roomId: _roomId,
+        liveId: _roomId,
+        requestId: requestId,
+        time: Date.now(),
+        ts: Date.now(),
       });
+      // Mark as sent only after the write succeeds
+      if (btn) { btn.textContent = 'Sent'; btn.classList.add('sent'); btn.disabled = true; }
+      _pendingInvites[guestId] = requestId;
       _toast('Invite sent to ' + (user.displayName || 'user'));
       _watchInviteResponse(guestId, requestId);
     } catch(e) {
@@ -642,7 +655,7 @@
           unsub(); _toast('Co-host accepted your invite!');
           if (_activeUnsub) { try { _activeUnsub(); } catch(e){} _activeUnsub = null; }
           _subscribeActiveCohosts();
-        } else if (status === 'declined') {
+        } else if (status === 'denied' || status === 'declined') {
           unsub(); _toast((snap.data().guestName || 'User') + ' declined your invite.');
           delete _pendingInvites[guestId];
           // Refresh invite button state in both lists
@@ -668,7 +681,8 @@
         var latestInvite = null, latestTs = 0;
         snap.forEach(function(child) {
           var inv = child.val();
-          if (inv && inv.ts > latestTs) {
+          // Only consider invites that are still pending (ignore accepted/denied)
+          if (inv && inv.status === 'pending' && inv.ts > latestTs) {
             latestTs = inv.ts;
             latestInvite = Object.assign({ senderUid: child.key }, inv);
           }
@@ -749,7 +763,7 @@
     var inv = _pendingInviteData; _pendingInviteData = null; _hideInviteCard();
     try {
       var fs = await _importFS(); var rtdb = await _importRTDB();
-      if (inv.requestId) { try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'declined' }); } catch(e){} }
+      if (inv.requestId) { try { await fs.updateDoc(fs.doc(_db, 'coHostRequests', inv.requestId), { status: 'denied' }); } catch(e){} }
       var sk = inv.senderUid || inv.hostUid;
       try { await rtdb.remove(rtdb.ref(_liveDB, 'coHostInvites/' + _user.uid + '/' + sk)); } catch(e){}
     } catch(e) { console.error('[CoHost] declineInvite:', e.message); }

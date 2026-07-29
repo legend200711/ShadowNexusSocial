@@ -10817,6 +10817,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (presenceUnsubscribe) { presenceUnsubscribe(); presenceUnsubscribe = null; }
           // notifUnsubscribe removed — notifications are now handled inside userDataUnsubscribe
           if (userDataUnsubscribe) { userDataUnsubscribe(); userDataUnsubscribe = null; }
+          // Tear down community hub listeners (reactions, goals, anon board)
+          if (typeof window.commTeardown === 'function') window.commTeardown();
           // Tear down the global co-host invite listener so it doesn't fire
           // against a null user after sign-out.
           if (window._snxCohostInviteRef) {
@@ -19907,14 +19909,6 @@ window.clearBannerUpload   = clearBannerUpload;
         { text: "🛡️ Report any harmful content you see — protect our community.", xp: 50 },
     ];
 
-    /* ── Community goals ── */
-    const GOALS = [
-        { label: "Kind messages sent this week", target: 500, current: 312 },
-        { label: "Support reactions given today", target: 200, current: 134 },
-        { label: "Anonymous posts this week", target: 100, current: 67 },
-        { label: "Daily challenges completed", target: 300, current: 189 },
-    ];
-
     /* ── Kindness badges ── */
     const KINDNESS_BADGES = [
         { icon: "🕊️", name: "Peacekeeper", desc: "Never been reported", key: "peacekeeper", unlocked: true },
@@ -19943,43 +19937,55 @@ window.clearBannerUpload   = clearBannerUpload;
         venting: '🌊 Venting', grateful: '✨ Grateful', milestone: '🎉 Milestone'
     };
 
-    let _quoteIdx = Math.floor(Math.random() * QUOTES.length);
-    let _challengeIdx = (new Date().getDate() + new Date().getMonth()) % CHALLENGES.length;
-    let _commInited = false;
-    let _reactCache = {}; // { key: count }
-    let _myReacts   = JSON.parse(localStorage.getItem('snx_comm_reacts') || '{}');
-    let _claimedKey = localStorage.getItem('snx_comm_claimed') || '';
-    let _anonUnsub  = null;
+    let _quoteIdx      = Math.floor(Math.random() * QUOTES.length);
+    let _challengeIdx  = (new Date().getDate() + new Date().getMonth()) % CHALLENGES.length;
+    let _reactCache    = {}; // { key: count } — persists across page re-opens so no flicker
+    let _myReacts      = JSON.parse(localStorage.getItem('snx_comm_reacts') || '{}');
+    let _claimedKey    = localStorage.getItem('snx_comm_claimed') || '';
+    let _anonUnsub     = null;  // onSnapshot unsubscribe for anon board
+    let _reactUnsub    = null;  // onSnapshot unsubscribe for reactions
+    let _goalsUnsub    = null;  // onSnapshot unsubscribe for community goals
 
     /* ── Helpers ── */
     function _todayKey() {
-        const d = new Date(); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        const d = new Date();
+        return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     }
     function _relTime(ts) {
         if (!ts) return '';
         const diff = Date.now() - (ts.toMillis ? ts.toMillis() : ts);
-        if (diff < 60000) return 'just now';
-        if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
-        if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
-        return Math.floor(diff/86400000) + 'd ago';
+        if (diff < 60000)    return 'just now';
+        if (diff < 3600000)  return Math.floor(diff / 60000) + 'm ago';
+        if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+        return Math.floor(diff / 86400000) + 'd ago';
+    }
+    function _esc(s) {
+        return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
-    /* ── Init (called every time the page is opened) ── */
+    /* ── Init — called every time the Community Hub page opens ── */
     window.commInitPage = function() {
         _renderQuote();
         _renderChallenge();
-        _renderGoals();
         _renderBadges();
-        _renderReactions();
-        _loadAnonPosts();
+        _startReactionsListener();  // live onSnapshot for Community Pulse counts
+        _startGoalsListener();      // live onSnapshot for Community Goals
+        _loadAnonPosts();           // live onSnapshot for Anonymous Support Board
+    };
+
+    /* ── Teardown — called on logout or page unload ── */
+    window.commTeardown = function() {
+        if (_anonUnsub)  { _anonUnsub();  _anonUnsub  = null; }
+        if (_reactUnsub) { _reactUnsub(); _reactUnsub = null; }
+        if (_goalsUnsub) { _goalsUnsub(); _goalsUnsub = null; }
     };
 
     /* 1. QUOTE */
     function _renderQuote() {
-        const q = QUOTES[_quoteIdx];
-        const el = document.getElementById('commQuoteText');
+        const q    = QUOTES[_quoteIdx];
+        const el   = document.getElementById('commQuoteText');
         const auth = document.getElementById('commQuoteAuthor');
-        if (el) el.textContent = q.text;
+        if (el)   el.textContent   = q.text;
         if (auth) auth.textContent = '— ' + q.author;
     }
     window.commNextQuote = function() {
@@ -19994,12 +20000,12 @@ window.clearBannerUpload   = clearBannerUpload;
 
     /* 2. DAILY CHALLENGE */
     function _renderChallenge() {
-        const ch = CHALLENGES[_challengeIdx];
-        const el = document.getElementById('commChallengeText');
+        const ch  = CHALLENGES[_challengeIdx];
+        const el  = document.getElementById('commChallengeText');
         const btn = document.getElementById('commClaimBtn');
         const xp  = document.getElementById('commChallengeXP');
-        if (el) el.textContent = ch.text;
-        if (xp) xp.textContent = '+' + ch.xp + ' XP';
+        if (el)  el.textContent  = ch.text;
+        if (xp)  xp.textContent  = '+' + ch.xp + ' XP';
         const todayClaimed = _claimedKey === _todayKey();
         if (btn) {
             btn.textContent = todayClaimed ? '✅ Completed!' : '✔ Complete Challenge';
@@ -20012,34 +20018,74 @@ window.clearBannerUpload   = clearBannerUpload;
         localStorage.setItem('snx_comm_claimed', _claimedKey);
         _renderChallenge();
         toastNotification('⚡ Challenge complete! Keep being legendary.');
-        // Persist to Firestore if user is logged in
-        const _fs1 = window._snxFirestore; const _cu1 = window._snxCurrentUser;
+        const _fs1 = window._snxFirestore;
+        const _cu1 = window._snxCurrentUser;
         if (_fs1 && _cu1) {
-            const { db: _db1, doc: _doc1, setDoc: _setDoc1, collection: _col1, serverTimestamp: _st1 } = _fs1;
-            _setDoc1(_doc1(_col1(_doc1(_col1(_db1,'community'),'challenges'),'completions'), _cu1.uid + '_' + _todayKey()),
-              { uid: _cu1.uid, ts: _st1() }).catch(() => {});
+            const { db, doc, setDoc, collection, serverTimestamp } = _fs1;
+            setDoc(
+                doc(collection(doc(collection(db,'community'),'challenges'),'completions'),
+                    _cu1.uid + '_' + _todayKey()),
+                { uid: _cu1.uid, ts: serverTimestamp() }
+            ).catch(() => {});
         }
     };
 
-    /* 3. COMMUNITY GOALS */
-    function _renderGoals() {
+    /* 3. COMMUNITY GOALS — live listener reads goal totals from Firestore */
+    function _startGoalsListener() {
         const cont = document.getElementById('commGoalsContainer');
         if (!cont) return;
-        cont.innerHTML = GOALS.map(g => {
+        const fs = window._snxFirestore;
+        if (!fs) {
+            // Firebase not ready yet — show static goals and retry when ready
+            _renderStaticGoals(cont);
+            return;
+        }
+        // Tear down old listener first
+        if (_goalsUnsub) { _goalsUnsub(); _goalsUnsub = null; }
+
+        const { db, doc, collection, onSnapshot } = fs;
+        // Listen to /community/goals doc for live aggregated goal numbers
+        _goalsUnsub = onSnapshot(doc(collection(db,'community'),'goals'), snap => {
+            const data = snap.exists() ? snap.data() : {};
+            const goals = [
+                { label: 'Kind messages sent this week',  key: 'kindMessages',  target: 500, current: data.kindMessages  || 0 },
+                { label: 'Support reactions given today',  key: 'reactions',     target: 200, current: data.reactions     || 0 },
+                { label: 'Anonymous posts this week',      key: 'anonPosts',     target: 100, current: data.anonPosts     || 0 },
+                { label: 'Daily challenges completed',     key: 'challenges',    target: 300, current: data.challenges    || 0 },
+            ];
+            _renderGoalsList(cont, goals);
+        }, () => {
+            // Firestore error or doc doesn't exist yet — fall back to static display
+            _renderStaticGoals(cont);
+        });
+    }
+
+    function _renderStaticGoals(cont) {
+        const STATIC_GOALS = [
+            { label: 'Kind messages sent this week',  target: 500, current: 0 },
+            { label: 'Support reactions given today',  target: 200, current: 0 },
+            { label: 'Anonymous posts this week',      target: 100, current: 0 },
+            { label: 'Daily challenges completed',     target: 300, current: 0 },
+        ];
+        _renderGoalsList(cont, STATIC_GOALS);
+    }
+
+    function _renderGoalsList(cont, goals) {
+        cont.innerHTML = goals.map(g => {
             const pct = Math.min(100, Math.round((g.current / g.target) * 100));
             return `<div class="comm-goal-item">
                 <div class="comm-goal-header">
-                    <span class="comm-goal-label">${g.label}</span>
-                    <span class="comm-goal-pct">${g.current} / ${g.target} &nbsp;(${pct}%)</span>
+                    <span class="comm-goal-label">${_esc(g.label)}</span>
+                    <span class="comm-goal-pct">${g.current} / ${g.target}&nbsp;(${pct}%)</span>
                 </div>
                 <div class="comm-goal-bar">
                     <div class="comm-goal-fill" style="width:0%" data-target="${pct}"></div>
                 </div>
             </div>`;
         }).join('');
-        // Animate bars after paint
         requestAnimationFrame(() => {
             cont.querySelectorAll('.comm-goal-fill').forEach(el => {
+                el.style.transition = 'width 0.6s ease';
                 el.style.width = el.dataset.target + '%';
             });
         });
@@ -20050,40 +20096,53 @@ window.clearBannerUpload   = clearBannerUpload;
         const grid = document.getElementById('commBadgesGrid');
         if (!grid) return;
         grid.innerHTML = KINDNESS_BADGES.map(b => `
-            <div class="comm-badge-tile ${b.unlocked ? 'unlocked' : ''}" title="${b.desc}">
+            <div class="comm-badge-tile ${b.unlocked ? 'unlocked' : ''}" title="${_esc(b.desc)}">
                 <div class="comm-badge-icon">${b.icon}</div>
-                <div class="comm-badge-name">${b.name}</div>
-                <div class="comm-badge-desc">${b.desc}</div>
+                <div class="comm-badge-name">${_esc(b.name)}</div>
+                <div class="comm-badge-desc">${_esc(b.desc)}</div>
             </div>
         `).join('');
     }
 
-    /* 5. SUPPORT REACTIONS */
-    function _renderReactions() {
+    /* 5. COMMUNITY PULSE — live onSnapshot so counts update across all users in real time */
+    function _startReactionsListener() {
         const row = document.getElementById('commReactionsRow');
         if (!row) return;
+        const fs = window._snxFirestore;
+        if (!fs) {
+            // Firebase not ready — render buttons with cached values and retry on next init
+            _renderReactionButtons(row);
+            return;
+        }
+        // Tear down old listener
+        if (_reactUnsub) { _reactUnsub(); _reactUnsub = null; }
+
+        // Render buttons immediately with cached counts (no flicker to "—")
+        _renderReactionButtons(row);
+
+        const { db, doc, collection, onSnapshot } = fs;
+        _reactUnsub = onSnapshot(doc(collection(db,'community'),'reactions'), snap => {
+            const data = snap.exists() ? snap.data() : {};
+            REACTIONS.forEach(r => {
+                const newCount = data[r.key] || 0;
+                _reactCache[r.key] = newCount;
+                const cnt = document.getElementById('commReactCount_' + r.key);
+                if (cnt) cnt.textContent = newCount;
+            });
+        }, () => { /* ignore errors — cached values remain */ });
+    }
+
+    function _renderReactionButtons(row) {
         row.innerHTML = REACTIONS.map(r => `
             <button class="comm-react-btn ${_myReacts[r.key] ? 'active' : ''}" id="commReact_${r.key}" onclick="commSendReaction('${r.key}')">
                 <span class="comm-react-emoji">${r.emoji}</span>
-                <span class="comm-react-count" id="commReactCount_${r.key}">${_reactCache[r.key] || '—'}</span>
+                <span class="comm-react-count" id="commReactCount_${r.key}">${_reactCache[r.key] !== undefined ? _reactCache[r.key] : '—'}</span>
             </button>
         `).join('');
-        // Load live counts from Firestore
-        const _fs2 = window._snxFirestore;
-        if (_fs2) {
-            const { db: _db2, doc: _doc2, getDoc: _getDoc2, collection: _col2 } = _fs2;
-            _getDoc2(_doc2(_col2(_db2,'community'),'reactions')).then(snap => {
-                const data = snap.exists() ? snap.data() : {};
-                REACTIONS.forEach(r => {
-                    _reactCache[r.key] = data[r.key] || 0;
-                    const cnt = document.getElementById('commReactCount_' + r.key);
-                    if (cnt) cnt.textContent = _reactCache[r.key];
-                });
-            }).catch(() => {});
-        }
     }
+
     window.commSendReaction = function(key) {
-        if (_myReacts[key]) return; // one per session
+        if (_myReacts[key]) return; // one reaction per key per session
         _myReacts[key] = true;
         localStorage.setItem('snx_comm_reacts', JSON.stringify(_myReacts));
         _reactCache[key] = (_reactCache[key] || 0) + 1;
@@ -20091,110 +20150,138 @@ window.clearBannerUpload   = clearBannerUpload;
         const cnt = document.getElementById('commReactCount_' + key);
         if (btn) btn.classList.add('active');
         if (cnt) cnt.textContent = _reactCache[key];
-        // Floating emoji effect
+        // Floating emoji
         if (btn) {
             const rect = btn.getBoundingClientRect();
             const fe = document.createElement('div');
             fe.className = 'floating-emoji';
             fe.textContent = REACTIONS.find(r => r.key === key)?.emoji || '💙';
-            fe.style.left = (rect.left + rect.width/2) + 'px';
-            fe.style.top = rect.top + 'px';
+            fe.style.left = (rect.left + rect.width / 2) + 'px';
+            fe.style.top  = rect.top + 'px';
             document.body.appendChild(fe);
             fe.addEventListener('animationend', () => fe.remove());
         }
-        // Persist to Firestore
-        const _fs3 = window._snxFirestore;
-        if (_fs3) {
-            const { db: _db3, doc: _doc3, setDoc: _setDoc3, collection: _col3, increment: _inc3 } = _fs3;
-            _setDoc3(_doc3(_col3(_db3,'community'),'reactions'), { [key]: _inc3(1) }, { merge: true }).catch(() => {});
+        // Persist increment to Firestore
+        const fs = window._snxFirestore;
+        if (fs) {
+            const { db, doc, setDoc, collection, increment } = fs;
+            setDoc(doc(collection(db,'community'),'reactions'), { [key]: increment(1) }, { merge: true })
+                .catch(() => {});
+            // Increment the daily reactions goal counter
+            setDoc(doc(collection(db,'community'),'goals'), { reactions: increment(1) }, { merge: true })
+                .catch(() => {});
         }
     };
 
-    /* 7. ANONYMOUS SUPPORT POSTS */
+    /* 6. ANONYMOUS SUPPORT BOARD — live onSnapshot, posts appear immediately */
     function _loadAnonPosts() {
+        // Tear down any existing listener before re-subscribing
         if (_anonUnsub) { _anonUnsub(); _anonUnsub = null; }
         const feed = document.getElementById('commAnonFeed');
         if (!feed) return;
-        const _fs4 = window._snxFirestore;
-        if (!_fs4) {
-            feed.innerHTML = '<div style="text-align:center;color:#334;font-size:13px;padding:20px;">Sign in to view posts.</div>';
+        const fs = window._snxFirestore;
+        if (!fs) {
+            feed.innerHTML = '<div style="text-align:center;color:#4a7a9a;font-size:13px;padding:20px;">Sign in to view posts.</div>';
             return;
         }
-        feed.innerHTML = '<div style="text-align:center;color:#334;font-size:13px;padding:20px;">Loading…</div>';
-        const { db: _db4, doc: _doc4, collection: _col4, query: _q4, orderBy: _ob4, limit: _lim4, onSnapshot: _ons4 } = _fs4;
-        _anonUnsub = _ons4(_q4(_col4(_doc4(_col4(_db4,'community'),'anonBoard'),'posts'), _ob4('ts','desc'), _lim4(30)), snap => {
+        // Only show loading spinner if feed is currently empty
+        if (!feed.querySelector('.comm-anon-post')) {
+            feed.innerHTML = '<div style="text-align:center;color:#4a7a9a;font-size:13px;padding:20px;">Loading…</div>';
+        }
+        const { db, doc, collection, query, orderBy, limit, onSnapshot } = fs;
+        // Path: /community/anonBoard/posts
+        const anonRef = collection(doc(collection(db,'community'),'anonBoard'),'posts');
+        _anonUnsub = onSnapshot(
+            query(anonRef, orderBy('ts','desc'), limit(30)),
+            snap => {
                 if (snap.empty) {
-                    feed.innerHTML = '<div style="text-align:center;color:#334;font-size:13px;padding:20px;">No posts yet. Be the first to share 💙</div>';
+                    feed.innerHTML = '<div style="text-align:center;color:#4a7a9a;font-size:13px;padding:20px;">No posts yet. Be the first to share 💙</div>';
                     return;
                 }
                 feed.innerHTML = '';
-                snap.forEach(doc => {
-                    const d = doc.data();
-                    const tagClass = d.tag === 'support' ? 'support' : '';
-                    const tagLabel = TAG_LABELS[d.tag] || d.tag;
-                    const hugged = (d.hugs || 0);
-                    const postEl = document.createElement('div');
-                    postEl.className = 'comm-anon-post' + (d.tag === 'support' ? ' support-post' : '');
-                    postEl.innerHTML = `
+                snap.forEach(d => {
+                    const data     = d.data();
+                    const tagLabel = TAG_LABELS[data.tag] || data.tag || '';
+                    const hugged   = data.hugs || 0;
+                    const el       = document.createElement('div');
+                    el.className   = 'comm-anon-post' + (data.tag === 'support' ? ' support-post' : '');
+                    el.dataset.docId = d.id;
+                    el.innerHTML   = `
                         <div class="comm-anon-meta">
-                            <div class="comm-anon-avatar">${d.anon ? '🌑' : (d.initials || '?')}</div>
-                            <span class="comm-anon-name">${d.anon ? 'Anonymous' : (d.displayName || 'Member')}</span>
-                            <span class="comm-anon-tag ${tagClass}">${tagLabel}</span>
-                            <span class="comm-anon-ts">${_relTime(d.ts)}</span>
+                            <div class="comm-anon-avatar">${data.anon ? '🌑' : _esc(data.initials || '?')}</div>
+                            <span class="comm-anon-name">${data.anon ? 'Anonymous' : _esc(data.displayName || 'Member')}</span>
+                            <span class="comm-anon-tag ${data.tag === 'support' ? 'support' : ''}">${_esc(tagLabel)}</span>
+                            <span class="comm-anon-ts">${_relTime(data.ts)}</span>
                         </div>
-                        <div class="comm-anon-text">${d.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+                        <div class="comm-anon-text">${_esc(data.text)}</div>
                         <div class="comm-anon-actions">
-                            <button class="comm-anon-react" onclick="commHugPost('${doc.id}', this)">🤍 ${hugged > 0 ? hugged + ' Hugs' : 'Send a Hug'}</button>
+                            <button class="comm-anon-react${hugged > 0 ? '' : ''}" id="hug-${d.id}" onclick="commHugPost('${d.id}',this)">🤍 ${hugged > 0 ? hugged + ' Hugs' : 'Send a Hug'}</button>
                             <button class="comm-anon-react" onclick="commReplySupport(this)">💬 Respond</button>
                         </div>`;
-                    feed.appendChild(postEl);
+                    feed.appendChild(el);
                 });
-            }, () => {
-                feed.innerHTML = '<div style="text-align:center;color:#334;font-size:13px;padding:20px;">Unable to load posts.</div>';
-            });
+            },
+            () => {
+                feed.innerHTML = '<div style="text-align:center;color:#ff6680;font-size:13px;padding:20px;">Could not load posts — check your connection.</div>';
+            }
+        );
     }
 
     window.commPostAnon = function() {
-        const input = document.getElementById('commAnonInput');
-        const anon  = document.getElementById('commAnonToggle');
-        const tag   = document.getElementById('commAnonTag');
+        const input  = document.getElementById('commAnonInput');
+        const anon   = document.getElementById('commAnonToggle');
+        const tag    = document.getElementById('commAnonTag');
+        const submit = document.querySelector('.comm-anon-submit');
         if (!input || !input.value.trim()) { toastNotification('Write something first 💙'); return; }
-        const text = input.value.trim();
+        const text   = input.value.trim();
         const isAnon = anon ? anon.checked : true;
-        const tagVal = tag ? tag.value : 'sharing';
-        const _fs5 = window._snxFirestore; const _cu5 = window._snxCurrentUser;
-        const _ud5 = window._snxUserData;
-        if (!_fs5 || !_cu5) { toastNotification('Sign in to post.'); return; }
-        const { db: _db5, doc: _doc5, addDoc: _add5, collection: _col5, serverTimestamp: _st5 } = _fs5;
+        const tagVal = tag  ? tag.value    : 'sharing';
+        const fs  = window._snxFirestore;
+        const cu  = window._snxCurrentUser;
+        const ud  = window._snxUserData;
+        if (!fs || !cu) { toastNotification('Sign in to post.'); return; }
+        // Disable submit while posting to prevent double-submit
+        if (submit) { submit.disabled = true; submit.textContent = 'Posting…'; }
+        const { db, doc, addDoc, collection, serverTimestamp, increment, setDoc } = fs;
+        const anonRef = collection(doc(collection(db,'community'),'anonBoard'),'posts');
         const payload = {
-            text, tag: tagVal, anon: isAnon,
-            ts: _st5(),
-            hugs: 0,
-            uid: isAnon ? null : _cu5.uid,
-            displayName: isAnon ? null : (_ud5?.displayName || 'Member'),
-            initials: isAnon ? null : (_ud5?.displayName?.[0] || '?').toUpperCase(),
+            text,
+            tag:         tagVal,
+            anon:        isAnon,
+            ts:          serverTimestamp(),
+            hugs:        0,
+            uid:         isAnon ? null : cu.uid,
+            displayName: isAnon ? null : (ud?.displayName || 'Member'),
+            initials:    isAnon ? null : ((ud?.displayName?.[0] || '?').toUpperCase()),
         };
         input.value = '';
-        _add5(_col5(_doc5(_col5(_db5,'community'),'anonBoard'),'posts'), payload)
-          .then(() => toastNotification('Posted 🤍 You\'re not alone.'))
-          .catch(e => toastNotification('Could not post: ' + e.message));
+        addDoc(anonRef, payload)
+            .then(() => {
+                toastNotification('Posted 🤍 You\'re not alone.');
+                // Increment the weekly anon posts goal counter
+                setDoc(doc(collection(db,'community'),'goals'), { anonPosts: increment(1) }, { merge: true }).catch(() => {});
+            })
+            .catch(e => toastNotification('Could not post: ' + (e.message || 'unknown error')))
+            .finally(() => {
+                if (submit) { submit.disabled = false; submit.textContent = 'Post'; }
+            });
     };
 
     window.commHugPost = function(docId, btn) {
         if (btn.classList.contains('hugged')) return;
         btn.classList.add('hugged');
-        const _fs6 = window._snxFirestore;
-        if (_fs6) {
-            const { db: _db6, doc: _doc6, updateDoc: _upd6, collection: _col6, increment: _inc6 } = _fs6;
-            _upd6(_doc6(_col6(_doc6(_col6(_db6,'community'),'anonBoard'),'posts'), docId),
-              { hugs: _inc6(1) }).catch(() => {});
+        const fs = window._snxFirestore;
+        if (fs) {
+            const { db, doc, updateDoc, collection, increment } = fs;
+            const anonPostRef = doc(collection(doc(collection(db,'community'),'anonBoard'),'posts'), docId);
+            updateDoc(anonPostRef, { hugs: increment(1) }).catch(() => {});
         }
         const floatEl = document.createElement('div');
-        floatEl.className = 'floating-emoji';
+        floatEl.className   = 'floating-emoji';
         floatEl.textContent = '🤍';
         const rect = btn.getBoundingClientRect();
-        floatEl.style.left = (rect.left + rect.width/2) + 'px';
-        floatEl.style.top  = rect.top + 'px';
+        floatEl.style.left  = (rect.left + rect.width / 2) + 'px';
+        floatEl.style.top   = rect.top + 'px';
         document.body.appendChild(floatEl);
         floatEl.addEventListener('animationend', () => floatEl.remove());
         toastNotification('🤍 Hug sent — they needed that.');
@@ -20202,9 +20289,9 @@ window.clearBannerUpload   = clearBannerUpload;
 
     window.commReplySupport = function(btn) {
         const postEl = btn.closest('.comm-anon-post');
-        if (!postEl || postEl.querySelector('.comm-reply-wrap')) return; // already has reply box
+        if (!postEl || postEl.querySelector('.comm-reply-wrap')) return;
         const wrap = document.createElement('div');
-        wrap.className = 'comm-reply-wrap';
+        wrap.className    = 'comm-reply-wrap';
         wrap.style.cssText = 'margin-top:8px;display:flex;gap:6px;';
         wrap.innerHTML = `
             <input style="flex:1;font-size:12px;padding:6px 10px;margin:0;" placeholder="Send an encouraging reply…" maxlength="200" class="comm-reply-input">
@@ -20214,7 +20301,7 @@ window.clearBannerUpload   = clearBannerUpload;
     };
 
     window.commSubmitReply = function(btn) {
-        const wrap = btn.closest('.comm-reply-wrap');
+        const wrap  = btn.closest('.comm-reply-wrap');
         const input = wrap.querySelector('.comm-reply-input');
         if (!input.value.trim()) return;
         toastNotification('💬 Your encouragement was sent 💙');
