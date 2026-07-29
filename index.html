@@ -9367,7 +9367,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, browserLocalPersistence, setPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, browserLocalPersistence, setPersistence, getIdToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, getDocFromCache, updateDoc, deleteDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment, serverTimestamp, enableNetwork, disableNetwork } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
   import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
   import { getDatabase as _getRtdb, ref as _rtdbRef, set as _rtdbSet, update as _rtdbUpdate, remove as _rtdbRemove, push as _rtdbPush, get as _rtdbGet, onDisconnect as _rtdbOnDisconnect, serverTimestamp as _rtdbServerTimestamp, onValue as _rtdbOnValue, off as _rtdbOff } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -9417,6 +9417,8 @@ body.arcade-fs-ios body::after { display:none !important; }
       onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment,
       serverTimestamp, enableNetwork, disableNetwork,
   };
+  // Expose auth instance so non-module scripts can call getIdToken via _snxRefreshToken
+  window._snxAuth = auth;
 
   /* ═══════════════════════════════════════════════════════════
      SNX PERFORMANCE LAYER
@@ -9479,6 +9481,24 @@ body.arcade-fs-ios body::after { display:none !important; }
   window._snxOnAuthReady = function(fn) {
     if (window._snxAuthResolved) { try { fn(); } catch(e){} }
     else { window._snxAuthReadyQueue.push(fn); }
+  };
+
+  // ── Central token-refresh helper ─────────────────────────────────────────
+  // Forces Firebase to fetch a fresh ID token from the server.
+  // Call this whenever a Firestore/RTDB operation returns permission-denied
+  // before concluding the user is actually signed out.
+  // Returns true if the token was refreshed successfully, false otherwise.
+  window._snxRefreshToken = async function() {
+    try {
+      const u = auth.currentUser;
+      if (!u) return false;
+      await getIdToken(u, /* forceRefresh */ true);
+      console.log('[SNX Auth] Token refreshed successfully.');
+      return true;
+    } catch(e) {
+      console.warn('[SNX Auth] Token refresh failed:', e.message);
+      return false;
+    }
   };
 
   // ── VAPID public key for FCM web push ──
@@ -9980,6 +10000,13 @@ body.arcade-fs-ios body::after { display:none !important; }
     let _hubUnsub    = null;
     let _elapsedTimer = null;
 
+    // Expose a teardown so the sign-out handler can reset this IIFE's state,
+    // allowing the hub listener to re-attach when the user signs back in.
+    window._snxHubTeardown = function() {
+      if (_hubUnsub) { try { _hubUnsub(); } catch(_e) {} _hubUnsub = null; }
+      if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
+    };
+
     function _tickElapsed() {
       grid.querySelectorAll('.lhc-elapsed[data-createdat]').forEach(el => {
         const ts = parseInt(el.dataset.createdat, 10);
@@ -10461,6 +10488,27 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (user) {
           currentUser = user;
 
+          // ── Proactive token refresh — keeps Firestore/RTDB permissions valid ──
+          // Firebase ID tokens expire after 1 hour. The SDK auto-renews silently,
+          // but under certain conditions (backgrounded PWA, long idle, SW interference)
+          // the cached token can expire before the SDK refreshes it, causing
+          // permission-denied errors on the next Firestore/RTDB operation.
+          // We force a refresh at login + every 55 minutes to stay well ahead of
+          // the 60-minute expiry window.  This is the primary fix for permission errors.
+          try { await getIdToken(user, true); } catch(_) {}
+          // Clear any previous token-refresh timer so we don't stack intervals on re-auth
+          if (window._snxTokenRefreshTimer) { clearInterval(window._snxTokenRefreshTimer); }
+          window._snxTokenRefreshTimer = setInterval(async () => {
+              if (auth.currentUser) {
+                  try {
+                      await getIdToken(auth.currentUser, true);
+                      console.log('[SNX Auth] Proactive token refresh succeeded.');
+                  } catch(e) {
+                      console.warn('[SNX Auth] Proactive token refresh failed:', e.message);
+                  }
+              }
+          }, 55 * 60 * 1000); // 55 minutes
+
           // ── Enforce Founder role — runs on every sign-in ──
           // If this is the founder email, make sure the Firestore doc always has
           // role:"founder" and the Founder badge, regardless of how the account
@@ -10745,6 +10793,25 @@ body.arcade-fs-ios body::after { display:none !important; }
               // Clear processed entries from Firestore
               const _remaining = (userData.pushQueue || []).filter(n => !_queue.some(q => q.id === n.id));
               try { await updateDoc(doc(db, 'users', user.uid), { pushQueue: _remaining }); } catch(_) {}
+          }, async (userDataErr) => {
+              // ── userData snapshot error handler ─────────────────────────────
+              // permission-denied from a stale token: refresh then re-subscribe
+              console.warn('[SNX] userData snapshot error:', userDataErr.code || userDataErr.message);
+              if (userDataErr.code === 'permission-denied' && auth.currentUser) {
+                  try { await getIdToken(auth.currentUser, true); } catch(_) {}
+                  // Tear down stale listener; onAuthStateChanged will refire and re-subscribe
+                  if (userDataUnsubscribe) { try { userDataUnsubscribe(); } catch(_){} userDataUnsubscribe = null; }
+                  // Re-subscribe after a brief pause
+                  setTimeout(() => {
+                      if (auth.currentUser && !userDataUnsubscribe) {
+                          userDataUnsubscribe = onSnapshot(doc(db, 'users', auth.currentUser.uid), async (docSnap) => {
+                              if (!docSnap.exists()) return;
+                              userData = docSnap.data();
+                              window._snxUserData = userData;
+                          });
+                      }
+                  }, 1000);
+              }
           });
 
           document.getElementById("menuButton").style.display = "flex";
@@ -10833,8 +10900,12 @@ body.arcade-fs-ios body::after { display:none !important; }
           }
           // Explicit logout path — tear down listeners below.
           currentUser = null; userData = null;
+          window._snxAuthResolved = false;
           // Clear the presence heartbeat interval so it stops firing after logout
           if (window._snxPresenceHeartbeat) { clearInterval(window._snxPresenceHeartbeat); window._snxPresenceHeartbeat = null; }
+          // Clear the proactive token-refresh interval so it doesn't try to refresh
+          // a token for a user that is no longer signed in.
+          if (window._snxTokenRefreshTimer) { clearInterval(window._snxTokenRefreshTimer); window._snxTokenRefreshTimer = null; }
           // ── Tear down EVERY real-time listener so nothing fires against a null user ──
           if (feedUnsubscribe)     { feedUnsubscribe();     feedUnsubscribe     = null; }
           if (presenceUnsubscribe) { presenceUnsubscribe(); presenceUnsubscribe = null; }
@@ -10842,6 +10913,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (userDataUnsubscribe) { userDataUnsubscribe(); userDataUnsubscribe = null; }
           // Tear down community hub listeners (reactions, goals, anon board)
           if (typeof window.commTeardown === 'function') window.commTeardown();
+          // Tear down the Live Hub listener so it reattaches on next sign-in
+          if (typeof window._snxHubTeardown === 'function') window._snxHubTeardown();
           // Tear down the global co-host invite listener so it doesn't fire
           // against a null user after sign-out.
           if (window._snxCohostInviteRef) {
@@ -11730,9 +11803,43 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (!container.querySelector('.postBox')) {
               const isPermission = _feedErrCode === 'permission-denied';
               const isNotFound   = _feedErrCode === 'not-found';
+
+              // ── Auto-recover from permission-denied by refreshing the token ──
+              // This happens when the Firebase ID token (60-min TTL) expires while
+              // the feed snapshot listener is open. A force-refresh restores the
+              // session without requiring the user to sign out.
+              if (isPermission && currentUser) {
+                  console.warn('[Feed] Permission denied — attempting token refresh and retry…');
+                  if (typeof window._snxRefreshToken === 'function') {
+                      window._snxRefreshToken().then(ok => {
+                          if (ok) {
+                              console.log('[Feed] Token refreshed — restarting feed stream.');
+                              if (container.querySelector('#feedLoadingState')) return;
+                              container.innerHTML = `
+                                <div id="feedLoadingState" style="text-align:center;padding:48px 20px;color:#3a5a7a;">
+                                    <div style="font-size:32px;margin-bottom:14px;animation:spin 1.2s linear infinite;display:inline-block;">⚡</div>
+                                    <div style="font-size:14px;color:#4a7aaa;margin-top:8px;">Restoring session…</div>
+                                </div>`;
+                              setTimeout(() => { if (currentUser) initTimelineStream(); }, 800);
+                          } else {
+                              // Token refresh failed and we are truly signed out
+                              container.innerHTML = `
+                                <div style="text-align:center;padding:48px 20px;color:#3a5a7a;">
+                                    <div style="font-size:36px;margin-bottom:14px;">🔒</div>
+                                    <div style="font-size:14px;font-weight:700;color:#ff6680;margin-bottom:8px;">You are signed out — please sign back in.</div>
+                                    <button onclick="if(typeof show==='function')show('login')" style="padding:8px 20px;border-radius:20px;border:1px solid rgba(0,174,239,0.5);background:rgba(0,30,70,0.7);color:#00AEEF;font-size:12px;cursor:pointer;">🔑 Sign In</button>
+                                </div>`;
+                          }
+                      });
+                  }
+                  return;
+              }
+
               let _feedErrLabel;
               if (isPermission) {
-                  _feedErrLabel = 'Access denied — please sign out and sign back in.';
+                  _feedErrLabel = auth.currentUser
+                      ? 'Session error — tap Retry to restore your session.'
+                      : 'You are signed out — please sign back in.';
               } else if (isNotFound) {
                   _feedErrLabel = 'Feed index not ready — please wait a moment and retry.';
               } else if (_isTransient) {
@@ -12360,8 +12467,25 @@ body.arcade-fs-ios body::after { display:none !important; }
           let allowRetry = false;
           const code = e?.code || '';
           if (code === 'permission-denied') {
-              msg = "Permission denied — your session may have expired. Please sign out and sign back in.";
-              allowRetry = false;
+              // Try a silent token refresh — likely a stale ID token rather than a genuine sign-out
+              if (currentUser && typeof window._snxRefreshToken === 'function') {
+                  const _refreshed = await window._snxRefreshToken();
+                  if (_refreshed) {
+                      allowRetry = true;
+                      msg = "Session refreshed — please tap Post again.";
+                  } else {
+                      msg = auth.currentUser
+                          ? "Permission denied — your session could not be restored. Please sign out and sign back in."
+                          : "You are signed out — please sign in to post.";
+                      allowRetry = false;
+                  }
+              } else if (!auth.currentUser) {
+                  msg = "You are signed out — please sign in to post.";
+                  allowRetry = false;
+              } else {
+                  msg = "Permission denied — your session may have expired. Please sign out and sign back in.";
+                  allowRetry = true;
+              }
           } else if (code === 'unavailable' || code === 'deadline-exceeded') {
               msg = "Network issue — could not reach Firebase after 3 attempts. Check your connection.";
               allowRetry = true;
@@ -12509,13 +12633,20 @@ body.arcade-fs-ios body::after { display:none !important; }
                   else          { likeBtn.classList.remove('liked'); countEl.textContent = Math.max(0, cur - 1); }
               }
               const _lec = e?.code || '';
-              const _lemsg = _lec === 'permission-denied'
-                  ? "Permission denied — please sign out and back in."
-                  : _lec === 'unavailable' || _lec === 'deadline-exceeded'
-                      ? "Network issue — check your connection and try again."
-                      : e?.message
-                          ? "Like failed: " + e.message
-                          : "Could not save like — please try again.";
+              let _lemsg;
+              if (_lec === 'permission-denied') {
+                  // Silently refresh the token so the next tap succeeds
+                  if (currentUser && typeof window._snxRefreshToken === 'function') {
+                      window._snxRefreshToken().catch(() => {});
+                  }
+                  _lemsg = auth.currentUser
+                      ? "Session refreshed — please try again."
+                      : "You are signed out — please sign in.";
+              } else if (_lec === 'unavailable' || _lec === 'deadline-exceeded') {
+                  _lemsg = "Network issue — check your connection and try again.";
+              } else {
+                  _lemsg = e?.message ? "Like failed: " + e.message : "Could not save like — please try again.";
+              }
               toastNotification("❌ " + _lemsg);
           } finally {
               element.disabled = false;
@@ -12601,13 +12732,19 @@ body.arcade-fs-ios body::after { display:none !important; }
       } catch(e) {
           console.error('[SNX] Repost failed:', e);
           const _rec = e?.code || '';
-          const _remsg = _rec === 'permission-denied'
-              ? "Permission denied — please sign out and back in."
-              : _rec === 'unavailable' || _rec === 'deadline-exceeded'
-                  ? "Network issue — check your connection and try again."
-                  : e?.message
-                      ? "Repost failed: " + e.message
-                      : "Could not repost — please try again.";
+          let _remsg;
+          if (_rec === 'permission-denied') {
+              if (currentUser && typeof window._snxRefreshToken === 'function') {
+                  window._snxRefreshToken().catch(() => {});
+              }
+              _remsg = auth.currentUser
+                  ? "Session refreshed — please try again."
+                  : "You are signed out — please sign in.";
+          } else if (_rec === 'unavailable' || _rec === 'deadline-exceeded') {
+              _remsg = "Network issue — check your connection and try again.";
+          } else {
+              _remsg = e?.message ? "Repost failed: " + e.message : "Could not repost — please try again.";
+          }
           toastNotification("❌ " + _remsg);
       }
   }
@@ -12786,13 +12923,19 @@ body.arcade-fs-ios body::after { display:none !important; }
       } catch(e) {
           console.error('[SNX] Comment save failed:', e);
           const _ce = e?.code || '';
-          const _cmsg = _ce === 'permission-denied'
-              ? "Permission denied — please sign out and back in."
-              : _ce === 'unavailable' || _ce === 'deadline-exceeded'
-                  ? "Network issue — check your connection and try again."
-                  : e?.message
-                      ? "Comment failed: " + e.message
-                      : "Could not save comment — please try again.";
+          let _cmsg;
+          if (_ce === 'permission-denied') {
+              if (currentUser && typeof window._snxRefreshToken === 'function') {
+                  window._snxRefreshToken().catch(() => {});
+              }
+              _cmsg = auth.currentUser
+                  ? "Session refreshed — please tap Post again."
+                  : "You are signed out — please sign in.";
+          } else if (_ce === 'unavailable' || _ce === 'deadline-exceeded') {
+              _cmsg = "Network issue — check your connection and try again.";
+          } else {
+              _cmsg = e?.message ? "Comment failed: " + e.message : "Could not save comment — please try again.";
+          }
           toastNotification("❌ " + _cmsg);
           el.value = txt; // restore text so user doesn't lose it
       } finally {
@@ -13263,12 +13406,22 @@ body.arcade-fs-ios body::after { display:none !important; }
   let _friendPresenceUnsubs = [];
 
   async function renderFriendsPage() {
+      if (!currentUser) { toastNotification("Please sign in to view your friends."); return; }
       // Cancel previous RTDB presence listeners before re-rendering
       _friendPresenceUnsubs.forEach(fn => { try { fn(); } catch(_) {} });
       _friendPresenceUnsubs = [];
 
       // Use local userData if available (avoids a redundant Firestore read)
-      const md = userData || (await getDoc(doc(db,"users",currentUser.uid))).data();
+      let md;
+      try {
+          md = userData || (await getDoc(doc(db,"users",currentUser.uid))).data();
+      } catch (fdErr) {
+          if (fdErr?.code === 'permission-denied' && typeof window._snxRefreshToken === 'function') {
+              await window._snxRefreshToken();
+              try { md = (await getDoc(doc(db,"users",currentUser.uid))).data(); } catch(_) {}
+          }
+          if (!md) { toastNotification("Could not load friends — please try again."); return; }
+      }
       const friends = md.friends||[], family = md.family||[], received = md.friendRequestsReceived||[];
       const famInvitesReceived = md.familyInvitesReceived||[];
 
@@ -14195,6 +14348,19 @@ body.arcade-fs-ios body::after { display:none !important; }
 
          // ── Friends list section ─────────────────────────────────────
          window.snxLoadFriendsSection(uid, isSelf);
+     }, async (profileErr) => {
+         // ── Profile snapshot error handler ───────────────────────────
+         // permission-denied usually means a stale token — refresh and retry
+         console.warn('[Profile] Snapshot error:', profileErr.code || profileErr.message);
+         if (profileErr.code === 'permission-denied' && currentUser) {
+             if (typeof window._snxRefreshToken === 'function') {
+                 const ok = await window._snxRefreshToken();
+                 if (ok && activeProfileUid === uid) {
+                     // Re-open the same profile after token refresh
+                     setTimeout(() => { if (activeProfileUid === uid) window.viewProfile(uid); }, 600);
+                 }
+             }
+         }
      });
  };
 

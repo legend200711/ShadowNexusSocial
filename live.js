@@ -45,7 +45,7 @@
    modules — the #1 cause of the 10-second loading delay. */
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import {
-  getAuth, onAuthStateChanged, browserLocalPersistence, setPersistence
+  getAuth, onAuthStateChanged, browserLocalPersistence, setPersistence, getIdToken
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
   getFirestore,
@@ -448,13 +448,25 @@ document.addEventListener('DOMContentLoaded', () => {
     D.stage.classList.toggle('live-controls-hidden');
   });
 
-  onAuthStateChanged(_auth, user => {
+  onAuthStateChanged(_auth, async user => {
     if (!user) {
       _hideLoading();
       window.location.href = 'index.html';
       return;
     }
     _user = user;
+
+    // ── Proactive token refresh — prevents permission-denied on Firestore/RTDB ──
+    // Forces the SDK to fetch a fresh ID token so the live page never hits
+    // permission-denied from a stale token (60-min TTL).
+    try { await getIdToken(user, true); } catch(_) {}
+    // Clear any previous refresh timer, then schedule recurring refreshes every 55 min
+    if (window._snxLiveTokenTimer) clearInterval(window._snxLiveTokenTimer);
+    window._snxLiveTokenTimer = setInterval(async () => {
+      if (_auth.currentUser) {
+        try { await getIdToken(_auth.currentUser, true); } catch(_) {}
+      }
+    }, 55 * 60 * 1000);
 
     // TIKTOK-STYLE INSTANT VIDEO: For viewer mode, start the video
     // connection IMMEDIATELY without waiting for _loadUserData() (a
@@ -3230,7 +3242,11 @@ async function _viewerRequestBox() {
   } catch (e) {
     console.error('[BoxRequest] Firestore write failed:', e.code, e.message);
     if (e.code === 'permission-denied') {
-      toast('❌ Permission denied. Make sure you are signed in.');
+      // Try refreshing the token — stale ID tokens are the most common cause
+      if (_auth.currentUser) {
+        try { await getIdToken(_auth.currentUser, true); } catch(_) {}
+      }
+      toast('❌ Session error — please try again.');
     } else {
       toast('❌ Could not send request. Please try again.');
     }
@@ -3294,7 +3310,10 @@ async function _viewerRequestBox() {
   }, err => {
     console.error('[BoxRequest] Snapshot listener error:', err.code, err.message);
     if (err.code === 'permission-denied') {
-      toast('❌ Permission denied watching request status.');
+      if (_auth.currentUser) {
+        getIdToken(_auth.currentUser, true).catch(() => {});
+      }
+      toast('❌ Session error — please try again.');
     }
   });
 }

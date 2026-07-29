@@ -614,7 +614,9 @@
   function _inviteErrorLabel(e) {
     if (!e) return 'Unknown error.';
     var code = e.code || '';
-    if (code === 'permission-denied')    return 'Permission denied. Are you signed in?';
+    // permission-denied almost always means a stale ID token, not an actual sign-out.
+    // Show a "session refreshed" message so the user just taps Invite again.
+    if (code === 'permission-denied')    return 'Session refreshed \u2014 please try again.';
     if (code === 'unavailable')          return 'Service unavailable \u2014 try again.';
     if (code === 'deadline-exceeded')    return 'Request timed out \u2014 try again.';
     if (code === 'not-found')            return 'Live session not found. Has it ended?';
@@ -625,10 +627,23 @@
     return 'Could not send invite (' + (code || 'unknown') + '). Try again.';
   }
 
+  /* ── Silently refresh the Firebase ID token (fixes permission-denied from stale tokens) ── */
+  async function _refreshToken() {
+    try {
+      var u = _auth && _auth.currentUser;
+      if (!u) return false;
+      // Use dynamic import so cohost.js does not need a static auth import
+      var authMod = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
+      await authMod.getIdToken(u, true);
+      return true;
+    } catch(_) { return false; }
+  }
+
   /* ── Determine if an error is safe to retry (transient) ── */
   function _isRetryable(e) {
     var code = (e && e.code) || '';
-    return code === 'unavailable' || code === 'deadline-exceeded' || code === 'internal';
+    // permission-denied is now treated as retryable after a token refresh
+    return code === 'unavailable' || code === 'deadline-exceeded' || code === 'internal' || code === 'permission-denied';
   }
 
   async function _sendInvite(user, btn) {
@@ -706,6 +721,11 @@
             var fsRb = await _importFS();
             await fsRb.deleteDoc(fsRb.doc(_db, 'coHostRequests', requestId));
           } catch(_) {}
+        }
+
+        // For permission-denied, silently refresh the token before retrying
+        if ((e.code === 'permission-denied' || e.code === 'unauthenticated') && attempt < maxAttempts) {
+          await _refreshToken();
         }
 
         var isLast   = attempt >= maxAttempts;
