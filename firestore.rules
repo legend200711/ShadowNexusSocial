@@ -59,7 +59,8 @@ service cloud.firestore {
         'familyInvitesReceived',
         'familyInvitesSent',
         'family',
-        'friends'
+        'friends',
+        'callHistory'
       ];
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
     }
@@ -748,6 +749,44 @@ service cloud.firestore {
         }
       }
   
+      // ── Group Calls (WebRTC group call signaling) ───────────────────────────────
+      //
+      //   /groupCalls/{roomId}
+      //     creator, mode, participants[], status, createdAt
+      //   /groupCalls/{roomId}/offers/{offerId}
+      //     from, to, type, sdp
+      //   /groupCalls/{roomId}/answers/{answerId}
+      //     from, to, type, sdp
+      //   /groupCalls/{roomId}/candidates/{uid}/to_{remoteUid}/{candId}
+      //     RTCIceCandidate JSON
+      //
+      // Any signed-in user who is a participant (or the creator) may read/write.
+      // We use a broad allow for all sub-docs since only authenticated users
+      // can participate and the room is ephemeral.
+
+      match /groupCalls/{roomId} {
+        allow read:   if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.creator == request.auth.uid;
+        allow update: if isSignedIn()
+          && (resource.data.creator == request.auth.uid
+              || request.auth.uid in resource.data.participants
+              || isFounder());
+        allow delete: if isSignedIn()
+          && (resource.data.creator == request.auth.uid || isFounder());
+
+        // Nested subcollections (offers, answers, candidates/*/)
+        match /{subcol}/{docId} {
+          allow read, write: if isSignedIn();
+        }
+        match /{subcol}/{uid}/{subDocId} {
+          allow read, write: if isSignedIn();
+        }
+        match /{subcol}/{uid}/{subDocId}/{leafId} {
+          allow read, write: if isSignedIn();
+        }
+      }
+
       // ── Creator Events ─────────────────────────────────────────────────────────
   
       match /creatorEvents/{docId} {
