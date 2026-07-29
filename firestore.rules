@@ -680,5 +680,99 @@ service cloud.firestore {
       }
     }
 
+    // ── Communities ────────────────────────────────────────────────────────────
+      //
+      //   /communities/{commId}
+      //     name, topic, desc, icon, isPrivate, ownerUid, members[], memberCount,
+      //     postCount, createdAt
+      //   /communities/{commId}/posts/{postId}
+      //     text, authorUid, authorName, createdAt, likes, likedBy[]
+  
+      match /communities/{commId} {
+        allow read: if isSignedIn();
+        // Any signed-in user can create a community (owner validation on ownerUid)
+        allow create: if isSignedIn()
+          && request.resource.data.ownerUid == request.auth.uid;
+        // Owner or Founder can update community metadata
+        // Any member can update members[], memberCount, postCount
+        allow update: if isSignedIn()
+          && (resource.data.ownerUid == request.auth.uid
+              || isFounder()
+              || request.resource.data.diff(resource.data)
+                   .affectedKeys().hasOnly(['members', 'memberCount', 'postCount']));
+        allow delete: if isSignedIn()
+          && (resource.data.ownerUid == request.auth.uid || isFounder());
+  
+        match /posts/{postId} {
+          allow read: if isSignedIn();
+          allow create: if isSignedIn()
+            && request.resource.data.authorUid == request.auth.uid;
+          allow update: if isSignedIn()
+            && (resource.data.authorUid == request.auth.uid
+                || isFounder()
+                || request.resource.data.diff(resource.data)
+                     .affectedKeys().hasOnly(['likes', 'likedBy']));
+          allow delete: if isSignedIn()
+            && (resource.data.authorUid == request.auth.uid
+                || get(/databases/$(database)/documents/communities/$(commId)).data.ownerUid == request.auth.uid
+                || isFounder());
+        }
+      }
+  
+      // ── Group Chats ────────────────────────────────────────────────────────────
+      //
+      //   /groupChats/{groupId}
+      //     name, members[], createdBy, createdAt, lastMsgTs, isGroup: true
+      //   /groupChats/{groupId}/messages/{msgId}
+      //     senderUid, text, timestamp
+  
+      match /groupChats/{groupId} {
+        allow read: if isSignedIn()
+          && (request.auth.uid in resource.data.members || isFounder());
+        allow create: if isSignedIn()
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isSignedIn()
+          && (request.auth.uid in resource.data.members || isFounder());
+        allow delete: if isSignedIn()
+          && (resource.data.createdBy == request.auth.uid || isFounder());
+  
+        match /messages/{msgId} {
+          allow read: if isSignedIn()
+            && (request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.members
+                || isFounder());
+          allow create: if isSignedIn()
+            && request.resource.data.senderUid == request.auth.uid;
+          allow delete: if isSignedIn()
+            && (resource.data.senderUid == request.auth.uid || isFounder());
+          allow update: if false;
+        }
+      }
+  
+      // ── Creator Events ─────────────────────────────────────────────────────────
+  
+      match /creatorEvents/{docId} {
+        allow read:   if isSignedIn()
+          && (resource.data.uid == request.auth.uid || isFounder());
+        allow create: if isSignedIn()
+          && request.resource.data.uid == request.auth.uid;
+        allow delete: if isSignedIn()
+          && (resource.data.uid == request.auth.uid || isFounder());
+        allow update: if false;
+      }
+  
+      // ── User Scheduled Posts ───────────────────────────────────────────────────
+  
+      match /userScheduledPosts/{docId} {
+        allow read:   if isSignedIn()
+          && (resource.data.uid == request.auth.uid || isFounder());
+        allow create: if isSignedIn()
+          && request.resource.data.uid == request.auth.uid;
+        allow update: if isSignedIn()
+          && (resource.data.uid == request.auth.uid || isFounder());
+        allow delete: if isSignedIn()
+          && (resource.data.uid == request.auth.uid || isFounder());
+      }
+  
+    }
   }
 }
