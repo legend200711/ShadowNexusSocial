@@ -1,4 +1,4 @@
- /**
+/**
  * Shadow Nexus Social — Service Worker
  *
  * Strategy:
@@ -10,7 +10,7 @@
  * GitHub Pages (/ShadowNexusSocial/) and any local dev server (/).
  */
 
-const CACHE_VERSION = 'v17';
+const CACHE_VERSION = 'v14';
 const CACHE_NAME    = `shadow-nexus-${CACHE_VERSION}`;
 const MEDIA_CACHE   = `shadow-nexus-media-${CACHE_VERSION}`;
 
@@ -26,11 +26,8 @@ const SHELL_FILES = [
   'offline.html',
   'style.css',
   'album.css',
-  'holiday-themes.css',
-  'holiday-themes.js',
   'script.js',
   'snx-net.js',
-  'upload-worker.js',
   'manifest.json',
   'icon-192.png',
   'icon-512.png',
@@ -38,16 +35,16 @@ const SHELL_FILES = [
   'favicon.ico',
   'favicon-32x32.png',
   'favicon-16x16.png',
-  // live.html / live.js / live.css / cohost.js intentionally excluded — always network-fresh
+  // live.html / live.js / live.css intentionally excluded — always network-fresh
 ];
 
 /** Max entries for the media cache (CDN images / avatars). */
-const MEDIA_CACHE_MAX = 200;
-/** Max age for media cache entries (48 hours). */
-const MEDIA_CACHE_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+const MEDIA_CACHE_MAX = 100;
+/** Max age for media cache entries (24 hours). */
+const MEDIA_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** Paths that must always go to the network (never served from cache) */
-const NETWORK_FIRST_PATHS = ['live.html', 'live.js', 'live.css', 'cohost.js'];
+const NETWORK_FIRST_PATHS = ['live.html', 'live.js', 'live.css'];
 
 const PRECACHE_URLS = SHELL_FILES.map(f => BASE + f);
 
@@ -67,11 +64,6 @@ const NETWORK_ONLY_HOSTS = [
    INSTALL — pre-cache the app shell
    ───────────────────────────────────────────── */
 self.addEventListener('install', (event) => {
-  // Pre-cache the app shell.
-  // Do NOT call skipWaiting() here — let the SW wait until the user explicitly
-  // requests an update (via the update bar in script.js / live.js).
-  // Calling skipWaiting() automatically on install causes a controllerchange
-  // event on every first visit, which previously triggered an unwanted page reload.
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) =>
@@ -83,6 +75,7 @@ self.addEventListener('install', (event) => {
           )
         )
       )
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -239,8 +232,7 @@ let _snxOffline     = false;
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
-    // User clicked the update bar — take over immediately.
-    // The page will reload via the guarded controllerchange handler in script.js / live.js.
+    // Take over immediately — all clients will reload via controllerchange
     self.skipWaiting();
   }
   if (event.data?.type === 'CLEAR_CACHE') {
@@ -265,9 +257,9 @@ self.addEventListener('message', (event) => {
     if (_snxDataSaver) {
       caches.open(MEDIA_CACHE).then(cache => {
         cache.keys().then(keys => {
-          // Keep only the 20 most-recently-cached items when bandwidth is tight
-          if (keys.length > 20) {
-            keys.slice(0, keys.length - 20).forEach(k => cache.delete(k));
+          // Keep only the 30 most-recently-cached items when bandwidth is tight
+          if (keys.length > 30) {
+            keys.slice(0, keys.length - 30).forEach(k => cache.delete(k));
           }
         });
       }).catch(() => {});

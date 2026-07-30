@@ -11,25 +11,20 @@
  *
  *  LIVE Firebase (Shadow Nexus Live) — Realtime Database:
  *    - Room status         (liveRooms/{roomId})
- *    - WebRTC offer/answer (liveConnections/{roomId}/{viewerUid})
- *    - ICE candidates      (liveConnections/{roomId}/{viewerUid}/creatorCandidates | viewerCandidates)
+ *    - WebRTC offer/answer (liveConnections/{roomId})
+ *    - ICE candidates      (liveConnections/{roomId}/creatorCandidates | viewerCandidates)
  *
  *  CREATOR:
  *    1. Captures local camera + mic via getUserMedia.
  *    2. Creates liveRooms/{roomId} in RTDB (status: 'live').
- *    3. Watches liveConnections/{roomId} for new viewer "request" nodes.
- *    4. For each viewer: creates a fresh RTCPeerConnection + SDP offer
- *       written to liveConnections/{roomId}/{viewerUid}, then waits for
- *       that viewer's answer + ICE. Streams directly via WebRTC.
- *       (A separate peer per viewer lets the host stream to many viewers
- *       and lets a returning viewer get a brand-new offer.)
+ *    3. Creates RTCPeerConnection, writes SDP offer to liveConnections/{roomId} in RTDB.
+ *    4. Waits for viewer answer + ICE, then streams directly via WebRTC.
  *
  *  VIEWER:
  *    1. Reads liveRooms/{roomId} from RTDB to confirm stream is live.
- *    2. Writes a "request" to liveConnections/{roomId}/{viewerUid} in RTDB.
- *    3. Waits for the host to write a fresh SDP offer to that same node.
- *    4. Creates RTCPeerConnection, sends answer + ICE back to its node.
- *    5. Receives creator tracks via WebRTC ontrack.
+ *    2. Reads SDP offer from liveConnections/{roomId} in RTDB.
+ *    3. Creates RTCPeerConnection, sends answer + ICE back to RTDB.
+ *    4. Receives creator tracks via WebRTC ontrack.
  *
  *  Chat + Likes:
  *    Stored in Firestore sub-collections under liveRooms/{roomId}.
@@ -37,30 +32,24 @@
 
 'use strict';
 
-/* ── Main Firebase imports (Firestore + Auth) ──
-   IMPORTANT: version 10.8.0 is the SAME version index.html uses, so
-   the browser serves these modules from its HTTP cache instantly when a
-   user navigates from the main site to the live page. Using a different
-   version (e.g. 10.12.0) forces a full re-download of all four SDK
-   modules — the #1 cause of the 10-second loading delay. */
-import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+/* ── Main Firebase imports (Firestore + Auth) ── */
+import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import {
-  getAuth, onAuthStateChanged, browserLocalPersistence, setPersistence, getIdToken
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+  getAuth, onAuthStateChanged
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   getFirestore,
   doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc,
   collection, query, orderBy, limit, onSnapshot,
   serverTimestamp, increment, where, deleteField, arrayUnion
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 /* ── Realtime Database imports (signaling + room status) ── */
 import {
   getDatabase,
   ref, set, get, update, remove, push, onValue, off, onDisconnect,
-  runTransaction,
   serverTimestamp as rtdbTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
 /* ════════════════════════════════════════════════════
    MAIN Firebase — live.html is a standalone page.
@@ -78,119 +67,19 @@ const _CFG = {
 
 const _app    = initializeApp(_CFG);
 const _auth   = getAuth(_app);
-/* ── Ensure the live page reads the same persisted session that
-   index.html wrote. browserLocalPersistence is the default for web
-   but we set it explicitly so onAuthStateChanged can resolve the
-   cached token from localStorage WITHOUT a network round-trip to
-   securetoken.googleapis.com — saving 2-5s on the loading spinner. ── */
-setPersistence(_auth, browserLocalPersistence).catch(() => {});
 const _db     = getFirestore(_app);
 const _liveDB = getDatabase(_app);
 
 /* ── WebRTC ICE config ── */
-/* iceCandidatePoolSize pre-allocates ICE candidates so the viewer's
-   connection can start gathering them immediately when the RTCPeerConnection
-   is created — BEFORE the offer/answer round-trip finishes. This shaves
-   hundreds of milliseconds off the time-to-first-frame for viewers. */
 const _ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun.cloudflare.com:3478' },
-    // TURN over UDP, TCP and TLS/443. The TCP + TLS/443 relays are the key
-    // to surviving restrictive firewalls & mobile carrier NAT that silently
-    // drop UDP after ~30-60 s — the cause of streams going black after a
-    // minute. Multiple transports give the browser a working fallback.
-    { urls: 'turn:openrelay.metered.ca:80',                 username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:80?transport=tcp',   username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443',                username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp',  username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:80',   username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',  username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
   ],
-  iceCandidatePoolSize: 10,
 };
-
-/* ── ICE recovery watchdog ───────────────────────────────────────────
-   Attaches to any RTCPeerConnection. Two layers of protection:
-
-   Layer 1 — ICE state events: when ICE drops to `disconnected` we give
-   it 3 s to self-heal, then call restartIce().  A hard `failed` gets an
-   immediate restartIce() attempt.
-
-   Layer 2 — byte-counter polling (every 5 s): stays running even when
-   the ICE state is `connected`. If inbound/outbound bytes stop flowing
-   for >8 s (the NAT mapping expiry window) we call restartIce() before
-   the browser ever reports a state change.  This is the fix for the
-   "goes black after ~60 s" symptom on mobile carrier networks. */
-function _attachIceWatchdog(pc, label) {
-  if (!pc) return;
-
-  // ── Layer 1: ICE state events ──
-  pc._iceWatchTimer = null;
-  pc.addEventListener('iceconnectionstatechange', () => {
-    const st = pc.iceConnectionState;
-    if (st === 'disconnected') {
-      if (pc._iceWatchTimer) clearTimeout(pc._iceWatchTimer);
-      pc._iceWatchTimer = setTimeout(() => {
-        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-          console.warn(`[WebRTC][${label||'pc'}] ICE stalled — restartIce()`);
-          try { pc.restartIce && pc.restartIce(); } catch (_) {}
-        }
-      }, 3000);
-    } else if (st === 'failed') {
-      console.warn(`[WebRTC][${label||'pc'}] ICE failed — restartIce()`);
-      if (pc._iceWatchTimer) { clearTimeout(pc._iceWatchTimer); pc._iceWatchTimer = null; }
-      try { pc.restartIce && pc.restartIce(); } catch (_) {}
-    } else if (st === 'connected' || st === 'completed') {
-      if (pc._iceWatchTimer) { clearTimeout(pc._iceWatchTimer); pc._iceWatchTimer = null; }
-    }
-  });
-
-  // ── Layer 2: byte-counter polling — detects frozen streams that keep
-  //    ICE "connected" while silently delivering 0 bytes (NAT expiry). ──
-  let _lastBytes    = 0;
-  let _frozenTicks  = 0;          // consecutive ticks with no new bytes
-  const _FROZEN_TICKS_LIMIT = 2;  // 2 × 5 s = 10 s of zero traffic → restart
-  const _STATS_INTERVAL_MS  = 5000;
-
-  const _statTimer = setInterval(async () => {
-    // Don't run if the connection is already being handled by state events
-    const iceState = pc.iceConnectionState;
-    if (iceState === 'disconnected' || iceState === 'failed' ||
-        iceState === 'closed'       || pc.signalingState === 'closed') {
-      clearInterval(_statTimer);
-      return;
-    }
-    if (iceState !== 'connected' && iceState !== 'completed') return;
-
-    try {
-      const stats = await pc.getStats();
-      let totalBytes = 0;
-      stats.forEach(r => {
-        // Sum both inbound (viewer) and outbound (host sender) bytes
-        if (r.type === 'inbound-rtp'  && r.bytesReceived) totalBytes += r.bytesReceived;
-        if (r.type === 'outbound-rtp' && r.bytesSent)     totalBytes += r.bytesSent;
-      });
-
-      if (totalBytes === _lastBytes) {
-        _frozenTicks++;
-        if (_frozenTicks >= _FROZEN_TICKS_LIMIT) {
-          _frozenTicks = 0;
-          console.warn(`[WebRTC][${label||'pc'}] Byte counter frozen — restartIce()`);
-          try { pc.restartIce && pc.restartIce(); } catch (_) {}
-        }
-      } else {
-        _frozenTicks = 0;
-        _lastBytes   = totalBytes;
-      }
-    } catch (_) { /* getStats() can throw on closed connections */ }
-  }, _STATS_INTERVAL_MS);
-
-  // Clean up the interval when the connection closes
-  pc.addEventListener('iceconnectionstatechange', () => {
-    if (pc.iceConnectionState === 'closed') clearInterval(_statTimer);
-  });
-}
 
 /* ── State ── */
 let _user         = null;   // Firebase Auth user
@@ -210,17 +99,10 @@ let _layoutRafId  = null;
 /* ── Performance: track if update-check has already run this session ── */
 let _updateChecked = false;
 
-// WebRTC — VIEWER side (single peer connection to the host)
+// WebRTC
 let _rtcPc           = null;   // RTCPeerConnection
 let _rtcSignalUnsub  = null;   // RTDB listener unsubscribe (off ref)
 let _rtcSignalRef    = null;   // RTDB ref being listened to
-
-// WebRTC — CREATOR side: a separate peer connection per viewer.
-// Each viewer joins via liveConnections/{roomId}/{viewerUid}, so the
-// host can stream to many viewers and reconnecting / returning viewers
-// get a fresh offer instead of a stale answer that never connects.
-let _creatorViewerPeers = {};   // { [viewerUid]: { pc, appliedCandKeys:Set, unsub } }
-let _creatorConnUnsub   = null; // listener on liveConnections/{roomId}
 
 // Auto-reconnect for viewers
 let _viewerReconnectTimer   = null;
@@ -228,11 +110,8 @@ let _viewerReconnectAttempt = 0;
 const _MAX_RECONNECT_ATTEMPTS = 5;
 
 let _chatUnsub        = null;
-let _viewerCountRef   = null;   // RTDB ref (liveViewers/{roomId}) the host watches with onValue
-let _viewerCountUnsub = null;   // off() handle returned by that onValue
-let _viewerPresenceRef = null;  // RTDB ref for this viewer's per-user presence seat
-let _viewerPresenceOdc = null;  // onDisconnect handle for the presence seat
-let _viewerPresenceJoined = false; // true once the presence seat is live (cleared on leave/reconnect)
+let _viewerCountRef   = null;   // RTDB ref for viewer count listener
+let _viewerCountUnsub = null;
 let _roomWatchRef     = null;   // saved RTDB ref so we can call off() on it
 let _toastTimer       = null;
 let _viewerLeftFlag   = false;  // guard: prevent double-decrement on mobile
@@ -241,13 +120,11 @@ let _creatorEndedFlag = false;  // guard: prevent beforeunload re-running endLiv
 /* ══════════════════════════════════════════════════
    GUEST BOX CONFIGURATION — change here to update max
    ══════════════════════════════════════════════════ */
-const _MAX_GUESTS = 8;   // Maximum simultaneous guest boxes (up to 8 supported)
+const _MAX_GUESTS = 9;   // Maximum simultaneous guest boxes (1–9 supported)
 
 /* ── Guest Box State ── */
-let _guestLayout       = 'host-full'; // current layout: 'host-full' (right stack) or 'host-full-left' (left stack)
-let _guestBoxSize      = 'sm';        // 'sm' | 'md' | 'lg'
-let _savedLayout       = null;     // creator's saved favourite layout (localStorage)
-let _savedBoxSize      = null;     // creator's saved favourite box size
+let _guestLayout       = 'auto';   // current layout preference
+let _guestBoxSize      = 'sm';     // 'sm' | 'md' | 'lg'
 let _guestPeers        = {};       // uid → { pc, stream, cell, name }
 let _guestReqUnsub     = null;     // RTDB listener for incoming requests (host)
 let _guestStatusUnsub  = null;     // RTDB listener for request status (viewer)
@@ -262,27 +139,11 @@ let _guestPc           = null;     // viewer-in-box: their own guest RTCPeerConn
 let _guestSigUnsub     = null;     // viewer-in-box: unsubscribe for host-ICE signaling onValue listener
 let _hostSigUnsubs     = {};       // host: uid → onValue unsubscribe for per-guest signaling listener
 
-/* ── Featured Guest state ── */
-let _featuredGuestUid  = null;     // UID of the currently featured guest (null = host is featured)
-
-/* ── Speaker-focus state ── */
-let _speakerUid           = null;   // UID of the current active speaker
-let _speakerCheckInterval = null;   // setInterval handle for audio-level polling
-let _dragState            = null;   // { uid, startX, startY, origLeft, origTop } for drag layout
-
-/* ── Drag positions ── */
-const _dragPositions = {};  // uid → { left, top } in px (absolute)
-
 /* ── Disconnect / heartbeat state ── */
 let _guestHeartbeatInterval = null;  // guest: periodic presence keep-alive writer
 let _hostWatchdogInterval   = null;  // host: periodic sweep for stale guest presence entries
 const _HEARTBEAT_INTERVAL_MS = 8000; // every 8 s the guest writes a timestamp
 const _STALE_THRESHOLD_MS    = 18000; // >18 s without heartbeat → guest is gone
-
-// Host presence heartbeat — re-asserts { online: true, live: true } on RTDB
-// every few seconds so a late-firing onDisconnect from the main app
-// (index.html) can't wipe our "live" status while we're still streaming.
-let _hostPresenceInterval = null;
 
 /* ── DOM refs (resolved after DOMContentLoaded) ── */
 let D = {};
@@ -328,6 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
     btnShareCreator: document.getElementById('btnShareLiveCreator'),
 
     // Viewer controls
+    likeBtn:         document.getElementById('btnLike'),
+    likeBtnCount:    document.getElementById('likeBtnCount'),
     profileBtn:      document.getElementById('btnCreatorProfile'),
     btnShare:        document.getElementById('btnShareLive'),
 
@@ -370,6 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
   D.btnFS   && D.btnFS.addEventListener('click',    toggleFullscreen);
   D.btnEnd  && D.btnEnd.addEventListener('click',   endLive);
 
+  D.likeBtn          && D.likeBtn.addEventListener('click',          sendLike);
   D.btnShare         && D.btnShare.addEventListener('click',         shareLive);
   D.btnShareCreator  && D.btnShareCreator.addEventListener('click',  shareLive);
   D.chatSend  && D.chatSend.addEventListener('click',  sendChat);
@@ -419,11 +283,6 @@ document.addEventListener('DOMContentLoaded', () => {
       _iqSetEnabled(e.target.checked);
     });
 
-  document.getElementById('toggleCompactControls') &&
-    document.getElementById('toggleCompactControls').addEventListener('change', e => {
-      _setCompactControls(e.target.checked);
-    });
-
   // Layout option buttons
   document.querySelectorAll('.layout-option-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -433,8 +292,6 @@ document.addEventListener('DOMContentLoaded', () => {
       _applyGuestLayout();
       // Broadcast layout change to all viewers and guests
       _broadcastLayout();
-      // Sidebar body class
-      _applySidebarBodyClass();
     });
   });
 
@@ -450,78 +307,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // "Return to Host View" button in layout panel
-  const _btnClearFeatured = document.getElementById('btnClearFeatured');
-  if (_btnClearFeatured) _btnClearFeatured.addEventListener('click', _clearFeaturedGuest);
-
   D.stage && D.stage.addEventListener('click', e => {
-    // Selectors that should never trigger a like or a controls-hide
+    if (_mode !== 'creator') return;
     const ignore = ['.live-ctrl-btn','#btnEndLive','.live-chat-input','.live-chat-send',
                     '.live-close-btn','.live-creator-pill','.live-badge',
                     '.layout-settings-panel','.layout-option-btn','.layout-size-btn',
-                    '.live-settings-panel','#liveSettingsPanel','.lsp-row','.lsp-toggle','.lsp-slider',
-                    '.live-viewer-actions','.live-request-box-btn','.live-leave-box-btn',
-                    '.live-like-btn','.live-profile-btn','.live-share-btn',
-                    '.live-stats-ribbon','.live-top-bar','.snx-confirm-overlay'];
+                    '.live-settings-panel','#liveSettingsPanel','.lsp-row','.lsp-toggle','.lsp-slider'];
     if (ignore.some(s => e.target.closest(s))) return;
-
-    if (_mode === 'creator') {
-      // Close layout panel on tap-away
-      if (_layoutPanelOpen) { _closeLayoutPanel(); return; }
-      // Close settings panel on tap-away
-      const sp = document.getElementById('liveSettingsPanel');
-      if (sp && sp.style.display !== 'none') { sp.style.display = 'none'; return; }
-      D.stage.classList.toggle('live-controls-hidden');
-    } else if (_mode === 'viewer') {
-      // Viewer taps anywhere on video → send a Like
-      sendLike(e.clientX, e.clientY);
-    }
+    // Close layout panel on tap-away
+    if (_layoutPanelOpen) { _closeLayoutPanel(); return; }
+    // Close settings panel on tap-away
+    const sp = document.getElementById('liveSettingsPanel');
+    if (sp && sp.style.display !== 'none') { sp.style.display = 'none'; return; }
+    D.stage.classList.toggle('live-controls-hidden');
   });
 
-  onAuthStateChanged(_auth, async user => {
+  onAuthStateChanged(_auth, user => {
     if (!user) {
       _hideLoading();
       window.location.href = 'index.html';
       return;
     }
     _user = user;
-
-    // ── Proactive token refresh — prevents permission-denied on Firestore/RTDB ──
-    // Forces the SDK to fetch a fresh ID token so the live page never hits
-    // permission-denied from a stale token (60-min TTL).
-    try { await getIdToken(user, true); } catch(_) {}
-    // Clear any previous refresh timer, then schedule recurring refreshes every 55 min
-    if (window._snxLiveTokenTimer) clearInterval(window._snxLiveTokenTimer);
-    window._snxLiveTokenTimer = setInterval(async () => {
-      if (_auth.currentUser) {
-        try { await getIdToken(_auth.currentUser, true); } catch(_) {}
-      }
-    }, 55 * 60 * 1000);
-
-    // TIKTOK-STYLE INSTANT VIDEO: For viewer mode, start the video
-    // connection IMMEDIATELY without waiting for _loadUserData() (a
-    // Firestore round-trip that adds 200-500ms of delay). The viewer's
-    // video stream only needs uid + roomId, not their profile data.
-    // The profile data loads in the background and is ready for
-    // chat/profile features by the time the user interacts.
-    const hash = location.hash;
-    const isViewerMode = hash.startsWith('#watch=');
-
-    if (isViewerMode) {
-      // Start the viewer stream NOW — don't wait for user data
+    _loadUserData().then(() => {
+      if (D.goLiveBtn) { D.goLiveBtn.disabled = false; }
       _resolveMode();
-      // Load user data in the background (for chat name, avatar, etc.)
-      _loadUserData().then(() => {
-        _checkForUpdate();
-      });
-    } else {
-      // Creator mode: needs user data for the setup screen
-      _loadUserData().then(() => {
-        if (D.goLiveBtn) { D.goLiveBtn.disabled = false; }
-        _resolveMode();
-        _checkForUpdate();
-      });
-    }
+      // ── One-time update check per session ──
+      _checkForUpdate();
+    });
   });
 });
 
@@ -539,8 +352,6 @@ async function _loadUserData() {
 async function _resolveMode() {
   const hash = location.hash;
   localStorage.removeItem('snx_live_intent');
-  // Clean up pre-warm sessionStorage (we read it in _startViewerWebRTC
-  // via the RTDB get() check, so we don't need the sessionStorage itself)
 
   if (hash.startsWith('#watch=')) {
     _roomId = hash.slice(7);   // roomId is plain [a-zA-Z0-9_] — no decoding needed
@@ -680,6 +491,32 @@ async function startLive() {
     return;
   }
 
+  // ── Kill any previous stuck live session for this user ──
+  try {
+    const userSnap = await getDoc(doc(_db, 'users', _user.uid));
+    const prevRoomId = userSnap.exists() ? userSnap.data().liveRoomId : null;
+    if (prevRoomId) {
+      await update(ref(_liveDB, `liveRooms/${prevRoomId}`), { status: 'ended', isLive: false, endedAt: Date.now() });
+      await remove(ref(_liveDB, `liveConnections/${prevRoomId}`));
+      await updateDoc(doc(_db, 'users', _user.uid), { isLive: deleteField(), liveRoomId: deleteField() });
+    }
+    // Always delete the uid-keyed Firestore liveRooms doc (and legacy roomId-keyed one)
+    try { await deleteDoc(doc(_db, 'liveRooms', _user.uid)); } catch (_) {}
+    if (prevRoomId) {
+      try { await deleteDoc(doc(_db, 'liveRooms', prevRoomId)); } catch (_) {}
+    }
+    // Also clean up any orphaned feed posts with type='live' for this user
+    try {
+      const orphanQ = query(
+        collection(_db, 'posts'),
+        where('uid', '==', _user.uid),
+        where('type', '==', 'live')
+      );
+      const orphanSnap = await getDocs(orphanQ);
+      orphanSnap.forEach(async d => { try { await deleteDoc(d.ref); } catch(_) {} });
+    } catch (_) {}
+  } catch (_) {}
+
   const titleVal = (D.setupTitle?.value || '').trim();
   if (D.goLiveBtn) { D.goLiveBtn.disabled = true; D.goLiveBtn.textContent = 'Going Live…'; }
 
@@ -701,11 +538,27 @@ async function startLive() {
     createdAt:    Date.now(),
   };
 
-  /* ── INSTANT VISUAL FEEDBACK: Show the stage + local video IMMEDIATELY.
-     The camera stream is already running (from _startCreatorSetup), so
-     there is zero reason to wait for any Firestore/RTDB write before the
-     user sees themselves on screen. This eliminates the multi-second
-     delay where the button said "Going Live…" but the screen was blank. */
+  /* ── Write room to LIVE Realtime Database ── */
+  try {
+    await set(ref(_liveDB, `liveRooms/${_roomId}`), creatorData);
+  } catch (e) {
+    toast('Could not start live. Please try again.');
+    if (D.goLiveBtn) { D.goLiveBtn.disabled = false; D.goLiveBtn.textContent = 'Start Live'; }
+    return;
+  }
+
+  /* ── Mirror room to Firestore so Live Hub can query it.
+        Keyed by uid so only ONE doc per user ever exists —
+        reconnecting simply overwrites the previous entry.   ── */
+  try {
+    await setDoc(doc(_db, 'liveRooms', _user.uid), {
+      ...creatorData,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  } catch (_) {}
+
+  /* ── Guard: prevent accidental cleanup if page unloads during live ── */
   _creatorEndedFlag = false;
   window.addEventListener('beforeunload', _creatorBeforeUnload);
   window.addEventListener('pagehide',     _creatorBeforeUnload);
@@ -714,68 +567,6 @@ async function startLive() {
   _showStage();
   _attachLocalVideoToStage();
   _populateCreatorInfo(creatorData);
-
-  toast('🔴 You are LIVE!');
-
-  /* ── Kill any previous stuck live session IN THE BACKGROUND.
-     This does a Firestore read + multiple RTDB/Firestore writes, which
-     previously took 3-5 seconds SEQUENTIALLY before the stage appeared.
-     Now it runs fire-and-forget so it never blocks the user's view.
-     The writes to the NEW room below are independent of this cleanup,
-     so they can run in parallel. */
-  (async () => {
-    try {
-      const userSnap = await getDoc(doc(_db, 'users', _user.uid));
-      const prevRoomId = userSnap.exists() ? userSnap.data().liveRoomId : null;
-      if (prevRoomId && prevRoomId !== _roomId) {
-        // Update old room status + remove connections (RTDB, fast)
-        update(ref(_liveDB, `liveRooms/${prevRoomId}`), { status: 'ended', isLive: false, endedAt: Date.now() }).catch(()=>{});
-        remove(ref(_liveDB, `liveConnections/${prevRoomId}`)).catch(()=>{});
-        // Delete old Firestore liveRooms docs
-        deleteDoc(doc(_db, 'liveRooms', _user.uid)).catch(()=>{});
-        deleteDoc(doc(_db, 'liveRooms', prevRoomId)).catch(()=>{});
-      } else {
-        // No previous room, but still clean up the uid-keyed doc just in case
-        deleteDoc(doc(_db, 'liveRooms', _user.uid)).catch(()=>{});
-      }
-      // Clean up orphaned feed posts with type='live' (non-critical, background)
-      const orphanQ = query(
-        collection(_db, 'posts'),
-        where('uid', '==', _user.uid),
-        where('type', '==', 'live')
-      );
-      getDocs(orphanQ).then(orphanSnap => {
-        orphanSnap.forEach(d => { deleteDoc(d.ref).catch(()=>{}); });
-      }).catch(()=>{});
-    } catch (_) {}
-  })();
-
-  /* ── Write room to LIVE Realtime Database (CRITICAL PATH).
-     This is the one write that MUST succeed for viewers to discover the
-     stream, but it's a single RTDB set (~80ms) and we don't block the
-     stage on it — the stage is already shown above. We just need this
-     to complete before the WebRTC listener starts watching for viewers. */
-  // Clear any stale viewer presence from a previous crashed session for this roomId
-  try { remove(ref(_liveDB, `liveViewers/${_roomId}`)).catch(() => {}); } catch(_) {}
-
-  let _roomWriteOk = true;
-  try {
-    await set(ref(_liveDB, `liveRooms/${_roomId}`), creatorData);
-  } catch (e) {
-    _roomWriteOk = false;
-    toast('Could not start live. Please try again.');
-    if (D.goLiveBtn) { D.goLiveBtn.disabled = false; D.goLiveBtn.textContent = 'Start Live'; }
-    return;
-  }
-
-  /* ── Mirror room to Firestore (NON-CRITICAL — fire and forget).
-     The Live Hub reads from Firestore, but this write doesn't block the
-     host's stream. It can complete in the background. */
-  setDoc(doc(_db, 'liveRooms', _user.uid), {
-    ...creatorData,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  }).catch(()=>{});
 
   await _startCreatorWebRTC();
 
@@ -789,23 +580,24 @@ async function startLive() {
   // ── Attach resize observer so guest grid re-layouts on any screen change ──
   _attachGuestGridResizeObserver();
 
-  // ── Publish host's own presence to liveGuests (fire-and-forget) ──
-  (async () => {
-    try {
-      const hostGuestRef = ref(_liveDB, `liveGuests/${_roomId}/_host_`);
-      await set(hostGuestRef, {
-        uid:      _user.uid,
-        name:     creatorData.hostName,
-        avatar:   creatorData.hostAvatar,
-        isHost:   true,
-        camOn:    _camOn,
-        micOn:    _micOn,
-        joinedAt: Date.now(),
-        hb:       Date.now(),
-      });
-      try { onDisconnect(ref(_liveDB, `liveGuests/${_roomId}`)).remove(); } catch(_){}
-    } catch (_) {}
-  })();
+  // ── Publish host's own presence to liveGuests (viewers see cam/mic status) ──
+  try {
+    const hostGuestRef = ref(_liveDB, `liveGuests/${_roomId}/_host_`);
+    await set(hostGuestRef, {
+      uid:      _user.uid,
+      name:     creatorData.hostName,
+      avatar:   creatorData.hostAvatar,
+      isHost:   true,
+      camOn:    _camOn,
+      micOn:    _micOn,
+      joinedAt: Date.now(),
+      hb:       Date.now(),
+    });
+    // If the host's page crashes / network drops, remove the whole liveGuests room node
+    try { onDisconnect(ref(_liveDB, `liveGuests/${_roomId}`)).remove(); } catch(_) {}
+  } catch (_) {}
+
+  toast('🔴 You are LIVE!');
 
   // ── Notify add-on modules (co-host, etc.) that live has started ──
   window.dispatchEvent(new CustomEvent('snxLiveReady', { detail: {
@@ -819,34 +611,19 @@ async function startLive() {
   _shadowBotOnLiveStart();
   _aiSafetyOnLiveStart();
   _iqOnLiveStart();
-  // ── Host video health watchdog (keeps #liveVideo alive at all times) ──
-  _startHostVideoHealth();
 
-  // ── Non-critical side-work (fire-and-forget, doesn't block) ──
-  // Also set Firestore status to "online" so the inbox/chat presence
-  // (which falls back to Firestore status) shows the host as online/LIVE
-  // even if the RTDB listener hasn't synced yet.
-  updateDoc(doc(_db, 'users', _user.uid), { isLive: true, liveRoomId: _roomId, status: 'online', lastSeen: Date.now() }).catch(()=>{});
+  // ── Non-critical side-work ──
+  try {
+    await updateDoc(doc(_db, 'users', _user.uid), { isLive: true, liveRoomId: _roomId });
+  } catch (_) {}
 
-  // ── RTDB users/{uid} presence: mark as online + live (fire-and-forget) ──
-  (async () => {
-    try {
-      const _uPresRef = ref(_liveDB, 'users/' + _user.uid);
-      await set(_uPresRef, { online: true, live: true, lastSeen: rtdbTimestamp() });
-      onDisconnect(_uPresRef).set({ online: false, live: false, lastSeen: rtdbTimestamp() });
-      if (_hostPresenceInterval) clearInterval(_hostPresenceInterval);
-      _hostPresenceInterval = setInterval(() => {
-        try {
-          set(_uPresRef, { online: true, live: true, lastSeen: rtdbTimestamp() });
-          // Also refresh Firestore status so inbox/chat presence (Firestore fallback)
-          // keeps showing the host as online while they are live.
-          updateDoc(doc(_db, 'users', _user.uid), { status: 'online', lastSeen: Date.now() }).catch(() => {});
-        } catch (_) {}
-      }, 10000);
-    } catch (_) {}
-  })();
-
-  // ── Story + follower notifications (fire-and-forget, non-blocking) ──
+  // ── RTDB users/{uid} presence: mark as live ──
+  try {
+    await set(ref(_liveDB, 'users/' + _user.uid + '/live'),   true);
+    await set(ref(_liveDB, 'users/' + _user.uid + '/online'), true);
+  } catch (_) {}
+  // _createLiveFeedPost intentionally omitted — live sessions must not create
+  // feed posts; they appear only in the story bar and Live Hub.
   _createLiveStory(creatorData);
   _notifyFollowersLive(creatorData);
 }
@@ -856,60 +633,6 @@ function _attachLocalVideoToStage() {
   D.liveVideo.srcObject = _localStream;
   D.liveVideo.play().catch(() => {});
   D.camOffOverlay && D.camOffOverlay.classList.toggle('visible', !_camOn);
-}
-
-/* ── HOST main-video health watchdog ─────────────────────────────────────
-   Runs every 4 s once the host is live.  Keeps #liveVideo alive through:
-     • tab backgrounding / iOS screen-lock (play() interrupted)
-     • camera flip replacing _localStream (srcObject drift)
-     • frozen currentTime with ICE still "connected" (rare DTLS stall)
-   Deliberately separate from the guest watchdog so guest activity never
-   starves the host's own video health checks.                            */
-let _hostVideoHealthTimer = null;
-function _startHostVideoHealth() {
-  if (_hostVideoHealthTimer) return;
-  let _lastTime = -1;
-  let _frozenTicks = 0;
-  _hostVideoHealthTimer = setInterval(() => {
-    const v = D.liveVideo;
-    if (!v || !_localStream) return;
-    // 1. Re-attach stream if srcObject drifted (e.g. after camera flip)
-    //    IMPORTANT: Never assign null before reassigning — that causes a
-    //    single-frame black flash visible to the host and all guests.
-    if (v.srcObject !== _localStream) {
-      v.srcObject = _localStream;   // direct reassign, no null-step
-      v.play().catch(() => {});
-      _lastTime = -1;
-      _frozenTicks = 0;
-      return;
-    }
-    // 2. Kick play() if the element was paused (background tab, screen lock)
-    if (v.paused) {
-      v.play().catch(() => {});
-      _lastTime = -1;
-      _frozenTicks = 0;
-      return;
-    }
-    // 3. Detect frozen currentTime (video element running but no new frames)
-    //    Require 3 consecutive frozen ticks (12 s) before acting, and avoid
-    //    the null-then-reassign pattern — reassign directly so no black frame.
-    if (v.currentTime === _lastTime && v.currentTime > 0) {
-      _frozenTicks++;
-      if (_frozenTicks >= 3) {
-        // Three consecutive 4-second ticks with no progress → force restart
-        // Direct reassign (no srcObject=null step) to avoid black flash.
-        _frozenTicks = 0;
-        v.srcObject = _localStream;
-        v.play().catch(() => {});
-      }
-    } else {
-      _frozenTicks = 0;
-      _lastTime = v.currentTime;
-    }
-  }, 4000);
-}
-function _stopHostVideoHealth() {
-  if (_hostVideoHealthTimer) { clearInterval(_hostVideoHealthTimer); _hostVideoHealthTimer = null; }
 }
 
 /* ── Share bar: big visible URL strip shown on the live stage ──
@@ -990,52 +713,18 @@ function _populateCreatorInfo(data) {
       Also mirrors viewer count to Firestore liveRooms doc so the Live Hub
       stays in real-time sync without an extra Firestore write on every tick. ── */
 function _subscribeViewerCount() {
-  /* ══════════════════════════════════════════════════════════════════════
-     HOST-side viewer count — single source of truth.
-
-     Strategy:
-       • Watch liveViewers/{roomId} with onValue so every join/leave by
-         any viewer fires this callback in real time.
-       • Count only seats where active === true AND uid !== host uid
-         (the host never writes a seat, but defensive check prevents
-         double-counting if anything ever changes).
-       • Write the canonical count back to liveRooms/{roomId}/viewers so
-         every viewer's room-watch listener picks it up instantly.
-       • Mirror to Firestore uid-keyed doc so Live Hub cards stay fresh.
-       • Uses off() on the stored ref for clean teardown on endLive().
-     ══════════════════════════════════════════════════════════════════════ */
-  const presenceRoot = ref(_liveDB, `liveViewers/${_roomId}`);
-  _viewerCountRef    = presenceRoot;
+  _viewerCountRef = ref(_liveDB, `liveRooms/${_roomId}`);
   let _lastMirroredViewers = -1;
-
-  _viewerCountUnsub = onValue(presenceRoot, snap => {
-    let count = 0;
-    if (snap.exists()) {
-      const seats = snap.val() || {};
-      for (const [uid, seat] of Object.entries(seats)) {
-        // Exclude the host's own uid and any inactive / malformed seats
-        if (uid === _user?.uid) continue;
-        if (seat && seat.active === true) count++;
-      }
+  _viewerCountUnsub = onValue(_viewerCountRef, snap => {
+    const d = snap.val() || {};
+    if (D.viewerCount) D.viewerCount.textContent = '👁 ' + (d.viewers || 0);
+    if (D.likeCount)   D.likeCount.textContent   = '❤️ ' + (d.likes   || 0);
+    // Mirror viewer count to Firestore (uid-keyed doc) so Live Hub cards update in real time
+    const v = d.viewers || 0;
+    if (v !== _lastMirroredViewers && _roomId && _user) {
+      _lastMirroredViewers = v;
+      updateDoc(doc(_db, 'liveRooms', _user.uid), { viewers: v }).catch(() => {});
     }
-    // Update host UI immediately
-    if (D.viewerCount) D.viewerCount.textContent = '👁 ' + count;
-    // Broadcast canonical count to all viewers via liveRooms
-    set(ref(_liveDB, `liveRooms/${_roomId}/viewers`), count).catch(() => {});
-    // Mirror to Firestore for Live Hub cards (throttled by value change)
-    // BUG-VIEWERCOUNT FIX: mirror to the room doc (keyed by _roomId), not
-    // the host's user doc (keyed by _user.uid) — wrong key caused the viewer
-    // count shown on Live Hub cards to never update while guests were present.
-    if (count !== _lastMirroredViewers && _roomId && _user) {
-      _lastMirroredViewers = count;
-      updateDoc(doc(_db, 'liveRooms', _roomId), { viewers: count }).catch(() => {});
-    }
-  });
-
-  // ── Also subscribe to likes so the host's like counter updates live ──
-  const likesRef = ref(_liveDB, `liveRooms/${_roomId}/likes`);
-  onValue(likesRef, snap => {
-    if (D.likeCount) D.likeCount.textContent = '❤️ ' + (snap.val() || 0);
   });
 }
 
@@ -1074,26 +763,11 @@ async function flipLiveCamera() {
       D.liveVideo.srcObject = newStream;
       D.liveVideo.play().catch(() => {});
     }
-    if (_localStream.getVideoTracks()[0]) {
-      const newVideoTrack = _localStream.getVideoTracks()[0];
-      // Replace the video track on every active viewer peer connection.
-      for (const viewerUid of Object.keys(_creatorViewerPeers)) {
-        const peer = _creatorViewerPeers[viewerUid];
-        if (!peer || !peer.pc) continue;
-        const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
-        if (sender) {
-          await sender.replaceTrack(newVideoTrack).catch(() => {});
-        }
-      }
-      // Replace the video track on every active guest-box peer connection so
-      // the host's cell in each guest's box doesn't go black after a flip.
-      for (const guestUid of Object.keys(_guestPeers)) {
-        const peer = _guestPeers[guestUid];
-        if (!peer || !peer.pc) continue;
-        const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
-        if (sender) {
-          await sender.replaceTrack(newVideoTrack).catch(() => {});
-        }
+    if (_rtcPc && newStream.getVideoTracks()[0]) {
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      const sender = _rtcPc.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(newVideoTrack).catch(() => {});
       }
     }
   } catch (e) {
@@ -1113,11 +787,7 @@ function toggleFullscreen() {
 function _creatorBeforeUnload() {
   if (_creatorEndedFlag || !_roomId) return;
   // Can't do async work in beforeunload; onDisconnect handles the RTDB cleanup.
-  // Synchronously close every viewer peer so streams drop immediately.
-  _teardownAllCreatorViewerPeers();
   if (_localStream) { _localStream.getTracks().forEach(t => t.stop()); _localStream = null; }
-  // Best-effort: remove viewer presence seats (fire-and-forget, may not complete)
-  try { remove(ref(_liveDB, `liveViewers/${_roomId}`)).catch(() => {}); } catch(_) {}
 }
 
 async function endLive() {
@@ -1139,8 +809,8 @@ async function endLive() {
   _teardownAllGuestPeers();
   if (_guestReqUnsub) { try { _guestReqUnsub(); } catch(_){} _guestReqUnsub = null; }
 
-  // Close ALL per-viewer peer connections + the viewer-watcher.
-  _teardownAllCreatorViewerPeers();
+  if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
+  if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
   if (_chatUnsub)        { _chatUnsub();         _chatUnsub        = null; }
   if (_viewerCountRef && _viewerCountUnsub) { off(_viewerCountRef); _viewerCountRef = null; _viewerCountUnsub = null; }
 
@@ -1166,21 +836,11 @@ async function endLive() {
     await updateDoc(doc(_db, 'users', _user.uid), {
       isLive:     deleteField(),
       liveRoomId: deleteField(),
-      status:     'online',
-      lastSeen:   Date.now(),
     });
   } catch (_) {}
 
-  // ── RTDB users/{uid} presence: mark live ended, keep online = true ──
-  // Stop the host presence heartbeat first.
-  if (_hostPresenceInterval) { clearInterval(_hostPresenceInterval); _hostPresenceInterval = null; }
-  try {
-    // Cancel the onDisconnect we registered at startLive — we are ending cleanly
-    await onDisconnect(ref(_liveDB, 'users/' + _user.uid)).cancel();
-  } catch (_) {}
-  try {
-    await set(ref(_liveDB, 'users/' + _user.uid), { live: false, online: true, lastSeen: rtdbTimestamp() });
-  } catch (_) {}
+  // ── RTDB users/{uid} presence: mark live ended ──
+  try { await set(ref(_liveDB, 'users/' + _user.uid + '/live'), false); } catch (_) {}
 
   /* ── Delete live feed post from main Firestore (safety net for old data) ── */
   if (_feedPostId) {
@@ -1206,9 +866,6 @@ async function endLive() {
   /* ── Also delete by roomId in case old data used roomId as key ── */
   try { await deleteDoc(doc(_db, 'liveRooms', _endedRoomId)); } catch (_) {}
 
-  /* ── Clean up viewer presence seats for this room ── */
-  try { await remove(ref(_liveDB, `liveViewers/${_endedRoomId}`)); } catch (_) {}
-
   /* ── Schedule RTDB room deletion after 5 min (cleans up ended marker) ── */
   setTimeout(async () => {
     try { await remove(ref(_liveDB, `liveRooms/${_endedRoomId}`)); } catch (_) {}
@@ -1221,7 +878,6 @@ async function endLive() {
   _shadowBotOnLiveEnd();
   _aiSafetyOnLiveEnd();
   _iqOnLiveEnd();
-  _stopHostVideoHealth();
 
   // ── Co-host cleanup (no-op if cohost.js is not loaded) ──
   if (typeof window._cohostCleanup === 'function') { try { window._cohostCleanup(); } catch(_){} }
@@ -1329,87 +985,42 @@ async function _notifyFollowersLive(creatorData) {
 async function _startViewer() {
   let roomData = null;
 
-  // ── Show the stage + "Connecting…" banner immediately so the viewer
-  //    isn't staring at the generic full-screen spinner while we do the
-  //    room fetch + WebRTC handshake. The video replaces the banner the
-  //    instant the first frame arrives. ──
-  _hideLoading();
-  _showStage();
-  _showConnBanner('Connecting\u2026', '');
+  const _MAX_RETRIES = 8;
+  const _RETRY_MS    = 2000;
 
-  /* OPTIMISED: Instead of polling with sequential get() calls (which added
-     up to 4+ seconds of delay), we use an onValue listener on the room ref
-     that fires the INSTANT the room data appears. We race it against a
-     single get() (in case the room already exists) and a 10s timeout.
-     This eliminates all polling delays — the room data is consumed the
-     moment it's available, typically in one Firebase round-trip (~150ms). */
-  const _roomRef = ref(_liveDB, `liveRooms/${_roomId}`);
-  try {
-    roomData = await new Promise((resolve, reject) => {
-      let settled = false;
-      const finish = (val) => { if (!settled) { settled = true; resolve(val); } };
-      // Reduced from 10s to 6s — the onValue + get() race consumes the room
-      // data the instant it's available (~150ms typical), so this is purely
-      // a safety net for when the room truly doesn't exist. Failing faster
-      // lets the user see the "ended" overlay sooner instead of waiting.
-      const to = setTimeout(() => {
-        try { off(_roomRef, listener); } catch(_) {}
-        finish(null);
-      }, 6000);
-      const listener = onValue(_roomRef, snap => {
-        if (snap.exists()) {
-          const d = snap.val();
-          if (d.status === 'live') {
-            clearTimeout(to);
-            try { off(_roomRef, listener); } catch(_) {}
-            finish(d);
-          } else if (d.status === 'ended') {
-            clearTimeout(to);
-            try { off(_roomRef, listener); } catch(_) {}
-            _showEndedOverlay(false, 'Stream ended', 'This live stream has already ended.');
-            finish('ENDED');
-          }
-        }
-      });
-      // Also do a single get() in case the room already exists (race condition guard)
-      get(_roomRef).then(snap => {
-        if (!settled && snap.exists()) {
-          const d = snap.val();
-          if (d.status === 'live') {
-            clearTimeout(to);
-            try { off(_roomRef, listener); } catch(_) {}
-            finish(d);
-          } else if (d.status === 'ended') {
-            clearTimeout(to);
-            try { off(_roomRef, listener); } catch(_) {}
-            _showEndedOverlay(false, 'Stream ended', 'This live stream has already ended.');
-            finish('ENDED');
-          }
-        }
-      }).catch(() => {});
-    });
-  } catch (e) {
-    toast('Could not connect. Please try again.');
-    return;
+  for (let attempt = 0; attempt < _MAX_RETRIES; attempt++) {
+    try {
+      const snap = await get(ref(_liveDB, `liveRooms/${_roomId}`));
+      if (snap.exists() && snap.val().status === 'live') {
+        roomData = snap.val();
+        break;
+      }
+      if (snap.exists() && snap.val().status === 'ended') {
+        _hideLoading();
+        _showEndedOverlay(false, 'Stream ended', 'This live stream has already ended.');
+        return;
+      }
+    } catch (e) {
+      _hideLoading();
+      toast('Could not connect. Please try again.');
+      return;
+    }
+    if (attempt === 0) {
+      _hideLoading();
+      _showStage();
+      _showConnBanner('Waiting for stream…', '');
+    }
+    await new Promise(r => setTimeout(r, _RETRY_MS));
   }
 
-  if (roomData === 'ENDED') return;  // already showed the ended overlay
   if (!roomData) {
     _showEndedOverlay(false, 'Stream ended', 'This live stream has ended or does not exist.');
     return;
   }
 
-  // Stage is already shown; keep the "Connecting…" banner up until the
-  // first video frame arrives (the ontrack handler hides it).
-  _showConnBanner('Connecting…', '');
-
-  // TIKTOK-STYLE: Start the WebRTC video connection FIRST — it's the only
-  // thing that matters for the video to appear. All the social features
-  // (chat, guest grid, layout sync, viewer count, creator info) run in the
-  // background and don't block the video from loading.
-  const _webrtcPromise = _startViewerWebRTC(roomData);
-
-  // Non-critical setup (runs in background, doesn't block video)
+  _hideLoading();
+  _showStage();
+  _hideConnBanner();
   _populateCreatorInfo(roomData);
   _setupViewerControls(roomData);
   _subscribeChat();
@@ -1430,44 +1041,12 @@ async function _startViewer() {
   /* ── Attach resize observer so guest grid re-layouts on any screen change ── */
   _attachGuestGridResizeObserver();
 
-  /* ── Viewer presence seat ────────────────────────────────────────────
-     Each viewer holds exactly ONE seat at:
-       liveViewers/{roomId}/{uid}  = { joinedAt, active: true }
-
-     Rules:
-       • Viewers only — the host never writes a seat (host UID is never
-         stored here so the host-side onValue count skips it naturally).
-       • Idempotent set() — replacing an existing seat for the same UID
-         does NOT inflate the count; it just updates the timestamp.
-       • onDisconnect(remove) fires if the tab closes / network drops,
-         so the host's onValue listener recomputes and the count heals.
-       • On a clean leave (_viewerLeave) we cancel the onDisconnect
-         first (to avoid a redundant remove) then delete the seat
-         ourselves and let the host's listener recount.
-       • _viewerPresenceJoined is cleared in _viewerLeave so a reconnect
-         after a network drop correctly re-registers the seat.
-  ── */
+  /* ── Increment viewer count in LIVE RTDB (fire-and-forget, non-blocking) ── */
   (async () => {
-    // Guard: never run for the host, never run without a valid user
-    if (!_user || _mode === 'creator') return;
-    // Guard: if already joined this session, skip (prevents double-write
-    // on spurious re-entry of _startViewer while the seat is still live)
-    if (_viewerPresenceJoined) return;
     try {
-      _viewerPresenceRef = ref(_liveDB, `liveViewers/${_roomId}/${_user.uid}`);
-      // Register onDisconnect BEFORE the set() so a disconnect that
-      // occurs between set() and the next await is still caught.
-      _viewerPresenceOdc = onDisconnect(_viewerPresenceRef);
-      await _viewerPresenceOdc.remove();
-      // Write the presence seat — idempotent; replaces any stale seat
-      // from a previous session for this UID in this room.
-      await set(_viewerPresenceRef, { joinedAt: Date.now(), active: true });
-      _viewerPresenceJoined = true;
-      // NOTE: The host's _subscribeViewerCount() already watches
-      // liveViewers/{roomId} with onValue, so it will recount and push
-      // the updated number to liveRooms/{roomId}/viewers automatically.
-      // We do NOT do a manual get()+set() here — that one-shot snapshot
-      // races with other viewers and can produce stale counts.
+      const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
+      const currentSnap = await get(viewersRef);
+      await set(viewersRef, (currentSnap.val() || 0) + 1);
     } catch (_) {}
   })();
 
@@ -1486,9 +1065,6 @@ async function _startViewer() {
     // Sync layout changes from host
     if (d.guestLayout  && d.guestLayout  !== _guestLayout)  { _guestLayout  = d.guestLayout;  _applyGuestLayout(); }
     if (d.guestBoxSize && d.guestBoxSize !== _guestBoxSize)  { _guestBoxSize = d.guestBoxSize; _applyGuestLayout(); }
-    // Sync featured guest changes from host
-    const incomingFeatured = d.featuredGuestUid || null;
-    if (incomingFeatured !== _featuredGuestUid) { _featuredGuestUid = incomingFeatured; _applyGuestLayout(); }
     if (!_roomWatchSeenFirst) {
       _roomWatchSeenFirst = true;
       return;
@@ -1498,8 +1074,7 @@ async function _startViewer() {
     }
   });
 
-  // Now await the WebRTC connection (it's already been running in parallel)
-  await _webrtcPromise;
+  await _startViewerWebRTC(roomData);
 
   window.addEventListener('beforeunload', _viewerLeave);
   window.addEventListener('pagehide',     _viewerLeave);
@@ -1563,45 +1138,20 @@ async function _viewerLeave() {
   if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
   if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
 
-  /* ── Remove this viewer's per-viewer signaling node so the host
-     tears down the corresponding peer connection and a returning
-     viewer gets a clean slate. ── */
-  if (_user && _roomId) {
-    try { await remove(ref(_liveDB, `liveConnections/${_roomId}/${_user.uid}`)); } catch(_) {}
-  }
-  // Detach the "wait for offer" listener if it's still attached.
-  if (_tmpViewerWaitRef && _tmpViewerWaitListener) {
-    try { off(_tmpViewerWaitRef, _tmpViewerWaitListener); } catch(_) {}
-    _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
-  }
-
-  /* ── Remove viewer presence seat ──────────────────────────────────
-     1. Cancel the onDisconnect so RTDB doesn't double-remove after we
-        explicitly delete the seat ourselves.
-     2. Delete the seat — this triggers the host's liveViewers onValue
-        listener which automatically recounts and updates liveRooms.
-     3. Clear _viewerPresenceJoined so a subsequent reconnect can
-        re-register a fresh seat without being blocked by the guard.
-  ── */
-  if (_viewerPresenceOdc) {
-    try { await _viewerPresenceOdc.cancel(); } catch(_) {}
-    _viewerPresenceOdc = null;
-  }
-  _viewerPresenceJoined = false;  // allow re-registration on reconnect
-  if (_viewerPresenceRef && _user) {
-    try { await remove(_viewerPresenceRef); } catch (_) {}
-    _viewerPresenceRef = null;
-    // The host's _subscribeViewerCount onValue listener automatically
-    // recounts when the seat node disappears — no manual get()+set() needed.
-  }
+  /* ── Decrement viewer count in LIVE RTDB ── */
+  try {
+    const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
+    const snap = await get(viewersRef);
+    const cur = snap.val() || 0;
+    await set(viewersRef, Math.max(0, cur - 1));
+  } catch (_) {}
 }
 
 function _setupViewerControls(roomData) {
   if (D.profileBtn) {
     D.profileBtn.style.display = 'flex';
-    // Navigate inside the app — never open an external browser tab
     D.profileBtn.onclick = () => {
-      window.location.href = 'index.html#profile=' + encodeURIComponent(roomData.hostId);
+      window.open('index.html#profile=' + roomData.hostId, '_blank');
     };
   }
 }
@@ -1616,236 +1166,121 @@ async function _startCreatorWebRTC() {
     return;
   }
 
-  /* ── Per-viewer signaling ────────────────────────────────────────────
-     Each viewer connects via its own node:
-       liveConnections/{roomId}/{viewerUid}
-         ├── request    { createdAt }            — viewer asks for an offer
-         ├── offer       { type, sdp }           — host writes a fresh offer
-         ├── answer      { type, sdp }           — viewer writes its answer
-         ├── creatorCandidates/{key} { ... }     — host ICE candidates
-         └── viewerCandidates/{key}  { ... }     — viewer ICE candidates
+  _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
 
-     The host keeps a separate RTCPeerConnection per viewer so it can
-     stream to many viewers AND so a viewer that leaves and comes back
-     gets a brand-new offer (the old "single shared node" design left a
-     stale answer in RTDB that the host ignored on the second connect,
-     which is exactly why returning viewers saw a black "Waiting for
-     stream…" screen).
-  ─────────────────────────────────────────────────────────────────── */
+  // Add tracks with explicit sendonly direction
+  _localStream.getTracks().forEach(track => {
+    _rtcPc.addTrack(track, _localStream);
+  });
 
-  const connRootRef = ref(_liveDB, `liveConnections/${_roomId}`);
+  // Ensure transceivers are sendonly and set initial encoding to 720p / 3000 kbps CBR
+  _rtcPc.getTransceivers().forEach(tc => {
+    tc.direction = 'sendonly';
+    if (tc.sender && tc.sender.track && tc.sender.track.kind === 'video') {
+      const params = tc.sender.getParameters();
+      if (!params.encodings || !params.encodings.length) {
+        params.encodings = [{}];
+      }
+      // Default tier: MED — 720p, 3000 kbps, 30fps
+      params.encodings[0].maxBitrate           = 3_000_000;
+      params.encodings[0].maxFramerate         = 30;
+      params.encodings[0].scaleResolutionDownBy = 1;
+      tc.sender.setParameters(params).catch(() => {});
+    }
+  });
 
-  // Register onDisconnect so the room ends if the host drops.
+  _rtcPc.onconnectionstatechange = () => {
+    if (_rtcPc.connectionState === 'connected') {
+      // Start adaptive quality monitoring (adjust bitrate based on network conditions)
+      _startAdaptiveQuality(_rtcPc);
+    }
+  };
+
+  const connRef = ref(_liveDB, `liveConnections/${_roomId}`);
+  const _pendingCandidates = [];
+  let   _offerWritten      = false;
+
+  // Wire BEFORE createOffer so no early candidates are dropped
+  _rtcPc.onicecandidate = async (e) => {
+    if (!e.candidate) return;
+    if (!_offerWritten) {
+      _pendingCandidates.push(e.candidate.toJSON());
+      return;
+    }
+    try { await push(ref(_liveDB, `liveConnections/${_roomId}/creatorCandidates`), e.candidate.toJSON()); }
+    catch (_) {}
+  };
+
+  // createOffer with a 10-second timeout
+  let offer;
+  try {
+    offer = await Promise.race([
+      _rtcPc.createOffer(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('createOffer timed out after 10s')), 10000)),
+    ]);
+  } catch (e) {
+    toast('Could not start stream. Please try again.');
+    return;
+  }
+
+  try {
+    await _rtcPc.setLocalDescription(offer);
+  } catch (e) {
+    toast('Could not start stream. Please try again.');
+    return;
+  }
+
+  // Write offer to RTDB
+  try {
+    await set(connRef, {
+      offer:             { type: offer.type, sdp: offer.sdp },
+      creatorCandidates: {},
+      viewerCandidates:  {},
+    });
+    _offerWritten = true;
+  } catch (e) {
+    toast('Could not start live. Please try again.');
+    return;
+  }
+
+  // Register onDisconnect AFTER offer is confirmed in RTDB
   try {
     await onDisconnect(ref(_liveDB, `liveRooms/${_roomId}`)).update({
       status: 'ended', isLive: false, endedAt: Date.now(),
     });
   } catch (_) {}
 
-  // Watch for viewers appearing under liveConnections/{roomId}.
-  _creatorConnUnsub = onValue(connRootRef, async snap => {
-    const viewers = snap.val() || {};
-    // Tear down peers for viewers that have left (node removed).
-    for (const viewerUid of Object.keys(_creatorViewerPeers)) {
-      if (!viewers[viewerUid]) {
-        _teardownCreatorViewerPeer(viewerUid);
-      }
+  // Flush buffered candidates
+  if (_pendingCandidates.length) {
+    for (const cand of _pendingCandidates) {
+      try { await push(ref(_liveDB, `liveConnections/${_roomId}/creatorCandidates`), cand); } catch (_) {}
     }
-    // Handle viewers that have requested an offer.
-    for (const viewerUid of Object.keys(viewers)) {
-      const vData = viewers[viewerUid];
-      // A viewer with a request but no offer needs a fresh peer.
-      if (!vData || !vData.request || vData.offer) continue;
-      // If we already have a peer for this viewer but they re-requested
-      // (their node was reset via set()), tear it down and rebuild.
-      if (_creatorViewerPeers[viewerUid]) {
-        _teardownCreatorViewerPeer(viewerUid);
+    _pendingCandidates.length = 0;
+  }
+
+  // Watch for viewer answer + ICE
+  let _appliedViewerCandKeys = new Set();
+  _rtcSignalRef   = connRef;
+  _rtcSignalUnsub = onValue(connRef, async snap => {
+    if (!snap.exists()) return;
+    const d = snap.val();
+
+    if (d.answer && _rtcPc.remoteDescription === null) {
+      try {
+        await _rtcPc.setRemoteDescription(new RTCSessionDescription(d.answer));
+      } catch (_) {}
+    }
+
+    if (_rtcPc.remoteDescription && d.viewerCandidates) {
+      for (const [key, cand] of Object.entries(d.viewerCandidates)) {
+        if (_appliedViewerCandKeys.has(key)) continue;
+        _appliedViewerCandKeys.add(key);
+        try { await _rtcPc.addIceCandidate(new RTCIceCandidate(cand)); } catch (_) {}
       }
-      _handleViewerConnection(viewerUid).catch(() => {});
     }
   });
 
   toast('Live now');
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   Host: create a fresh peer connection + offer for one viewer.
-   ───────────────────────────────────────────────────────────────────── */
-async function _handleViewerConnection(viewerUid) {
-  if (!_localStream || !_roomId) return;
-  // Tear down any previous peer for this viewer (shouldn't exist, but be safe).
-  _teardownCreatorViewerPeer(viewerUid);
-  // Reserve the slot immediately so the watcher doesn't double-handle
-  // this viewer while we're still creating the offer.
-  _creatorViewerPeers[viewerUid] = { pc: null, appliedCandKeys: new Set(), unsub: null };
-
-  const pc = new RTCPeerConnection(_ICE_SERVERS);
-  _attachIceWatchdog(pc, `host→viewer:${viewerUid}`);
-
-  // Add tracks (sendonly) and constrain video encoding.
-  _localStream.getTracks().forEach(track => pc.addTrack(track, _localStream));
-  pc.getTransceivers().forEach(tc => {
-    tc.direction = 'sendonly';
-    if (tc.sender && tc.sender.track && tc.sender.track.kind === 'video') {
-      const params = tc.sender.getParameters();
-      if (!params.encodings || !params.encodings.length) params.encodings = [{}];
-      params.encodings[0].maxBitrate            = 3_000_000;
-      params.encodings[0].maxFramerate          = 30;
-      params.encodings[0].scaleResolutionDownBy = 1;
-      tc.sender.setParameters(params).catch(() => {});
-    }
-  });
-
-  const appliedCandKeys   = new Set();
-  const pendingCands      = [];
-  let   offerWritten      = false;
-  let   _lastAnswerSdp    = null;   // track applied answer SDP for ICE-restart detection
-  let   _iceRestartInFlight = false;
-
-  const viewerConnRef = ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}`);
-
-  // Buffer ICE until the offer is written so none are lost.
-  pc.onicecandidate = async (e) => {
-    if (!e.candidate) return;
-    if (!offerWritten) { pendingCands.push(e.candidate.toJSON()); return; }
-    try { await push(ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}/creatorCandidates`), e.candidate.toJSON()); }
-    catch (_) {}
-  };
-
-  pc.onconnectionstatechange = () => {
-    const cs = pc.connectionState;
-    // DIAGNOSTIC: log every host→viewer state change so silent black screens
-    // on the viewer side can be traced from the host's console.
-    console.log(`[HostViewer:${viewerUid}] connection state: ${cs} (ICE: ${pc.iceConnectionState})`);
-    if (cs === 'connected') {
-      _startAdaptiveQuality(pc);
-    } else if (cs === 'failed') {
-      console.error(`[HostViewer:${viewerUid}] FAILED — ICE: ${pc.iceConnectionState} — tearing down viewer peer`);
-      if (_creatorViewerPeers[viewerUid] && _creatorViewerPeers[viewerUid].pc === pc) {
-        _teardownCreatorViewerPeer(viewerUid);
-      }
-    } else if (cs === 'closed') {
-      console.warn(`[HostViewer:${viewerUid}] CLOSED`);
-      if (_creatorViewerPeers[viewerUid] && _creatorViewerPeers[viewerUid].pc === pc) {
-        _teardownCreatorViewerPeer(viewerUid);
-      }
-    } else if (cs === 'disconnected') {
-      console.warn(`[HostViewer:${viewerUid}] DISCONNECTED — ICE watchdog will attempt restartIce(); no teardown yet`);
-    }
-    // 'disconnected' is handled by _attachIceWatchdog (restartIce()) — do NOT
-    // tear down on disconnected; it's often a transient blip that resolves itself.
-  };
-
-  // ── ICE-restart renegotiation (host→viewer) ───────────────────────────
-  // When _attachIceWatchdog calls restartIce(), onnegotiationneeded fires.
-  // Write the new ICE-restart offer to RTDB so the viewer can respond with
-  // a fresh answer. Without this, the restart collects new candidates but
-  // the SDP handshake never completes and the stream stays frozen/black.
-  pc.onnegotiationneeded = async () => {
-    if (!offerWritten) return;         // initial offer handled below
-    if (_iceRestartInFlight) return;
-    if (pc.signalingState !== 'stable') return;
-    if (!_creatorViewerPeers[viewerUid]) return; // peer was removed
-    _iceRestartInFlight = true;
-    try {
-      const restartOffer = await pc.createOffer({ iceRestart: true });
-      await pc.setLocalDescription(restartOffer);
-      // Reset candidate tracking so the viewer processes the new set cleanly.
-      appliedCandKeys.clear();
-      _lastAnswerSdp = null;
-      await update(viewerConnRef, {
-        offer: { type: restartOffer.type, sdp: restartOffer.sdp },
-        creatorCandidates: null,
-        viewerCandidates:  null,
-      });
-      console.log(`[HostViewer] ICE-restart offer written for viewer ${viewerUid}`);
-    } catch (e) {
-      console.warn(`[HostViewer] ICE-restart renegotiation failed for ${viewerUid}:`, e.message);
-    } finally {
-      _iceRestartInFlight = false;
-    }
-  };
-
-  // Create + set local description (offer) with a 10s timeout.
-  let offer;
-  try {
-    offer = await Promise.race([
-      pc.createOffer(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('createOffer timed out after 5s')), 5000)),
-    ]);
-  } catch (e) {
-    _teardownCreatorViewerPeer(viewerUid);
-    return;
-  }
-  try { await pc.setLocalDescription(offer); }
-  catch (e) { _teardownCreatorViewerPeer(viewerUid); return; }
-
-  // Write the per-viewer offer.
-  try {
-    await update(viewerConnRef, {
-      offer: { type: offer.type, sdp: offer.sdp },
-    });
-    offerWritten = true;
-  } catch (e) {
-    _teardownCreatorViewerPeer(viewerUid);
-    return;
-  }
-
-  // Flush buffered candidates.
-  if (pendingCands.length) {
-    for (const cand of pendingCands) {
-      try { await push(ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}/creatorCandidates`), cand); } catch (_) {}
-    }
-    pendingCands.length = 0;
-  }
-
-  // Watch this viewer's node for its answer + ICE candidates.
-  // Handles both the initial answer and ICE-restart answers (different SDP).
-  const unsub = onValue(viewerConnRef, async snap => {
-    if (!snap.exists()) return;
-    const d = snap.val();
-    // Apply answer if it's new (initial answer or ICE-restart answer with changed SDP)
-    if (d.answer && d.answer.sdp !== _lastAnswerSdp) {
-      if (pc.signalingState === 'have-local-offer') {
-        try {
-          await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
-          _lastAnswerSdp = d.answer.sdp;
-          // Clear applied candidates so the new ICE candidate set is processed
-          appliedCandKeys.clear();
-        } catch (_) {}
-      }
-    }
-    if (pc.remoteDescription && d.viewerCandidates) {
-      for (const [key, cand] of Object.entries(d.viewerCandidates)) {
-        if (appliedCandKeys.has(key)) continue;
-        appliedCandKeys.add(key);
-        try { await pc.addIceCandidate(new RTCIceCandidate(cand)); } catch (_) {}
-      }
-    }
-  });
-
-  _creatorViewerPeers[viewerUid] = { pc, appliedCandKeys, unsub };
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   Host: tear down one viewer's peer connection + listener.
-   ───────────────────────────────────────────────────────────────────── */
-function _teardownCreatorViewerPeer(viewerUid) {
-  const peer = _creatorViewerPeers[viewerUid];
-  if (!peer) return;
-  if (peer.unsub) { try { peer.unsub(); } catch (_) {} }
-  if (peer.pc)    { try { peer.pc.close(); } catch (_) {} }
-  delete _creatorViewerPeers[viewerUid];
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   Host: tear down ALL viewer peer connections + the main listener.
-   ───────────────────────────────────────────────────────────────────── */
-function _teardownAllCreatorViewerPeers() {
-  for (const viewerUid of Object.keys(_creatorViewerPeers)) {
-    _teardownCreatorViewerPeer(viewerUid);
-  }
-  if (_creatorConnUnsub) { try { _creatorConnUnsub(); } catch (_) {} _creatorConnUnsub = null; }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1853,231 +1288,49 @@ function _teardownAllCreatorViewerPeers() {
    Uses LIVE Realtime Database for signaling.
    ═══════════════════════════════════════════════════ */
 async function _startViewerWebRTC(roomData) {
-  // Reset the first-frame banner flag for this (re)connection attempt.
-  // Declared here (function scope) so the reset on line 1 works without
-  // hitting the temporal dead zone from the later let.
-  let _frameBannerHidden = false;
-  let _playRetries        = 0;
-  _showConnBanner('Connecting\u2026', '');
+  _showConnBanner('Waiting for stream…', '');
 
-  if (!_user || !_user.uid) {
-    _showConnBanner('Connecting\u2026', '');
+  const connRef = ref(_liveDB, `liveConnections/${_roomId}`);
+
+  /* ── Read offer from LIVE RTDB ── */
+  let connSnap;
+  try {
+    connSnap = await get(connRef);
+  } catch (e) {
+    _showConnBanner('Waiting for stream…', '');
     return;
   }
 
-  const viewerUid   = _user.uid;
-  const viewerConnRef = ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}`);
-
-  // ── CONNECTION REUSE: If we already have a healthy RTCPeerConnection
-  //    with an active video track, don't tear it down and start over.
-  //    This prevents redundant connection attempts when the viewer
-  //    re-enters the live room or a spurious reconnect is scheduled
-  //    while the stream is still playing. Only tear down if the
-  //    connection is dead (disconnected/failed/closed) or has no track.
-  if (_rtcPc) {
-    const state = _rtcPc.connectionState;
-    const hasVideoTrack = _rtcPc.getReceivers ? _rtcPc.getReceivers().some(r => r.track && r.track.kind === 'video' && r.track.readyState === 'live') : false;
-    if ((state === 'connected' || state === 'connecting') && hasVideoTrack && D.liveVideo && D.liveVideo.srcObject) {
-      // The stream is already playing — keep the existing connection and
-      // just make sure the banner is hidden.
-      _hideBannerOnFirstFrame();
-      return;
-    }
-    // Otherwise tear down the dead/stale connection before creating a new one.
-    try { _rtcPc.close(); } catch (_) {}
-    _rtcPc = null;
-  }
-  if (_rtcSignalRef && _rtcSignalUnsub) {
-    try { off(_rtcSignalRef); } catch (_) {}
-    _rtcSignalRef = null; _rtcSignalUnsub = null;
+  if (!connSnap.exists() || !connSnap.val().offer) {
+    _showConnBanner('Waiting for stream…', '');
+    const offerWaitRef = ref(_liveDB, `liveConnections/${_roomId}`);
+    let _offerWaitListener;
+    _offerWaitListener = onValue(offerWaitRef, async snap => {
+      if (!snap.exists() || !snap.val().offer) return;
+      off(offerWaitRef, _offerWaitListener);
+      _startViewerWebRTC(roomData);
+    });
+    return;
   }
 
-  // ── Viewer presence seat (re-registration on reconnect) ───────────────
-  // The initial seat is registered by the IIFE in _startViewer. When
-  // _scheduleViewerReconnect calls _startViewerWebRTC directly, that IIFE
-  // doesn't run again. We re-register here after the reconnect path nulled
-  // both the ref and the joined flag. The double-write on first load is
-  // harmless — it's an idempotent set() to the same path.
-  if (!_viewerPresenceJoined && _user && _mode !== 'creator' && _roomId) {
-    (async () => {
-      try {
-        _viewerPresenceRef = ref(_liveDB, `liveViewers/${_roomId}/${_user.uid}`);
-        _viewerPresenceOdc = onDisconnect(_viewerPresenceRef);
-        await _viewerPresenceOdc.remove();
-        await set(_viewerPresenceRef, { joinedAt: Date.now(), active: true });
-        _viewerPresenceJoined = true;
-      } catch (_) {}
-    })();
-  }
-
-  // TIKTOK-STYLE: Create the RTCPeerConnection FIRST (local, synchronous)
-  // so ICE candidate gathering starts immediately. Then fire the set()
-  // request and onDisconnect() in parallel — don't block on onDisconnect
-  // since it's just a safety net, not on the critical path.
+  if (_rtcPc) { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
   _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
-  _attachIceWatchdog(_rtcPc, 'viewer→host');
-
-  // ── PRE-WARM CHECK: If index.html already started the signaling
-  //    handshake (pre-warm), the host may have already written an offer
-  //    to our RTDB node. Check for it FIRST — if there's already an
-  //    offer, we skip the "write request → wait for host" cycle entirely.
-  //    This is what makes the video appear almost instantly on click. ──
-  let _prewarmedOffer = null;
-  try {
-    const existingSnap = await get(viewerConnRef);
-    if (existingSnap.exists() && existingSnap.val().offer) {
-      _prewarmedOffer = existingSnap.val();
-    }
-  } catch (_) {}
-
-  if (!_prewarmedOffer) {
-    // No pre-warmed offer — write a fresh request as usual.
-    // ── 1. Write a fresh "request" so the host creates a per-viewer offer ──
-    try {
-      await set(viewerConnRef, {
-        request:            { createdAt: Date.now() },
-        offer:              null,
-        answer:             null,
-        creatorCandidates:  null,
-        viewerCandidates:   null,
-      });
-    } catch (e) {
-      _showConnBanner('Connecting\u2026', '');
-      return;
-    }
-  }
-  // else: The pre-warm already wrote the request and the host already
-  // responded with an offer. We'll use it directly below.
-
-  // If the host drops, remove our signaling node so a returning host
-  // gets a clean slate (avoids stale-offer confusion). Fire-and-forget
-  // — don't block the critical path on this safety net.
-  try { onDisconnect(viewerConnRef).remove(); } catch (_) {}
-
-  // ── AGGRESSIVE PLAYBACK: Retry play() up to 3 times. On mobile browsers,
-  //    the first play() call can be interrupted or deferred. We retry with
-  //    a small delay to ensure the video starts decoding ASAP. ──
-  function _kickoffPlayback() {
-    if (!D.liveVideo || !D.liveVideo.srcObject) return;
-    const p = D.liveVideo.play();
-    if (p && typeof p.then === 'function') {
-      p.catch(() => {
-        if (_playRetries < 3) {
-          _playRetries++;
-          setTimeout(_kickoffPlayback, 300);
-        }
-      });
-    }
-  }
-
-  // ── FIRST-FRAME DETECTION: Hide the "Connecting…" banner ONLY when the
-  //    video has an actual frame to show — not when the track merely
-  //    arrives. This eliminates the black screen gap between connection
-  //    and first frame render.
-  //
-  //    Strategy (ordered by speed):
-  //    1. requestVideoFrameCallback — fires the moment a frame is painted
-  //    2. 'loadeddata' event — fires when the first frame is available
-  //    3. 'playing' event — fires when playback actually starts
-  //    4. Polling readyState — fallback for older browsers
-  //    5. 10s safety timeout — if nothing works, hide the banner anyway ──
-  function _hideBannerOnFirstFrame() {
-    if (_frameBannerHidden) return;
-    const v = D.liveVideo;
-    if (!v) return;
-
-    // Check if already playing (race condition — track arrived fast)
-    if (v.readyState >= 2 && !v.paused && v.currentTime > 0) {
-      _frameBannerHidden = true;
-      _hideConnBanner();
-      return;
-    }
-
-    // Method 1: requestVideoFrameCallback (Chrome 83+) — fires when a frame
-    // is actually painted to the screen. This is the earliest possible signal.
-    if ('requestVideoFrameCallback' in v) {
-      v.requestVideoFrameCallback(() => {
-        if (_frameBannerHidden) return;
-        _frameBannerHidden = true;
-        _hideConnBanner();
-      });
-    }
-
-    // Method 2: 'loadeddata' — fires when the first frame of the media
-    // has finished loading. Not as precise as rVFC but widely supported.
-    v.addEventListener('loadeddata', () => {
-      if (_frameBannerHidden) return;
-      // Double-check: loadeddata can fire without an actual frame on some
-      // browsers. Verify readyState >= 2 (HAVE_CURRENT_DATA).
-      if (v.readyState >= 2) {
-        _frameBannerHidden = true;
-        _hideConnBanner();
-      }
-    }, { once: true });
-
-    // Method 3: 'playing' — fires when playback has actually started.
-    v.addEventListener('playing', () => {
-      if (_frameBannerHidden) return;
-      _frameBannerHidden = true;
-      _hideConnBanner();
-    }, { once: true });
-
-    // Method 4: Poll readyState for 8 seconds (fallback for browsers that
-    // don't fire the events above reliably).
-    let _pollCount = 0;
-    const _pollInterval = setInterval(() => {
-      _pollCount++;
-      if (_frameBannerHidden) { clearInterval(_pollInterval); return; }
-      if (v.readyState >= 2 && !v.paused && v.currentTime > 0) {
-        _frameBannerHidden = true;
-        _hideConnBanner();
-        clearInterval(_pollInterval);
-      } else if (_pollCount > 30) { // 30 × 200ms = 6 seconds
-        // Safety: if no frame after 6s, hide the banner to avoid
-        // leaving the user stuck on "Connecting…" forever.
-        _frameBannerHidden = true;
-        _hideConnBanner();
-        clearInterval(_pollInterval);
-      }
-    }, 200);
-
-    // Method 5: Absolute safety timeout at 7s (reduced from 10s).
-    // The first-frame detection methods above should fire within 1-2s of
-    // the video track arriving. This is just a backstop for edge cases.
-    setTimeout(() => {
-      if (!_frameBannerHidden) {
-        _frameBannerHidden = true;
-        _hideConnBanner();
-      }
-    }, 7000);
-  }
 
   _rtcPc.ontrack = (e) => {
     if (!D.liveVideo) return;
     const stream = e.streams[0] || new MediaStream([e.track]);
-    // ── Prevent unnecessary srcObject reassignment during ICE restarts ──
-    // If the video is already playing with a healthy stream, don't
-    // replace srcObject — that causes a brief black frame and resets the
-    // decoder. Only update when the stream object itself is different.
-    if (D.liveVideo.srcObject !== stream) {
-      D.liveVideo.srcObject = stream;
-    }
+    D.liveVideo.srcObject = stream;
     D.liveVideo.muted = true;
     // Buffer / mobile optimisation: low-latency mode where supported
     if ('playsInline' in D.liveVideo) D.liveVideo.playsInline = true;
     if (typeof D.liveVideo.disableRemotePlayback !== 'undefined') D.liveVideo.disableRemotePlayback = true;
     // Prefer low-latency (Chrome hint)
     try { D.liveVideo.setPreferredQuality && D.liveVideo.setPreferredQuality('auto'); } catch(_) {}
-    // Kick off playback only if not already playing
-    if (D.liveVideo.paused || D.liveVideo.readyState < 2) {
-      _kickoffPlayback();
-    }
+    D.liveVideo.play().catch(() => {});
     _showUnmutePrompt();
-    // ── DON'T hide the banner yet! The track arrived but no frame is
-    //    rendered yet — the viewer would see a black screen. We hide the
-    //    banner ONLY when the first frame is actually painted. ──
-    _hideBannerOnFirstFrame();
-
+    _hideConnBanner();
+    // Safety: hide banner once video actually starts playing
+    D.liveVideo.addEventListener('playing', _hideConnBanner, { once: true });
     // ── If the guest grid is already showing a host cell, attach the stream now ──
     const hostCell = D.guestGrid?.querySelector('.vgc-cell.host-cell');
     if (hostCell && !hostCell.querySelector('video')) {
@@ -2087,123 +1340,21 @@ async function _startViewerWebRTC(roomData) {
 
   _rtcPc.onconnectionstatechange = () => {
     const state = _rtcPc.connectionState;
-    // DIAGNOSTIC: log every viewer state change so silent black screens
-    // can be diagnosed from the viewer's own console.
-    console.log(`[ViewerWebRTC] connection state: ${state} (ICE: ${_rtcPc.iceConnectionState})`);
     if (state === 'connected') {
-      // DON'T hide the banner here — 'connected' means the ICE transport
-      // is up, but the video hasn't rendered a frame yet. Let the
-      // first-frame handler (_hideBannerOnFirstFrame) hide the banner
-      // only when there's actually something to see. This prevents the
-      // black screen gap between "connected" and "first frame".
+      _hideConnBanner();
       _viewerReconnectAttempt = 0; // reset on successful connection
-      // ── POST-RECONNECT PLAY RETRY ──
-      // After an ICE restart the video track is still attached but the
-      // <video> element can end up paused (browser autopause on network
-      // interruption). Kick off playback again so the video is never
-      // stuck on a black screen after recovery.
-      if (D.liveVideo && D.liveVideo.paused && D.liveVideo.srcObject) {
-        D.liveVideo.play().catch(() => {});
-      }
-      // Re-run the first-frame banner logic so the "Connecting…" overlay
-      // is hidden once the video is visibly playing again.
-      _hideBannerOnFirstFrame();
     } else if (state === 'disconnected' || state === 'failed') {
-      console.warn(`[ViewerWebRTC] ${state.toUpperCase()} — ICE: ${_rtcPc.iceConnectionState} — video playing: ${!D.liveVideo?.paused}, readyState: ${D.liveVideo?.readyState}`);
-      // Only show the reconnecting banner / schedule a reconnect if the video
-      // is not currently playing. A transient ICE blip often heals itself
-      // within milliseconds; showing the banner causes needless visual
-      // disruption, and _scheduleViewerReconnect tears down the PC which
-      // makes the video go black. Let the ICE watchdog (restartIce) try
-      // first; we only intervene if the PC is still broken after a delay.
-      if (!D.liveVideo || D.liveVideo.paused || D.liveVideo.readyState < 2 ||
-          !D.liveVideo.srcObject) {
-        _showConnBanner('Reconnecting\u2026', '');
-        _scheduleViewerReconnect(roomData);
-      } else {
-        // Video is still flowing — schedule a quiet reconnect only if the
-        // connection hasn't recovered within 8 s (extra grace for ICE restart).
-        if (_viewerReconnectTimer) clearTimeout(_viewerReconnectTimer);
-        _viewerReconnectTimer = setTimeout(() => {
-          _viewerReconnectTimer = null;
-          if (_viewerLeftFlag) return;
-          const s = _rtcPc?.connectionState;
-          if (s === 'disconnected' || s === 'failed') {
-            console.error(`[ViewerWebRTC] Still ${s} after 8 s — scheduling reconnect`);
-            _showConnBanner('Reconnecting\u2026', '');
-            _scheduleViewerReconnect(roomData);
-          }
-        }, 8000);
-      }
+      _showConnBanner('Reconnecting…', '');
+      _scheduleViewerReconnect(roomData);
     }
   };
 
-  /* ── 2. Wait for the host to write a fresh offer to our node ──
-     PRE-WARM OPTIMISATION: If we already got the offer from the pre-warm
-     check above, skip the wait entirely. This is the key to instant video:
-     the offer was already waiting in RTDB before the user even clicked.
-     Otherwise, we set up the onValue listener IMMEDIATELY and race it
-     against a single get(), so the offer is consumed the very instant the
-     host writes it — no blocking round-trip. */
-  let offerSnap = null;
-  // If the pre-warm already got the offer, use it immediately — don't wait.
-  if (_prewarmedOffer) {
-    offerSnap = { exists: () => true, val: () => _prewarmedOffer };
-  }
-  const waitRef = viewerConnRef;
-  if (!offerSnap) try {
-    offerSnap = await new Promise((resolve, reject) => {
-      let settled = false;
-      const finish = (snap) => { if (!settled) { settled = true; resolve(snap); } };
-      // 5s overall timeout (reduced from 8s — fail fast, then reconnect).
-      // With the pre-warm from index.html, the offer is often already
-      // waiting in RTDB before this code runs, so the timeout rarely fires.
-      // When it does, failing fast lets the reconnect logic kick in sooner.
-      const to = setTimeout(() => { _tmpViewerWaitRef = null; _tmpViewerWaitListener = null; resolve(null); }, 5000);
-      const waitListener = onValue(waitRef, snap => {
-        if (snap.exists() && snap.val().offer) {
-          clearTimeout(to);
-          try { off(waitRef, waitListener); } catch (_) {}
-          finish(snap);
-        }
-      });
-      // Store so we can clean up on early return / error.
-      _tmpViewerWaitRef = waitRef;
-      _tmpViewerWaitListener = waitListener;
-      // In case the host already wrote the offer before the listener attached,
-      // also do a single get() and resolve if it already has an offer. This
-      // covers the rare race where the listener missed the initial event.
-      get(waitRef).then(snap => {
-        if (!settled && snap.exists() && snap.val().offer) {
-          clearTimeout(to);
-          try { off(waitRef, waitListener); } catch (_) {}
-          finish(snap);
-        }
-      }).catch(() => {});
-    });
-  } catch (e) {
-    _showConnBanner('Connecting\u2026', '');
-    return;
-  }
-
-  // Detach the wait listener if it's still attached.
-  // (The pre-warm path skips this entirely since offerSnap is already set.)
-  if (_tmpViewerWaitRef && _tmpViewerWaitListener) {
-    try { off(_tmpViewerWaitRef, _tmpViewerWaitListener); } catch (_) {}
-    _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
-  }
-
-  if (!offerSnap || !offerSnap.exists() || !offerSnap.val().offer) {
-    // No offer in time — schedule a reconnect attempt.
-    _scheduleViewerReconnect(roomData);
-    return;
-  }
-
-  const offer = offerSnap.val().offer;
+  /* ── Set remote description (offer) ── */
+  const offer = connSnap.val().offer;
   try {
     await _rtcPc.setRemoteDescription(new RTCSessionDescription(offer));
   } catch (e) {
-    _showConnBanner('Connecting\u2026', '');
+    _showConnBanner('Waiting for stream…', '');
     return;
   }
 
@@ -2218,77 +1369,45 @@ async function _startViewerWebRTC(roomData) {
       return;
     }
     try {
-      await push(ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}/viewerCandidates`), e.candidate.toJSON());
+      await push(ref(_liveDB, `liveConnections/${_roomId}/viewerCandidates`), e.candidate.toJSON());
     } catch (_) {}
   };
 
   const answer = await _rtcPc.createAnswer();
   await _rtcPc.setLocalDescription(answer);
 
-  /* ── Write answer to our per-viewer node in RTDB ── */
+  /* ── Write answer to RTDB ── */
   try {
-    await update(viewerConnRef, {
+    await update(connRef, {
       answer: { type: answer.type, sdp: answer.sdp },
     });
     _viewerAnswerWritten = true;
   } catch (e) {
-    _showConnBanner('Connecting\u2026', '');
+    _showConnBanner('Waiting for stream…', '');
     return;
   }
 
   /* ── Flush any viewer ICE candidates buffered before the answer was written ── */
   if (_viewerPendingCands.length) {
     for (const cand of _viewerPendingCands) {
-      try { await push(ref(_liveDB, `liveConnections/${_roomId}/${viewerUid}/viewerCandidates`), cand); } catch (_) {}
+      try { await push(ref(_liveDB, `liveConnections/${_roomId}/viewerCandidates`), cand); } catch (_) {}
     }
     _viewerPendingCands.length = 0;
   }
 
   /* ── Apply existing creator ICE candidates ── */
   let _appliedCreatorCandKeys = new Set();
-  let _lastAppliedOfferSdp    = offerSnap.val().offer?.sdp || null;
-  let _iceRestartAnswerInFlight = false;
-  const existingCands = offerSnap.val().creatorCandidates || {};
+  const existingCands = connSnap.val().creatorCandidates || {};
   for (const [key, cand] of Object.entries(existingCands)) {
     _appliedCreatorCandKeys.add(key);
     try { await _rtcPc.addIceCandidate(new RTCIceCandidate(cand)); } catch (_) {}
   }
 
-  /* ── Listen for ICE-restart offers and new creator ICE candidates ── */
-  _rtcSignalRef   = viewerConnRef;
-  _rtcSignalUnsub = onValue(viewerConnRef, async snap => {
+  /* ── Listen for new creator ICE candidates ── */
+  _rtcSignalRef   = connRef;
+  _rtcSignalUnsub = onValue(connRef, async snap => {
     if (!snap.exists()) return;
     const d = snap.val();
-
-    // ── Handle ICE-restart offer from host ──────────────────────────────
-    // When the host calls restartIce() and writes a new offer to RTDB, the
-    // viewer must respond with a fresh answer. Without this, the stream
-    // stays frozen because the SDP renegotiation never completes. This is
-    // the root cause of the "black screen every few minutes" bug.
-    if (d.offer && d.offer.sdp !== _lastAppliedOfferSdp && !_iceRestartAnswerInFlight) {
-      _iceRestartAnswerInFlight = true;
-      try {
-        // Only apply when our signaling state allows it.
-        if (_rtcPc && (_rtcPc.signalingState === 'stable' ||
-            _rtcPc.signalingState === 'have-remote-offer')) {
-          await _rtcPc.setRemoteDescription(new RTCSessionDescription(d.offer));
-          _lastAppliedOfferSdp = d.offer.sdp;
-          _appliedCreatorCandKeys.clear(); // fresh candidate set
-          const restartAnswer = await _rtcPc.createAnswer();
-          await _rtcPc.setLocalDescription(restartAnswer);
-          await update(viewerConnRef, {
-            answer: { type: restartAnswer.type, sdp: restartAnswer.sdp },
-          });
-          console.log('[ViewerWebRTC] ICE-restart answer sent to host');
-        }
-      } catch (e) {
-        console.warn('[ViewerWebRTC] ICE-restart answer failed:', e.message);
-      } finally {
-        _iceRestartAnswerInFlight = false;
-      }
-    }
-
-    // ── Apply new creator ICE candidates ────────────────────────────────
     if (d.creatorCandidates) {
       for (const [key, cand] of Object.entries(d.creatorCandidates)) {
         if (_appliedCreatorCandKeys.has(key)) continue;
@@ -2298,17 +1417,17 @@ async function _startViewerWebRTC(roomData) {
     }
   });
 
-  _showConnBanner('Connecting\u2026', '');
+  _showConnBanner('Waiting for stream…', '');
 
-  // ── Safety: the first-frame handler (_hideBannerOnFirstFrame) will hide
-  //    the banner as soon as a frame is actually rendered. This 1.5s
-  //    timeout is just a backstop in case the events fire too fast. ──
+  // ── 3-second safety timeout: if video is already playing, remove banner ──
+  setTimeout(() => {
+    const v = D.liveVideo;
+    if (v && v.srcObject && !v.paused && v.readyState >= 2) {
+      _hideConnBanner();
+    }
+  }, 3000);
 }
 
-// Temp holders for the viewer's "wait for offer" listener so it can be
-// detached cleanly once the host writes the per-viewer offer.
-let _tmpViewerWaitRef      = null;
-let _tmpViewerWaitListener = null;
 /* ═══════════════════════════════════════════════════
    STREAM QUALITY PROFILES
    Phone sends 720p 30fps 3000 kbps CBR by default.
@@ -2441,7 +1560,7 @@ function _scheduleViewerReconnect(roomData) {
 
   if (_viewerReconnectTimer) clearTimeout(_viewerReconnectTimer);
 
-  const delay = Math.min(500 * Math.pow(1.6, _viewerReconnectAttempt), 10000);
+  const delay = Math.min(2000 * Math.pow(1.5, _viewerReconnectAttempt), 15000);
   _viewerReconnectAttempt++;
   console.log(`[WebRTC] Reconnect attempt ${_viewerReconnectAttempt} in ${delay}ms`);
 
@@ -2449,51 +1568,12 @@ function _scheduleViewerReconnect(roomData) {
     _viewerReconnectTimer = null;
     if (_viewerLeftFlag) return;
 
-    // ── Guard: if the connection already healed while we were waiting,
-    //    skip the teardown/reconnect — don't interrupt a healthy stream.
-    if (_rtcPc) {
-      const st = _rtcPc.connectionState;
-      if ((st === 'connected' || st === 'connecting') &&
-          D.liveVideo && D.liveVideo.srcObject &&
-          !D.liveVideo.paused && D.liveVideo.readyState >= 2) {
-        // Connection recovered on its own — reset counter and bail.
-        _viewerReconnectAttempt = 0;
-        return;
-      }
-    }
-
-    // Tear down old peer connection + signal listener.
-    // IMPORTANT: Do NOT null srcObject on D.liveVideo here — the last frame
-    // stays visible during the reconnect instead of going black.
+    // Tear down old peer connection + signal listener
     if (_rtcPc) { try { _rtcPc.close(); } catch(_){} _rtcPc = null; }
     if (_rtcSignalRef && _rtcSignalUnsub) {
       try { off(_rtcSignalRef); } catch(_) {}
       _rtcSignalRef = null; _rtcSignalUnsub = null;
     }
-    // Detach the "wait for offer" listener if still attached.
-    if (_tmpViewerWaitRef && _tmpViewerWaitListener) {
-      try { off(_tmpViewerWaitRef, _tmpViewerWaitListener); } catch(_) {}
-      _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
-    }
-    // Remove our previous per-viewer signaling node so the host drops the
-    // stale peer and the fresh request (written by _startViewerWebRTC)
-    // triggers a brand-new offer.
-    if (_user && _roomId) {
-      try { await remove(ref(_liveDB, `liveConnections/${_roomId}/${_user.uid}`)); } catch(_) {}
-    }
-    // Cancel the old presence-seat onDisconnect so a stale remove()
-    // doesn't fire after the reconnect writes a fresh seat.
-    // Also explicitly remove the stale seat so the host's onValue listener
-    // recounts immediately — prevents phantom "online" viewers during reconnect.
-    if (_viewerPresenceOdc) {
-      try { await _viewerPresenceOdc.cancel(); } catch(_) {}
-      _viewerPresenceOdc = null;
-    }
-    if (_viewerPresenceRef && _user) {
-      try { await remove(_viewerPresenceRef); } catch(_) {}
-      _viewerPresenceRef = null;
-    }
-    _viewerPresenceJoined = false;
 
     // Verify stream is still live before attempting
     try {
@@ -2671,24 +1751,18 @@ async function sendChat() {
 /* ═══════════════════════════════════════════════════
    LIKES — LIVE RTDB
    ═══════════════════════════════════════════════════ */
-let _hasLiked    = false;
-let _likeCoolEnd = 0;   // timestamp when the tap cooldown expires
+let _hasLiked = false;
 
-async function sendLike(clientX, clientY) {
-  if (!_user || !_roomId) return;
-  // Short tap cooldown (800 ms) to prevent accidental rapid-fire likes
-  const now = Date.now();
-  if (now < _likeCoolEnd) return;
-  _likeCoolEnd = now + 800;
-
-  // Spawn floating hearts at the tap position (or near the right edge as fallback)
-  _spawnHeartBurst(clientX, clientY);
-
-  // Only increment the like counter once per 5-second window per user
-  if (_hasLiked) return;
+async function sendLike() {
+  if (!_user || !_roomId || _hasLiked) return;
   _hasLiked = true;
+  if (D.likeBtn)      D.likeBtn.classList.add('liked');
+  if (D.likeBtnCount) D.likeBtnCount.textContent = '❤️';
 
-  // Fire-and-forget RTDB increment (keeps UI instant)
+  _spawnHeartBurst();
+
+  // Use RTDB transactions-style increment via set with existing value
+  // For RTDB we still need a get, but fire-and-forget to keep UI instant
   (async () => {
     try {
       const likesRef = ref(_liveDB, `liveRooms/${_roomId}/likes`);
@@ -2697,31 +1771,24 @@ async function sendLike(clientX, clientY) {
     } catch (_) {}
   })();
 
-  setTimeout(() => { _hasLiked = false; }, 5000);
+  setTimeout(() => {
+    _hasLiked = false;
+    if (D.likeBtn) D.likeBtn.classList.remove('liked');
+  }, 5000);
 }
 
-function _spawnHeartBurst(clientX, clientY) {
+function _spawnHeartBurst() {
   const stage = D.stage;
   if (!stage) return;
+  const el = document.createElement('div');
+  el.className = 'like-burst';
+  el.textContent = '❤️';
   const rect = stage.getBoundingClientRect();
-
-  // Spawn 3 hearts with slight random offsets for a burst effect
-  const baseX = (clientX != null) ? (clientX - rect.left) : rect.width  * 0.75;
-  const baseY = (clientY != null) ? (clientY - rect.top)  : rect.height * 0.65;
-
-  const hearts = ['❤️', '💕', '❤️'];
-  hearts.forEach((emoji, i) => {
-    const el = document.createElement('div');
-    el.className = 'like-burst';
-    el.textContent = emoji;
-    el.style.left     = (baseX + (Math.random() - 0.5) * 50) + 'px';
-    el.style.top      = (baseY + (Math.random() - 0.5) * 30) + 'px';
-    el.style.bottom   = '';   // use top instead of bottom so position is tap-relative
-    el.style.position = 'absolute';
-    el.style.animationDelay = (i * 80) + 'ms';
-    stage.appendChild(el);
-    el.addEventListener('animationend', () => el.remove());
-  });
+  el.style.left     = (rect.width  * 0.75 + (Math.random() - 0.5) * 60) + 'px';
+  el.style.bottom   = (80 + Math.random() * 60) + 'px';
+  el.style.position = 'absolute';
+  stage.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
 }
 
 /* ═══════════════════════════════════════════════════
@@ -2735,38 +1802,19 @@ function _showStage() {
   if (D.stage) D.stage.classList.add('active');
 }
 
-let _connBannerPendingTimer = null;
-let _connBannerPendingTitle  = '';
-let _connBannerPendingSub    = '';
-
 function _showConnBanner(title, sub) {
   if (!D.connBanner) return;
   // Don't show the banner if the video is already playing
   const v = D.liveVideo;
   if (v && v.srcObject && !v.paused && v.readyState >= 2) return;
-  // Cancel any pending hide
-  if (_connBannerPendingTimer) { clearTimeout(_connBannerPendingTimer); _connBannerPendingTimer = null; }
-  // Grace period: delay showing the banner by 400ms. If the video arrives
-  // within 400ms (fast connections), the banner never flashes on screen.
-  _connBannerPendingTitle = title;
-  _connBannerPendingSub   = sub;
-  _connBannerPendingTimer = setTimeout(() => {
-    _connBannerPendingTimer = null;
-    // Re-check: video may have arrived during the grace period
-    const v2 = D.liveVideo;
-    if (v2 && v2.srcObject && !v2.paused && v2.readyState >= 2) return;
-    if (D.connTitle) D.connTitle.textContent = _connBannerPendingTitle;
-    if (D.connSub)   D.connSub.textContent   = _connBannerPendingSub;
-    D.connBanner.classList.add('visible');
-  }, 400);
+  if (D.connTitle) D.connTitle.textContent = title;
+  if (D.connSub)   D.connSub.textContent   = sub;
+  D.connBanner.classList.add('visible');
 }
 
 function _hideConnBanner() {
-  if (_connBannerPendingTimer) { clearTimeout(_connBannerPendingTimer); _connBannerPendingTimer = null; }
   if (D.connBanner) D.connBanner.classList.remove('visible');
 }
-
-
 
 function _showUnmutePrompt() {
   const p = D.unmutePrompt;
@@ -2793,28 +1841,6 @@ function _showEndedOverlay(wasCreator, title, sub) {
   if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
   if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
   if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
-  if (_tmpViewerWaitRef && _tmpViewerWaitListener) {
-    try { off(_tmpViewerWaitRef, _tmpViewerWaitListener); } catch(_) {}
-    _tmpViewerWaitRef = null; _tmpViewerWaitListener = null;
-  }
-  // Remove our per-viewer signaling node (viewer side) so a future
-  // reconnect starts clean.
-  if (!wasCreator && _user && _roomId) {
-    try { remove(ref(_liveDB, `liveConnections/${_roomId}/${_user.uid}`)); } catch(_) {}
-  }
-  // Viewer side: clean up presence seat so the count self-heals when
-  // the stream ends or the host navigates away.
-  if (!wasCreator && _viewerPresenceRef && !_viewerLeftFlag) {
-    if (_viewerPresenceOdc) {
-      try { _viewerPresenceOdc.cancel(); } catch(_) {}
-      _viewerPresenceOdc = null;
-    }
-    _viewerPresenceJoined = false;
-    try { remove(_viewerPresenceRef); } catch(_) {}
-    _viewerPresenceRef = null;
-  }
-  // Creator side: tear down all viewer peers.
-  if (wasCreator) _teardownAllCreatorViewerPeers();
   if (_chatUnsub) { _chatUnsub(); _chatUnsub = null; }
 }
 
@@ -2969,13 +1995,9 @@ function _checkForUpdate() {
   _updateChecked = true;
   if (!('serviceWorker' in navigator)) return;
 
-  // When a new SW takes over (after SKIP_WAITING), reload the page to apply updates.
-  // Only reload when the user explicitly clicked the update bar — not on first install.
+  // When a new SW takes over (after SKIP_WAITING), reload the page to apply updates
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (sessionStorage.getItem('snx-sw-user-update')) {
-      sessionStorage.removeItem('snx-sw-user-update');
-      window.location.reload();
-    }
+    window.location.reload();
   });
 
   navigator.serviceWorker.ready.then(reg => {
@@ -3015,8 +2037,6 @@ function _showUpdateBarIfWaiting(reg) {
   bar.textContent = '🔄 New version available — tap to refresh';
   bar.addEventListener('click', () => {
     bar.textContent = 'Updating…';
-    // Signal the controllerchange handler that this reload is user-initiated
-    sessionStorage.setItem('snx-sw-user-update', '1');
     reg.waiting.postMessage({ type: 'SKIP_WAITING' });
     // Reload will be triggered by the controllerchange event above
   });
@@ -3104,8 +2124,6 @@ function _startLayoutSync() {
     let changed = false;
     if (d.guestLayout  && d.guestLayout  !== _guestLayout)  { _guestLayout  = d.guestLayout;  changed = true; }
     if (d.guestBoxSize && d.guestBoxSize !== _guestBoxSize)  { _guestBoxSize = d.guestBoxSize; changed = true; }
-    const incomingFeatured = d.featuredGuestUid || null;
-    if (incomingFeatured !== _featuredGuestUid) { _featuredGuestUid = incomingFeatured; changed = true; }
     if (changed) _applyGuestLayout();
   });
 }
@@ -3230,34 +2248,13 @@ function _startViewerGuestGrid() {
       grid.classList.remove('has-guests');
     }
     _applyGuestLayout();
-
-    // ── BUG-HOSTCELL-ATTACH FIX ──────────────────────────────────────────
-    // On every RTDB update, ensure the host cell (if present) has a video
-    // element with the current stream. _attachHostVideoToCell is idempotent
-    // (it returns early if the cell already has a <video>), so calling it
-    // here on each update is safe. Without this, a viewer that joined
-    // before the WebRTC stream arrived would permanently see a black host
-    // cell because the 'if (!card.querySelector("video"))' branch in the
-    // update-existing-card path (line ~3188) fires only when the card was
-    // already created — this second call covers the first-render path too.
-    const hostCell = grid.querySelector('.vgc-cell.host-cell');
-    if (hostCell) _attachHostVideoToCell(hostCell);
   });
 }
 
 /* ── Attach the host's live video stream into a viewer-side host cell ──
    The host stream arrives via WebRTC on #liveVideo. We create a <video>
    element in the host cell that reads from the same MediaStream so the
-   host camera is always visible, even when the guest grid is shown.
-
-   ── BLACK-SCREEN FIX ──
-   The host cell video MUST start muted so autoplay is allowed by every
-   browser (Chrome / Safari / Firefox block unmuted autoplay without a
-   user gesture, which left the host cell stuck on a black screen). The
-   avatar + "Camera is loading…" placeholder stays visible until the
-   first frame is actually painted, so the cell never goes black while
-   the stream is still connecting. Audio is un-muted on the first user
-   tap (same gesture that unmutes the main video). */
+   host camera is always visible, even when the guest grid is shown. */
 function _attachHostVideoToCell(cell) {
   const _tryAttach = (attempts) => {
     const liveVid = D.liveVideo;
@@ -3270,109 +2267,21 @@ function _attachHostVideoToCell(cell) {
     }
     // Don't add a second video if one already exists
     if (cell.querySelector('video')) return;
-
     const vid = document.createElement('video');
-    vid.autoplay    = true;
-    vid.muted       = true;    // MUST start muted for autoplay to work
+    vid.autoplay   = true;
+    vid.muted      = false;   // viewers should hear the host
     vid.playsInline = true;
-    vid.srcObject   = stream;
+    vid.srcObject  = stream;
+    vid.play().catch(() => {});
     // Insert before the name label so it sits behind the overlay elements
     const nameEl = cell.querySelector('.vgc-name, .guest-cell-name');
     cell.insertBefore(vid, nameEl || null);
-
-    // Keep the avatar visible until the first frame actually paints, so
-    // the cell never shows a black gap while the stream is still loading.
-    const _hideAvatar = () => {
-      const avatar = cell.querySelector('.vgc-avatar');
-      if (avatar) avatar.style.display = 'none';
-      const camOff = cell.querySelector('.vgc-cam-off');
-      if (camOff) camOff.classList.remove('vgc-cam-off--visible');
-    };
-
-    // First-frame detection — hide the avatar ONLY when a frame is painted.
-    let _frameShown = false;
-    const _onFrame = () => {
-      if (_frameShown) return;
-      if (vid.readyState >= 2 && !vid.paused && vid.currentTime > 0) {
-        _frameShown = true;
-        _hideAvatar();
-      }
-    };
-    if ('requestVideoFrameCallback' in vid) {
-      vid.requestVideoFrameCallback(() => { _onFrame(); });
-    }
-    vid.addEventListener('loadeddata', _onFrame, { once: true });
-    vid.addEventListener('playing',   () => { _frameShown = true; _hideAvatar(); }, { once: true });
-    // Polling fallback for browsers that don't fire the events reliably.
-    let _poll = 0;
-    const _pollInt = setInterval(() => {
-      if (_frameShown) { clearInterval(_pollInt); return; }
-      _onFrame();
-      if (++_poll > 30) {  // 30 × 200ms = 6s safety
-        _frameShown = true; _hideAvatar(); clearInterval(_pollInt);
-      }
-    }, 200);
-
-    // Kick off playback with a retry loop (mobile play() can be deferred).
-    const _kick = (n) => {
-      const p = vid.play();
-      if (p && typeof p.then === 'function') {
-        p.catch(() => { if (n > 0) setTimeout(() => _kick(n - 1), 300); });
-      }
-    };
-    _kick(3);
-
-    // Un-mute the host cell on the first user gesture (tap anywhere on
-    // the stage), mirroring the main video's unmute flow.
-    const _unmuteHostCell = () => {
-      vid.muted = false;
-      if (D.stage) D.stage.removeEventListener('click', _unmuteHostCell);
-    };
-    if (D.stage) D.stage.addEventListener('click', _unmuteHostCell, { once: true });
-
-    // ── Viewer-side host cell health monitor ──
-    // If the viewer's main WebRTC stream is replaced (e.g. after a reconnect),
-    // D.liveVideo.srcObject will point to a new MediaStream.  Re-sync the
-    // host cell video every 4 s so it never goes black after reconnect.
-    // Also kicks play() if the element was paused by the browser (iOS bg tab).
-    // BUG-HOSTCELL-HEALTH FIX: guard against liveVideo having a null srcObject
-    // after reconnect — previously the code set vid.srcObject = null and then
-    // play() silently failed, leaving the host cell permanently black.
-    let _hcSyncLastTime = -1;
-    let _hcSyncFrozenTicks = 0;
-    const _hostCellSync = setInterval(() => {
-      if (!cell.isConnected) { clearInterval(_hostCellSync); return; }
-      const lv = D.liveVideo;
-      if (!lv) return;
-      const newStream = lv.srcObject;
-      // BUG FIX: only re-sync when newStream is non-null — assigning null to
-      // srcObject causes an immediate black frame and re-acquires nothing.
-      if (newStream && vid.srcObject !== newStream) {
-        vid.srcObject = newStream;  // direct reassign, no null-step
-        vid.play().catch(() => {});
-        _hcSyncLastTime = -1; _hcSyncFrozenTicks = 0;
-        return;
-      }
-      // Only kick play() when we have a valid stream in the element
-      if (vid.paused && vid.srcObject) {
-        vid.play().catch(() => {});
-        _hcSyncLastTime = -1;
-        return;
-      }
-      // Detect frozen currentTime on the host cell clone video
-      if (vid.srcObject && vid.currentTime === _hcSyncLastTime && vid.currentTime > 0) {
-        if (++_hcSyncFrozenTicks >= 2) {
-          _hcSyncFrozenTicks = 0;
-          // Direct reassign (no srcObject=null) to unblock the decoder without
-          // the black-frame flash that the null-then-reassign pattern causes.
-          const s = lv.srcObject;
-          if (s) { vid.srcObject = s; vid.play().catch(() => {}); }
-        }
-      } else {
-        _hcSyncFrozenTicks = 0;
-        _hcSyncLastTime = vid.currentTime;
-      }
-    }, 4000);
+    // Hide avatar once video is attached
+    const avatar = cell.querySelector('.vgc-avatar');
+    if (avatar) avatar.style.display = 'none';
+    // Hide cam-off overlay (host cam state already reflects in the card)
+    const camOff = cell.querySelector('.vgc-cam-off');
+    if (camOff) camOff.classList.remove('vgc-cam-off--visible');
   };
   _tryAttach(30);
 }
@@ -3398,12 +2307,6 @@ function _attachHostVideoToCell(cell) {
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── VIEWER: Request a Box ── */
-// Expose for co-host accept auto-request (cohost.js calls window._viewerRequestBox())
-window._viewerRequestBox = async function() { return _viewerRequestBox(); };
-
-// Flag: true while the viewer is actively in a guest box (prevents double-request)
-let _guestBoxActive = false;
-
 async function _viewerRequestBox() {
   console.log('[BoxRequest] Request button clicked');
 
@@ -3435,9 +2338,8 @@ async function _viewerRequestBox() {
 
   const btn = D.btnRequestBox;
 
-  // ── Guard: already actively in a guest box ──
-  // Use explicit flag rather than btn.display so re-invites work correctly
-  if (_guestBoxActive) {
+  // ── Guard: already in a guest box ──
+  if (btn && btn.style.display === 'none') {
     console.log('[BoxRequest] Viewer already in a guest box');
     return;
   }
@@ -3474,11 +2376,6 @@ async function _viewerRequestBox() {
   const viewerAvatar = _userData.avatar || _userData.profilePicture || '';
   const requestId    = `${_roomId}_${_user.uid}`;
 
-  // BUG-2 FIX: delete any stale doc from a previous session BEFORE writing the new one.
-  // This ensures the new doc gets a fresh serverTimestamp() so the stale-doc guard in
-  // the onSnapshot listener won't reject it, and the host's 'modified' listener fires.
-  try { await deleteDoc(doc(_db, 'boxRequests', requestId)); } catch(_) {}
-
   // ── Write to Firestore boxRequests ──
   try {
     await setDoc(doc(_db, 'boxRequests', requestId), {
@@ -3494,11 +2391,7 @@ async function _viewerRequestBox() {
   } catch (e) {
     console.error('[BoxRequest] Firestore write failed:', e.code, e.message);
     if (e.code === 'permission-denied') {
-      // Try refreshing the token — stale ID tokens are the most common cause
-      if (_auth.currentUser) {
-        try { await getIdToken(_auth.currentUser, true); } catch(_) {}
-      }
-      toast('❌ Session error — please try again.');
+      toast('❌ Permission denied. Make sure you are signed in.');
     } else {
       toast('❌ Could not send request. Please try again.');
     }
@@ -3534,18 +2427,8 @@ async function _viewerRequestBox() {
 
   const reqDocRef = doc(_db, 'boxRequests', requestId);
   _guestStatusUnsub = onSnapshot(reqDocRef, async snap => {
-    // BUG-2 FIX: ignore docs that don't exist or are in a terminal state we already handled.
-    // A stale doc from a previous session (status:'accepted'|'declined') must not auto-trigger
-    // _guestJoinAsViewer again when this is a brand-new request attempt.
     if (!snap.exists()) return;
-    const data   = snap.data();
-    const status = data.status;
-    // Ignore stale doc: only react if the doc was created in THIS request session
-    // (createdAt within the last 60 s). Older docs are from a previous session.
-    if (data.createdAt) {
-      const createdMs = data.createdAt.toMillis ? data.createdAt.toMillis() : data.createdAt;
-      if (Date.now() - createdMs > 60000) return;
-    }
+    const status = snap.data().status;
     console.log('[BoxRequest] Status update received:', status);
 
     if (status === 'accepted') {
@@ -3553,7 +2436,6 @@ async function _viewerRequestBox() {
         btn.classList.remove('pending');
         btn.style.display = 'none';
       }
-      _guestBoxActive = true;  // set flag before joining so double-taps are blocked
       toast('✅ Accepted! Joining as guest…');
       _guestStatusUnsub && _guestStatusUnsub();
       _guestStatusUnsub = null;
@@ -3567,20 +2449,14 @@ async function _viewerRequestBox() {
       toast('Request declined.');
       _guestStatusUnsub && _guestStatusUnsub();
       _guestStatusUnsub = null;
-      // Clean up Firestore doc so it doesn't block a future request
+      // Clean up Firestore doc
       try { await deleteDoc(reqDocRef); } catch(_) {}
     }
   }, err => {
     console.error('[BoxRequest] Snapshot listener error:', err.code, err.message);
     if (err.code === 'permission-denied') {
-      if (_auth.currentUser) {
-        getIdToken(_auth.currentUser, true).catch(() => {});
-      }
-      toast('❌ Session error — please try again.');
+      toast('❌ Permission denied watching request status.');
     }
-    // On listener error reset pending state so the user can try again
-    if (btn) btn.classList.remove('pending');
-    if (D.btnRequestBoxLabel) D.btnRequestBoxLabel.textContent = 'Request a Box';
   });
 }
 
@@ -3628,27 +2504,8 @@ async function _guestLeaveBox() {
   _guestDoLeave();
 }
 
-// Module-level refs for teardown of the remove-signal listener and dc timer.
-// These must survive _guestJoinAsViewer calls so a new join properly tears down the old ones.
-let _guestRemovedRef   = null;   // RTDB ref for removedByHost listener
-let _guestRemovedUnsub = null;   // onValue unsubscribe for removedByHost
-let _guestDcTimer      = null;   // connection-state disconnect/failed timer
-
 /* ── Internal: perform the guest leave cleanup (called from Leave Box or removedByHost signal) ── */
 function _guestDoLeave() {
-  // BUG-9 FIX: cancel any pending disconnect/failed timer so it can't fire _guestDoLeave twice
-  if (_guestDcTimer) { clearTimeout(_guestDcTimer); _guestDcTimer = null; }
-
-  // BUG-7 FIX: un-subscribe removedByHost listener so it can't trigger after leave
-  if (_guestRemovedUnsub) {
-    try { _guestRemovedUnsub(); } catch(_) {}
-    _guestRemovedUnsub = null;
-  }
-  if (_guestRemovedRef) {
-    try { off(_guestRemovedRef); } catch(_) {}
-    _guestRemovedRef = null;
-  }
-
   // Stop heartbeat immediately — no more presence keep-alive
   if (_guestHeartbeatInterval) {
     clearInterval(_guestHeartbeatInterval);
@@ -3661,16 +2518,12 @@ function _guestDoLeave() {
     _guestSigUnsub = null;
   }
 
-  // Close peer connection — triggers onconnectionstatechange, but _guestPc is
-  // nulled BEFORE close() so the state handler sees null and skips cleanup.
-  const pcToClose = _guestPc;
-  _guestPc = null;
-  if (pcToClose) {
-    try { pcToClose.close(); } catch(_) {}
+  // Close peer connection — triggers onconnectionstatechange cleanup below,
+  // but also handle directly here for immediate UI response
+  if (_guestPc) {
+    try { _guestPc.close(); } catch(_) {}
+    _guestPc = null;
   }
-
-  // Reset active-box flag so the viewer can request again
-  _guestBoxActive = false;
 
   // Remove own presence from RTDB so grid updates for everyone instantly.
   // Also cancel the onDisconnect hook so RTDB doesn't attempt a redundant delete.
@@ -3709,21 +2562,6 @@ function _guestDoLeave() {
 async function _guestJoinAsViewer() {
   if (!_user || !_roomId) return;
 
-  // BUG-3/BUG-8 FIX: tear down any existing guest session before starting a new one.
-  // This prevents stale peer connections and duplicate listeners when a guest rejoins
-  // after being removed then invited again.
-  if (_guestPc || _guestStream) {
-    console.log('[GuestBox] Tearing down previous session before rejoining');
-    if (_guestSigUnsub)    { try { _guestSigUnsub(); }    catch(_){} _guestSigUnsub = null; }
-    if (_guestRemovedUnsub){ try { _guestRemovedUnsub(); } catch(_){} _guestRemovedUnsub = null; }
-    if (_guestRemovedRef)  { try { off(_guestRemovedRef); } catch(_){} _guestRemovedRef = null; }
-    if (_guestDcTimer)     { clearTimeout(_guestDcTimer); _guestDcTimer = null; }
-    if (_guestHeartbeatInterval) { clearInterval(_guestHeartbeatInterval); _guestHeartbeatInterval = null; }
-    const oldPc = _guestPc; _guestPc = null;
-    if (oldPc) { try { oldPc.close(); } catch(_){} }
-    if (_guestStream) { try { _guestStream.getTracks().forEach(t=>t.stop()); } catch(_){} _guestStream = null; }
-  }
-
   let guestStream;
   try {
     guestStream = await navigator.mediaDevices.getUserMedia({
@@ -3739,7 +2577,6 @@ async function _guestJoinAsViewer() {
     } else {
       toast('❌ Could not access camera. Please try again.');
     }
-    _guestBoxActive = false;
     return;
   }
 
@@ -3749,46 +2586,24 @@ async function _guestJoinAsViewer() {
   _guestMicOn  = true;
 
   const sigRef = ref(_liveDB, `guestSignaling/${_roomId}/${_user.uid}`);
-  // BUG-5 FIX: increase from 5 s → 12 s; slow connections need more time for the host
-  // to write the initial offer after accepting.
-  const MAX_WAIT = 12000;
+  const MAX_WAIT = 10000;
+  const startedAt = Date.now();
 
-  // BUG-4 FIX: off(ref, callback) is NOT valid for onValue listeners — only
-  // off(ref) works. We use the returned unsubscribe function from onValue instead.
+  // Wait for offer from host
   const _waitForOffer = () => new Promise((resolve, reject) => {
-    let _done = false;
-    const _unsub = onValue(sigRef, snap => {
+    const unsub = onValue(sigRef, snap => {
       if (!snap.exists() || !snap.val().offer) return;
-      if (_done) return;
-      _done = true;
-      _unsub();
+      off(sigRef, unsub);
       resolve(snap.val());
     });
-    setTimeout(() => {
-      if (_done) return;
-      _done = true;
-      _unsub();
-      reject(new Error('offer timeout'));
-    }, MAX_WAIT);
+    setTimeout(() => { off(sigRef, unsub); reject(new Error('offer timeout')); }, MAX_WAIT);
   });
 
   let sigData;
-  try {
-    sigData = await _waitForOffer();
-  } catch (e) {
-    // BUG-15 FIX: show a more helpful message and reset state so the user can retry
-    console.warn('[GuestBox] Offer wait timed out — host may be slow or offline');
-    toast('⏱ Host is slow to respond. Tap "Request a Box" to try again.');
-    guestStream.getTracks().forEach(t => t.stop());
-    _guestStream = null;
-    _guestBoxActive = false;
-    if (D.btnRequestBox) { D.btnRequestBox.style.display = ''; D.btnRequestBox.classList.remove('pending'); }
-    if (D.btnRequestBoxLabel) D.btnRequestBoxLabel.textContent = 'Request a Box';
-    return;
-  }
+  try { sigData = await _waitForOffer(); }
+  catch (e) { toast('Host did not respond in time.'); guestStream.getTracks().forEach(t=>t.stop()); return; }
 
   const guestPc = new RTCPeerConnection(_ICE_SERVERS);
-  _attachIceWatchdog(guestPc, 'guestbox→host');
 
   // Add local tracks
   guestStream.getTracks().forEach(t => guestPc.addTrack(t, guestStream));
@@ -3804,14 +2619,7 @@ async function _guestJoinAsViewer() {
 
   try {
     await guestPc.setRemoteDescription(new RTCSessionDescription(sigData.offer));
-  } catch(e) {
-    toast('❌ Connection error. Please request a box again.');
-    guestPc.close(); guestStream.getTracks().forEach(t=>t.stop());
-    _guestStream = null; _guestBoxActive = false;
-    if (D.btnRequestBox) { D.btnRequestBox.style.display = ''; D.btnRequestBox.classList.remove('pending'); }
-    if (D.btnRequestBoxLabel) D.btnRequestBoxLabel.textContent = 'Request a Box';
-    return;
-  }
+  } catch(e) { toast('Connection error.'); guestPc.close(); guestStream.getTracks().forEach(t=>t.stop()); return; }
 
   const answer = await guestPc.createAnswer();
   await guestPc.setLocalDescription(answer);
@@ -3819,14 +2627,7 @@ async function _guestJoinAsViewer() {
   try {
     await update(sigRef, { answer: { type: answer.type, sdp: answer.sdp } });
     _answerWritten = true;
-  } catch(e) {
-    toast('❌ Connection error. Please request a box again.');
-    guestPc.close(); guestStream.getTracks().forEach(t=>t.stop());
-    _guestStream = null; _guestBoxActive = false;
-    if (D.btnRequestBox) { D.btnRequestBox.style.display = ''; D.btnRequestBox.classList.remove('pending'); }
-    if (D.btnRequestBoxLabel) D.btnRequestBoxLabel.textContent = 'Request a Box';
-    return;
-  }
+  } catch(e) { toast('Connection error.'); guestPc.close(); guestStream.getTracks().forEach(t=>t.stop()); return; }
 
   // Flush pending candidates
   for (const c of _pendingCands) {
@@ -3842,47 +2643,11 @@ async function _guestJoinAsViewer() {
     try { await guestPc.addIceCandidate(new RTCIceCandidate(c)); } catch(_) {}
   }
 
-  // BUG-14 FIX: if a previous _guestSigUnsub exists, call the unsubscribe function
-  // directly — NOT off(sigRef) which would detach ALL onValue listeners on that ref.
-  if (_guestSigUnsub) { try { _guestSigUnsub(); } catch(_) {} _guestSigUnsub = null; }
-
-  // Listen for host candidates AND ICE-restart offers from the host.
-  // When the host calls restartIce() and writes a new offer to RTDB, the
-  // guest must respond with a fresh answer to complete the ICE handshake.
-  let _lastAppliedOfferSdp = sigData.offer?.sdp || null;
-  let _iceAnswerInFlight = false;
+  // Listen for more host candidates — store unsub so _guestDoLeave can clean up
+  if (_guestSigUnsub) { try { off(sigRef); } catch(_) {} _guestSigUnsub = null; }
   _guestSigUnsub = onValue(sigRef, async snap => {
     if (!snap.exists()) return;
     const d = snap.val();
-
-    // ── Handle ICE-restart offers from the host ──
-    // BUG-GUESTRESTART FIX: only apply the new offer when signalingState
-    // allows it ('stable' = initial load, 'have-remote-offer' = already got
-    // one). Attempting setRemoteDescription in 'have-local-offer' or other
-    // states throws InvalidStateError and the `finally` resets the flag so
-    // the next RTDB update immediately retries, which spins forever and never
-    // produces an answer — keeping the stream frozen/black.
-    if (d.offer && d.offer.sdp !== _lastAppliedOfferSdp && !_iceAnswerInFlight) {
-      const ss = guestPc.signalingState;
-      if (ss === 'stable' || ss === 'have-remote-offer') {
-        _iceAnswerInFlight = true;
-        try {
-          await guestPc.setRemoteDescription(new RTCSessionDescription(d.offer));
-          _lastAppliedOfferSdp = d.offer.sdp;
-          appliedHostCands.clear(); // fresh candidate set for new ICE session
-          const restartAnswer = await guestPc.createAnswer();
-          await guestPc.setLocalDescription(restartAnswer);
-          await update(sigRef, { answer: { type: restartAnswer.type, sdp: restartAnswer.sdp } });
-          console.log('[GuestBox] ICE-restart answer sent to host');
-        } catch (e) {
-          console.warn('[GuestBox] ICE-restart answer failed:', e.message);
-        } finally {
-          _iceAnswerInFlight = false;
-        }
-      }
-    }
-
-    // ── Apply incoming host ICE candidates ──
     if (d.hostCandidates) {
       for (const [k, c] of Object.entries(d.hostCandidates)) {
         if (appliedHostCands.has(k)) continue;
@@ -3892,7 +2657,7 @@ async function _guestJoinAsViewer() {
     }
   });
 
-  // Store peer connection so disconnect/cleanup code can reach it
+  // Store peer connection so disconnect handler can clean up
   _guestPc = guestPc;
 
   // ── Publish own presence to RTDB so everyone (incl. self) sees this box ──
@@ -3917,18 +2682,9 @@ async function _guestJoinAsViewer() {
   try { onDisconnect(guestPresenceRef).remove(); } catch(_) {}
 
   // ── Heartbeat: keep hb timestamp fresh so host watchdog detects live guests ──
-  // BUG-HEARTBEAT FIX: check _guestPc OR _guestStream — the heartbeat should
-  // keep ticking as long as the guest is in a box, even if the camera stream
-  // was momentarily unavailable (cam permission revoked mid-session etc.).
-  // Stopping the heartbeat on !_guestStream alone caused the host watchdog to
-  // evict the guest even though the peer connection was still alive.
   if (_guestHeartbeatInterval) clearInterval(_guestHeartbeatInterval);
   _guestHeartbeatInterval = setInterval(() => {
-    if (!_user || !_roomId || (!_guestStream && !_guestPc)) {
-      clearInterval(_guestHeartbeatInterval);
-      _guestHeartbeatInterval = null;
-      return;
-    }
+    if (!_user || !_roomId || !_guestStream) { clearInterval(_guestHeartbeatInterval); return; }
     try { update(guestPresenceRef, { hb: Date.now() }); } catch(_) {}
   }, _HEARTBEAT_INTERVAL_MS);
 
@@ -3954,90 +2710,33 @@ async function _guestJoinAsViewer() {
   if (D.btnGuestMic) D.btnGuestMic.style.display = 'flex';
   if (D.btnLeaveBox) D.btnLeaveBox.style.display  = 'flex';
 
-  // BUG-7 FIX: store listener refs at module level so _guestDoLeave can tear them down.
   // ── Listen for host-remove signal on own signaling node ──
   // Host sets removedByHost:true when it removes this guest.
   // Guest client responds by cleaning up immediately.
-  _guestRemovedRef   = ref(_liveDB, `guestSignaling/${_roomId}/${_user.uid}/removedByHost`);
-  _guestRemovedUnsub = onValue(_guestRemovedRef, snap => {
+  let _removedListened = false;
+  const _removedRef = ref(_liveDB, `guestSignaling/${_roomId}/${_user.uid}/removedByHost`);
+  onValue(_removedRef, snap => {
     if (!snap.exists() || !snap.val()) return;
-    // Unsubscribe immediately before any async work to prevent double-fire
-    if (_guestRemovedUnsub) { try { _guestRemovedUnsub(); } catch(_){} _guestRemovedUnsub = null; }
-    try { off(_guestRemovedRef); } catch(_) {} _guestRemovedRef = null;
+    if (_removedListened) return;
+    _removedListened = true;
+    off(_removedRef);
     toast('The host removed you from the guest box.');
     _guestDoLeave();
   });
 
-  // BUG-8/BUG-9 FIX: use module-level _guestDcTimer and check _guestPc === guestPc
-  // so that a stale onconnectionstatechange from a previous session can't fire
-  // _guestDoLeave for the new session.
-  // Handle peer disconnect:
-  //  - `disconnected` is transient — _attachIceWatchdog fires restartIce()
-  //    after 3 s and we write an ICE-restart offer.  Give 15 s for the
-  //    renegotiation + new ICE path to complete before giving up.
-  //  - `failed` → the ICE watchdog already attempted restartIce(). Give it
-  //    an additional 6 s (for the renegotiation round-trip) before calling
-  //    _guestDoLeave, so the video element is never torn down prematurely.
-  //  - `closed` → the host explicitly closed us; clean up immediately.
+  // Handle peer disconnect: delegate to _guestDoLeave for consistent cleanup
   guestPc.onconnectionstatechange = () => {
-    // Guard: ignore events from a stale pc that was already replaced
-    if (_guestPc !== guestPc) return;
-    const st = guestPc.connectionState;
-    // ── DIAGNOSTIC: log every state transition so silent black screens
-    //    can be diagnosed in the browser console instead of showing nothing.
-    console.log(`[GuestBox] connection state: ${st} (iceConnectionState: ${guestPc.iceConnectionState})`);
-    if (st === 'disconnected') {
-      console.warn('[GuestBox] DISCONNECTED — ICE watchdog will attempt restartIce() in 3 s; box will leave after 15 s if unrecovered');
-      if (!_guestDcTimer) {
-        _guestDcTimer = setTimeout(() => {
-          _guestDcTimer = null;
-          if (_guestPc !== guestPc) return; // replaced by a newer session
-          if (guestPc.connectionState !== 'connected' && (_guestStream || _guestPc)) {
-            console.error('[GuestBox] Still disconnected after 15 s — leaving box. ICE state:', guestPc.iceConnectionState);
-            _guestDoLeave();
-          }
-        }, 15000); // 15 s: 3 s ICE watchdog + renegotiation round-trip
-      }
-    } else if (st === 'failed') {
-      console.error('[GuestBox] FAILED — ICE state:', guestPc.iceConnectionState, '— renegotiation grace 6 s');
-      // Give the ICE-restart renegotiation a chance to recover.
-      if (!_guestDcTimer) {
-        _guestDcTimer = setTimeout(() => {
-          _guestDcTimer = null;
-          if (_guestPc !== guestPc) return;
-          if (guestPc.connectionState !== 'connected' && (_guestStream || _guestPc)) {
-            console.error('[GuestBox] Still failed after 6 s grace — leaving box');
-            _guestDoLeave();
-          }
-        }, 6000); // 6 s grace for ICE restart renegotiation
-      }
-    } else if (st === 'closed') {
-      if (_guestDcTimer) { clearTimeout(_guestDcTimer); _guestDcTimer = null; }
-      // Only clean up if this is still the active peer connection
-      if (_guestPc === guestPc && (_guestStream || _guestPc)) {
-        console.warn('[GuestBox] CLOSED — cleaning up guest box');
+    if (guestPc.connectionState === 'disconnected' || guestPc.connectionState === 'failed' || guestPc.connectionState === 'closed') {
+      // Only run if _guestDoLeave hasn't already cleaned up
+      if (_guestStream || _guestPc) {
         _guestDoLeave();
-      }
-    } else if (st === 'connected') {
-      if (_guestDcTimer) { clearTimeout(_guestDcTimer); _guestDcTimer = null; }
-      console.log('[GuestBox] CONNECTED ✓');
-      // ── POST-RECONNECT: re-attach self-stream so guest video doesn't stay black ──
-      // After an ICE restart the video in the guest cell can go stale.
-      // Re-running _attachGuestSelfStream is idempotent — it reuses the
-      // existing <video> element and only updates srcObject if needed.
-      if (_guestStream && _user) {
-        _attachGuestSelfStream(_guestStream);
       }
     }
   };
 }
 
 /* ── Attach the guest's own live stream to their cell in the RTDB-driven grid ──
-   The RTDB onValue callback may render the cell asynchronously; retry until found.
-
-   ── BLACK-SCREEN FIX ──
-   Keep the avatar visible until the first frame actually paints, so the
-   self-preview cell never shows a black gap while the stream is loading. */
+   The RTDB onValue callback may render the cell asynchronously; retry until found. */
 function _attachGuestSelfStream(stream) {
   const uid = _user?.uid;
   if (!uid || !stream) return;
@@ -4059,39 +2758,11 @@ function _attachGuestSelfStream(stream) {
         const nameEl = cell.querySelector('.vgc-name, .guest-cell-name');
         cell.insertBefore(vid, nameEl || null);
       }
-      // Only reassign srcObject when necessary (prevents decode reset mid-stream)
-      if (vid.srcObject !== stream) {
-        vid.srcObject = stream;
-      }
-      // After ICE restart the video may be paused — kick off playback
-      if (vid.paused) {
-        vid.play().catch(() => {});
-      }
-
-      // Keep the avatar visible until the first frame paints (no black gap).
-      let _frameShown = false;
-      const _hideAvatar = () => {
-        if (_frameShown) return;
-        if (vid.readyState >= 2 && !vid.paused && vid.currentTime > 0) {
-          _frameShown = true;
-          const camOff = cell.querySelector('.vgc-cam-off');
-          if (camOff) camOff.classList.remove('vgc-cam-off--visible');
-        }
-      };
-      if ('requestVideoFrameCallback' in vid) {
-        vid.requestVideoFrameCallback(() => { _hideAvatar(); });
-      }
-      vid.addEventListener('loadeddata', _hideAvatar, { once: true });
-      vid.addEventListener('playing',   () => { _frameShown = true; const camOff = cell.querySelector('.vgc-cam-off'); if (camOff) camOff.classList.remove('vgc-cam-off--visible'); }, { once: true });
-      // Polling fallback (6s safety)
-      let _poll = 0;
-      const _pollInt = setInterval(() => {
-        if (_frameShown) { clearInterval(_pollInt); return; }
-        _hideAvatar();
-        if (++_poll > 30) { _frameShown = true; const camOff = cell.querySelector('.vgc-cam-off'); if (camOff) camOff.classList.remove('vgc-cam-off--visible'); clearInterval(_pollInt); }
-      }, 200);
-
+      vid.srcObject = stream;
       vid.play().catch(() => {});
+      // Hide camera-off overlay since stream is live
+      const camOff = cell.querySelector('.vgc-cam-off');
+      if (camOff) camOff.classList.remove('vgc-cam-off--visible');
       return; // done
     }
     // Cell not yet rendered — retry up to 20 times (2 seconds total)
@@ -4124,27 +2795,11 @@ function _hostListenForGuestRequests() {
 
   const fsUnsub = onSnapshot(fsReqQuery, snap => {
     snap.docChanges().forEach(change => {
-      // Handle 'added' AND 'modified':
-      //  - 'added'    = brand-new request
-      //  - 'modified' = previously declined/removed guest re-requesting.
-      //    The viewer's _viewerRequestBox() deletes the old doc and writes a fresh one
-      //    (status:'pending'), which fires 'modified'.
-      //    We MUST remove the UID from _shownReqUids on 'modified' so the card
-      //    is shown again — without this, the host never sees the re-request.
-      if (change.type === 'added' || change.type === 'modified') {
+      if (change.type === 'added') {
         const d = change.doc.data();
-        if (d.status !== 'pending') return; // only show pending requests
-        console.log('[BoxRequest] Request received by host from viewer:', d.viewerId, 'name:', d.viewerName, 'change:', change.type);
-        // For 'modified', always clear the old entry so the card re-shows
-        if (change.type === 'modified') _shownReqUids.delete(d.viewerId);
+        console.log('[BoxRequest] Request received by host from viewer:', d.viewerId, 'name:', d.viewerName);
         if (!_shownReqUids.has(d.viewerId)) {
           _shownReqUids.add(d.viewerId);
-          // Also remove any stale request card for this user before adding a new one
-          const queue = D.guestRequestQueue;
-          if (queue) {
-            const stale = queue.querySelector(`[data-uid="${d.viewerId}"]`);
-            if (stale) stale.remove();
-          }
           _hostShowRequestCard({
             uid:        d.viewerId,
             name:       d.viewerName,
@@ -4247,39 +2902,17 @@ function _hostShowRequestCard(req) {
 /* ── HOST: Accept guest ── */
 async function _hostAcceptGuest(req) {
   if (!_roomId || !_localStream) return;
-  // Wrap entire accept flow in a top-level try/catch so a failure for one
-  // guest (bad network, ICE error, race condition) cannot crash the entire
-  // livestream or prevent other guests from joining.
-  try {
-    await _hostAcceptGuestImpl(req);
-  } catch (e) {
-    console.error('[BoxRequest] Guest accept failed (isolated):', e && e.message);
-    toast('⚠️ Could not connect guest — please try again.');
-  }
-}
-async function _hostAcceptGuestImpl(req) {
-  if (!_roomId || !_localStream) return;
-
-  const guestUid  = req.uid;
-  const requestId = req.requestId || `${_roomId}_${guestUid}`;
-  const sigRef    = ref(_liveDB, `guestSignaling/${_roomId}/${guestUid}`);
-
-  // BUG-1/BUG-3 FIX: if this guest already has a peer entry (e.g. re-invited after remove),
-  // cleanly tear it down before setting up a new one.  Without this, the old
-  // _guestPeers[guestUid] check blocked the host from ever accepting the same guest twice.
-  if (_guestPeers[guestUid]) {
-    console.log('[BoxRequest] Guest was already in peers map — tearing down old connection before re-accept:', guestUid);
-    _hostDoRemoveGuest(guestUid);
-    // Brief yield so the remove animation starts before the new offer writes
-    await new Promise(r => setTimeout(r, 50));
-  }
 
   // ── Cap: respect _MAX_GUESTS limit ──
   if (Object.keys(_guestPeers).length >= _MAX_GUESTS) {
     toast(`⚠️ Guest box full — max ${_MAX_GUESTS} guests.`);
-    _hostDeclineGuest(req.uid, requestId);
+    _hostDeclineGuest(req.uid, req.requestId || `${_roomId}_${req.uid}`);
     return;
   }
+
+  const guestUid  = req.uid;
+  const requestId = req.requestId || `${_roomId}_${guestUid}`;
+  const sigRef    = ref(_liveDB, `guestSignaling/${_roomId}/${guestUid}`);
 
   console.log('[BoxRequest] Host accepting guest:', guestUid, 'name:', req.name);
 
@@ -4294,78 +2927,24 @@ async function _hostAcceptGuestImpl(req) {
   // ── Update RTDB guestRequest status to "accepted" ──
   try { await update(ref(_liveDB, `guestRequests/${_roomId}/${guestUid}`), { status: 'accepted' }); } catch(_) {}
 
-  // BUG-6 FIX: clear any stale signaling data from a previous session for this guest
-  // before writing the new offer so the guest's waitForOffer sees only the fresh offer.
-  try { await remove(sigRef); } catch(_) {}
-
   console.log('[BoxRequest] Guest added to box — starting WebRTC signaling for:', guestUid);
 
   // Create peer connection for this guest
   const guestPc = new RTCPeerConnection(_ICE_SERVERS);
-  _attachIceWatchdog(guestPc, `host→guestbox:${guestUid}`);
 
-  // BUG-10/11 FIX: store stream as soon as ontrack fires; if the cell was already
-  // added (e.g. track fires twice or a second ontrack), update its srcObject in-place
-  // rather than calling _hostAddGuestCell twice (which is blocked by duplicate guard
-  // and would silently drop the stream).
-  let _trackStream = null;
+  // Receive guest's video track
   guestPc.ontrack = (e) => {
     const stream = e.streams[0] || new MediaStream([e.track]);
-    // Update the stream ref on the peer entry if it already exists
-    if (_guestPeers[guestUid]) {
-      _guestPeers[guestUid].stream = stream;
-      const cell = _guestPeers[guestUid].cell;
-      if (cell) {
-        const vid = cell.querySelector('video');
-        if (vid && vid.srcObject !== stream) {
-          vid.srcObject = stream;
-          vid.play().catch(() => {});
-        }
-      }
-    }
-    _trackStream = stream;
     _hostAddGuestCell(guestUid, req.name || 'Guest', req.avatar || '', stream, guestPc);
   };
 
   const _pendingHostCands = [];
   let _offerWritten = false;
 
-  let _iceRestartInFlight = false;
-
   guestPc.onicecandidate = async (e) => {
     if (!e.candidate) return;
     if (!_offerWritten) { _pendingHostCands.push(e.candidate.toJSON()); return; }
     try { await push(ref(_liveDB, `guestSignaling/${_roomId}/${guestUid}/hostCandidates`), e.candidate.toJSON()); } catch(_) {}
-  };
-
-  /* ── ICE-restart renegotiation ───────────────────────────────────────
-     When _attachIceWatchdog calls restartIce(), the browser fires
-     onnegotiationneeded with a new offer.  We must write that offer to
-     RTDB so the guest can respond with a new answer, completing the
-     ICE restart.  Without this, restartIce() collects new candidates
-     but the SDP handshake never finishes and the stream stays frozen. */
-  guestPc.onnegotiationneeded = async () => {
-    if (!_offerWritten) return; // initial offer path handles this separately
-    if (_iceRestartInFlight) return;
-    if (guestPc.signalingState !== 'stable') return;
-    if (!_guestPeers[guestUid]) return; // peer was already removed
-    _iceRestartInFlight = true;
-    try {
-      const restartOffer = await guestPc.createOffer({ iceRestart: true });
-      await guestPc.setLocalDescription(restartOffer);
-      // Write restart offer to RTDB — also reset guestCandidates/hostCandidates
-      // so the guest flushes its old candidate set and applies the new ones.
-      await set(sigRef, {
-        offer:           { type: restartOffer.type, sdp: restartOffer.sdp },
-        guestCandidates: {},
-        hostCandidates:  {},
-      });
-      console.log(`[GuestBox] ICE-restart offer written for guest ${guestUid}`);
-    } catch (e) {
-      console.warn(`[GuestBox] ICE-restart renegotiation failed for ${guestUid}:`, e.message);
-    } finally {
-      _iceRestartInFlight = false;
-    }
   };
 
   const offer = await guestPc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
@@ -4383,23 +2962,12 @@ async function _hostAcceptGuestImpl(req) {
   _pendingHostCands.length = 0;
 
   // Watch for guest answer + ICE — store unsub so _hostDoRemoveGuest can clean up
-  // Track the last answer SDP we already applied so re-fires don't cause errors.
-  let _lastAppliedAnswerSdp = null;
   const appliedGuestCands = new Set();
   const _hostGuestSigUnsub = onValue(sigRef, async snap => {
     if (!snap.exists()) return;
     const d = snap.val();
-    // Apply answer if we haven't yet OR if it changed (ICE-restart brings a new answer)
-    if (d.answer && d.answer.sdp !== _lastAppliedAnswerSdp) {
-      // Only set remote desc when the signaling state allows it
-      if (guestPc.signalingState === 'have-local-offer') {
-        try {
-          await guestPc.setRemoteDescription(new RTCSessionDescription(d.answer));
-          _lastAppliedAnswerSdp = d.answer.sdp;
-          // Reset applied candidates so we process the new ICE candidate set
-          appliedGuestCands.clear();
-        } catch(_) {}
-      }
+    if (d.answer && guestPc.remoteDescription === null) {
+      try { await guestPc.setRemoteDescription(new RTCSessionDescription(d.answer)); } catch(_) {}
     }
     if (guestPc.remoteDescription && d.guestCandidates) {
       for (const [k, c] of Object.entries(d.guestCandidates)) {
@@ -4471,42 +3039,18 @@ function _hostAddGuestCell(uid, name, avatar, stream, pc) {
   cell.className = 'guest-cell';
   cell.dataset.uid = uid;
 
-  // ── "Reconnecting..." overlay — shown when this guest's ICE drops ──
-  const reconnEl = document.createElement('div');
-  reconnEl.className = 'guest-cell-reconnecting';
-  reconnEl.innerHTML = '<div class="gcr-spinner"></div><span>Reconnecting\u2026</span>';
-  cell.appendChild(reconnEl);
-
   const vid = document.createElement('video');
   vid.autoplay = true;
   vid.muted = false;
   vid.playsInline = true;
   vid.srcObject = stream;
-  // Retry play() up to 3 times — mobile browsers can defer the first play()
-  const _kickVid = (n) => { const p = vid.play(); if (p && p.catch) p.catch(() => { if (n > 0) setTimeout(() => _kickVid(n-1), 300); }); };
-  _kickVid(3);
+  vid.play().catch(()=>{});
   cell.appendChild(vid);
 
   const nameEl = document.createElement('div');
   nameEl.className = 'guest-cell-name';
   nameEl.textContent = name || 'Guest';
   cell.appendChild(nameEl);
-
-  // Host can feature a guest (★ button) to make them the large video
-  const featureBtn = document.createElement('button');
-  featureBtn.className = 'guest-cell-feature';
-  featureBtn.textContent = '★';
-  featureBtn.title = 'Feature this guest (make large)';
-  featureBtn.dataset.uid = uid;
-  featureBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (_featuredGuestUid === uid) {
-      _clearFeaturedGuest();
-    } else {
-      _setFeaturedGuest(uid);
-    }
-  });
-  cell.appendChild(featureBtn);
 
   // Host can remove a guest by tapping ✕
   const removeBtn = document.createElement('button');
@@ -4526,107 +3070,29 @@ function _hostAddGuestCell(uid, name, avatar, stream, pc) {
 
   _applyGuestLayout();
 
-  // ── Disconnect / reconnect handler for this guest cell ──
-  // Layers of defence:
-  //  • `disconnected` → show overlay; _attachIceWatchdog fires restartIce()
-  //    at 3 s AND onnegotiationneeded triggers a full ICE-restart renegotiation.
-  //    Give 15 s for the new ICE path + renegotiation round-trip to complete.
-  //  • `failed` → _attachIceWatchdog already tried restartIce() and a new
-  //    offer was written to RTDB via onnegotiationneeded.  Give 8 s for that
-  //    renegotiation to finish before removing the cell.
-  //  • `connected` → clear overlay and cancel any pending removal timer.
-  let _dcTimer  = null;
-  let _dcFailed = false;
+  // ── Fast disconnect detection: connectionstatechange fires within ~1-2 s ──
+  let _dcTimer = null;
   pc.onconnectionstatechange = () => {
     const state = pc.connectionState;
-    // DIAGNOSTIC: log every host→guest state change so black screens can
-    // be traced in the browser console without guesswork.
-    console.log(`[HostGuestCell:${uid}] connection state: ${state} (ICE: ${pc.iceConnectionState})`);
     if (state === 'disconnected') {
-      // Show "Reconnecting..." overlay immediately
-      cell.classList.add('is-reconnecting');
-      console.warn(`[HostGuestCell:${uid}] DISCONNECTED — ICE watchdog fires restartIce() in 3 s; removing in 15 s if unrecovered`);
-      // 15 s: 3 s ICE watchdog + onnegotiationneeded round-trip to RTDB + ICE path rebuild
+      // Give a 1.5 s grace period — WebRTC may briefly disconnect then recover
       if (!_dcTimer) {
         _dcTimer = setTimeout(() => {
           _dcTimer = null;
+          // Only remove if still disconnected (not reconnected or already removed)
           if (pc.connectionState !== 'connected' && _guestPeers[uid]) {
-            console.error(`[HostGuestCell:${uid}] Still disconnected after 15 s — removing guest cell`);
             _hostDoRemoveGuest(uid);
           }
-        }, 15000);
+        }, 1500);
       }
-    } else if (state === 'failed') {
+    } else if (state === 'failed' || state === 'closed') {
       if (_dcTimer) { clearTimeout(_dcTimer); _dcTimer = null; }
-      if (_dcFailed) return; // avoid double-firing
-      _dcFailed = true;
-      cell.classList.add('is-reconnecting');
-      console.error(`[HostGuestCell:${uid}] FAILED (ICE: ${pc.iceConnectionState}) — 8 s grace for renegotiation`);
-      // 8 s grace: onnegotiationneeded was already fired — allow the
-      // ICE-restart renegotiation round-trip to complete.
-      _dcTimer = setTimeout(() => {
-        _dcTimer = null;
-        if (_guestPeers[uid]) {
-          console.error(`[HostGuestCell:${uid}] Still failed after 8 s — removing guest cell`);
-          _hostDoRemoveGuest(uid);
-        }
-      }, 8000);
-    } else if (state === 'closed') {
-      if (_dcTimer) { clearTimeout(_dcTimer); _dcTimer = null; }
-      if (_guestPeers[uid]) {
-        console.warn(`[HostGuestCell:${uid}] CLOSED — removing guest cell`);
-        _hostDoRemoveGuest(uid);
-      }
+      _hostDoRemoveGuest(uid);
     } else if (state === 'connected') {
-      // Recovered — hide reconnecting overlay, cancel pending removal
-      cell.classList.remove('is-reconnecting');
-      _dcFailed = false;
+      // Recovered — cancel any pending removal
       if (_dcTimer) { clearTimeout(_dcTimer); _dcTimer = null; }
-      console.log(`[HostGuestCell:${uid}] CONNECTED ✓`);
-      // Re-attach stream to video element in case it was replaced
-      const p = _guestPeers[uid];
-      if (p && p.stream && vid.srcObject !== p.stream) {
-        vid.srcObject = p.stream;
-        vid.play().catch(() => {});
-      }
     }
   };
-
-  // ── Guest cell video health monitor ──
-  // Polls every 4 s — kicks play() if paused and detects frozen currentTime.
-  // Also ensures the host's video (not the guest's) doesn't interfere with
-  // this cell's srcObject after reconnection.
-  // BUG-GCHEALTH FIX: store the interval handle on the peer entry so
-  // _hostDoRemoveGuest can clear it. Without this the interval kept running
-  // after the cell was removed from the DOM, calling _guestPeers[uid] on a
-  // deleted entry every 4 s (benign but wastes resources and logs errors).
-  let _gcLastTime = -1;
-  let _gcFrozenTicks = 0;
-  const _hostCellHealthTimer = setInterval(() => {
-    const p = _guestPeers[uid];
-    if (!p || !p.cell) { clearInterval(_hostCellHealthTimer); return; }
-    if (!vid.srcObject) return;
-    if (vid.paused) {
-      vid.play().catch(() => {});
-      _gcLastTime = -1;
-      return;
-    }
-    // Detect frozen currentTime (stream stall while ICE shows "connected")
-    if (vid.currentTime === _gcLastTime && vid.currentTime > 0) {
-      if (++_gcFrozenTicks >= 2) {
-        _gcFrozenTicks = 0;
-        const s = p.stream || vid.srcObject;
-        // Direct reassign (no srcObject=null) — avoids the black frame flash.
-        if (s) { vid.srcObject = s; vid.play().catch(() => {}); }
-      }
-    } else {
-      _gcFrozenTicks = 0;
-      _gcLastTime = vid.currentTime;
-    }
-  }, 4000);
-
-  // Store so _hostDoRemoveGuest can cancel it
-  if (_guestPeers[uid]) _guestPeers[uid]._healthTimer = _hostCellHealthTimer;
 }
 
 /* ── HOST: Add own video as the host cell in the grid ── */
@@ -4645,38 +3111,6 @@ function _addHostCellToGrid() {
   // Mirror host camera (same as main #liveVideo)
   vid.style.transform = 'scaleX(-1)';
   cell.appendChild(vid);
-
-  // ── Health monitor: re-attach _localStream if the video element goes
-  //    blank (e.g. screen lock, browser tab backgrounding on iOS).
-  //    Runs every 3 s; cleans up when the host cell is removed.
-  //    Also detects frozen currentTime (stream stall with no pause event). ──
-  let _hcLastTime = -1;
-  let _hcFrozenTicks = 0;
-  const _selfVidHealth = setInterval(() => {
-    if (!cell.isConnected) { clearInterval(_selfVidHealth); return; }
-    if (!_localStream) return;
-    // Re-attach if srcObject drifted (camera flip / new track)
-    if (vid.srcObject !== _localStream) {
-      vid.srcObject = _localStream;
-      vid.play().catch(() => {});
-      _hcLastTime = -1; _hcFrozenTicks = 0;
-      return;
-    }
-    // Kick play() if paused
-    if (vid.paused) { vid.play().catch(() => {}); _hcLastTime = -1; return; }
-    // Detect frozen currentTime (browser silently stopped delivering frames)
-    if (vid.currentTime === _hcLastTime && vid.currentTime > 0) {
-      if (++_hcFrozenTicks >= 2) {
-        _hcFrozenTicks = 0;
-        // Direct reassign (no srcObject=null) to avoid the black-frame flash.
-        vid.srcObject = _localStream;
-        vid.play().catch(() => {});
-      }
-    } else {
-      _hcFrozenTicks = 0;
-      _hcLastTime = vid.currentTime;
-    }
-  }, 3000);
 
   const nameEl = document.createElement('div');
   nameEl.className = 'guest-cell-name';
@@ -4705,12 +3139,6 @@ async function _hostRemoveGuest(uid) {
 
 /* ── Internal: perform the host-side guest removal ── */
 function _hostDoRemoveGuest(uid) {
-  // If the removed guest was featured, clear the featured state
-  if (_featuredGuestUid === uid) {
-    _featuredGuestUid = null;
-    document.querySelectorAll('.guest-cell-feature').forEach(btn => btn.classList.remove('featured-active'));
-    _broadcastFeaturedGuest();
-  }
   // ── Signal the guest client to disconnect gracefully ──
   // Write removedByHost flag BEFORE closing the peer so the guest's listener fires
   try {
@@ -4726,8 +3154,6 @@ function _hostDoRemoveGuest(uid) {
   const peer = _guestPeers[uid];
   if (peer) {
     if (peer.pc) { try { peer.pc.close(); } catch(_){} }
-    // BUG-GCHEALTH FIX: clear the per-cell health interval before removing
-    if (peer._healthTimer) { clearInterval(peer._healthTimer); peer._healthTimer = null; }
     // Animate cell out (≤260ms) then remove — gives immediate visual feedback
     if (peer.cell && !peer.cell.classList.contains('removing')) {
       peer.cell.classList.add('removing');
@@ -4739,8 +3165,7 @@ function _hostDoRemoveGuest(uid) {
         grid.dataset.count = updatedCount.toString();
         if (updatedCount === 0) {
           grid.classList.remove('has-guests');
-          // NOTE: Do NOT touch D.liveVideo here — the host video must keep
-          // playing regardless of whether guests are present or not.
+          if (D.liveVideo) { D.liveVideo.style.opacity = ''; D.liveVideo.style.pointerEvents = ''; }
         }
         _applyGuestLayout();
       }
@@ -4760,11 +3185,10 @@ function _hostDoRemoveGuest(uid) {
   // Allow this UID to send a new request in a future session
   _shownReqUids.delete(uid);
   try { remove(ref(_liveDB, `guestRequests/${_roomId}/${uid}`)); }  catch(_) {}
-  // BUG-12 FIX: increase from 3 s → 8 s so slow-connection guests have enough time
-  // to read the removedByHost flag before the signaling node is deleted.
+  // Remove signaling AFTER a short delay so the guest client can read the removedByHost flag
   setTimeout(() => {
     try { remove(ref(_liveDB, `guestSignaling/${_roomId}/${uid}`)); } catch(_) {}
-  }, 8000);
+  }, 3000);
   // Remove guest presence so viewers' grids update instantly
   try { remove(ref(_liveDB, `liveGuests/${_roomId}/${uid}`)); } catch(_) {}
   // Clean up Firestore boxRequest
@@ -4780,7 +3204,7 @@ function _hostDoRemoveGuest(uid) {
     // Remove host cell too, show plain main video
     grid.querySelector('.host-cell')?.remove();
     grid.classList.remove('has-guests');
-    // NOTE: Do NOT touch D.liveVideo — removing all guests must never interrupt the host stream.
+    if (D.liveVideo) { D.liveVideo.style.opacity = ''; D.liveVideo.style.pointerEvents = ''; }
   }
   _applyGuestLayout();
 }
@@ -4796,66 +3220,24 @@ function _startHostGuestWatchdog() {
   _hostWatchdogInterval = setInterval(async () => {
     if (!_roomId) return;
     try {
-      // ── 1. Heartbeat staleness check ──
       const snap = await get(ref(_liveDB, `liveGuests/${_roomId}`));
-      if (snap.exists()) {
-        const now = Date.now();
-        snap.forEach(child => {
-          const g = child.val();
-          if (g.isHost) return;   // never evict host entry
-          const uid = child.key;
-          // BUG-16 FIX: guests without a heartbeat field are either very new (joinedAt
-          // within last 30 s) or from an older build.  Give them grace instead of silently
-          // skipping forever — check joinedAt age so new guests aren't wrongly evicted.
-          if (!g.hb) {
-            const age = g.joinedAt ? (now - g.joinedAt) : (_STALE_THRESHOLD_MS + 1);
-            if (age < _STALE_THRESHOLD_MS) return; // recently joined — wait for first hb
-            // else: old entry with no heartbeat at all — treat as stale, fall through
-          } else if (now - g.hb <= _STALE_THRESHOLD_MS) {
-            return; // heartbeat is fresh — guest is alive
-          }
-          // Stale guest: evict
+      if (!snap.exists()) return;
+      const now = Date.now();
+      snap.forEach(child => {
+        const g = child.val();
+        if (g.isHost) return;   // never evict host entry
+        const uid = child.key;
+        if (!g.hb) return;      // older guest entries without hb — skip
+        if (now - g.hb > _STALE_THRESHOLD_MS) {
           console.log('[GuestWatchdog] Stale guest detected, evicting:', uid);
+          // Remove RTDB presence — RTDB onValue in viewers fires instantly
           try { remove(ref(_liveDB, `liveGuests/${_roomId}/${uid}`)); } catch(_) {}
+          // If this guest has an active peer on this host, tear it down too
           if (_guestPeers[uid]) {
             _hostDoRemoveGuest(uid);
           }
-        });
-      }
-
-      // ── 2. Per-guest outbound byte-freeze check ──
-      // If the host has stopped sending bytes to a connected guest for 2
-      // consecutive ticks (20 s) it likely means the DTLS/SRTP path died
-      // while ICE stayed "connected" — trigger restartIce() to re-path.
-      for (const [uid, peer] of Object.entries(_guestPeers)) {
-        if (!peer.pc) continue;
-        const iceState = peer.pc.iceConnectionState;
-        if (iceState === 'closed' || iceState === 'failed') continue;
-        if (!peer._wdBytes) peer._wdBytes = { last: 0, frozen: 0 };
-        try {
-          const stats = await peer.pc.getStats();
-          let sent = 0;
-          stats.forEach(r => { if (r.type === 'outbound-rtp' && r.bytesSent) sent += r.bytesSent; });
-          if (sent === peer._wdBytes.last) {
-            peer._wdBytes.frozen++;
-            if (peer._wdBytes.frozen >= 2) {
-              peer._wdBytes.frozen = 0;
-              console.warn('[GuestWatchdog] Frozen outbound to guest', uid, '— restartIce()');
-              try { peer.pc.restartIce && peer.pc.restartIce(); } catch(_) {}
-            }
-          } else {
-            peer._wdBytes.frozen = 0;
-            peer._wdBytes.last   = sent;
-          }
-        } catch(_) {}
-      }
-
-      // ── 3. Host self-video health ──
-      // If _localStream exists but the main video is paused (iOS background),
-      // kick play() so the host stays broadcasting while the app is in the bg.
-      if (_localStream && D.liveVideo && D.liveVideo.paused) {
-        D.liveVideo.play().catch(() => {});
-      }
+        }
+      });
     } catch(_) {}
   }, 10000); // check every 10 s
 }
@@ -4927,130 +3309,26 @@ function _attachGuestGridResizeObserver() {
   }, { passive: true });
 }
 
-/* ── Page-visibility watchdog ──────────────────────────────────────────
-   iOS and Android pause ALL video elements when the tab is backgrounded
-   or the screen locks.  When the user returns, we kick every video that
-   is paused so streams resume instantly — otherwise the host cell and
-   guest cells stay frozen until the user taps the screen.              */
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) return; // only act on foreground
-
-  // ── Kick every paused video element (iOS/Android resume from background) ──
-  const vids = document.querySelectorAll('.live-stage video, .guest-grid video');
-  vids.forEach(v => {
-    if (v.paused && v.srcObject) {
-      v.play().catch(() => {});
-    }
-  });
-  // Also kick the main #liveVideo in case it's outside .live-stage
-  if (D.liveVideo && D.liveVideo.paused && D.liveVideo.srcObject) {
-    D.liveVideo.play().catch(() => {});
-  }
-
-  // ── Viewer: probe for stale connection after returning from background ──
-  // iOS and Android can suspend WebRTC when the app is backgrounded, causing
-  // the ICE connection to silently die. After returning to foreground, check
-  // if the connection is still healthy and trigger ICE restart if needed.
-  if (_mode === 'viewer' && _rtcPc && !_viewerLeftFlag) {
-    const st = _rtcPc.connectionState;
-    if (st === 'disconnected' || st === 'failed') {
-      // Use the existing reconnect machinery — it has the recovery guard.
-      try { _rtcPc.restartIce && _rtcPc.restartIce(); } catch(_) {}
-    } else if (st === 'connected' || st === 'completed') {
-      // Connection is alive — just make sure video is still flowing.
-      if (D.liveVideo && D.liveVideo.paused && D.liveVideo.srcObject) {
-        D.liveVideo.play().catch(() => {});
-      }
-    }
-  }
-
-  // ── Host: kick the local preview and restart the heartbeat guard ──
-  if (_mode === 'creator' && _localStream && D.liveVideo && D.liveVideo.paused) {
-    D.liveVideo.play().catch(() => {});
-  }
-});
-
 /* ─────────────────────────────────────────────────────────────────
    _doApplyGuestLayout  —  the single source of truth for all
    geometry.  All explicit pixel / percentage assignments live here;
-   CSS provides only the flex skeleton and default resets.
+   CSS only provides the flex skeleton and default resets.
 
-   Safe-zone: all layouts reserve a bottom margin so that guest boxes
-   never overlap the chat panel or the controls bar.
-
-   Auto-layout map (guestCount = guests, host NOT counted):
-     1  → 2 participants: 50/50 split (portrait) or 60/40 (landscape)
-     2  → 3 participants: host top 60% + 2 guests side-by-side below
+   Smart auto-layout map (guestCount = number of guests, host NOT counted):
+     0  → grid hidden, main #liveVideo shown
+     1  → 2 participants: 50/50 split
+     2  → 3 participants: host 60% + 2 guests stacked in 40%
      3  → 4 participants: 2×2 equal grid
-     4  → 5 participants: host top row + 4 equal bottom strip
+     4  → 5 participants: host top row 100%×55% + 4 guests equal bottom
      5  → 6 participants: 2 rows × 3 cols equal
-     6  → 7 participants: host 50% + 6 guests in 2×3
+     6  → 7 participants: host 50%×60% top-left + 6 guests equal right+bottom
      7  → 8 participants: 2 rows × 4 cols equal
      8  → 9 participants: 3 rows × 3 cols equal
-     9  → 10 participants: host prominent + 9 guests
+     9  → 10 participants: host top-left 33%×40% + 9 guests balanced
    ───────────────────────────────────────────────────────────────── */
-
-/* ── Helper: compute the UI safe zone bottom margin (controls + chat input) ── */
-function _getUISafeBottom(stageH) {
-  /* Creator: bottom bar + chat-input row height.
-     Compact mode has a smaller bar.
-     Viewer: chat input row height only — the action column is to the
-     right so it doesn't add vertical height we need to clear.
-     We add 8px padding so content never kisses the edge. */
-  if (_mode === 'creator') {
-    const barH = document.body.classList.contains('controls-compact') ? 44 : 56;
-    return Math.max(barH + 52, Math.floor(stageH * 0.17));
-  }
-  // Viewer: reserve enough for the chat input row (≈56px) plus safe-area inset
-  const safeAreaBottom = parseFloat(
-    getComputedStyle(document.documentElement)
-      .getPropertyValue('--safe-area-inset-bottom') || '0'
-  ) || 0;
-  return Math.max(56 + safeAreaBottom, Math.floor(stageH * 0.13));
-}
-
-/* ── Helper: compute precise stack-column bounds for Right/Left Stack layouts.
-   Returns { topStart, availH } in pixels relative to the stage top.
-   • topStart — first pixel the column may use (just below the top bar)
-   • availH   — total usable column height (topStart → above controls/chat)  ── */
-function _getStackBounds(stageH) {
-  // ── Top boundary: measure actual top bar height when available ──
-  const topBarEl = D.topBar || document.querySelector('.live-top-bar');
-  const topBarH  = (topBarEl && topBarEl.offsetHeight) ? topBarEl.offsetHeight : 52;
-  const topStart = topBarH + 6;   // 6 px breathing room below top bar
-
-  // ── Bottom boundary: above the controls bar (creator) or chat input (viewer) ──
-  let bottomEdge;
-  if (_mode === 'creator') {
-    const bbEl = document.querySelector('.live-bottom-bar');
-    const bbH  = (bbEl && bbEl.offsetHeight) ? bbEl.offsetHeight
-               : (document.body.classList.contains('controls-compact') ? 44 : 56);
-    const safeAreaBottom = parseFloat(
-      getComputedStyle(document.documentElement)
-        .getPropertyValue('--safe-area-inset-bottom') || '0'
-    ) || 0;
-    bottomEdge = stageH - bbH - safeAreaBottom - 8;
-  } else {
-    const chatInputEl = document.querySelector('.live-chat-input-row');
-    const chatInputH  = (chatInputEl && chatInputEl.offsetHeight) ? chatInputEl.offsetHeight : 56;
-    const safeAreaBottom = parseFloat(
-      getComputedStyle(document.documentElement)
-        .getPropertyValue('--safe-area-inset-bottom') || '0'
-    ) || 0;
-    bottomEdge = stageH - chatInputH - safeAreaBottom - 8;
-  }
-
-  const availH = Math.max(0, bottomEdge - topStart);
-  return { topStart, availH };
-}
-
 function _doApplyGuestLayout() {
   const grid = D.guestGrid;
   if (!grid) return;
-
-  // ── Smooth transition flash ──
-  grid.classList.add('layout-transitioning');
-  requestAnimationFrame(() => grid.classList.remove('layout-transitioning'));
 
   // ── Shared setup for both modes ──
   grid.dataset.layout = _guestLayout;
@@ -5060,15 +3338,16 @@ function _doApplyGuestLayout() {
   // ── Resolve guestCount based on mode ──
   let guestCount;
   if (_mode === 'viewer') {
+    // Viewer: count is maintained by _startViewerGuestGrid via dataset.count
     guestCount = parseInt(grid.dataset.count || '0', 10);
   } else {
+    // Creator: count from live _guestPeers
     guestCount = Object.keys(_guestPeers).length;
     grid.dataset.count = guestCount.toString();
   }
 
   if (guestCount === 0) {
     grid.classList.remove('has-guests');
-    _applySidebarBodyClass();
     return;
   }
   grid.classList.add('has-guests');
@@ -5077,177 +3356,177 @@ function _doApplyGuestLayout() {
   _updateLayoutPanelCounter(guestCount);
 
   // ── Clear any previously JS-set inline styles on all cells ──
+  // (CSS rules handle the base; JS overrides only when needed)
   grid.querySelectorAll('.guest-cell').forEach(c => {
-    c.style.width        = '';
-    c.style.height       = '';
-    c.style.position     = '';
-    c.style.inset        = '';
-    c.style.top          = '';
-    c.style.right        = '';
-    c.style.bottom       = '';
-    c.style.left         = '';
-    c.style.flex         = '';
-    c.style.zIndex       = '';
-    c.style.borderRadius = '';
-    c.style.transform    = '';
-    c.style.opacity      = '';
+    c.style.width = '';
+    c.style.height = '';
+    c.style.position = '';
+    c.style.top = '';
+    c.style.right = '';
+    c.style.bottom = '';
+    c.style.left = '';
+    c.style.flex = '';
   });
   // Reset grid flex properties
   grid.style.flexDirection = '';
   grid.style.flexWrap      = '';
   grid.style.alignContent  = '';
   grid.style.alignItems    = '';
-  grid.style.paddingBottom = '';
 
-  // ── Dispatch to the two supported layouts (with featured-guest override) ──
+  const totalCells = guestCount + 1; // +1 for host
 
-  // If a guest is featured and is still present, use featured layout
-  if (_featuredGuestUid && grid.querySelector(`[data-uid="${_featuredGuestUid}"]`)) {
-    _applyFeaturedGuestLayout(grid, guestCount);
+  // ── Named layout modes (host manually selected) ──
+  if (_guestLayout === 'grid') {
+    _applyEqualGrid(grid, totalCells);
+    return;
+  }
+  if (_guestLayout === 'float') {
+    _applyFloatLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'split') {
+    _applySplitLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'host-full') {
+    _applyHostFullLayout(grid, guestCount);
+    return;
+  }
+  if (_guestLayout === 'host-big') {
+    _applyHostBigLayout(grid, guestCount);
     return;
   }
 
-  // Default dispatch: right stack or left stack
-  if (_guestLayout === 'host-full-left') {
-    _applyHostFullLeftLayout(grid, guestCount);
-  } else {
-    // Default: 'host-full' (right stack) — also handles any legacy saved layout values
-    _applyHostFullLayout(grid, guestCount);
-  }
+  // ── 'auto' layout: pick best layout for current count ──
+  _applyAutoLayout(grid, guestCount, totalCells);
 }
 
 /* ─────────────────────────────────────────────────────────────────
    AUTO LAYOUT  —  smart geometry for every count 1–9
-   Each case is tuned to keep host video as the main focus and
-   keep all cells within the visible stage without clipping.
    ───────────────────────────────────────────────────────────────── */
 function _applyAutoLayout(grid, guestCount, totalCells) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;   // height available for video cells
+  const stageW = grid.offsetWidth  || window.innerWidth;
+  const stageH = grid.offsetHeight || window.innerHeight;
   const isLandscape = stageW >= stageH;
-  // Height ratios are expressed as fraction of usableH so cells never cover UI
-  const uH = (pct) => ((usableH / stageH) * pct).toFixed(4) + '%';
+
   const hostCell   = grid.querySelector('.host-cell');
   const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
 
-  // Apply bottom padding so flex rows stop before the UI zone
-  grid.style.paddingBottom = safeBottom + 'px';
-  grid.style.alignContent  = 'flex-start';
-
   switch (guestCount) {
 
-    /* ── 1 guest: side-by-side split ── */
+    /* ── 1 guest: 50/50 side-by-side ── */
     case 1: {
       grid.style.flexDirection = 'row';
       grid.style.flexWrap      = 'nowrap';
-      grid.style.alignItems    = 'flex-start';
-      if (hostCell)      { hostCell.style.width = '50%';  hostCell.style.height = usableH + 'px'; }
-      if (guestCells[0]) { guestCells[0].style.width = '50%'; guestCells[0].style.height = usableH + 'px'; }
+      grid.style.alignItems    = 'stretch';
+      if (hostCell)       { hostCell.style.width = '50%';  hostCell.style.height = '100%'; }
+      if (guestCells[0])  { guestCells[0].style.width = '50%'; guestCells[0].style.height = '100%'; }
       break;
     }
 
-    /* ── 2 guests ── */
+    /* ── 2 guests: host 60% left + 2 guests stacked right ── */
     case 2: {
       if (isLandscape) {
-        // Landscape: host 60% left, 2 guests stacked in 40% right
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        if (hostCell) { hostCell.style.width = '60%'; hostCell.style.height = usableH + 'px'; }
-        guestCells.forEach(c => { c.style.width = '40%'; c.style.height = (usableH / 2) + 'px'; });
+        grid.style.alignContent  = 'stretch';
+        if (hostCell)       { hostCell.style.width = '60%';  hostCell.style.height = '100%'; }
+        guestCells.forEach(c => { c.style.width = '40%'; c.style.height = '50%'; });
       } else {
-        // Portrait: host top 60%, 2 guests side-by-side below 40%
+        // Portrait: host full top row, guests side-by-side below
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        const hostH  = Math.floor(usableH * 0.60);
-        const guestH = usableH - hostH;
-        if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH + 'px'; }
-        guestCells.forEach(c => { c.style.width = '50%'; c.style.height = guestH + 'px'; });
+        grid.style.alignContent  = 'flex-start';
+        if (hostCell)       { hostCell.style.width = '100%'; hostCell.style.height = '55%'; }
+        guestCells.forEach(c => { c.style.width = '50%'; c.style.height = '45%'; });
       }
       break;
     }
 
-    /* ── 3 guests: 2×2 equal grid (host + 3 = 4 cells) ── */
+    /* ── 3 guests: 2×2 grid ── */
     case 3: {
-      _applyEqualGridUsable(grid, 4, stageW, usableH);
+      _applyEqualGrid(grid, 4);
       break;
     }
 
-    /* ── 4 guests: host prominent top + 4 equal bottom ── */
+    /* ── 4 guests: host full top + 4 equal bottom ── */
     case 4: {
       grid.style.flexDirection = 'row';
       grid.style.flexWrap      = 'wrap';
-      const hostH4  = Math.floor(usableH * 0.55);
-      const guestH4 = usableH - hostH4;
-      if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH4 + 'px'; }
-      guestCells.forEach(c => { c.style.width = '25%'; c.style.height = guestH4 + 'px'; });
+      grid.style.alignContent  = 'flex-start';
+      if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = '55%'; }
+      guestCells.forEach(c => { c.style.width = '25%'; c.style.height = '45%'; });
       break;
     }
 
-    /* ── 5 guests: 2 rows × 3 cols (6 cells) ── */
+    /* ── 5 guests: 2 rows × 3 cols equal (6 cells) ── */
     case 5: {
-      _applyEqualGridUsable(grid, 6, stageW, usableH);
+      _applyEqualGrid(grid, 6);
       break;
     }
 
-    /* ── 6 guests: host prominent + 6 guests ── */
+    /* ── 6 guests: host prominent top-left + 6 guests ──
+       Portrait: host top 100%×40%, 3 guests per row below
+       Landscape: host left 50%×60% + 6 guests on right in 3×2 */
     case 6: {
       if (isLandscape) {
-        // Landscape: host 50% left × full usable height, 6 guests in 2 col strips right
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        const g6H = usableH / 3;
-        if (hostCell) { hostCell.style.width = '50%'; hostCell.style.height = usableH + 'px'; }
+        grid.style.alignContent  = 'flex-start';
+        if (hostCell) { hostCell.style.width = '50%'; hostCell.style.height = '66.67%'; }
+        // 3 guests on right, 3 below
         guestCells.forEach((c, i) => {
-          c.style.width  = '25%';
-          c.style.height = g6H + 'px';
+          if (i < 3) { c.style.width = '16.67%'; c.style.height = '66.67%'; }
+          else       { c.style.width = '16.67%'; c.style.height = '33.33%'; }
         });
       } else {
-        // Portrait: host top 40%, 6 guests in 2 rows of 3 below
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        const hostH6  = Math.floor(usableH * 0.42);
-        const guestH6 = (usableH - hostH6) / 2;
-        if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH6 + 'px'; }
-        guestCells.forEach(c => { c.style.width = '33.33%'; c.style.height = guestH6 + 'px'; });
+        grid.style.alignContent  = 'flex-start';
+        if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = '40%'; }
+        guestCells.forEach(c => { c.style.width = '33.33%'; c.style.height = '30%'; });
       }
       break;
     }
 
-    /* ── 7 guests: 2 rows × 4 cols (8 cells) ── */
+    /* ── 7 guests: 2 rows × 4 cols equal (8 cells) ── */
     case 7: {
-      _applyEqualGridUsable(grid, 8, stageW, usableH);
+      _applyEqualGrid(grid, 8);
       break;
     }
 
-    /* ── 8 guests: 3×3 equal (9 cells) ── */
+    /* ── 8 guests: 3×3 equal (9 cells total) ── */
     case 8: {
-      _applyEqualGridUsable(grid, 9, stageW, usableH);
+      _applyEqualGrid(grid, 9);
       break;
     }
 
-    /* ── 9 guests: host prominent + 9 guests ── */
+    /* ── 9 guests: host top-left prominent + 9 guests ──
+       Portrait: host top 100%×33% + 3 rows of 3 below
+       Landscape: host left 33%×40% + 3 cols of 3 on right */
     case 9: {
       if (isLandscape) {
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        const g9H = usableH / 3;
-        if (hostCell) { hostCell.style.width = '34%'; hostCell.style.height = usableH + 'px'; }
-        guestCells.forEach(c => { c.style.width = '22%'; c.style.height = g9H + 'px'; });
+        grid.style.alignContent  = 'flex-start';
+        if (hostCell) { hostCell.style.width = '34%'; hostCell.style.height = '66.67%'; }
+        guestCells.forEach((c, i) => {
+          if (i < 3) { c.style.width = '22%';  c.style.height = '66.67%'; }
+          else       { c.style.width = '22%';  c.style.height = '33.33%'; }
+        });
       } else {
         grid.style.flexDirection = 'row';
         grid.style.flexWrap      = 'wrap';
-        const hostH9  = Math.floor(usableH * 0.35);
-        const guestH9 = (usableH - hostH9) / 3;
-        if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH9 + 'px'; }
-        guestCells.forEach(c => { c.style.width = '33.33%'; c.style.height = guestH9 + 'px'; });
+        grid.style.alignContent  = 'flex-start';
+        if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = '33%'; }
+        guestCells.forEach(c => { c.style.width = '33.33%'; c.style.height = '22.33%'; });
       }
       break;
     }
 
     default: {
-      _applyEqualGridUsable(grid, totalCells, stageW, usableH);
+      // Fallback for counts beyond 9 (should not happen given _MAX_GUESTS cap)
+      _applyEqualGrid(grid, totalCells);
     }
   }
 }
@@ -5256,84 +3535,75 @@ function _applyAutoLayout(grid, guestCount, totalCells) {
    NAMED LAYOUT HELPERS
    ───────────────────────────────────────────────────────────────── */
 
-/* ── Equal grid (named mode): calculate optimal rows/cols then set dimensions ── */
+/* Equal grid: calculate optimal rows/cols then set dimensions */
 function _applyEqualGrid(grid, totalCells) {
   const stageW   = grid.offsetWidth  || window.innerWidth;
   const stageH   = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH  = stageH - safeBottom;
-  _applyEqualGridUsable(grid, totalCells, stageW, usableH);
-}
-
-/* ── Equal grid using a pre-computed usable height (used by auto layout) ── */
-function _applyEqualGridUsable(grid, totalCells, stageW, usableH) {
   // Pick cols to minimise wasted space given aspect ratio
-  const cols        = Math.ceil(Math.sqrt(totalCells * (stageW / Math.max(1, usableH))));
+  const cols     = Math.ceil(Math.sqrt(totalCells * (stageW / Math.max(1, stageH))));
   const colsClamped = Math.max(1, Math.min(totalCells, cols));
-  const rows        = Math.ceil(totalCells / colsClamped);
-  const w           = (100 / colsClamped).toFixed(4) + '%';
-  const h           = Math.floor(usableH / rows) + 'px';
+  const rows     = Math.ceil(totalCells / colsClamped);
+  const w        = (100 / colsClamped).toFixed(4) + '%';
+  const h        = (100 / rows).toFixed(4) + '%';
   grid.style.flexDirection = 'row';
   grid.style.flexWrap      = 'wrap';
-  grid.style.alignContent  = 'flex-start';
-  grid.style.paddingBottom = '';   // equal grid uses its own height calc
+  grid.style.alignContent  = 'stretch';
   grid.querySelectorAll('.guest-cell').forEach(cell => {
     cell.style.width  = w;
     cell.style.height = h;
   });
 }
 
-/* ── Split: side-by-side equal strips ── */
+/* Split: side-by-side — works well when guestCount ≤ 2 */
 function _applySplitLayout(grid, guestCount) {
-  const stageH   = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH  = stageH - safeBottom;
-  const cells    = Array.from(grid.querySelectorAll('.guest-cell'));
-  const n        = cells.length;
+  const cells = Array.from(grid.querySelectorAll('.guest-cell'));
+  const n     = cells.length;
   if (n === 0) return;
   grid.style.flexDirection = 'row';
   grid.style.flexWrap      = 'nowrap';
-  grid.style.alignItems    = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
+  grid.style.alignItems    = 'stretch';
   const w = (100 / n).toFixed(4) + '%';
-  cells.forEach(c => { c.style.width = w; c.style.height = usableH + 'px'; });
+  cells.forEach(c => { c.style.width = w; c.style.height = '100%'; });
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   LAYOUT 1 — RIGHT STACK
-   Host video fills the full screen. Up to 8 guest boxes are stacked
-   in a single vertical column on the right side, anchored from just
-   below the top-bar down to just above the bottom controls bar.
-   All 8 boxes are auto-sized to fill the available height evenly.
-   No box is cut off, none overlap, host stays fully visible.
-   ═══════════════════════════════════════════════════════════════════ */
+/* Host full-screen — guests as responsive floating tiles */
 function _applyHostFullLayout(grid, guestCount) {
   const stageW   = grid.offsetWidth  || window.innerWidth;
   const stageH   = grid.offsetHeight || window.innerHeight;
   const hostCell = grid.querySelector('.host-cell');
-
-  // Host fills the full stage behind the guest strip
   if (hostCell) {
     hostCell.style.position = 'absolute';
     hostCell.style.inset    = '0';
     hostCell.style.width    = '100%';
     hostCell.style.height   = '100%';
-    hostCell.style.flex     = 'none';
-    hostCell.style.zIndex   = '4';
   }
 
-  const cappedCount = Math.min(guestCount, _MAX_GUESTS);
-  if (cappedCount === 0) return;
+  // Tile size: shrink when many guests to avoid overflow
+  const maxPerRow  = Math.min(guestCount, Math.ceil(Math.sqrt(guestCount * 2)));
+  const baseW      = Math.max(60, Math.min(160, Math.floor(stageW * 0.18)));
+  const tileW      = Math.floor(baseW * (maxPerRow > 4 ? 0.75 : 1));
+  const tileH      = Math.floor(tileW * 0.75);
+  const gap        = Math.max(4, Math.floor(stageW * 0.012));
+  const cols       = Math.max(1, Math.floor((stageW - gap) / (tileW + gap)));
 
-  _placeStackColumn(grid, cappedCount, stageW, stageH, 'right');
+  let i = 0;
+  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    cell.style.position = 'absolute';
+    cell.style.width    = tileW + 'px';
+    cell.style.height   = tileH + 'px';
+    cell.style.right    = (gap + col * (tileW + gap)) + 'px';
+    cell.style.top      = (gap + row * (tileH + gap)) + 'px';
+    cell.style.bottom   = 'auto';
+    cell.style.left     = 'auto';
+    i++;
+  });
 }
 
-/* ── Host Big: host takes most of the width, guests in a vertical strip ── */
+/* Host Big: host takes most of the width, guests in a vertical strip */
 function _applyHostBigLayout(grid, guestCount) {
   const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
   const hostCell   = grid.querySelector('.host-cell');
   const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
 
@@ -5341,18 +3611,17 @@ function _applyHostBigLayout(grid, guestCount) {
   const stripW = Math.max(80, Math.min(200, Math.floor(stageW * 0.22)));
   grid.style.flexDirection = 'row';
   grid.style.flexWrap      = 'nowrap';
-  grid.style.alignItems    = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
+  grid.style.alignItems    = 'stretch';
 
   if (hostCell) {
     hostCell.style.flex   = '1';
-    hostCell.style.height = usableH + 'px';
+    hostCell.style.height = '100%';
   }
 
   // Stack guests in the strip — if more than 5, split into 2 sub-columns
-  const subCols = guestCount > 5 ? 2 : 1;
-  const gH      = Math.floor(usableH / Math.ceil(guestCount / subCols)) + 'px';
-  const gW      = (stripW / subCols) + 'px';
+  const subCols  = guestCount > 5 ? 2 : 1;
+  const gH       = (100 / Math.ceil(guestCount / subCols)).toFixed(4) + '%';
+  const gW       = (stripW / subCols) + 'px';
   guestCells.forEach(c => {
     c.style.width  = gW;
     c.style.height = gH;
@@ -5360,14 +3629,11 @@ function _applyHostBigLayout(grid, guestCount) {
   });
 }
 
-/* ── Float layout: cascade guest boxes from top-right, responsive.
-   Tiles are capped so they never enter the UI safe zone.          ── */
+/* Float layout: cascade guest boxes from top-right, responsive */
 function _applyFloatLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const hostCell   = grid.querySelector('.host-cell');
+  const stageW   = grid.offsetWidth  || window.innerWidth;
+  const stageH   = grid.offsetHeight || window.innerHeight;
+  const hostCell = grid.querySelector('.host-cell');
 
   if (hostCell) {
     hostCell.style.position = 'absolute';
@@ -5382,13 +3648,11 @@ function _applyFloatLayout(grid, guestCount) {
   const tileH   = Math.floor(tileW * 0.75);
   const gap     = Math.max(4, Math.floor(stageW * 0.012));
   const cols    = Math.max(1, Math.floor((stageW - gap) / (tileW + gap)));
-  // Max rows that fit in the usable zone
-  const maxRows = Math.max(1, Math.floor((usableH - gap) / (tileH + gap)));
 
   let i = 0;
   grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
     const col = i % cols;
-    const row = Math.min(Math.floor(i / cols), maxRows - 1);
+    const row = Math.floor(i / cols);
     cell.style.position = 'absolute';
     cell.style.width    = tileW + 'px';
     cell.style.height   = tileH + 'px';
@@ -5399,1254 +3663,6 @@ function _applyFloatLayout(grid, guestCount) {
     i++;
   });
 }
-
-/* ── Stacked layout: host fills the stage; guests stack in a vertical strip
-   along the right edge, growing from bottom to top as more guests join.
-   Guests never overlap the UI safe zone at the bottom.                     ── */
-function _applyStackedLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const hostCell   = grid.querySelector('.host-cell');
-
-  // Host fills the full stage behind the guest strip
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-    hostCell.style.flex     = 'none';
-  }
-
-  // Strip geometry — adaptive to guest count and screen size
-  const topReserve = 8;                                                  // top gap
-  const usableH    = stageH - safeBottom - topReserve;
-  const maxTileH   = Math.max(60, Math.floor(stageH * 0.15));
-  const tileH      = Math.max(48, Math.min(maxTileH, Math.floor(usableH / Math.max(1, guestCount))));
-  const tileW      = Math.floor(tileH * (4 / 3));
-  const clampedW   = Math.min(tileW, Math.max(56, Math.floor(stageW * 0.22)));
-  const gap        = 4;
-
-  // Stack bottom-to-top: first guest at bottom, newest above
-  Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).forEach((cell, i) => {
-    const fromBottom = safeBottom + topReserve + i * (tileH + gap);
-    cell.style.position     = 'absolute';
-    cell.style.width        = clampedW + 'px';
-    cell.style.height       = tileH + 'px';
-    cell.style.right        = gap + 'px';
-    cell.style.bottom       = fromBottom + 'px';
-    cell.style.top          = 'auto';
-    cell.style.left         = 'auto';
-    cell.style.flex         = 'none';
-    cell.style.zIndex       = '6';
-    cell.style.borderRadius = '10px';
-  });
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   LAYOUT 2 — LEFT STACK
-   Host video fills the full screen. Up to 8 guest boxes are stacked
-   in a single vertical column on the left side, anchored from just
-   below the top-bar down to just above the bottom controls bar.
-   All 8 boxes are auto-sized to fill the available height evenly.
-   No box is cut off, none overlap, host stays fully visible.
-   ═══════════════════════════════════════════════════════════════════ */
-function _applyHostFullLeftLayout(grid, guestCount) {
-  const stageW   = grid.offsetWidth  || window.innerWidth;
-  const stageH   = grid.offsetHeight || window.innerHeight;
-  const hostCell = grid.querySelector('.host-cell');
-
-  // Host fills the full stage behind the guest strip
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-    hostCell.style.flex     = 'none';
-    hostCell.style.zIndex   = '4';
-  }
-
-  const cappedCount = Math.min(guestCount, _MAX_GUESTS);
-  if (cappedCount === 0) return;
-
-  _placeStackColumn(grid, cappedCount, stageW, stageH, 'left');
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   FEATURED GUEST LAYOUT
-   One guest is featured in the large video area (like a host swap).
-   The featured cell fills the full screen. All remaining guests
-   (including the host cell) stack on the side in small thumbnails —
-   same size and spacing as the normal Right/Left Stack layouts.
-   Switching featured guests at any time does not resize any other box.
-   ═══════════════════════════════════════════════════════════════════ */
-function _applyFeaturedGuestLayout(grid, guestCount) {
-  const stageW       = grid.offsetWidth  || window.innerWidth;
-  const stageH       = grid.offsetHeight || window.innerHeight;
-  const featuredCell = grid.querySelector(`[data-uid="${_featuredGuestUid}"]`);
-  if (!featuredCell) { _featuredGuestUid = null; _applyHostFullLayout(grid, guestCount); return; }
-
-  // Mark featured cell visually (removes border/shadow via CSS)
-  grid.querySelectorAll('.guest-cell').forEach(c => c.classList.remove('featured-cell'));
-  featuredCell.classList.add('featured-cell');
-
-  // Featured guest fills the whole screen (like host)
-  featuredCell.style.position     = 'absolute';
-  featuredCell.style.inset        = '0';
-  featuredCell.style.width        = '100%';
-  featuredCell.style.height       = '100%';
-  featuredCell.style.flex         = 'none';
-  featuredCell.style.zIndex       = '4';
-  featuredCell.style.borderRadius = '0';
-  featuredCell.style.overflow     = 'hidden';
-
-  // Collect all other cells (host + non-featured guests) for the side stack
-  const sideCells  = Array.from(grid.querySelectorAll('.guest-cell'))
-    .filter(c => c !== featuredCell);
-  const sideCount  = sideCells.length;
-  if (sideCount === 0) return;
-
-  const cappedSide = Math.min(sideCount, _MAX_GUESTS);
-  const side       = (_guestLayout === 'host-full-left') ? 'left' : 'right';
-
-  // Use the same precise bounds + placement as normal stack layouts
-  _placeStackColumn(grid, cappedSide, stageW, stageH, side, sideCells);
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   _placeStackColumn  —  shared placement helper.
-   Used by Right Stack, Left Stack and Featured Guest layouts.
-
-   Ensures every guest box:
-   • Starts just below the top bar (above the LIVE indicator).
-   • Ends just above the chat input / bottom controls bar.
-   • Is the same small thumbnail size (4:3, max 22% stage width).
-   • Auto-adjusts spacing so all N boxes fit without overlap or clipping.
-
-   grid       — the #guestGrid element
-   count      — number of cells to place (already capped to _MAX_GUESTS)
-   stageW/H   — live-video-wrap dimensions in px
-   side       — 'right' | 'left'
-   cells      — (optional) pre-filtered cell list; defaults to all
-                non-host guest cells
-   ═══════════════════════════════════════════════════════════════════ */
-function _placeStackColumn(grid, count, stageW, stageH, side, cells) {
-  const gap = 5;   // px gap between boxes
-
-  // ── Precise vertical bounds (top bar → bottom bar / chat input) ──
-  const { topStart, availH } = _getStackBounds(stageH);
-
-  // ── Tile height: divide available space evenly, never below 44 px ──
-  const maxTileH = Math.floor(stageH * 0.33);
-  const tileH    = Math.max(44, Math.min(maxTileH,
-    Math.floor((availH - gap * (count - 1)) / Math.max(1, count))
-  ));
-
-  // ── Tile width: 4:3 aspect ratio, clamped to 22% of stage width ──
-  const maxTileW = Math.max(64, Math.floor(stageW * 0.22));
-  const tileW    = Math.min(Math.floor(tileH * (4 / 3)), maxTileW);
-
-  // ── Resolve cell list ──
-  const cellList = cells
-    ? cells.slice(0, count)
-    : Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).slice(0, count);
-
-  cellList.forEach((cell, i) => {
-    cell.style.position     = 'absolute';
-    cell.style.width        = tileW + 'px';
-    cell.style.height       = tileH + 'px';
-    cell.style.top          = (topStart + i * (tileH + gap)) + 'px';
-    cell.style.left         = side === 'left'  ? gap + 'px' : 'auto';
-    cell.style.right        = side === 'right' ? gap + 'px' : 'auto';
-    cell.style.bottom       = 'auto';
-    cell.style.flex         = 'none';
-    cell.style.zIndex       = '6';
-    cell.style.borderRadius = '10px';
-    cell.style.overflow     = 'hidden';
-  });
-}
-
-/* ── Set a featured guest — makes their box the large video ── */
-function _setFeaturedGuest(uid) {
-  _featuredGuestUid = uid;
-  // Update star button highlights
-  document.querySelectorAll('.guest-cell-feature').forEach(btn => {
-    btn.classList.toggle('featured-active', btn.dataset.uid === uid);
-  });
-  _applyGuestLayout();
-  _broadcastFeaturedGuest();
-  toast('Featured guest set — tap ★ again or "Return to Host View" to switch back');
-}
-
-/* ── Clear featured guest — return host to the large view ── */
-function _clearFeaturedGuest() {
-  _featuredGuestUid = null;
-  document.querySelectorAll('.guest-cell-feature').forEach(btn => btn.classList.remove('featured-active'));
-  document.querySelectorAll('.guest-cell.featured-cell').forEach(c => c.classList.remove('featured-cell'));
-  _applyGuestLayout();
-  _broadcastFeaturedGuest();
-}
-
-/* ── Broadcast featured guest UID so viewers see the same large video ── */
-function _broadcastFeaturedGuest() {
-  if (!_roomId) return;
-  try {
-    update(ref(_liveDB, `liveRooms/${_roomId}`), {
-      featuredGuestUid: _featuredGuestUid || null,
-    });
-  } catch(_) {}
-}
-
-/* ── Layout 3: Host Full + Bottom Filmstrip ── */
-function _applyBottomStripLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const stripH     = Math.max(52, Math.min(100, Math.floor(stageH * 0.14)));
-  const hostCell   = grid.querySelector('.host-cell');
-
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-  }
-
-  const tileW   = Math.floor((stageW - (guestCount + 1) * 4) / guestCount);
-  const bottom  = safeBottom + 4;
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach((cell, i) => {
-    cell.style.position = 'absolute';
-    cell.style.width    = tileW + 'px';
-    cell.style.height   = stripH + 'px';
-    cell.style.left     = (i * (tileW + 4)) + 'px';
-    cell.style.bottom   = bottom + 'px';
-    cell.style.top      = 'auto';
-    cell.style.right    = 'auto';
-  });
-}
-
-/* ── Layout 4: Host Full + Top Filmstrip ── */
-function _applyTopStripLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const stripH     = Math.max(52, Math.min(100, Math.floor(stageH * 0.14)));
-  const hostCell   = grid.querySelector('.host-cell');
-
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-  }
-
-  const tileW = Math.floor((stageW - (guestCount + 1) * 4) / guestCount);
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach((cell, i) => {
-    cell.style.position = 'absolute';
-    cell.style.width    = tileW + 'px';
-    cell.style.height   = stripH + 'px';
-    cell.style.left     = (i * (tileW + 4)) + 'px';
-    cell.style.top      = '4px';
-    cell.style.bottom   = 'auto';
-    cell.style.right    = 'auto';
-  });
-}
-
-/* ── Layout 4b: Left Side Vertical Strip ── */
-function _applyLeftStripLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const hostCell   = grid.querySelector('.host-cell');
-
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-    hostCell.style.flex     = 'none';
-  }
-
-  const topReserve = 8;
-  const usableH    = stageH - safeBottom - topReserve;
-  const maxTileH   = Math.max(60, Math.floor(stageH * 0.15));
-  const tileH      = Math.max(48, Math.min(maxTileH, Math.floor(usableH / Math.max(1, guestCount))));
-  const tileW      = Math.min(Math.floor(tileH * (4 / 3)), Math.floor(stageW * 0.22));
-  const gap        = 4;
-
-  Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).forEach((cell, i) => {
-    const fromBottom = safeBottom + topReserve + i * (tileH + gap);
-    cell.style.position     = 'absolute';
-    cell.style.width        = tileW + 'px';
-    cell.style.height       = tileH + 'px';
-    cell.style.left         = gap + 'px';
-    cell.style.bottom       = fromBottom + 'px';
-    cell.style.top          = 'auto';
-    cell.style.right        = 'auto';
-    cell.style.flex         = 'none';
-    cell.style.zIndex       = '6';
-    cell.style.borderRadius = '10px';
-  });
-}
-
-/* ── Layout 5b: 2×2 Fixed Grid ── */
-function _applyFixedGrid(grid, cols, rows) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const w          = (100 / cols).toFixed(4) + '%';
-  const h          = Math.floor(usableH / rows) + 'px';
-  grid.style.flexDirection = 'row';
-  grid.style.flexWrap      = 'wrap';
-  grid.style.alignContent  = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
-  grid.querySelectorAll('.guest-cell').forEach(cell => {
-    cell.style.width  = w;
-    cell.style.height = h;
-  });
-}
-
-/* ── Layout 16: Honeycomb ── */
-function _applyHoneycombLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const total      = guestCount + 1;
-  const cols       = Math.ceil(Math.sqrt(total * 1.1));
-  const hexW       = Math.floor((stageW - 8) / cols);
-  const hexH       = Math.floor(hexW * 0.866); // cos(30°) ≈ 0.866
-  const gap        = 4;
-
-  grid.style.flexDirection = 'row';
-  grid.style.flexWrap      = 'wrap';
-  grid.style.alignContent  = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
-
-  grid.querySelectorAll('.guest-cell').forEach((cell, i) => {
-    const row = Math.floor(i / cols);
-    const col = i % cols;
-    const offset = (row % 2 === 1) ? (hexW / 2) : 0;
-    cell.style.position = 'absolute';
-    cell.style.width    = (hexW - gap) + 'px';
-    cell.style.height   = (hexH - gap) + 'px';
-    cell.style.left     = (col * hexW + offset) + 'px';
-    cell.style.top      = (row * (hexH * 0.75)) + 'px';
-    cell.style.zIndex   = '5';
-  });
-}
-
-/* ── Layout 17: Circular ── */
-function _applyCircularLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const cx         = stageW / 2;
-  const cy         = (stageH - safeBottom) / 2;
-  const tileSize   = Math.max(56, Math.min(140, Math.floor(Math.min(stageW, stageH - safeBottom) * 0.22)));
-  const radius     = Math.max(tileSize, Math.min(stageW * 0.38, (stageH - safeBottom) * 0.35));
-
-  grid.style.position = 'relative';
-
-  // Place host in center
-  const hostCell = grid.querySelector('.host-cell');
-  if (hostCell) {
-    const hostSize = Math.floor(tileSize * 1.6);
-    hostCell.style.position = 'absolute';
-    hostCell.style.width    = hostSize + 'px';
-    hostCell.style.height   = hostSize + 'px';
-    hostCell.style.left     = (cx - hostSize / 2) + 'px';
-    hostCell.style.top      = (cy - hostSize / 2) + 'px';
-    hostCell.style.zIndex   = '4';
-    hostCell.style.borderRadius = '50%';
-  }
-
-  // Distribute guests evenly around the circle
-  Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)')).forEach((cell, i) => {
-    const angle = (i / guestCount) * 2 * Math.PI - Math.PI / 2;
-    const x     = cx + radius * Math.cos(angle) - tileSize / 2;
-    const y     = cy + radius * Math.sin(angle) - tileSize / 2;
-    cell.style.position = 'absolute';
-    cell.style.width    = tileSize + 'px';
-    cell.style.height   = tileSize + 'px';
-    cell.style.left     = x + 'px';
-    cell.style.top      = y + 'px';
-    cell.style.zIndex   = '6';
-  });
-}
-
-/* ── Layout 18: Floating Bubble (alias of float with rounded cells) ── */
-// (reuses _applyFloatLayout — CSS gives circular border-radius for bubble feel)
-
-/* ── Layout 10: Picture-in-Picture ── */
-function _applyPipLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const hostCell   = grid.querySelector('.host-cell');
-
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-  }
-
-  const pipW    = Math.max(90, Math.min(200, Math.floor(stageW * 0.26)));
-  const pipH    = Math.floor(pipW * 0.75);
-  const gap     = 12;
-  const maxCols = Math.max(1, Math.floor((stageW - gap) / (pipW + gap)));
-  const maxRows = Math.max(1, Math.floor((stageH - safeBottom - gap) / (pipH + gap)));
-
-  let i = 0;
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
-    const col = i % maxCols;
-    const row = Math.min(Math.floor(i / maxCols), maxRows - 1);
-    cell.style.position = 'absolute';
-    cell.style.width    = pipW + 'px';
-    cell.style.height   = pipH + 'px';
-    cell.style.right    = (gap + col * (pipW + gap)) + 'px';
-    cell.style.bottom   = (safeBottom + gap + row * (pipH + gap)) + 'px';
-    cell.style.top      = 'auto';
-    cell.style.left     = 'auto';
-    i++;
-  });
-}
-
-/* ── Layout 9: Host Focus — host always full-screen, guests tiny overlay ── */
-function _applyHostFocusLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const hostCell   = grid.querySelector('.host-cell');
-
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-    hostCell.style.zIndex   = '4';
-  }
-
-  const tileW   = Math.max(52, Math.min(110, Math.floor(stageW * 0.13)));
-  const tileH   = Math.floor(tileW * 0.75);
-  const gap     = 5;
-  const cols    = Math.max(1, Math.floor((stageW * 0.5) / (tileW + gap)));
-  const maxRows = Math.max(1, Math.floor((stageH - safeBottom * 1.2) / (tileH + gap)));
-
-  let i = 0;
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
-    const col = i % cols;
-    const row = Math.min(Math.floor(i / cols), maxRows - 1);
-    cell.style.position     = 'absolute';
-    cell.style.width        = tileW + 'px';
-    cell.style.height       = tileH + 'px';
-    cell.style.right        = (gap + col * (tileW + gap)) + 'px';
-    cell.style.top          = (gap + row * (tileH + gap)) + 'px';
-    cell.style.bottom       = 'auto';
-    cell.style.left         = 'auto';
-    cell.style.zIndex       = '6';
-    cell.style.borderRadius = '8px';
-    cell.style.opacity      = '0.88';
-    i++;
-  });
-}
-
-/* ── Layout 8: Speaker Focus ── */
-function _applySpeakerLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const cells      = Array.from(grid.querySelectorAll('.guest-cell'));
-  const hostCell   = grid.querySelector('.host-cell');
-
-  // Active speaker gets 70% of width, others share the strip
-  const speakerCell = grid.querySelector('.guest-cell.speaker-active') || hostCell;
-  const otherCells  = cells.filter(c => c !== speakerCell);
-
-  const stripW  = otherCells.length > 0 ? Math.max(70, Math.min(140, Math.floor(stageW * 0.20))) : 0;
-  const mainW   = stageW - stripW;
-  const mainH   = usableH;
-
-  if (speakerCell) {
-    speakerCell.style.position = 'absolute';
-    speakerCell.style.left     = '0';
-    speakerCell.style.top      = '0';
-    speakerCell.style.width    = mainW + 'px';
-    speakerCell.style.height   = mainH + 'px';
-    speakerCell.style.zIndex   = '5';
-  }
-
-  const gH = otherCells.length > 0 ? Math.floor(usableH / otherCells.length) : 0;
-  otherCells.forEach((cell, i) => {
-    cell.style.position     = 'absolute';
-    cell.style.right        = '0';
-    cell.style.top          = (i * gH) + 'px';
-    cell.style.width        = stripW + 'px';
-    cell.style.height       = gH + 'px';
-    cell.style.left         = 'auto';
-    cell.style.zIndex       = '4';
-    cell.style.borderRadius = '0';
-  });
-
-  // Start/restart audio level polling
-  _startSpeakerDetection();
-}
-
-/* ── Layout 24: Theater Mode ── */
-function _applyTheaterLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const hostH      = Math.floor(usableH * 0.72);
-  const guestH     = usableH - hostH;
-  const hostCell   = grid.querySelector('.host-cell');
-
-  grid.style.flexDirection = 'row';
-  grid.style.flexWrap      = 'wrap';
-  grid.style.alignContent  = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
-
-  if (hostCell) {
-    hostCell.style.width  = '100%';
-    hostCell.style.height = hostH + 'px';
-    hostCell.style.flex   = 'none';
-  }
-
-  const gW = (100 / guestCount).toFixed(4) + '%';
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
-    cell.style.width  = gW;
-    cell.style.height = guestH + 'px';
-    cell.style.flex   = 'none';
-  });
-}
-
-/* ── Layout 25: Audience Mode — host full, guests hidden ── */
-function _applyAudienceLayout(grid, guestCount) {
-  const hostCell = grid.querySelector('.host-cell');
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-    hostCell.style.zIndex   = '4';
-  }
-  // Guest cells hidden via CSS (opacity: 0)
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
-    cell.style.position = 'absolute';
-    cell.style.width    = '0';
-    cell.style.height   = '0';
-    cell.style.overflow = 'hidden';
-    cell.style.opacity  = '0';
-  });
-}
-
-/* ── Layout 11: Vertical Stack ── */
-function _applyVerticalStackLayout(grid, guestCount) {
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const total      = guestCount + 1;
-  const h          = Math.floor(usableH / total);
-
-  grid.style.flexDirection = 'column';
-  grid.style.flexWrap      = 'nowrap';
-  grid.style.alignItems    = 'stretch';
-  grid.style.paddingBottom = safeBottom + 'px';
-
-  grid.querySelectorAll('.guest-cell').forEach(cell => {
-    cell.style.width  = '100%';
-    cell.style.height = h + 'px';
-    cell.style.flex   = 'none';
-  });
-}
-
-/* ── Layout 12: Horizontal Stack ── */
-function _applyHorizontalStackLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const total      = guestCount + 1;
-  const w          = Math.floor(stageW / total);
-
-  grid.style.flexDirection = 'row';
-  grid.style.flexWrap      = 'nowrap';
-  grid.style.alignItems    = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
-
-  grid.querySelectorAll('.guest-cell').forEach(cell => {
-    cell.style.width  = w + 'px';
-    cell.style.height = usableH + 'px';
-    cell.style.flex   = 'none';
-  });
-}
-
-/* ── Layout 13: Split Screen (Host + 1 Guest, equal 50/50) ── */
-function _applySplit2Layout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const cells      = Array.from(grid.querySelectorAll('.guest-cell'));
-
-  grid.style.flexDirection = 'row';
-  grid.style.flexWrap      = 'wrap';
-  grid.style.alignContent  = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
-
-  // Host + first guest: equal halves
-  const mainCells = cells.slice(0, 2);
-  mainCells.forEach(c => { c.style.width = '50%'; c.style.height = usableH + 'px'; c.style.flex = 'none'; });
-
-  // Any extra guests: small thumbnails in a bottom row
-  const extraCells = cells.slice(2);
-  if (extraCells.length > 0) {
-    const extraH = Math.min(80, Math.floor(usableH * 0.25));
-    const extraW = (100 / extraCells.length).toFixed(4) + '%';
-    extraCells.forEach(c => { c.style.width = extraW; c.style.height = extraH + 'px'; c.style.flex = 'none'; });
-    // Shrink main cells to make room
-    const mainH = usableH - extraH;
-    mainCells.forEach(c => { c.style.height = mainH + 'px'; });
-  }
-}
-
-/* ── Layout 14: Triple Split (Host + 2 Guests) ── */
-function _applyTripleLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const cells      = Array.from(grid.querySelectorAll('.guest-cell'));
-  const isLandscape = stageW >= stageH;
-
-  grid.style.flexDirection = 'row';
-  grid.style.flexWrap      = 'wrap';
-  grid.style.alignContent  = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
-
-  if (isLandscape) {
-    // Three equal vertical strips
-    const w = (100 / 3).toFixed(4) + '%';
-    cells.slice(0, 3).forEach(c => { c.style.width = w; c.style.height = usableH + 'px'; c.style.flex = 'none'; });
-  } else {
-    // Host top 55%, two guests 45% split side by side
-    const hostH  = Math.floor(usableH * 0.55);
-    const guestH = usableH - hostH;
-    if (cells[0]) { cells[0].style.width = '100%'; cells[0].style.height = hostH + 'px'; cells[0].style.flex = 'none'; }
-    cells.slice(1, 3).forEach(c => { c.style.width = '50%'; c.style.height = guestH + 'px'; c.style.flex = 'none'; });
-  }
-  // Extra guests: small strip below
-  const extra = cells.slice(3);
-  if (extra.length > 0) {
-    const eH = Math.min(70, Math.floor(usableH * 0.15));
-    const eW = (100 / extra.length).toFixed(4) + '%';
-    extra.forEach(c => { c.style.width = eW; c.style.height = eH + 'px'; c.style.flex = 'none'; });
-  }
-}
-
-/* ── Layout 15: Quad Split ── */
-function _applyQuadLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const cells      = Array.from(grid.querySelectorAll('.guest-cell'));
-
-  grid.style.flexDirection = 'row';
-  grid.style.flexWrap      = 'wrap';
-  grid.style.alignContent  = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
-
-  // First 4 cells: 2×2
-  const quadH = Math.floor(usableH / 2);
-  cells.slice(0, 4).forEach(c => { c.style.width = '50%'; c.style.height = quadH + 'px'; c.style.flex = 'none'; });
-  // Extra cells: equal strip below
-  const extra = cells.slice(4);
-  if (extra.length > 0) {
-    const eH = Math.min(70, usableH - quadH * 2 + Math.floor(usableH * 0.1));
-    const eW = (100 / extra.length).toFixed(4) + '%';
-    extra.forEach(c => { c.style.width = eW; c.style.height = Math.max(48, eH) + 'px'; c.style.flex = 'none'; });
-  }
-}
-
-/* ── Layout 26: Stage Mode ── */
-function _applyStageLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const hostH      = Math.floor(usableH * 0.65);
-  const guestH     = usableH - hostH;
-  const hostCell   = grid.querySelector('.host-cell');
-
-  grid.style.flexDirection = 'row';
-  grid.style.flexWrap      = 'wrap';
-  grid.style.alignContent  = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
-
-  // Host: centered top area
-  if (hostCell) {
-    hostCell.style.width     = '60%';
-    hostCell.style.height    = hostH + 'px';
-    hostCell.style.flex      = 'none';
-    hostCell.style.marginLeft = '20%'; // center via margin
-  }
-
-  const gW = (100 / guestCount).toFixed(4) + '%';
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
-    cell.style.width  = gW;
-    cell.style.height = guestH + 'px';
-    cell.style.flex   = 'none';
-    cell.style.marginLeft = ''; // clear any center margin
-  });
-}
-
-/* ── Layout 21: Podcast Layout ── */
-function _applyPodcastLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const isLandscape = stageW >= stageH;
-  const total      = guestCount + 1;
-
-  grid.style.flexDirection = isLandscape ? 'row' : 'column';
-  grid.style.flexWrap      = 'nowrap';
-  grid.style.alignItems    = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
-
-  if (isLandscape) {
-    // Equal side-by-side columns
-    const w = Math.floor(stageW / total);
-    grid.querySelectorAll('.guest-cell').forEach(cell => {
-      cell.style.width  = w + 'px';
-      cell.style.height = usableH + 'px';
-      cell.style.flex   = 'none';
-    });
-  } else {
-    // Stacked portrait rows — host taller
-    const hostH  = Math.floor(usableH * 0.5);
-    const guestH = Math.floor((usableH - hostH) / guestCount);
-    const hostCell = grid.querySelector('.host-cell');
-    if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH + 'px'; hostCell.style.flex = 'none'; }
-    grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
-      cell.style.width  = '100%';
-      cell.style.height = guestH + 'px';
-      cell.style.flex   = 'none';
-    });
-  }
-}
-
-/* ── Layout 22: Interview Layout (host left 60%, guest right 40%) ── */
-function _applyInterviewLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const hostCell   = grid.querySelector('.host-cell');
-  const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
-  const isLandscape = stageW >= stageH;
-
-  grid.style.flexDirection = 'row';
-  grid.style.flexWrap      = 'wrap';
-  grid.style.alignContent  = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
-
-  if (isLandscape) {
-    const hostW = Math.floor(stageW * 0.55);
-    if (hostCell) { hostCell.style.width = hostW + 'px'; hostCell.style.height = usableH + 'px'; hostCell.style.flex = 'none'; }
-    const gW = Math.floor((stageW - hostW) / guestCount);
-    guestCells.forEach(c => { c.style.width = gW + 'px'; c.style.height = usableH + 'px'; c.style.flex = 'none'; });
-  } else {
-    const hostH  = Math.floor(usableH * 0.55);
-    const guestH = Math.floor((usableH - hostH) / Math.max(1, guestCount));
-    if (hostCell) { hostCell.style.width = '100%'; hostCell.style.height = hostH + 'px'; hostCell.style.flex = 'none'; }
-    const gW = (100 / guestCount).toFixed(4) + '%';
-    guestCells.forEach(c => { c.style.width = gW; c.style.height = guestH + 'px'; c.style.flex = 'none'; });
-  }
-}
-
-/* ── Layout 23: Gaming Layout ── */
-function _applyGamingLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const camH       = Math.max(52, Math.min(120, Math.floor(stageH * 0.15)));
-  const camW       = Math.floor(camH * (4 / 3));
-  const gap        = 6;
-  const hostCell   = grid.querySelector('.host-cell');
-
-  // Host (gameplay) fills the stage
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-    hostCell.style.zIndex   = '3';
-  }
-
-  // Cameras in a row along the bottom-right
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach((cell, i) => {
-    cell.style.position     = 'absolute';
-    cell.style.width        = camW + 'px';
-    cell.style.height       = camH + 'px';
-    cell.style.right        = (gap + i * (camW + gap)) + 'px';
-    cell.style.bottom       = (safeBottom + gap) + 'px';
-    cell.style.top          = 'auto';
-    cell.style.left         = 'auto';
-    cell.style.zIndex       = '7';
-    cell.style.borderRadius = '8px';
-  });
-}
-
-/* ── Layout 19: TikTok Style ── */
-function _applyTikTokLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const hostCell   = grid.querySelector('.host-cell');
-  const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
-
-  // Host takes full left half (or full screen on portrait)
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = guestCount > 0 ? Math.floor(stageW * 0.55) + 'px' : '100%';
-    hostCell.style.height   = usableH + 'px';
-    hostCell.style.top      = '0';
-    hostCell.style.left     = '0';
-    hostCell.style.zIndex   = '4';
-  }
-
-  // Guests stack vertically in right 45%
-  const gW  = Math.floor(stageW * 0.42);
-  const gH  = guestCells.length > 0 ? Math.floor(usableH / guestCells.length) : 0;
-  guestCells.forEach((cell, i) => {
-    cell.style.position = 'absolute';
-    cell.style.width    = gW + 'px';
-    cell.style.height   = gH + 'px';
-    cell.style.right    = '0';
-    cell.style.top      = (i * gH) + 'px';
-    cell.style.left     = 'auto';
-    cell.style.bottom   = 'auto';
-    cell.style.zIndex   = '5';
-  });
-}
-
-/* ── Layout 20: Discord Style ── */
-function _applyDiscordLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const thumbH     = Math.max(52, Math.min(96, Math.floor(stageH * 0.12)));
-  const thumbW     = Math.floor(thumbH * (4 / 3));
-  const gap        = 5;
-  const hostCell   = grid.querySelector('.host-cell');
-
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-    hostCell.style.zIndex   = '3';
-  }
-
-  // Thumbnail strip — centered at top
-  const totalW = guestCount * (thumbW + gap) - gap;
-  const startX = Math.max(0, Math.floor((stageW - totalW) / 2));
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach((cell, i) => {
-    cell.style.position     = 'absolute';
-    cell.style.width        = thumbW + 'px';
-    cell.style.height       = thumbH + 'px';
-    cell.style.left         = (startX + i * (thumbW + gap)) + 'px';
-    cell.style.top          = gap + 'px';
-    cell.style.right        = 'auto';
-    cell.style.bottom       = 'auto';
-    cell.style.zIndex       = '6';
-    cell.style.borderRadius = '8px';
-  });
-}
-
-/* ── Layout 27: Diamond Layout ── */
-function _applyDiamondLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const cx         = stageW / 2;
-  const cy         = (stageH - safeBottom) / 2;
-  const tileSize   = Math.max(60, Math.min(160, Math.floor(Math.min(stageW, stageH) * 0.22)));
-  const spacing    = Math.max(tileSize + 10, Math.floor(Math.min(stageW, stageH - safeBottom) * 0.35));
-
-  // Positions for diamond pattern: top, left, right, bottom, center, then ring
-  const positions = [
-    [cx, cy - spacing],               // top
-    [cx - spacing, cy],               // left
-    [cx + spacing, cy],               // right
-    [cx, cy + spacing * 0.8],         // bottom (above safe zone)
-    [cx - spacing / 2, cy - spacing / 2], // upper-left
-    [cx + spacing / 2, cy - spacing / 2], // upper-right
-    [cx - spacing / 2, cy + spacing / 2], // lower-left
-    [cx + spacing / 2, cy + spacing / 2], // lower-right
-    [cx, cy],                         // center
-  ];
-
-  const allCells = Array.from(grid.querySelectorAll('.guest-cell'));
-  allCells.forEach((cell, i) => {
-    const pos = positions[i] || [cx, cy];
-    const clampedY = Math.min(pos[1], stageH - safeBottom - tileSize - 4);
-    cell.style.position = 'absolute';
-    cell.style.width    = tileSize + 'px';
-    cell.style.height   = tileSize + 'px';
-    cell.style.left     = (pos[0] - tileSize / 2) + 'px';
-    cell.style.top      = (clampedY - tileSize / 2) + 'px';
-    cell.style.zIndex   = '5';
-  });
-}
-
-/* ── Layout 28: Corner Layout ── */
-function _applyCornerLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const tileW      = Math.max(80, Math.min(180, Math.floor(stageW * 0.22)));
-  const tileH      = Math.floor(tileW * 0.75);
-  const gap        = 8;
-  const hostCell   = grid.querySelector('.host-cell');
-
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-    hostCell.style.zIndex   = '3';
-  }
-
-  // Four corners: TL, TR, BL, BR, then middle-edges
-  const corners = [
-    { left: gap,                              top: gap,                    right: 'auto', bottom: 'auto' },
-    { right: gap,                             top: gap,                    left: 'auto',  bottom: 'auto' },
-    { left: gap,                              bottom: safeBottom + gap,    right: 'auto', top: 'auto'    },
-    { right: gap,                             bottom: safeBottom + gap,    left: 'auto',  top: 'auto'    },
-    { left: Math.floor(stageW / 2 - tileW / 2), top: gap,                  right: 'auto', bottom: 'auto' },
-    { left: Math.floor(stageW / 2 - tileW / 2), bottom: safeBottom + gap,  right: 'auto', top: 'auto'    },
-    { left: gap, top: Math.floor((stageH - safeBottom) / 2 - tileH / 2),   right: 'auto', bottom: 'auto' },
-    { right: gap, top: Math.floor((stageH - safeBottom) / 2 - tileH / 2),  left: 'auto',  bottom: 'auto' },
-  ];
-
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach((cell, i) => {
-    const pos = corners[i % corners.length];
-    cell.style.position = 'absolute';
-    cell.style.width    = tileW + 'px';
-    cell.style.height   = tileH + 'px';
-    cell.style.left     = typeof pos.left   === 'number' ? pos.left + 'px'   : pos.left;
-    cell.style.right    = typeof pos.right  === 'number' ? pos.right + 'px'  : pos.right;
-    cell.style.top      = typeof pos.top    === 'number' ? pos.top + 'px'    : pos.top;
-    cell.style.bottom   = typeof pos.bottom === 'number' ? pos.bottom + 'px' : pos.bottom;
-    cell.style.zIndex   = '6';
-  });
-}
-
-/* ── Layout 29: Sidebar Layout ── */
-function _applySidebarLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const sideW      = Math.min(200, Math.floor(stageW * 0.28));
-  const hostCell   = grid.querySelector('.host-cell');
-  const guestCells = Array.from(grid.querySelectorAll('.guest-cell:not(.host-cell)'));
-
-  grid.style.flexDirection = 'row';
-  grid.style.flexWrap      = 'nowrap';
-  grid.style.alignItems    = 'flex-start';
-  grid.style.paddingBottom = safeBottom + 'px';
-  grid.style.paddingLeft   = sideW + 'px'; // leave room for chat sidebar (CSS-positioned)
-
-  if (hostCell) {
-    hostCell.style.flex   = '1';
-    hostCell.style.height = usableH + 'px';
-  }
-
-  const gH = Math.floor(usableH / Math.max(1, guestCells.length));
-  guestCells.forEach(c => {
-    c.style.width  = Math.floor(stageW * 0.22) + 'px';
-    c.style.height = gH + 'px';
-    c.style.flex   = 'none';
-  });
-}
-
-/* ── Layout 30: Drag-and-Drop Layout ── */
-function _applyDragLayout(grid, guestCount) {
-  const stageW     = grid.offsetWidth  || window.innerWidth;
-  const stageH     = grid.offsetHeight || window.innerHeight;
-  const safeBottom = _getUISafeBottom(stageH);
-  const usableH    = stageH - safeBottom;
-  const tileW      = Math.max(80, Math.min(200, Math.floor(stageW * 0.25)));
-  const tileH      = Math.floor(tileW * 0.75);
-  const gap        = 10;
-  const hostCell   = grid.querySelector('.host-cell');
-
-  // Host fills stage
-  if (hostCell) {
-    hostCell.style.position = 'absolute';
-    hostCell.style.inset    = '0';
-    hostCell.style.width    = '100%';
-    hostCell.style.height   = '100%';
-    hostCell.style.zIndex   = '3';
-  }
-
-  // Place each guest at its saved drag position, or default cascade
-  let i = 0;
-  grid.querySelectorAll('.guest-cell:not(.host-cell)').forEach(cell => {
-    const uid  = cell.dataset.uid;
-    const saved = uid && _dragPositions[uid];
-    const defLeft = gap + (i % 3) * (tileW + gap);
-    const defTop  = gap + Math.floor(i / 3) * (tileH + gap);
-    const clampedTop = Math.min(defTop, usableH - tileH - gap);
-
-    cell.style.position = 'absolute';
-    cell.style.width    = tileW + 'px';
-    cell.style.height   = tileH + 'px';
-    cell.style.left     = (saved ? saved.left : defLeft) + 'px';
-    cell.style.top      = (saved ? saved.top  : clampedTop) + 'px';
-    cell.style.right    = 'auto';
-    cell.style.bottom   = 'auto';
-    cell.style.zIndex   = '6';
-    cell.style.cursor   = 'grab';
-
-    // Ensure drag hint tooltip element exists
-    if (!cell.querySelector('.guest-cell-drag-hint')) {
-      const hint = document.createElement('div');
-      hint.className = 'guest-cell-drag-hint';
-      hint.textContent = 'Drag to move';
-      cell.appendChild(hint);
-    }
-
-    // Attach drag listener once
-    if (!cell._dragAttached) {
-      cell._dragAttached = true;
-      cell.addEventListener('pointerdown', _onDragStart, { passive: false });
-    }
-    i++;
-  });
-}
-
-/* ═════════════════════════════════════════════════════════════════
-   SMART FEATURES
-   ═════════════════════════════════════════════════════════════════ */
-
-/* ── Speaker Detection: poll audio levels of all peer connections ── */
-function _startSpeakerDetection() {
-  if (_speakerCheckInterval) return; // already running
-  _speakerCheckInterval = setInterval(_checkActiveSpeaker, 1200);
-}
-
-function _stopSpeakerDetection() {
-  if (_speakerCheckInterval) {
-    clearInterval(_speakerCheckInterval);
-    _speakerCheckInterval = null;
-  }
-}
-
-async function _checkActiveSpeaker() {
-  if (!D.guestGrid || _guestLayout !== 'speaker') {
-    _stopSpeakerDetection();
-    return;
-  }
-
-  let maxLevel = 0;
-  let loudestUid = null;
-
-  // Check each guest peer connection audio levels
-  for (const [uid, peer] of Object.entries(_guestPeers || {})) {
-    if (!peer.pc) continue;
-    try {
-      const stats = await peer.pc.getStats();
-      stats.forEach(report => {
-        if (report.type === 'inbound-rtp' && report.kind === 'audio') {
-          const level = report.audioLevel || 0;
-          if (level > maxLevel) { maxLevel = level; loudestUid = uid; }
-        }
-      });
-    } catch (_) {}
-  }
-
-  // Check host's own audio if we're the creator
-  if (_mode === 'creator' && _localStream) {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const analyser = ctx.createAnalyser();
-      const src = ctx.createMediaStreamSource(_localStream);
-      src.connect(analyser);
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      analyser.getByteTimeDomainData(data);
-      const peak = Math.max(...data) / 128 - 1;
-      ctx.close();
-      if (Math.abs(peak) > maxLevel) { maxLevel = Math.abs(peak); loudestUid = 'host'; }
-    } catch (_) {}
-  }
-
-  const newSpeaker = loudestUid && maxLevel > 0.02 ? loudestUid : (_speakerUid || 'host');
-  if (newSpeaker !== _speakerUid) {
-    _speakerUid = newSpeaker;
-    _updateSpeakerHighlight();
-    _applyGuestLayout(); // re-layout so speaker cell gets promoted
-  }
-}
-
-function _updateSpeakerHighlight() {
-  if (!D.guestGrid) return;
-  D.guestGrid.querySelectorAll('.guest-cell').forEach(cell => {
-    const uid = cell.dataset.uid;
-    const isActive = (uid === _speakerUid) || (_speakerUid === 'host' && cell.classList.contains('host-cell'));
-    cell.classList.toggle('speaker-active', isActive);
-
-    // Speaker badge
-    let badge = cell.querySelector('.guest-cell-speaker-badge');
-    if (isActive) {
-      if (!badge) {
-        badge = document.createElement('div');
-        badge.className = 'guest-cell-speaker-badge';
-        badge.textContent = 'Speaking';
-        cell.appendChild(badge);
-      }
-    } else {
-      if (badge) badge.remove();
-    }
-  });
-}
-
-/* ── Sidebar body class helper ── */
-function _applySidebarBodyClass() {
-  document.body.classList.toggle('layout-sidebar', _guestLayout === 'sidebar');
-}
-
-/* ── Drag-and-Drop event handlers ── */
-function _onDragStart(e) {
-  if (_guestLayout !== 'drag') return;
-  const cell = e.currentTarget;
-  const rect = cell.getBoundingClientRect();
-  const gridRect = D.guestGrid.getBoundingClientRect();
-
-  _dragState = {
-    cell,
-    startClientX: e.clientX,
-    startClientY: e.clientY,
-    origLeft: rect.left - gridRect.left,
-    origTop:  rect.top  - gridRect.top,
-  };
-
-  cell.style.cursor  = 'grabbing';
-  cell.style.zIndex  = '20';
-  cell.setPointerCapture(e.pointerId);
-
-  cell.addEventListener('pointermove', _onDragMove, { passive: false });
-  cell.addEventListener('pointerup',   _onDragEnd);
-  e.preventDefault();
-}
-
-function _onDragMove(e) {
-  if (!_dragState) return;
-  const { cell, startClientX, startClientY, origLeft, origTop } = _dragState;
-  const grid     = D.guestGrid;
-  const stageW   = grid.offsetWidth;
-  const stageH   = grid.offsetHeight;
-  const safeBot  = _getUISafeBottom(stageH);
-  const newLeft  = origLeft + (e.clientX - startClientX);
-  const newTop   = origTop  + (e.clientY - startClientY);
-  const maxLeft  = stageW - cell.offsetWidth;
-  const maxTop   = stageH - safeBot - cell.offsetHeight;
-
-  const clampedLeft = Math.max(0, Math.min(maxLeft, newLeft));
-  const clampedTop  = Math.max(0, Math.min(maxTop,  newTop));
-
-  cell.style.left = clampedLeft + 'px';
-  cell.style.top  = clampedTop  + 'px';
-  e.preventDefault();
-}
-
-function _onDragEnd(e) {
-  if (!_dragState) return;
-  const { cell } = _dragState;
-  cell.style.cursor = 'grab';
-  cell.style.zIndex = '6';
-
-  // Persist position
-  const uid = cell.dataset.uid;
-  if (uid) {
-    _dragPositions[uid] = {
-      left: parseFloat(cell.style.left) || 0,
-      top:  parseFloat(cell.style.top)  || 0,
-    };
-  }
-
-  cell.removeEventListener('pointermove', _onDragMove);
-  cell.removeEventListener('pointerup',   _onDragEnd);
-  _dragState = null;
-}
-
-/* ── Save / Load favourite layout ── */
-const _LS_KEY_LAYOUT   = 'snx_fav_layout';
-const _LS_KEY_BOXSIZE  = 'snx_fav_boxsize';
-
-function _saveLayoutFavourite() {
-  _savedLayout  = _guestLayout;
-  _savedBoxSize = _guestBoxSize;
-  try {
-    localStorage.setItem(_LS_KEY_LAYOUT,  _savedLayout);
-    localStorage.setItem(_LS_KEY_BOXSIZE, _savedBoxSize);
-  } catch (_) {}
-  toast('Layout saved ★');
-  _refreshLoadBtn();
-}
-
-function _loadLayoutFavourite() {
-  const layout  = _savedLayout  || localStorage.getItem(_LS_KEY_LAYOUT);
-  const boxSize = _savedBoxSize || localStorage.getItem(_LS_KEY_BOXSIZE);
-  if (!layout) { toast('No saved layout yet'); return; }
-
-  _guestLayout  = layout;
-  _guestBoxSize = boxSize || 'sm';
-
-  // Sync active state in panel
-  document.querySelectorAll('.layout-option-btn').forEach(b => b.classList.toggle('active', b.dataset.layout === _guestLayout));
-  document.querySelectorAll('.layout-size-btn').forEach(b => b.classList.toggle('active', b.dataset.size === _guestBoxSize));
-
-  _applyGuestLayout();
-  _broadcastLayout();
-  _applySidebarBodyClass();
-  toast('Favourite layout loaded');
-}
-
-function _refreshLoadBtn() {
-  const btn = document.getElementById('btnLoadLayout');
-  if (!btn) return;
-  const has = !!(localStorage.getItem(_LS_KEY_LAYOUT));
-  btn.classList.toggle('has-saved', has);
-  btn.title = has ? `Load saved: ${localStorage.getItem(_LS_KEY_LAYOUT)}` : 'No saved layout';
-}
-
-/* ── Restore saved layout preference on page load ──
-   Only 'host-full' and 'host-full-left' are supported now.
-   Any other legacy saved value is remapped to 'host-full'. */
-(function _restoreLayoutPreference() {
-  try {
-    const l = localStorage.getItem(_LS_KEY_LAYOUT);
-    const s = localStorage.getItem(_LS_KEY_BOXSIZE);
-    if (l) {
-      const validLayouts = ['host-full', 'host-full-left'];
-      const mapped = validLayouts.includes(l) ? l : 'host-full';
-      _guestLayout  = mapped;
-      _savedLayout  = mapped;
-      _savedBoxSize = s || 'sm';
-    }
-  } catch (_) {}
-})();
 
 /* ── Update the guest count indicator inside the layout panel ── */
 function _updateLayoutPanelCounter(guestCount) {
@@ -7098,21 +4114,15 @@ function _iqSetEnabled(on) {
     _iqHideBadge();
     return;
   }
-  // If live is already running, start on the first active viewer peer.
-  if (_iqLiveActive) {
-    const firstPeer = Object.values(_creatorViewerPeers)[0];
-    if (firstPeer && firstPeer.pc) _iqStart(firstPeer.pc);
+  // If live is already running, start immediately
+  if (_iqLiveActive && _rtcPc) {
+    _iqStart(_rtcPc);
   }
 }
 
 function _iqOnLiveStart() {
   _iqLiveActive = true;
-  // Per-viewer adaptive quality already starts in _handleViewerConnection;
-  // if IQ is enabled, also start the badge monitor on the first peer.
-  if (_iqEnabled) {
-    const firstPeer = Object.values(_creatorViewerPeers)[0];
-    if (firstPeer && firstPeer.pc) _iqStart(firstPeer.pc);
-  }
+  if (_iqEnabled && _rtcPc) _iqStart(_rtcPc);
 }
 
 function _iqOnLiveEnd() {
@@ -7120,36 +4130,6 @@ function _iqOnLiveEnd() {
   _iqStop();
   _iqHideBadge();
 }
-
-
-/* ═══════════════════════════════════════════════════════════════════
-   COMPACT CONTROLS  (creator only)
-   When enabled: bottom bar shrinks and buttons use smaller size.
-   Preference is saved to localStorage so it persists across sessions.
-   ═══════════════════════════════════════════════════════════════════ */
-function _setCompactControls(on) {
-  if (on) {
-    document.body.classList.add('controls-compact');
-  } else {
-    document.body.classList.remove('controls-compact');
-  }
-  try { localStorage.setItem('snx_compact_controls', on ? '1' : '0'); } catch(_) {}
-  // Re-run layout so guest grid safe-zone updates
-  _applyGuestLayout();
-}
-
-// Restore preference on load
-(function() {
-  try {
-    const saved = localStorage.getItem('snx_compact_controls');
-    if (saved === '1') {
-      document.body.classList.add('controls-compact');
-      const chk = document.getElementById('toggleCompactControls');
-      if (chk) chk.checked = true;
-    }
-  } catch(_) {}
-})();
-
 
 // ── Core: start monitoring ───────────────────────────────────────────
 

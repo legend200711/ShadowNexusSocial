@@ -24,7 +24,7 @@
 const MAX_SIZE = 200 * 1024 * 1024; // 200MB
 
 const ALLOWED_ORIGINS = [
-  'https://shadownexussocial.online',
+  'https://legend200711.github.io',
   'http://localhost',
   'http://127.0.0.1'
 ];
@@ -249,171 +249,6 @@ async function handleLiveKitToken(request, env, cors, sec) {
   });
 }
 
-// ── FCM HTTP v1 push delivery (works when app is closed) ─────────────
-// Uses a Google service-account JWT signed with Web Crypto (same technique
-// as the LiveKit JWT signer above) to obtain an OAuth2 access token, then
-// calls the FCM HTTP v1 API to deliver real push notifications to the
-// target user's stored FCM tokens.
-//
-// Required Worker secrets (set via `wrangler secret put`):
-//   FCM_SA_EMAIL     — service-account email (xxx@yyy.iam.gserviceaccount.com)
-//   FCM_SA_KEY       — service-account private key (PEM, the full string)
-//
-// POST /send-push   body: { tokens:[...], title, body, type, fromUid, roomId }
-async function handleSendPush(request, env, cors, sec) {
-  if (request.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405, headers: mergeHeaders(cors, sec) });
-  }
-
-  const saEmail = env.FCM_SA_EMAIL;
-  const saKey   = env.FCM_SA_KEY;
-  const projectId = 'horr-a08f4';
-
-  if (!saEmail || !saKey) {
-    return new Response(JSON.stringify({ error: 'FCM service-account credentials not configured on the Worker. Run: wrangler secret put FCM_SA_EMAIL  and  wrangler secret put FCM_SA_KEY' }), {
-      status: 500,
-      headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
-    });
-  }
-
-  let body;
-  try { body = await request.json(); }
-  catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
-    });
-  }
-
-  const tokens  = Array.isArray(body.tokens) ? body.tokens : [];
-  if (tokens.length === 0) {
-    return new Response(JSON.stringify({ error: 'No FCM tokens provided', sent: 0 }), {
-      status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
-    });
-  }
-
-  const title   = body.title  || 'Shadow Nexus Social';
-  const notifBody = body.body || 'You have a new notification';
-  const type    = body.type    || 'announcement';
-  const fromUid = body.fromUid || '';
-  const roomId  = body.roomId  || '';
-
-  // ── Sign a Google OAuth2 JWT (RS256) using the service-account key ──
-  const b64url = s => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const enc    = s => b64url(unescape(encodeURIComponent(s)));
-
-  let accessToken;
-  try {
-    // Import the PEM private key into a CryptoKey for RS256 signing
-    // PEM keys from Google have header/footer lines we strip; the base64
-    // body is DER-encoded PKCS#8 which importKey accepts via 'pkcs8' format.
-    const pemContents = saKey
-      .replace('-----BEGIN PRIVATE KEY-----', '')
-      .replace('-----END PRIVATE KEY-----', '')
-      .replace(/\s+/g, '');
-    // Decode base64 → raw bytes
-    const derBytes = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-
-    const cryptoKey = await crypto.subtle.importKey(
-      'pkcs8',
-      derBytes,
-      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-
-    const now = Math.floor(Date.now() / 1000);
-    const header = { alg: 'RS256', typ: 'JWT' };
-    const payload = {
-      iss:   saEmail,
-      scope: 'https://www.googleapis.com/auth/firebase.messaging',
-      aud:   'https://oauth2.googleapis.com/token',
-      iat:   now,
-      exp:   now + 3600,
-    };
-
-    const h = enc(JSON.stringify(header));
-    const p = enc(JSON.stringify(payload));
-    const sigInput = `${h}.${p}`;
-    const sigBuf = await crypto.subtle.sign(
-      'RSASSA-PKCS1-v1_5', cryptoKey,
-      new TextEncoder().encode(sigInput)
-    );
-    const sig = b64url(String.fromCharCode(...new Uint8Array(sigBuf)));
-    const assertion = `${sigInput}.${sig}`;
-
-    // Exchange the JWT for an OAuth2 access token
-    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion,
-      }),
-    });
-    if (!tokenResp.ok) {
-      const errText = await tokenResp.text();
-      return new Response(JSON.stringify({ error: 'OAuth2 token exchange failed: ' + errText }), {
-        status: 502, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
-      });
-    }
-    const tokenJson = await tokenResp.json();
-    accessToken = tokenJson.access_token;
-  } catch (e) {
-    return new Response(JSON.stringify({ error: 'JWT signing / token error: ' + e.message }), {
-      status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
-    });
-  }
-
-  // ── Send the FCM HTTP v1 message to each token ──
-  const fcmUrl = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
-  let sent = 0;
-  let failed = 0;
-  const errors = [];
-
-  for (const token of tokens) {
-    if (!token || typeof token !== 'string') continue;
-    try {
-      const message = {
-        message: {
-          token,
-          notification: { title, body: notifBody },
-          data: {
-            type:    String(type),
-            fromUid: String(fromUid),
-            roomId:  String(roomId),
-            title:   String(title),
-            body:    String(notifBody),
-          },
-          android: { priority: 'high' },
-        },
-      };
-      const fcmResp = await fetch(fcmUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(message),
-      });
-      if (fcmResp.ok) { sent++; }
-      else {
-        failed++;
-        const errText = await fcmResp.text();
-        errors.push({ token: token.substring(0, 12), error: errText });
-        // 404 = token no longer valid (uninstalled app); silently skip
-      }
-    } catch (e) {
-      failed++;
-      errors.push({ token: token.substring(0, 12), error: e.message });
-    }
-  }
-
-  return new Response(JSON.stringify({ sent, failed, errors: errors.slice(0, 5) }), {
-    status: 200,
-    headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
-  });
-}
-
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin') || '';
@@ -429,22 +264,9 @@ export default {
       });
     }
 
-    // ── Health ping — used by the Founder System Health Monitor ──────────────
-    // Responds to both GET /health and HEAD /health with 200 OK.
-    // The body confirms the worker is alive; HEAD discards it (lower bandwidth).
-    if (url.pathname === '/health') {
-      return new Response('Shadow Nexus Upload Worker — Healthy ✅', {
-        status: 200,
-        headers: mergeHeaders(cors, sec, { 'Content-Type': 'text/plain' }),
-      });
-    }
-
     // ── LiveKit endpoints ──
     if (url.pathname === '/livekit-room')  return handleLiveKitRoom(request, env, cors, sec);
     if (url.pathname === '/livekit-token') return handleLiveKitToken(request, env, cors, sec);
-
-    // ── FCM push endpoint (sends real push when app is closed) ──
-    if (url.pathname === '/send-push')    return handleSendPush(request, env, cors, sec);
 
     // ── GET: serve a file from R2 (CDN delivery) ──────────────────────────────
     if (request.method === 'GET') {

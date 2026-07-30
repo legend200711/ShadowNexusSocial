@@ -59,8 +59,7 @@ service cloud.firestore {
         'familyInvitesReceived',
         'familyInvitesSent',
         'family',
-        'friends',
-        'callHistory'
+        'friends'
       ];
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
     }
@@ -195,13 +194,7 @@ service cloud.firestore {
                  .affectedKeys().hasOnly(['comments'])
             // Any signed-in user may increment repost count
             || request.resource.data.diff(resource.data)
-                 .affectedKeys().hasOnly(['repostCount'])
-            // A tagged user may remove themselves from taggedUsers
-            || request.resource.data.diff(resource.data)
-                 .affectedKeys().hasOnly(['taggedUsers'])
-            // postId back-fill — written immediately after addDoc by the author
-            || request.resource.data.diff(resource.data)
-                 .affectedKeys().hasOnly(['postId']));
+                 .affectedKeys().hasOnly(['repostCount']));
       allow delete: if isSignedIn()
         && (resource.data.uid == request.auth.uid
             || resource.data.authorUid == request.auth.uid
@@ -225,16 +218,6 @@ service cloud.firestore {
 
     match /siteSettings/{docId} {
       allow read: if true;
-      allow write: if isFounder();
-    }
-
-    // ── Feature flags (read by live-page modules, written by Founder only) ────
-    //
-    //   /settings/features
-    //     coHostEnabled: bool  — controlled by Founder Control dashboard
-
-    match /settings/{docId} {
-      allow read: if isSignedIn();
       allow write: if isFounder();
     }
 
@@ -470,19 +453,11 @@ service cloud.firestore {
     // ── Community ─────────────────────────────────────────────────────────────
     //
     //   /community/reactions             — aggregated reaction counts (increment)
-    //   /community/goals                 — aggregated community goal counters (increment)
     //   /community/challenges/completions/{uid_date} — daily challenge records
     //   /community/anonBoard/posts/{postId}          — anonymous support posts
 
     match /community/reactions {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    // Community goal counters — incremented by any signed-in user on actions
-    match /community/goals {
-      allow read: if isSignedIn();
-      // Only allow incrementing numeric fields (merge updates from any signed-in user)
       allow write: if isSignedIn();
     }
 
@@ -496,14 +471,10 @@ service cloud.firestore {
     match /community/anonBoard/posts/{postId} {
       allow read:   if isSignedIn();
       allow create: if isSignedIn();
-      // Only Founder can delete normally; updates only allowed for incrementing hugs.
-      // Any signed-in user may delete a post that has already expired (expiresAt in the past)
-      // so the client-side cleanup job can sweep old posts without founder access.
+      // Only Founder can delete; updates only allowed for incrementing hugs
       allow update: if isSignedIn()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hugs']);
-      allow delete: if isFounder()
-        || (isSignedIn() && resource.data.expiresAt != null
-            && resource.data.expiresAt < request.time.toMillis());
+      allow delete: if isFounder();
     }
 
     // ── Live Users (presence) ──────────────────────────────────────────────────
@@ -558,17 +529,27 @@ service cloud.firestore {
       }
     }
 
-    // ── Co-Host Requests (legacy) ───────────────────────────────────────────────
+    // ── Co-Host Requests ───────────────────────────────────────────────────────
     //
     //   /coHostRequests/{requestId}
-    //     liveId, hostId, guestId, status, createdAt
+    //     liveId      — the host's RTDB room id
+    //     hostId      — host uid
+    //     guestId     — invitee uid
+    //     status      — 'pending' | 'accepted' | 'declined'
+    //     createdAt   — server timestamp
+    //
     //   requestId = "{liveId}_{guestId}"
+    //
+    // Host creates; guest reads their own invite and updates status.
+    // Viewers can read accepted records so they see the active co-host list.
 
     match /coHostRequests/{requestId} {
+      // Host can create an invite for a specific guest
       allow create: if isSignedIn()
         && request.auth.token.firebase.sign_in_provider != 'anonymous'
         && request.resource.data.hostId == request.auth.uid;
 
+      // Host or guest can read; viewers can read accepted ones
       allow read: if isSignedIn()
         && (
           request.auth.uid == resource.data.hostId
@@ -576,86 +557,19 @@ service cloud.firestore {
           || resource.data.status == 'accepted'
         );
 
+      // Guest can update status (accept / decline)
+      // Host can also update status (e.g. cancel invite after removing co-host)
       allow update: if isSignedIn()
         && (request.auth.uid == resource.data.guestId || request.auth.uid == resource.data.hostId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
 
+      // Host or guest can delete (cleanup); Founder always can
       allow delete: if isSignedIn()
         && (
           request.auth.uid == resource.data.hostId
           || request.auth.uid == resource.data.guestId
           || isFounder()
         );
-    }
-
-    // ── Co-Host Invites ────────────────────────────────────────────────────────
-    //
-    //   /coHostInvites/{receiverUID}/senders/{senderUID}
-    //     from:   sender display name
-    //     status: 'pending' | 'accepted' | 'denied'
-    //     time:   server timestamp
-    //     roomId: live room id
-    //
-    // Sender (host) creates the invite doc.
-    // Receiver updates status (accept / deny) and then deletes the doc.
-    // Both parties can delete (cleanup after answering).
-
-    match /coHostInvites/{receiverUID} {
-      allow read: if isSignedIn() && isOwner(receiverUID);
-      allow write: if false; // only subcollection docs are written
-
-      match /senders/{senderUID} {
-        // Sender creates their own invite
-        allow create: if isSignedIn()
-          && request.auth.uid == senderUID
-          && request.auth.token.firebase.sign_in_provider != 'anonymous';
-
-        // Receiver (or sender) can read
-        allow read: if isSignedIn()
-          && (request.auth.uid == receiverUID || request.auth.uid == senderUID);
-
-        // Receiver updates status; sender can also update (cancel)
-        allow update: if isSignedIn()
-          && (request.auth.uid == receiverUID || request.auth.uid == senderUID)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
-
-        // Either party or Founder can delete
-        allow delete: if isSignedIn()
-          && (request.auth.uid == receiverUID || request.auth.uid == senderUID || isFounder());
-      }
-    }
-
-    // ── Co-Hosts (active co-host records) ─────────────────────────────────────
-    //
-    //   /coHosts/{userUID}
-    //     coHost: true
-    //
-    // Written by the receiver when they accept an invite.
-    // Readable by any signed-in user (so host can verify).
-    // Deletable by the owner or Founder.
-
-    match /coHosts/{userUID} {
-      allow read: if isSignedIn();
-      // Only the user themselves writes their own coHost record
-      allow create, update: if isOwner(userUID);
-      allow delete: if isOwner(userUID) || isFounder();
-    }
-
-    // ── Storm Room Messages ────────────────────────────────────────────────────
-    //
-    //   /stormRoomMessages/{docId}
-    //     roomId, senderUid, senderName, text, timestamp
-    //
-    // Any signed-in user can read and create messages in storm rooms.
-    // Only the sender or a Founder can delete.
-
-    match /stormRoomMessages/{docId} {
-      allow read:   if isSignedIn();
-      allow create: if isSignedIn()
-        && request.resource.data.senderUid == request.auth.uid;
-      allow update: if false;
-      allow delete: if isSignedIn()
-        && (resource.data.senderUid == request.auth.uid || isFounder());
     }
 
     // ── Wall Post Comments ─────────────────────────────────────────────────────
@@ -681,137 +595,5 @@ service cloud.firestore {
       }
     }
 
-    // ── Communities ────────────────────────────────────────────────────────────
-      //
-      //   /communities/{commId}
-      //     name, topic, desc, icon, isPrivate, ownerUid, members[], memberCount,
-      //     postCount, createdAt
-      //   /communities/{commId}/posts/{postId}
-      //     text, authorUid, authorName, createdAt, likes, likedBy[]
-  
-      match /communities/{commId} {
-        allow read: if isSignedIn();
-        // Any signed-in user can create a community (owner validation on ownerUid)
-        allow create: if isSignedIn()
-          && request.resource.data.ownerUid == request.auth.uid;
-        // Owner or Founder can update community metadata
-        // Any member can update members[], memberCount, postCount
-        allow update: if isSignedIn()
-          && (resource.data.ownerUid == request.auth.uid
-              || isFounder()
-              || request.resource.data.diff(resource.data)
-                   .affectedKeys().hasOnly(['members', 'memberCount', 'postCount']));
-        allow delete: if isSignedIn()
-          && (resource.data.ownerUid == request.auth.uid || isFounder());
-  
-        match /posts/{postId} {
-          allow read: if isSignedIn();
-          allow create: if isSignedIn()
-            && request.resource.data.authorUid == request.auth.uid;
-          allow update: if isSignedIn()
-            && (resource.data.authorUid == request.auth.uid
-                || isFounder()
-                || request.resource.data.diff(resource.data)
-                     .affectedKeys().hasOnly(['likes', 'likedBy']));
-          allow delete: if isSignedIn()
-            && (resource.data.authorUid == request.auth.uid
-                || get(/databases/$(database)/documents/communities/$(commId)).data.ownerUid == request.auth.uid
-                || isFounder());
-        }
-      }
-  
-      // ── Group Chats ────────────────────────────────────────────────────────────
-      //
-      //   /groupChats/{groupId}
-      //     name, members[], createdBy, createdAt, lastMsgTs, isGroup: true
-      //   /groupChats/{groupId}/messages/{msgId}
-      //     senderUid, text, timestamp
-  
-      match /groupChats/{groupId} {
-        allow read: if isSignedIn()
-          && (request.auth.uid in resource.data.members || isFounder());
-        allow create: if isSignedIn()
-          && request.resource.data.createdBy == request.auth.uid;
-        allow update: if isSignedIn()
-          && (request.auth.uid in resource.data.members || isFounder());
-        allow delete: if isSignedIn()
-          && (resource.data.createdBy == request.auth.uid || isFounder());
-  
-        match /messages/{msgId} {
-          allow read: if isSignedIn()
-            && (request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.members
-                || isFounder());
-          allow create: if isSignedIn()
-            && request.resource.data.senderUid == request.auth.uid;
-          allow delete: if isSignedIn()
-            && (resource.data.senderUid == request.auth.uid || isFounder());
-          allow update: if false;
-        }
-      }
-  
-      // ── Group Calls (WebRTC group call signaling) ───────────────────────────────
-      //
-      //   /groupCalls/{roomId}
-      //     creator, mode, participants[], status, createdAt
-      //   /groupCalls/{roomId}/offers/{offerId}
-      //     from, to, type, sdp
-      //   /groupCalls/{roomId}/answers/{answerId}
-      //     from, to, type, sdp
-      //   /groupCalls/{roomId}/candidates/{uid}/to_{remoteUid}/{candId}
-      //     RTCIceCandidate JSON
-      //
-      // Any signed-in user who is a participant (or the creator) may read/write.
-      // We use a broad allow for all sub-docs since only authenticated users
-      // can participate and the room is ephemeral.
-
-      match /groupCalls/{roomId} {
-        allow read:   if isSignedIn();
-        allow create: if isSignedIn()
-          && request.resource.data.creator == request.auth.uid;
-        allow update: if isSignedIn()
-          && (resource.data.creator == request.auth.uid
-              || request.auth.uid in resource.data.participants
-              || isFounder());
-        allow delete: if isSignedIn()
-          && (resource.data.creator == request.auth.uid || isFounder());
-
-        // Nested subcollections (offers, answers, candidates/*/)
-        match /{subcol}/{docId} {
-          allow read, write: if isSignedIn();
-        }
-        match /{subcol}/{uid}/{subDocId} {
-          allow read, write: if isSignedIn();
-        }
-        match /{subcol}/{uid}/{subDocId}/{leafId} {
-          allow read, write: if isSignedIn();
-        }
-      }
-
-      // ── Creator Events ─────────────────────────────────────────────────────────
-  
-      match /creatorEvents/{docId} {
-        allow read:   if isSignedIn()
-          && (resource.data.uid == request.auth.uid || isFounder());
-        allow create: if isSignedIn()
-          && request.resource.data.uid == request.auth.uid;
-        allow delete: if isSignedIn()
-          && (resource.data.uid == request.auth.uid || isFounder());
-        allow update: if false;
-      }
-  
-      // ── User Scheduled Posts ───────────────────────────────────────────────────
-  
-      match /userScheduledPosts/{docId} {
-        allow read:   if isSignedIn()
-          && (resource.data.uid == request.auth.uid || isFounder());
-        allow create: if isSignedIn()
-          && request.resource.data.uid == request.auth.uid;
-        allow update: if isSignedIn()
-          && (resource.data.uid == request.auth.uid || isFounder());
-        allow delete: if isSignedIn()
-          && (resource.data.uid == request.auth.uid || isFounder());
-      }
-  
-    }
   }
 }

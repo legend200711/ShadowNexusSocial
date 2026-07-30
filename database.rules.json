@@ -57,36 +57,6 @@
       }
     },
 
-    // ── Co-Host Invites (real-time delivery) ──────────────────────────
-    //
-    //  coHostInvites/{receiverUID}/{senderUID}
-    //    from, status, time
-    //
-    //  Sender writes; receiver reads and updates their own slot.
-    //  Both parties can delete (clean up after answering).
-    //  senderUID must differ from receiverUID to prevent self-invites.
-    "coHostInvites": {
-      "$receiverUID": {
-        "$senderUID": {
-          ".read":  "auth != null && (auth.uid == $receiverUID || auth.uid == $senderUID)",
-          ".write": "auth != null && (auth.uid == $senderUID   || auth.uid == $receiverUID) && $senderUID != $receiverUID"
-        }
-      }
-    },
-
-    // ── Co-Hosts (active co-host flag per user) ───────────────────────
-    //
-    //  coHosts/{uid}
-    //    coHost: true
-    //
-    //  Only the user themselves writes their coHost flag.
-    "coHosts": {
-      "$uid": {
-        ".read":  "auth != null",
-        ".write": "auth != null && auth.uid == $uid"
-      }
-    },
-
     // ── Live Rooms ────────────────────────────────────────────────────
     "liveRooms": {
       "$roomId": {
@@ -119,23 +89,6 @@
       }
     },
 
-
-    // ── Viewer presence seats — each viewer owns their own seat ──────────
-    //
-    //  liveViewers/{roomId}/{uid}  { joinedAt, active: true }
-    //    - Each viewer writes and owns only their own seat.
-    //    - Any authenticated user (host/viewers) can read the full subtree.
-    //    - onDisconnect auto-removes the seat so count self-heals on drop.
-    "liveViewers": {
-      "$roomId": {
-        ".read":  "auth != null",
-        "$uid": {
-          ".write": "auth != null && auth.uid == $uid"
-        }
-      }
-    },
-
-
     // ── Guest presence in live rooms ──────────────────────────────────
     "liveGuests": {
       "$roomId": {
@@ -160,16 +113,6 @@
       }
     },
 
-    // ── 1:1 Call signaling — Firestore handles this, RTDB rule here for completeness ──
-    // Actual call docs live in Firestore /calls/{callId}; this stub prevents
-    // stale RTDB rules from blocking future migration.
-    "calls": {
-      "$callId": {
-        ".read":  "auth != null",
-        ".write": "auth != null"
-      }
-    },
-
     // ── User presence — each user owns their own node ─────────────────
     "presence": {
       "$uid": {
@@ -188,11 +131,6 @@
 
     // ── Online / live presence for friends list ───────────────────────
     "users": {
-      // Any authenticated user can read the entire users/ node so the
-      // co-host panel can scan for live:true entries as a fallback when
-      // Firestore isLive queries fail. (Individual users/{uid} reads
-      // were already allowed; this adds the parent-level read.)
-      ".read":  "auth != null",
       "$uid": {
         ".read":  "auth != null",
         ".write": "auth != null && auth.uid == $uid"

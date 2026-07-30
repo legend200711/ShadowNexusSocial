@@ -1,4 +1,7 @@
 {
+  "projects": {
+    "default": "horr-a08f4"
+  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"

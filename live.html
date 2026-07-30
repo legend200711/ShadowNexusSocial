@@ -2,59 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Shadow Nexus Social Live 🔴</title>
+<title>Shadow Nexus Live 🔴</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#0B1F3A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link rel="stylesheet" href="live.css">
-<link rel="stylesheet" href="holiday-themes.css">
 <!-- Co-Host feature — remove these two lines to disable entirely -->
 <link rel="stylesheet" href="cohost.css">
-
-<!-- TIKTOK-STYLE: Preconnect to Firebase so the WebSocket connection
-     is warm before live.js even loads. Shaves ~100-200ms off
-     time-to-first-frame by establishing TLS + WebSocket handshake
-     in parallel with page rendering. -->
-<link rel="preconnect" href="https://horr-a08f4-default-rtdb.firebaseio.com">
-<link rel="preconnect" href="https://horr-a08f4.firebaseapp.com">
-<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
-<link rel="dns-prefetch" href="https://horr-a08f4-default-rtdb.firebaseio.com">
-<link rel="dns-prefetch" href="https://firestore.googleapis.com">
-
-<!-- ── AUTH FAST-PATH: preconnect to the token refresh + installations
-     endpoints so the TLS handshake completes in parallel with the
-     Firebase SDK download. Without these, onAuthStateChanged waits
-     for a cold TLS connection to securetoken.googleapis.com AFTER the
-     SDK finishes loading — adding 2-5s to the loading spinner. ── -->
-<link rel="preconnect" href="https://securetoken.googleapis.com">
-<link rel="preconnect" href="https://firebaseinstallations.googleapis.com">
-<link rel="dns-prefetch" href="https://securetoken.googleapis.com">
-<link rel="dns-prefetch" href="https://firebaseinstallations.googleapis.com">
-
-<!-- ── MODULE PRELOAD: kick off all four Firebase SDK ESM module
-     downloads the instant the <head> parses, in parallel, instead of
-     waiting for live.js to download + parse + hit each sequential
-     `import` statement. This is the single biggest load-time win:
-     the four SDK modules (app, auth, firestore, database) otherwise
-     download one-after-another, each blocking the next. Preloading
-     them all at once collapses ~4 sequential round-trips into ~1.
-
-     CRITICAL: the version here (10.8.0) MUST match the version in
-     live.js AND index.html. When all three agree, the browser serves
-     the SDK from its HTTP cache instantly — no download at all for
-     users coming from the main site. ── -->
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js">
-
-<!-- ── Preload live.js itself so it starts downloading immediately,
-     in parallel with the Firebase modules above, rather than waiting
-     for the browser to reach the <script> tag at the bottom of <body>. ── -->
-<link rel="modulepreload" href="live.js">
-<link rel="preload" href="snx-net.js" as="script">
 </head>
 <body>
 
@@ -63,7 +19,7 @@
      ══════════════════════════════════════════════ -->
 <div id="liveLoading">
   <div class="ll-spinner"></div>
-  <div class="ll-text">Connecting to Shadow Nexus Social Live…</div>
+  <div class="ll-text">Connecting to Shadow Nexus Live…</div>
 </div>
 
 
@@ -75,7 +31,7 @@
 
     <!-- Logo / brand -->
     <div class="setup-logo">🌑</div>
-    <h1 class="setup-title">Shadow Nexus Social Live</h1>
+    <h1 class="setup-title">Shadow Nexus Live</h1>
     <p class="setup-sub">Preview your camera before going live</p>
 
     <!-- Camera preview -->
@@ -184,7 +140,7 @@
       <!-- Creator info pill -->
       <div class="live-creator-pill">
         <div id="liveCreatorAvatar" class="live-creator-avatar"></div>
-        <div id="liveCreatorName"   class="live-creator-name">Shadow Nexus Social</div>
+        <div id="liveCreatorName"   class="live-creator-name">Shadow Nexus</div>
       </div>
 
       <!-- Viewer count -->
@@ -282,34 +238,41 @@
           font-size:11px;font-weight:700;color:#00AEEF;
           background:rgba(0,174,239,0.1);border:1px solid rgba(0,174,239,0.3);
           border-radius:20px;padding:3px 12px;letter-spacing:0.4px;
-        ">0 / 8 guests</span>
+        ">0 / 9 guests</span>
       </div>
 
-      <!-- Layout selection: only 2 layouts -->
-      <div class="layout-panel-section">Guest Stack Position</div>
       <div class="layout-panel-grid">
-        <button class="layout-option-btn active" data-layout="host-full" title="Host Full Screen — guests stacked on right side">
-          <span class="layout-icon">⬛▮</span>
-          <span>Right Stack</span>
+        <button class="layout-option-btn active" data-layout="auto" title="Auto">
+          <span class="layout-icon">✦</span>
+          <span>Auto</span>
         </button>
-        <button class="layout-option-btn" data-layout="host-full-left" title="Host Full Screen — guests stacked on left side">
-          <span class="layout-icon">▮⬛</span>
-          <span>Left Stack</span>
+        <button class="layout-option-btn" data-layout="host-full" title="Host Full">
+          <span class="layout-icon">⬛</span>
+          <span>Host Full</span>
+        </button>
+        <button class="layout-option-btn" data-layout="split" title="Split">
+          <span class="layout-icon">⬜⬜</span>
+          <span>Split</span>
+        </button>
+        <button class="layout-option-btn" data-layout="host-big" title="Host Big">
+          <span class="layout-icon">▬▪</span>
+          <span>Host Big</span>
+        </button>
+        <button class="layout-option-btn" data-layout="grid" title="Grid">
+          <span class="layout-icon">▦</span>
+          <span>Grid</span>
+        </button>
+        <button class="layout-option-btn" data-layout="float" title="Floating">
+          <span class="layout-icon">◈</span>
+          <span>Float</span>
         </button>
       </div>
-
-      <!-- Featured Guest section -->
-      <div class="layout-panel-section">Featured Guest</div>
-      <div id="featuredGuestRow" class="featured-guest-row">
-        <span class="featured-guest-hint">Tap ★ on any guest box to feature them in the large view.</span>
+      <div class="layout-panel-section">Box Size</div>
+      <div class="layout-size-row">
+        <button class="layout-size-btn active" data-size="sm">S</button>
+        <button class="layout-size-btn" data-size="md">M</button>
+        <button class="layout-size-btn" data-size="lg">L</button>
       </div>
-      <div style="margin-top:6px;">
-        <button id="btnClearFeatured" class="layout-clear-featured-btn" style="width:100%;justify-content:center;" title="Return host to the large view">
-          <span class="layout-icon">🏠</span>
-          <span>Return to Host View</span>
-        </button>
-      </div>
-
     </div>
 
     <!-- ═══════════════════════════════════
@@ -366,18 +329,6 @@
           <span class="lsp-slider"></span>
         </label>
       </div>
-
-      <!-- Control Layout preference -->
-      <div class="lsp-row">
-        <div class="lsp-label">
-          <div class="lsp-label-name">🎛 Compact Controls</div>
-          <div class="lsp-label-desc">Show controls as a small bar (saves screen space)</div>
-        </div>
-        <label class="lsp-toggle" aria-label="Compact Controls toggle">
-          <input type="checkbox" id="toggleCompactControls">
-          <span class="lsp-slider"></span>
-        </label>
-      </div>
     </div>
 
     <!-- ═══════════════════════════════════
@@ -387,7 +338,11 @@
          ═══════════════════════════════════ -->
     <div class="live-viewer-actions">
 
-      <!-- Like button removed — viewers tap anywhere on the video to like -->
+      <!-- Like ❤️ -->
+      <button id="btnLike" class="live-like-btn" aria-label="Like stream">
+        <span class="live-like-icon">❤️</span>
+        <span id="likeBtnCount" style="display:none;">Like</span>
+      </button>
 
       <!-- Request a Box 📺 -->
       <button id="btnRequestBox" class="live-request-box-btn" aria-label="Request a guest box">
@@ -453,88 +408,12 @@
 <script src="snx-net.js"></script>
 
 <!-- ══════════════════════════════════════════════
-     MOBILE KEYBOARD FIX
-     Keeps the chat input row visible when the software keyboard
-     appears on any phone. Works for both iOS Safari and Android Chrome.
-     ══════════════════════════════════════════════ -->
-<script>
-(function () {
-  'use strict';
-  if (!window.visualViewport) return;
-
-  var _chatPanel = null;
-  var _chatInput = null;
-
-  function _getEls() {
-    if (!_chatPanel) _chatPanel = document.querySelector('.live-chat-panel');
-    if (!_chatInput) _chatInput = document.getElementById('liveChatInput');
-  }
-
-  function _onVV() {
-    _getEls();
-    var vvh = window.visualViewport.height;
-    var vvTop = window.visualViewport.offsetTop;
-
-    // Shift the chat panel so it stays just above the keyboard
-    if (_chatPanel) {
-      var winH = window.innerHeight;
-      var kb = Math.max(0, winH - vvh - vvTop);
-      _chatPanel.style.transform = kb > 30
-        ? 'translateY(-' + kb + 'px)'
-        : '';
-    }
-
-    // Scroll chat messages to bottom when keyboard opens
-    if (_chatInput && document.activeElement === _chatInput) {
-      var msgs = document.getElementById('liveChatMessages');
-      if (msgs) setTimeout(function() { msgs.scrollTop = msgs.scrollHeight; }, 60);
-    }
-  }
-
-  window.visualViewport.addEventListener('resize', _onVV, { passive: true });
-  window.visualViewport.addEventListener('scroll', _onVV, { passive: true });
-
-  // Ensure input taps on iOS always open the keyboard
-  document.addEventListener('DOMContentLoaded', function () {
-    var inp = document.getElementById('liveChatInput');
-    if (!inp) return;
-    inp.setAttribute('readonly', 'readonly');
-    inp.addEventListener('touchstart', function () {
-      inp.removeAttribute('readonly');
-      inp.focus();
-    }, { passive: true });
-    // Make the Send button work on mobile without closing the keyboard
-    var sendBtn = document.getElementById('liveChatSend');
-    if (sendBtn) {
-      sendBtn.addEventListener('touchend', function (e) {
-        e.preventDefault(); // stop focus shift that closes keyboard
-        if (typeof sendChat === 'function') sendChat();
-      }, { passive: false });
-    }
-  });
-})();
-</script>
-
-<!-- ══════════════════════════════════════════════
      LIVE ENGINE (ES module)
      ══════════════════════════════════════════════ -->
 <script type="module" src="live.js"></script>
 
-<!-- Co-Host add-on — remove to disable entirely -->
+<!-- Co-Host add-on (ES module) — remove to disable entirely -->
 <script type="module" src="cohost.js"></script>
-
-<!-- ── Holiday Themes overlays v2.0 ── -->
-<div id="snxHolidayBanner" aria-hidden="true"></div>
-<canvas id="snxHolidayParticles" aria-hidden="true"></canvas>
-<div id="snxThemePreviewBadge" role="status" aria-live="polite"></div>
-<div id="snxHolidayLoadingSplash" aria-hidden="true">
-    <div class="ht-splash-emoji">🎄</div>
-    <div class="ht-splash-name">Loading…</div>
-</div>
-<div id="snxMusicPlayerWrap" role="region" aria-label="Holiday Music">
-    <button id="snxMusicToggleBtn" onclick="window.snxHtUserMusicToggle && snxHtUserMusicToggle()">🔇 Music OFF</button>
-</div>
-<script src="holiday-themes.js"></script>
 
 </body>
 </html>

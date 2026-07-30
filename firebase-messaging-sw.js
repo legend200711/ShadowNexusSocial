@@ -36,7 +36,7 @@ if (!self._snxFbInitialised) {
 const messaging = firebase.messaging();
 
 // Derive base path from this SW's own URL so it works on any deployment path
-// e.g. /ShadowNexusSocial/ on GitHub Pages or / on localhost
+// e.g. /TEST/ on GitHub Pages or / on localhost
 const _swBase = self.location.pathname.replace(/firebase-messaging-sw\.js$/, '');
 const SNX_BASE = _swBase || '/';
 const ICON     = SNX_BASE + 'icon-192.png';
@@ -113,7 +113,7 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      // Find any open app tab (match on the base path so all path variants match)
+      // Find any open app tab (match on the base path so /TEST/ variants all match)
       const appTab  = list.find(c => c.url.includes(SNX_BASE.replace(/\/$/, '')));
       const liveTab = list.find(c => c.url.includes('live.html'));
 
