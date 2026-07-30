@@ -429,6 +429,16 @@ export default {
       });
     }
 
+    // ── Health ping — used by the Founder System Health Monitor ──────────────
+    // Responds to both GET /health and HEAD /health with 200 OK.
+    // The body confirms the worker is alive; HEAD discards it (lower bandwidth).
+    if (url.pathname === '/health') {
+      return new Response('Shadow Nexus Upload Worker — Healthy ✅', {
+        status: 200,
+        headers: mergeHeaders(cors, sec, { 'Content-Type': 'text/plain' }),
+      });
+    }
+
     // ── LiveKit endpoints ──
     if (url.pathname === '/livekit-room')  return handleLiveKitRoom(request, env, cors, sec);
     if (url.pathname === '/livekit-token') return handleLiveKitToken(request, env, cors, sec);

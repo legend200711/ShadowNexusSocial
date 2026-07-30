@@ -10848,11 +10848,12 @@ body.arcade-fs-ios body::after { display:none !important; }
   } catch(_) { /* browser may not support SW messaging */ }
 
   // ── Expose app instance + Firestore helpers to non-module scripts ──
-  window._snxApp        = app;
-  window._snxDb         = db;
-  window._snxDoc        = doc;
-  window._snxGetDoc     = getDoc;
-  window._snxUpdateDoc  = updateDoc;
+  window._snxApp           = app;
+  window._snxDb            = db;
+  window._snxDoc           = doc;
+  window._snxGetDoc        = getDoc;
+  window._snxUpdateDoc     = updateDoc;
+  window._snxPresenceRtdb  = _presenceRtdb; // already-live RTDB instance for health checks
 
   // ── Expose RTDB helpers for presence (used by _attachFriendRtdbStatus) ──
   // Also exposes get/remove/push/set/update so the global co-host invite
@@ -11964,8 +11965,10 @@ body.arcade-fs-ios body::after { display:none !important; }
               if (user.email) await updateDoc(doc(db, "users", user.uid), { email: user.email.toLowerCase() });
           } catch(_) {}
 
-          // Expose current user for non-module scripts (notification settings)
+          // Expose current user for non-module scripts (notification settings,
+          // health check, and any code that checks window.currentUser).
           window._snxCurrentUser = user;
+          window.currentUser     = user;   // health check + legacy callers
           // Do NOT overwrite _snxUserData with null here — userData is only
           // populated once the onSnapshot listener below fires. We only assign
           // it if the snapshot has already returned real data from a prior run.
@@ -12286,8 +12289,10 @@ body.arcade-fs-ios body::after { display:none !important; }
           }
           // Explicit logout path — tear down listeners below.
           currentUser = null; userData = null;
-          window.userData = null;
-          window._snxUserData = null;
+          window.userData        = null;
+          window._snxUserData    = null;
+          window.currentUser     = null;  // health check + legacy callers
+          window._snxCurrentUser = null;
           // Clear the presence heartbeat interval so it stops firing after logout
           if (window._snxPresenceHeartbeat) { clearInterval(window._snxPresenceHeartbeat); window._snxPresenceHeartbeat = null; }
           // ── Tear down EVERY real-time listener so nothing fires against a null user ──
@@ -30952,57 +30957,95 @@ window.snxRunHealthCheck = async function() {
     };
     const results = [];
     const add = (label, ok, detail) => results.push({ label, ok, detail, ts: Date.now() });
-    // Auth check
-    const authOk = !!(window.currentUser);
-    setS('healthStatAuth', authOk, authOk ? 'Auth connected' : 'Not authenticated');
-    add('Firebase Auth', authOk, authOk ? 'User authenticated' : 'No user logged in');
-    // Firestore latency check
+
+    // ── Auth check ──
+    // window.currentUser is set by onAuthStateChanged immediately after login.
+    const _authUser = window.currentUser || window._snxCurrentUser || null;
+    const authOk = !!_authUser;
+    const authDetail = authOk
+        ? 'Signed in: ' + (_authUser.email || _authUser.uid)
+        : 'No authenticated user — sign in first';
+    setS('healthStatAuth', authOk, authDetail);
+    add('Firebase Auth', authOk, authDetail);
+
+    // ── Firestore latency check ──
     const fs = _snxFs();
     if (fs) {
         const t0 = Date.now();
         try {
             await fs.getDoc(fs.doc(fs.db, 'siteSettings', 'config'));
             const lat = Date.now() - t0;
-            setS('healthStatFirestore', true, `Latency: ${lat}ms`);
-            const latEl = document.getElementById('healthStatLatency'); if (latEl) latEl.textContent = lat+'ms';
-            add('Firestore', true, `Read OK — ${lat}ms`);
+            setS('healthStatFirestore', true, 'Latency: ' + lat + 'ms');
+            const latEl = document.getElementById('healthStatLatency'); if (latEl) latEl.textContent = lat + 'ms';
+            add('Firestore', true, 'Read OK — ' + lat + 'ms');
         } catch(e) {
-            setS('healthStatFirestore', false, e.message);
-            add('Firestore', false, e.message);
+            // Log exact error code so the issue is identifiable
+            const detail = (e.code ? '[' + e.code + '] ' : '') + e.message;
+            console.error('[SNX Health] Firestore check failed:', e);
+            setS('healthStatFirestore', false, detail);
+            add('Firestore', false, detail);
         }
+    } else {
+        setS('healthStatFirestore', false, 'Firestore not initialised');
+        add('Firestore', false, 'window._snxFirestore is null — module script may not have loaded');
     }
-    // RTDB check
-    const rtdb = window._snxRtdbApi;
-    if (rtdb) {
+
+    // ── RTDB check ──
+    // Use the already-live _presenceRtdb instance (exposed as window._snxPresenceRtdb)
+    // so we don't create a second RTDB connection just for this ping.
+    const _rtdb = window._snxPresenceRtdb || null;
+    const _rtdbApi = window._snxRtdbApi || null;
+    if (_rtdb && _rtdbApi) {
         try {
-            const ref = rtdb.ref(rtdb.getDatabase(window._snxApp), '.info/connected');
-            const snap = await rtdb.get(ref);
-            const connected = snap.val() === true;
-            setS('healthStatRTDB', connected, connected ? 'Connected' : 'Disconnected');
-            add('Realtime DB', connected, connected ? 'Connected' : 'Disconnected or offline');
+            const _connRef = _rtdbApi.ref(_rtdb, '.info/connected');
+            const _snap = await _rtdbApi.get(_connRef);
+            const connected = _snap.val() === true;
+            setS('healthStatRTDB', connected, connected ? 'Connected' : 'Disconnected (check RTDB rules or network)');
+            add('Realtime DB', connected, connected ? 'Connected' : 'Disconnected — may be offline or blocked by rules');
         } catch(e) {
-            setS('healthStatRTDB', false, e.message);
-            add('Realtime DB', false, e.message);
+            const detail = (e.code ? '[' + e.code + '] ' : '') + e.message;
+            console.error('[SNX Health] RTDB check failed:', e);
+            setS('healthStatRTDB', false, detail);
+            add('Realtime DB', false, detail);
         }
+    } else {
+        setS('healthStatRTDB', false, 'RTDB not initialised');
+        add('Realtime DB', false, 'window._snxPresenceRtdb is null — module script may not have loaded');
     }
-    // Upload worker check
+
+    // ── Upload worker ping ──
+    // AbortSignal.timeout() is not available on all browsers (missing on older iOS/Safari).
+    // Use a manual AbortController + setTimeout instead, which works universally.
     try {
-        const r = await fetch('https://yellow-term-11e6.nthntjrn.workers.dev/health', { method:'HEAD', signal: AbortSignal.timeout(3000) });
-        setS('healthStatUpload', r.ok, r.status+'');
-        add('Upload Worker', r.ok, 'HTTP '+r.status);
+        const _ac  = new AbortController();
+        const _tid = setTimeout(() => _ac.abort(), 4000); // 4 s timeout
+        const r = await fetch('https://yellow-term-11e6.nthntjrn.workers.dev/health', {
+            method: 'HEAD',
+            signal: _ac.signal,
+        });
+        clearTimeout(_tid);
+        const workerOk = r.ok || r.status === 200;
+        const workerDetail = workerOk ? 'HTTP ' + r.status + ' — Worker is online' : 'HTTP ' + r.status + ' — Worker returned error';
+        setS('healthStatUpload', workerOk, workerDetail);
+        add('Upload Worker', workerOk, workerDetail);
     } catch(e) {
-        setS('healthStatUpload', false, 'Unreachable');
-        add('Upload Worker', false, 'Unreachable or timed out');
+        const isTimeout = e.name === 'AbortError';
+        const detail = isTimeout ? 'Timed out after 4s — Worker unreachable' : e.message;
+        console.error('[SNX Health] Upload worker ping failed:', e);
+        setS('healthStatUpload', false, detail);
+        add('Upload Worker', false, detail);
     }
-    // Online now count
+
+    // ── Online users count ──
     if (fs) {
         try {
-            const snap = await fs.getDocs(fs.query(fs.collection(fs.db,'users'), fs.where('status','==','online'), fs.limit(200)));
+            const snap = await fs.getDocs(fs.query(fs.collection(fs.db, 'users'), fs.where('status', '==', 'online'), fs.limit(200)));
             const onlineEl = document.getElementById('healthStatOnline'); if (onlineEl) onlineEl.textContent = snap.size;
-            add('Online Now', true, snap.size + ' users online');
+            add('Online Now', true, snap.size + ' users currently online');
         } catch(e) { add('Online Count', false, e.message); }
     }
-    // Render log
+
+    // ── Render log ──
     if (logEl) {
         logEl.innerHTML = results.map(r => `
             <div style="display:flex;align-items:flex-start;gap:8px;padding:7px 10px;border-left:3px solid ${r.ok?'rgba(57,255,20,0.5)':'rgba(255,51,80,0.5)'};background:rgba(0,0,0,0.15);border-radius:0 8px 8px 0;margin-bottom:6px;">
@@ -31014,7 +31057,7 @@ window.snxRunHealthCheck = async function() {
                 <span style="margin-left:auto;font-size:10px;color:#3a5a7a;">${new Date(r.ts).toLocaleTimeString()}</span>
             </div>`).join('');
     }
-    if (typeof toastNotification==='function') toastNotification('💚 Health check complete.');
+    if (typeof toastNotification === 'function') toastNotification('💚 Health check complete.');
 };
 
 window.snxLoadHealthLog = function() {
