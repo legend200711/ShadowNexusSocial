@@ -2097,6 +2097,17 @@ async function _startViewerWebRTC(roomData) {
       // only when there's actually something to see. This prevents the
       // black screen gap between "connected" and "first frame".
       _viewerReconnectAttempt = 0; // reset on successful connection
+      // ── POST-RECONNECT PLAY RETRY ──
+      // After an ICE restart the video track is still attached but the
+      // <video> element can end up paused (browser autopause on network
+      // interruption). Kick off playback again so the video is never
+      // stuck on a black screen after recovery.
+      if (D.liveVideo && D.liveVideo.paused && D.liveVideo.srcObject) {
+        D.liveVideo.play().catch(() => {});
+      }
+      // Re-run the first-frame banner logic so the "Connecting…" overlay
+      // is hidden once the video is visibly playing again.
+      _hideBannerOnFirstFrame();
     } else if (state === 'disconnected' || state === 'failed') {
       console.warn(`[ViewerWebRTC] ${state.toUpperCase()} — ICE: ${_rtcPc.iceConnectionState} — video playing: ${!D.liveVideo?.paused}, readyState: ${D.liveVideo?.readyState}`);
       // Only show the reconnecting banner / schedule a reconnect if the video
@@ -4010,6 +4021,13 @@ async function _guestJoinAsViewer() {
     } else if (st === 'connected') {
       if (_guestDcTimer) { clearTimeout(_guestDcTimer); _guestDcTimer = null; }
       console.log('[GuestBox] CONNECTED ✓');
+      // ── POST-RECONNECT: re-attach self-stream so guest video doesn't stay black ──
+      // After an ICE restart the video in the guest cell can go stale.
+      // Re-running _attachGuestSelfStream is idempotent — it reuses the
+      // existing <video> element and only updates srcObject if needed.
+      if (_guestStream && _user) {
+        _attachGuestSelfStream(_guestStream);
+      }
     }
   };
 }
@@ -4041,7 +4059,14 @@ function _attachGuestSelfStream(stream) {
         const nameEl = cell.querySelector('.vgc-name, .guest-cell-name');
         cell.insertBefore(vid, nameEl || null);
       }
-      vid.srcObject = stream;
+      // Only reassign srcObject when necessary (prevents decode reset mid-stream)
+      if (vid.srcObject !== stream) {
+        vid.srcObject = stream;
+      }
+      // After ICE restart the video may be paused — kick off playback
+      if (vid.paused) {
+        vid.play().catch(() => {});
+      }
 
       // Keep the avatar visible until the first frame paints (no black gap).
       let _frameShown = false;
