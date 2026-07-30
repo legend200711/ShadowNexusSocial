@@ -44,6 +44,7 @@
 <!-- ── Shared stylesheet ── -->
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="album.css">
+<link rel="stylesheet" href="holiday-themes.css">
 
 <!-- ── Preconnect to Firebase + R2 CDN so first load is faster ── -->
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -26956,6 +26957,18 @@ window.switchAdminTab = function(tab) {
 
 })();
 </script>
+
+<!-- Theme Engine v3: cursor-effect glow dot (desktop only, pointer-events:none) -->
+<div id="snxCursorEffect" aria-hidden="true"></div>
+
+<!-- Holiday loading screen splash (shown on initial page load when theme is active) -->
+<div id="snxHolidayLoadingSplash" aria-hidden="true">
+    <div class="ht-splash-emoji">🎄</div>
+    <div class="ht-splash-name">Loading…</div>
+</div>
+
+<!-- ── Holiday Themes engine v2.0 ── -->
+<script src="holiday-themes.js"></script>
 
 </body>
 </html>
