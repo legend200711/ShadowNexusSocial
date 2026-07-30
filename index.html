@@ -10854,6 +10854,7 @@ body.arcade-fs-ios body::after { display:none !important; }
   window._snxGetDoc        = getDoc;
   window._snxUpdateDoc     = updateDoc;
   window._snxPresenceRtdb  = _presenceRtdb; // already-live RTDB instance for health checks
+  window._snxAuth          = auth;           // auth instance for token verification
 
   // ── Expose RTDB helpers for presence (used by _attachFriendRtdbStatus) ──
   // Also exposes get/remove/push/set/update so the global co-host invite
@@ -31439,55 +31440,108 @@ document.addEventListener('input', function(e) {
 });
 
 window.snxSubmitCreateGroup = async function() {
-    const fs = _gcFs(); const user = _gcUser();
-    if (!fs || !user) { if(typeof toastNotification==='function') toastNotification('Sign in first!'); return; }
+    const fs = _gcFs();
+
+    // ── Auth verification ──
+    // Use the Firebase Auth instance directly for the most up-to-date token.
+    // Falls back to window._snxCurrentUser (set by onAuthStateChanged) if auth
+    // instance isn't exposed yet (should never happen in practice).
+    const _auth = window._snxAuth || null;
+    const user  = (_auth && _auth.currentUser) || _gcUser();
+
+    if (!fs) {
+        if (typeof toastNotification === 'function') toastNotification('⚠️ App not ready — please wait a moment and try again.');
+        return;
+    }
+    if (!user || !user.uid) {
+        if (typeof toastNotification === 'function') toastNotification('⚠️ You must be signed in to create a group.');
+        return;
+    }
+
     const nameEl = document.getElementById('snxGroupName');
     const picEl  = document.getElementById('snxGroupPicUrl');
-    const name   = (nameEl?.value||'').trim();
-    if (!name) { if(typeof toastNotification==='function') toastNotification('&#x26A0;&#xFE0F; Please enter a group name.'); nameEl?.focus(); return; }
+    const name   = (nameEl ? nameEl.value : '').trim();
+    if (!name) {
+        if (typeof toastNotification === 'function') toastNotification('⚠️ Please enter a group name.');
+        if (nameEl) nameEl.focus();
+        return;
+    }
     const selected = Object.values(_gcSelectedMembers);
-    if (!selected.length) { if(typeof toastNotification==='function') toastNotification('&#x26A0;&#xFE0F; Invite at least one friend.'); return; }
+    if (!selected.length) {
+        if (typeof toastNotification === 'function') toastNotification('⚠️ Invite at least one friend.');
+        return;
+    }
 
     const btn = document.getElementById('snxCreateGroupSubmitBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Creating\u2026'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
 
+    // Always include the creator as the first member
     const members = [user.uid, ...selected.map(m => m.uid)];
-    const picUrl  = (picEl?.value||'').trim();
+    const picUrl  = (picEl ? picEl.value : '').trim();
 
     try {
-        const docRef  = await fs.addDoc(fs.collection(fs.db, 'groupChats'), {
+        // Write the group document.
+        // The Firestore rule allows create when:
+        //   isSignedIn() && request.resource.data.createdBy == request.auth.uid
+        // We explicitly set createdBy = user.uid to satisfy that check.
+        const docRef = await fs.addDoc(fs.collection(fs.db, 'groupChats'), {
             name,
             picUrl,
-            createdBy: user.uid,
-            createdAt: Date.now(),
-            members,
-            admins: [user.uid],
-            messages: [],
-            lastMsgTs: Date.now(),
+            createdBy:  user.uid,           // required by Firestore rule
+            createdAt:  Date.now(),
+            members,                         // creator is always first member
+            admins:     [user.uid],
+            messages:   [],
+            lastMsgTs:  Date.now(),
+            isGroup:    true,
         });
         const groupId = docRef.id;
-        // Notifications
+
+        // Send group-invite notifications (best-effort — non-blocking)
         for (const m of selected) {
             try {
-                if (typeof pushNotification === 'function') {
-                    await pushNotification(m.uid, {
-                        type: 'group_invite', fromUid: user.uid,
-                        fromName: (window.userData?.displayName||'Someone'),
-                        fromAvatar: (window.userData?.avatar||''),
-                        preview: 'Invited you to the group: ' + name,
-                        groupId, groupName: name,
-                    });
+                const _notifFs = _gcFs();
+                if (_notifFs) {
+                    await _notifFs.updateDoc(
+                        _notifFs.doc(_notifFs.db, 'users', m.uid),
+                        {
+                            notifications: _notifFs.arrayUnion({
+                                id:         'gi-' + groupId + '-' + Date.now(),
+                                type:       'group_invite',
+                                fromUid:    user.uid,
+                                fromName:   (window.userData && window.userData.displayName) || (window._snxUserData && window._snxUserData.displayName) || 'Someone',
+                                fromAvatar: (window.userData && window.userData.avatar) || (window._snxUserData && window._snxUserData.avatar) || '',
+                                preview:    'Invited you to the group: ' + name,
+                                groupId,
+                                groupName:  name,
+                                ts:         Date.now(),
+                                read:       false,
+                            })
+                        }
+                    );
                 }
-            } catch(_) {}
+            } catch (_notifErr) {
+                // Notification failure is non-fatal — group is already created
+                console.warn('[groupChat] Failed to notify member', m.uid, _notifErr.message);
+            }
         }
-        if(typeof toastNotification==='function') toastNotification('\u2705 Group "'+name+'" created!');
+
+        if (typeof toastNotification === 'function') toastNotification('✅ Group "' + name + '" created!');
         window.snxCloseCreateGroupModal();
-        // Switch to groups tab and open chat
+
+        // Switch to groups tab and open the new chat immediately
         const groupsTab = document.getElementById('inboxTabGroups');
         window.snxSwitchInboxTab('groups', groupsTab);
-        setTimeout(() => window.snxOpenGroupChat(groupId), 400);
+        setTimeout(() => window.snxOpenGroupChat(groupId), 350);
+
     } catch(e) {
-        if(typeof toastNotification==='function') toastNotification('\u274C Failed to create group: '+e.message);
+        // Log the exact Firebase error code and path so it's debuggable
+        const _code   = e.code   ? ' [' + e.code + ']'   : '';
+        const _detail = e.message || 'Unknown error';
+        console.error('[groupChat] Create group failed' + _code + ':', e);
+        if (typeof toastNotification === 'function') {
+            toastNotification('❌ Failed to create group' + _code + ': ' + _detail);
+        }
         if (btn) { btn.disabled = false; btn.textContent = 'Create Group'; }
     }
 };
@@ -31516,10 +31570,17 @@ window.snxRenderGroupInbox = function() {
     if (_gcInboxUnsub) { _gcInboxUnsub(); _gcInboxUnsub = null; }
     listEl.innerHTML = '<div class="empty-state"><div style="font-size:28px;margin-bottom:10px;">&#x1F465;</div>Loading group chats\u2026</div>';
     try {
-        const q = fs.query(fs.collection(fs.db,'groupChats'), fs.where('members','array-contains',user.uid));
+        // orderBy('lastMsgTs','desc') matches the composite index in firestore.indexes.json
+        // (members array-contains + lastMsgTs desc) so the query uses the index correctly.
+        const q = fs.query(
+            fs.collection(fs.db, 'groupChats'),
+            fs.where('members', 'array-contains', user.uid),
+            fs.orderBy('lastMsgTs', 'desc')
+        );
         _gcInboxUnsub = fs.onSnapshot(q, snap => {
             _gcInboxGroups = [];
             snap.forEach(d => _gcInboxGroups.push({ id: d.id, ...d.data() }));
+            // Server already returns in lastMsgTs desc order — keep sort as fallback
             _gcInboxGroups.sort((a,b) => (b.lastMsgTs||0) - (a.lastMsgTs||0));
             _gcRenderGroupList();
             _gcUpdateGroupBadge();

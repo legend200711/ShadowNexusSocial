@@ -123,6 +123,14 @@
         { "fieldPath": "authorUid",  "order": "ASCENDING" },
         { "fieldPath": "createdAt",  "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "groupChats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "members",    "arrayConfig": "CONTAINS" },
+        { "fieldPath": "lastMsgTs",  "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
