@@ -22,7 +22,7 @@
   if (!('serviceWorker' in navigator)) return;
 
   const isGH    = location.pathname.startsWith('/ShadowNexusSocial');
-  const base    = isGH ? '/ShadowNexusSocial/' : './';
+  const base    = isGH ? '/ShadowNexusSocial/' : '/';
   const swPath  = base + 'sw.js';
 
   window.addEventListener('load', async () => {

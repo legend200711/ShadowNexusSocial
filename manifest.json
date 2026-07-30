@@ -2,6 +2,7 @@
   "name": "Shadow Nexus Social",
   "short_name": "Shadow Nexus",
   "description": "Shadow Nexus Social is a social media platform for connecting with friends, posting updates, messaging, and sharing content.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

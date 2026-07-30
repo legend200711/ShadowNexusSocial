@@ -11847,6 +11847,7 @@ body.arcade-fs-ios body::after { display:none !important; }
   }
 
   // Handle cold-start query params (app was closed when notification was tapped)
+  // Also handles URL hash deep-links: /#feed, /#messages, /#profile, etc.
   (function() {
       const _params  = new URLSearchParams(window.location.search);
       const _chatUid = _params.get('snxChat');
@@ -11857,9 +11858,36 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (_page) {
           window._snxPendingPage = _page === 'notifications' ? 'notificationsPage' : _page;
       }
-      if (_chatUid || _page) {
-          // Strip params from URL bar without reload
-          history.replaceState(null, '', window.location.pathname + window.location.hash);
+      // ── Hash deep-link router ──
+      // Converts /#feed, /#messages, /#notifications, etc. → _snxPendingPage
+      // so the correct section opens after auth resolves.
+      // Only set if no higher-priority ?snxPage= param already set a pending page.
+      if (!window._snxPendingPage) {
+          const _hashRoutes = {
+              feed:          'feed',
+              home:          'feed',
+              messages:      'inboxPage',
+              inbox:         'inboxPage',
+              notifications: 'notificationsPage',
+              notifs:        'notificationsPage',
+              profile:       'profile',
+              search:        'searchPage',
+              friends:       'friendsPage',
+              community:     'communityPage',
+              events:        'stormRoomsPage',
+              live:          'liveHubPage',
+              games:         'stormRoomsPage',
+              settings:      'settingsPage',
+              support:       'supportRoomsPage',
+          };
+          const _rawHash = (window.location.hash || '').replace(/^#/, '').toLowerCase().split('/')[0];
+          if (_rawHash && _hashRoutes[_rawHash]) {
+              window._snxPendingPage = _hashRoutes[_rawHash];
+          }
+      }
+      // Strip params and hash from URL bar without reload so the URL is clean
+      if (_chatUid || _page || window._snxPendingPage) {
+          history.replaceState(null, '', window.location.pathname);
       }
   })();
 
