@@ -32,14 +32,14 @@
 <meta property="og:title"       content="Shadow Nexus Social">
 <meta property="og:description" content="Connect, post, message, and share. No judgment. Stay legendary. 🌑🔥">
 <meta property="og:type"        content="website">
-<meta property="og:url"         content="https://legend200711.github.io/ShadowNexusSocial/">
-<meta property="og:image"       content="https://legend200711.github.io/ShadowNexusSocial/icon-512.png">
+<meta property="og:url"         content="https://shadownexussocial.online/">
+<meta property="og:image"       content="https://shadownexussocial.online/icon-512.png">
 
 <!-- ── Twitter Card ── -->
 <meta name="twitter:card"        content="summary">
 <meta name="twitter:title"       content="Shadow Nexus Social">
 <meta name="twitter:description" content="Connect, post, message, and share. No judgment. Stay legendary.">
-<meta name="twitter:image"       content="https://legend200711.github.io/ShadowNexusSocial/icon-512.png">
+<meta name="twitter:image"       content="https://shadownexussocial.online/icon-512.png">
 
 <!-- ── Shared stylesheet ── -->
 <link rel="stylesheet" href="style.css">
@@ -29629,6 +29629,170 @@ function _renderAchievements(userData, statsData) {
 /* ════════════════════════════════════════════════════════
    11. PROFILE MUSIC
    ════════════════════════════════════════════════════════ */
+
+/* ── Profile Music Lifecycle Manager ──────────────────────
+   Single source of truth for profile music state.
+   All stop/teardown calls go through here so nothing leaks
+   across page navigations or profile switches.
+   ──────────────────────────────────────────────────────── */
+(function() {
+    var mgr = {
+        // UID of the profile whose audio is currently loaded/playing
+        _profileUid: null,
+        // audio element ID (constant: 'snxProfileAudio')
+        _audioId: 'snxProfileAudio',
+        // Per-profile play preference: uid → true (user pressed Play) / false (user pressed Pause/Stop)
+        // Keyed by profile UID so navigating back respects the user's last choice.
+        _playPref: {},
+
+        /* Stop + fully tear down the current audio element. */
+        stopAndClean: function() {
+            var audio = document.getElementById(this._audioId);
+            if (audio) {
+                try { audio.pause(); } catch(_) {}
+                try { audio.src = ''; } catch(_) {}
+                // Removing the src forces the browser to release the media resource
+                // on Android/iOS where pause() alone sometimes keeps the stream open.
+                try { audio.load(); } catch(_) {}
+            }
+            // Reset the play button / animation so the UI looks consistent
+            var btn  = document.getElementById('snxMusicPlayBtn');
+            var icon = document.getElementById('snxMusicNoteIcon');
+            if (btn)  btn.textContent = '▶';
+            if (icon) icon.style.animationPlayState = 'paused';
+        },
+
+        /* Called whenever we navigate away from the profile page or open another profile. */
+        onLeaveProfile: function() {
+            this.stopAndClean();
+            // Don't clear _profileUid/_playPref here — we preserve session memory.
+        },
+
+        /* Register a new profile's audio element after the player HTML has been built. */
+        register: function(profileUid, audioEl, autoplay, music) {
+            var self = this;
+            this._profileUid = profileUid;
+
+            // Track explicit user Play/Pause choices so we can remember them
+            audioEl.addEventListener('play', function() {
+                // Only count as a deliberate choice when the audio was started via
+                // the play button (readyState > 0 means it actually started loading/playing).
+                self._playPref[profileUid] = true;
+            });
+            audioEl.addEventListener('pause', function() {
+                // Only record "paused" if the user deliberately paused (not a programmatic stop).
+                // We detect programmatic stops by checking _stopInProgress flag.
+                if (!self._stopInProgress) {
+                    self._playPref[profileUid] = false;
+                }
+            });
+
+            // Autoplay: only attempt after the DOM is fully rendered for THIS profile.
+            // We do this inside a microtask so the rest of _renderProfileMusic finishes first.
+            if (autoplay) {
+                Promise.resolve().then(function() {
+                    // Guard: make sure we are still on this profile and page
+                    if (self._profileUid !== profileUid) return;
+                    var profilePage = document.getElementById('profile');
+                    if (!profilePage || !profilePage.classList.contains('active')) return;
+
+                    audioEl.play().catch(function() {
+                        audioEl.muted = true;
+                        audioEl.play().then(function() {
+                            var vIcon   = document.getElementById('snxMusicVolIcon');
+                            var vSlider = document.getElementById('snxMusicVol');
+                            if (vIcon)   vIcon.textContent = '🔇';
+                            if (vSlider) vSlider.value = 0;
+                        }).catch(function() {
+                            audioEl.muted = false;
+                        });
+                    });
+                });
+            }
+        },
+
+        // Flag used to distinguish programmatic stops from user-initiated pauses
+        _stopInProgress: false,
+
+        /* Programmatic stop — does NOT record a "user paused" preference. */
+        stopProgrammatic: function() {
+            this._stopInProgress = true;
+            this.stopAndClean();
+            this._stopInProgress = false;
+        }
+    };
+
+    window._snxProfileMusic = mgr;
+
+    /* ── Hook: stop music on any page navigation ──────────── */
+    // We wrap show() (which is called by both navTo and viewProfile)
+    // so music stops the moment ANY page other than profile becomes active.
+    var _origShow = window.show;
+    if (typeof _origShow === 'function') {
+        window.show = function(pageId) {
+            if (pageId !== 'profile') {
+                // Leaving the profile page — kill audio
+                mgr.stopProgrammatic();
+            }
+            return _origShow(pageId);
+        };
+    }
+
+    /* ── Hook: stop music when navTo is called ────────────── */
+    // navTo calls show() internally, but also has logic that may short-circuit.
+    // We add an explicit hook here as a belt-and-suspenders guard so music always
+    // stops when the nav bar is used, regardless of access-control early returns.
+    var _hookNavTo = function() {
+        var _prev = window.navTo;
+        if (typeof _prev !== 'function') return;
+        window.navTo = function(pageId) {
+            if (pageId !== 'profile') {
+                mgr.stopProgrammatic();
+            }
+            return _prev.apply(this, arguments);
+        };
+    };
+
+    // navTo may be patched several times after this point; defer to end of microtask
+    // queue so we wrap the final version that is already set up.
+    Promise.resolve().then(_hookNavTo);
+
+    /* ── Hook: stop old music before a new profile loads ─── */
+    // viewProfile starts a new Firestore snapshot which will call _renderProfileMusic
+    // with a potentially different track. We stop any existing audio BEFORE that
+    // snapshot fires so there is never a moment when two tracks play together.
+    var _hookViewProfile = function() {
+        var _prevVP = window.viewProfile;
+        if (typeof _prevVP !== 'function') return;
+        window.viewProfile = function(uid) {
+            // If this is a *different* profile, stop current music immediately.
+            if (uid !== mgr._profileUid) {
+                mgr.stopProgrammatic();
+            }
+            return _prevVP.apply(this, arguments);
+        };
+    };
+    Promise.resolve().then(_hookViewProfile);
+
+    /* ── Mobile / tab close: pagehide + visibilitychange ─── */
+    // beforeunload is unreliable on Android/iOS. pagehide is the correct event.
+    window.addEventListener('pagehide', function() {
+        mgr.stopProgrammatic();
+    });
+
+    // When the tab is hidden (screen lock, app-switch, tab-switch) stop music.
+    // We do NOT resume on visibility-visible: the user must press Play again.
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') {
+            // Only stop if the profile page is currently active
+            var profilePage = document.getElementById('profile');
+            if (profilePage && profilePage.classList.contains('active')) {
+                mgr.stopProgrammatic();
+            }
+        }
+    });
+})();
+
 function _renderProfileMusic(pc, isSelf) {
     const card = document.getElementById('profileMusicCard');
     if (!card) return;
@@ -29652,6 +29816,9 @@ function _renderProfileMusic(pc, isSelf) {
     const safeArtist = (music.artist || '').replace(/[<>]/g, '');
     const pId = 'snxProfileAudio';
 
+    // Resolve the UID this player is being built for (used by the lifecycle manager)
+    const _currentProfileUid = window.activeProfileUid || null;
+
     // ── Skip re-render if the same track is already loaded ──
     // Prevents a Firestore snapshot update from interrupting active playback.
     const existingAudio = document.getElementById(pId);
@@ -29670,8 +29837,12 @@ function _renderProfileMusic(pc, isSelf) {
             if (artistEl) artistEl.textContent = safeArtist;
             return;
         }
-        // Different track — stop and discard the old element
-        try { existingAudio.pause(); existingAudio.src = ''; } catch(_) {}
+        // Different track — use the lifecycle manager to stop + release the old element
+        if (window._snxProfileMusic) {
+            window._snxProfileMusic.stopProgrammatic();
+        } else {
+            try { existingAudio.pause(); existingAudio.src = ''; } catch(_) {}
+        }
     }
 
     // ── Build player UI ──
@@ -29793,10 +29964,18 @@ function _renderProfileMusic(pc, isSelf) {
         _showMusicError('⚠️ ' + (msgs[code] || 'Could not load audio. Check the URL or try re-uploading.'));
     });
 
-    // ── Autoplay with muted fallback ──
-    // Browsers block unmuted autoplay. Muted autoplay is allowed.
-    // User can unmute with the volume slider.
-    if (music.autoplay === 'yes') {
+    // ── Register with lifecycle manager + handle autoplay ──
+    // The manager handles: autoplay guard (page must be active + profile must still match),
+    // play/pause state tracking, and programmatic stop without recording user preference.
+    if (window._snxProfileMusic) {
+        window._snxProfileMusic.register(
+            _currentProfileUid,
+            audio,
+            music.autoplay === 'yes',
+            music
+        );
+    } else if (music.autoplay === 'yes') {
+        // Fallback if manager isn't initialised yet (should not happen in practice)
         audio.play().catch(() => {
             audio.muted = true;
             audio.play().then(() => {
@@ -29804,10 +29983,7 @@ function _renderProfileMusic(pc, isSelf) {
                 const vSlider = document.getElementById('snxMusicVol');
                 if (vIcon)   vIcon.textContent = '🔇';
                 if (vSlider) vSlider.value = 0;
-            }).catch(() => {
-                // All autoplay blocked — user must press Play
-                audio.muted = false;
-            });
+            }).catch(() => { audio.muted = false; });
         });
     }
 }
