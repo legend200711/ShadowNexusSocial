@@ -15866,6 +15866,19 @@ body.arcade-fs-ios body::after { display:none !important; }
       const sbFont   = document.getElementById('sbFont')?.value   || '';
       const sbBorder = document.getElementById('sbBorder')?.value || '';
 
+      // ── Collect music fields (profile music player) ──
+      const _musicTitle  = (document.getElementById('editMusicTitle')?.value  || '').trim().substring(0, 80);
+      const _musicArtist = (document.getElementById('editMusicArtist')?.value || '').trim().substring(0, 80);
+      const _musicUrl    = (document.getElementById('editMusicUrl')?.value    || '').trim();
+      const _musicAuto   = document.getElementById('editMusicAutoplay')?.value || 'no';
+      const _musicRepeat = document.getElementById('editMusicRepeat')?.value   || 'no';
+      const _bannerAnim  = document.getElementById('editBannerAnim')?.value    || 'none';
+      const _featPostIds = [...document.querySelectorAll('.epm-featured-post-id')]
+                              .map(i => i.value.trim()).filter(Boolean).slice(0, 3);
+      const _featMediaUrls = [...document.querySelectorAll('.epm-featured-media-url')]
+                              .map(i => i.value.trim()).filter(Boolean).slice(0, 6);
+      const _chkVal = id => { const el = document.getElementById(id); return el ? el.checked : true; };
+
       const profileCustom = {
           accentColor:  _safeCss(document.getElementById("editAccentColor").value),
           nameColor:    _safeCss(document.getElementById("editNameColor").value),
@@ -15874,17 +15887,27 @@ body.arcade-fs-ios body::after { display:none !important; }
           spotlight:    document.getElementById("editSpotlight").value.trim().substring(0, 300),
           links:        links.slice(0, 5),
           sections: {
-              game:      document.getElementById("secShowGame").checked,
-              wall:      document.getElementById("secShowWall").checked,
-              spotlight: document.getElementById("secShowSpotlight").checked,
-              links:     document.getElementById("secShowLinks").checked,
-              stats:     document.getElementById("secShowStats").checked,
+              game:               document.getElementById("secShowGame").checked,
+              wall:               document.getElementById("secShowWall").checked,
+              spotlight:          document.getElementById("secShowSpotlight").checked,
+              links:              document.getElementById("secShowLinks").checked,
+              stats:              document.getElementById("secShowStats").checked,
+              showMusic:          _chkVal('secShowMusic'),
+              showVisitors:       _chkVal('secShowVisitors'),
+              showAchievements:   _chkVal('secShowAchievements'),
+              showFeaturedMedia:  _chkVal('secShowFeaturedMedia'),
+              showFeaturedPosts:  _chkVal('secShowFeaturedPosts'),
           },
           moodType,
           moodValue,
           sbCardBg,
           sbFont,
           sbBorder,
+          // ── Music player ──
+          music: { title: _musicTitle, artist: _musicArtist, url: _musicUrl, autoplay: _musicAuto, repeat: _musicRepeat },
+          animatedBanner: _bannerAnim,
+          featuredPostIds: _featPostIds,
+          featuredMediaUrls: _featMediaUrls,
       };
 
       try {
@@ -15904,6 +15927,8 @@ body.arcade-fs-ios body::after { display:none !important; }
               userData.moodValue = moodValue;
               userData.profileCustom = profileCustom;
           }
+          // Keep _snxUserData cache in sync so music player renders immediately
+          if (window._snxUserData) window._snxUserData.profileCustom = profileCustom;
           // Apply the custom styles immediately without waiting for a snapshot
           applyProfileCustom(profileCustom, currentUser.uid);
           closeEditProfileModal();
@@ -29618,7 +29643,7 @@ function _renderProfileMusic(pc, isSelf) {
     const player = document.getElementById('profileMusicPlayer');
     if (!player) return;
 
-    // Validate URL before rendering — reject empty or obviously non-audio values
+    // Validate URL — reject empty values
     const rawUrl = (music.url || '').trim();
     if (!rawUrl) { card.style.display = 'none'; return; }
 
@@ -29627,61 +29652,60 @@ function _renderProfileMusic(pc, isSelf) {
     const safeArtist = (music.artist || '').replace(/[<>]/g, '');
     const pId = 'snxProfileAudio';
 
-    // ── Skip re-render if the same track is already loaded and playing ──
-    // This prevents a snapshot update (e.g. wall post) from killing playback.
+    // ── Skip re-render if the same track is already loaded ──
+    // Prevents a Firestore snapshot update from interrupting active playback.
     const existingAudio = document.getElementById(pId);
     if (existingAudio) {
         const existingSrc = existingAudio.getAttribute('src') || existingAudio.currentSrc || '';
-        // Compare decoded URLs — Firebase Storage tokens may differ, so compare pathname only
+        // Firebase Storage tokens change on each fetch; compare pathname only
         let existingPath = '';
         let newPath = rawUrl;
         try { existingPath = new URL(existingSrc).pathname; } catch(_) {}
         try { newPath = new URL(rawUrl).pathname; } catch(_) {}
         if (existingPath && existingPath === newPath) {
-            // Same track — just update the title/artist display and edit button, leave audio alone
+            // Same track — update label text only; leave audio state untouched
             const titleEl = player.querySelector('.profile-music-title');
             if (titleEl) titleEl.textContent = safeTitle;
             const artistEl = player.querySelector('.profile-music-artist');
             if (artistEl) artistEl.textContent = safeArtist;
             return;
         }
-        // Different track — stop the old one before replacing
+        // Different track — stop and discard the old element
         try { existingAudio.pause(); existingAudio.src = ''; } catch(_) {}
     }
 
     // ── Build player UI ──
-    // No crossorigin attribute by default — Firebase Storage and R2 may reject
-    // credentialed CORS requests and cause an immediate load error.
+    // preload="none" avoids blocked-load errors on mobile before user taps Play.
+    // No crossorigin attribute — Firebase Storage / R2 may reject credentialed requests.
     player.innerHTML = `
         <div class="profile-music-player-inner" id="snxMusicPlayerUI">
             <div class="profile-music-icon" id="snxMusicNoteIcon" style="animation-play-state:paused;">🎵</div>
             <div class="profile-music-info">
                 <div class="profile-music-title">${safeTitle}</div>
                 ${safeArtist ? `<div class="profile-music-artist">${safeArtist}</div>` : ''}
-                <audio id="${pId}" src="${safeUrl}" preload="metadata"${music.repeat === 'yes' ? ' loop' : ''} style="display:none;"></audio>
+                <audio id="${pId}" src="${safeUrl}" preload="none"${music.repeat === 'yes' ? ' loop' : ''} style="display:none;"></audio>
+                <div id="snxMusicStatus" style="display:none;font-size:11px;color:#6a90b8;margin-top:4px;">⏳ Loading…</div>
                 <div id="snxMusicError" style="display:none;font-size:11px;color:#ff5566;margin-top:4px;"></div>
                 <div class="profile-music-controls">
-                    <button class="pm-ctrl-btn" id="snxMusicPlayBtn" onclick="snxMusicTogglePlay('${pId}')" title="Play / Pause" aria-label="Play or pause">▶</button>
-                    <button class="pm-ctrl-btn" id="snxMusicStopBtn" onclick="snxMusicStop('${pId}')" title="Stop" aria-label="Stop" style="font-size:11px;">⏹</button>
+                    <button class="pm-ctrl-btn" id="snxMusicPlayBtn" title="Play / Pause" aria-label="Play or pause">▶</button>
+                    <button class="pm-ctrl-btn" id="snxMusicStopBtn" title="Stop" aria-label="Stop" style="font-size:11px;">⏹</button>
                     <div class="pm-progress-wrap">
                         <div class="pm-progress-bar">
                             <div class="pm-progress-fill" id="snxMusicFill"></div>
-                            <input type="range" class="pm-seek" id="snxMusicSeek" min="0" max="100" value="0" step="0.1"
-                                   oninput="snxMusicSeek('${pId}',this.value)" aria-label="Seek">
+                            <input type="range" class="pm-seek" id="snxMusicSeek" min="0" max="100" value="0" step="0.1" aria-label="Seek">
                         </div>
                         <div class="pm-time" id="snxMusicTime">0:00 / 0:00</div>
                     </div>
-                    <button class="pm-ctrl-btn pm-repeat-btn${music.repeat === 'yes' ? ' active' : ''}" id="snxMusicRepeatBtn" onclick="snxMusicToggleRepeat('${pId}')" title="Repeat" aria-label="Toggle repeat">🔁</button>
+                    <button class="pm-ctrl-btn pm-repeat-btn${music.repeat === 'yes' ? ' active' : ''}" id="snxMusicRepeatBtn" title="Repeat" aria-label="Toggle repeat">🔁</button>
                     <div class="pm-vol-wrap">
-                        <span class="pm-vol-icon" onclick="snxMusicToggleMute('${pId}')" title="Mute / Unmute" style="cursor:pointer;">🔊</span>
-                        <input type="range" class="pm-volume" id="snxMusicVol" min="0" max="100" value="80" step="1"
-                               oninput="snxMusicVolume('${pId}',this.value)" aria-label="Volume">
+                        <span class="pm-vol-icon" id="snxMusicVolIcon" title="Mute / Unmute" style="cursor:pointer;">🔊</span>
+                        <input type="range" class="pm-volume" id="snxMusicVol" min="0" max="100" value="80" step="1" aria-label="Volume">
                     </div>
                 </div>
             </div>
         </div>`;
 
-    // Wire up audio element events after injecting HTML
+    // ── Wire up audio element via JS (no inline onclick) ──
     const audio = document.getElementById(pId);
     if (!audio) return;
 
@@ -29690,10 +29714,37 @@ function _renderProfileMusic(pc, isSelf) {
     const _showMusicError = (msg) => {
         const errEl = document.getElementById('snxMusicError');
         if (errEl) { errEl.textContent = msg; errEl.style.display = msg ? '' : 'none'; }
-        // Only disable Play for hard load errors, not user-interaction-required messages
+        const statusEl = document.getElementById('snxMusicStatus');
+        if (statusEl) statusEl.style.display = 'none';
+        // Disable Play only for unrecoverable load errors
         const btn = document.getElementById('snxMusicPlayBtn');
-        if (btn) btn.disabled = !!(msg && !msg.includes('Tap Play'));
+        if (btn) btn.disabled = !!(msg && !msg.includes('Tap'));
     };
+    const _showMusicStatus = (msg) => {
+        const statusEl = document.getElementById('snxMusicStatus');
+        if (statusEl) { statusEl.textContent = msg; statusEl.style.display = msg ? '' : 'none'; }
+    };
+
+    // Attach play/stop button handlers via addEventListener so they work on all browsers
+    const playBtn  = document.getElementById('snxMusicPlayBtn');
+    const stopBtn  = document.getElementById('snxMusicStopBtn');
+    const seekEl   = document.getElementById('snxMusicSeek');
+    const volEl    = document.getElementById('snxMusicVol');
+    const volIcon  = document.getElementById('snxMusicVolIcon');
+    const repeatBtn = document.getElementById('snxMusicRepeatBtn');
+
+    if (playBtn)  playBtn.addEventListener('click',  () => window.snxMusicTogglePlay(pId));
+    if (stopBtn)  stopBtn.addEventListener('click',  () => window.snxMusicStop(pId));
+    if (seekEl)   seekEl.addEventListener('input',   () => window.snxMusicSeek(pId, seekEl.value));
+    if (volEl)    volEl.addEventListener('input',    () => window.snxMusicVolume(pId, volEl.value));
+    if (volIcon)  volIcon.addEventListener('click',  () => window.snxMusicToggleMute(pId));
+    if (repeatBtn) repeatBtn.addEventListener('click', () => window.snxMusicToggleRepeat(pId));
+
+    // ── Audio events ──
+    audio.addEventListener('waiting', () => _showMusicStatus('⏳ Buffering…'));
+    audio.addEventListener('stalled', () => _showMusicStatus('⏳ Loading…'));
+    audio.addEventListener('canplay', () => _showMusicStatus(''));
+    audio.addEventListener('loadeddata', () => _showMusicStatus(''));
 
     audio.addEventListener('timeupdate', () => {
         const fill  = document.getElementById('snxMusicFill');
@@ -29706,6 +29757,7 @@ function _renderProfileMusic(pc, isSelf) {
     });
     audio.addEventListener('play', () => {
         _showMusicError('');
+        _showMusicStatus('');
         const btn  = document.getElementById('snxMusicPlayBtn');
         const icon = document.getElementById('snxMusicNoteIcon');
         if (btn)  { btn.textContent = '⏸'; btn.disabled = false; }
@@ -29728,33 +29780,32 @@ function _renderProfileMusic(pc, isSelf) {
         if (seek) seek.value = 0;
     });
 
-    // ── Error handling — no crossorigin so no CORS retry needed ──
+    // ── Error handling ──
     audio.addEventListener('error', () => {
+        _showMusicStatus('');
         const code = audio.error ? audio.error.code : 0;
         const msgs = {
             1: 'Playback aborted.',
-            2: 'Network error \u2014 check your connection.',
-            3: 'Audio file could not be decoded. The format may not be supported.',
-            4: 'Audio source not found or not accessible. Check the URL or re-upload the file.'
+            2: 'Network error — check your connection.',
+            3: 'Audio could not be decoded. Format may be unsupported.',
+            4: 'Audio file not found or not accessible. Check the URL or re-upload.'
         };
-        _showMusicError('\u26a0\ufe0f ' + (msgs[code] || 'Could not load audio. Check the URL or try re-uploading.'));
+        _showMusicError('⚠️ ' + (msgs[code] || 'Could not load audio. Check the URL or try re-uploading.'));
     });
 
     // ── Autoplay with muted fallback ──
-    // Browsers block autoplay with sound; muted autoplay is allowed.
-    // On success the user can unmute via the volume control.
+    // Browsers block unmuted autoplay. Muted autoplay is allowed.
+    // User can unmute with the volume slider.
     if (music.autoplay === 'yes') {
         audio.play().catch(() => {
-            // Unmuted autoplay blocked — try muted
             audio.muted = true;
             audio.play().then(() => {
-                // Muted autoplay succeeded — update UI to show muted state
-                const volIcon   = player.querySelector('.pm-vol-icon');
-                const volSlider = document.getElementById('snxMusicVol');
-                if (volIcon)   volIcon.textContent = '🔇';
-                if (volSlider) volSlider.value = 0;
+                const vIcon   = document.getElementById('snxMusicVolIcon');
+                const vSlider = document.getElementById('snxMusicVol');
+                if (vIcon)   vIcon.textContent = '🔇';
+                if (vSlider) vSlider.value = 0;
             }).catch(() => {
-                // All autoplay blocked — reset, user must press Play
+                // All autoplay blocked — user must press Play
                 audio.muted = false;
             });
         });
@@ -29771,26 +29822,38 @@ function _snxMusicFmt(s) {
 window.snxMusicTogglePlay = function(pId) {
     const audio = document.getElementById(pId);
     if (!audio) return;
+    // Clear any previous error so the user can retry
+    const errEl = document.getElementById('snxMusicError');
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+
     if (audio.paused) {
+        // preload="none": the browser has not loaded anything yet on first tap.
+        // Calling load() forces the network request so play() doesn't race.
+        if (audio.readyState === 0 /* HAVE_NOTHING */) {
+            const statusEl = document.getElementById('snxMusicStatus');
+            if (statusEl) { statusEl.textContent = '⏳ Loading…'; statusEl.style.display = ''; }
+            audio.load();
+        }
         const p = audio.play();
         if (p && p.catch) {
             p.catch(err => {
-                // NotAllowedError means autoplay/play was blocked by the browser
-                // (common on mobile). Show a helpful message rather than silently failing.
+                const _errShow = (msg) => {
+                    const el = document.getElementById('snxMusicError');
+                    if (el) { el.textContent = msg; el.style.display = ''; }
+                    const st = document.getElementById('snxMusicStatus');
+                    if (st) st.style.display = 'none';
+                };
                 if (err && err.name === 'NotAllowedError') {
-                    const errEl = document.getElementById('snxMusicError');
-                    if (errEl) {
-                        errEl.textContent = '⚠️ Tap Play again — your browser requires a direct tap to start audio.';
-                        errEl.style.display = '';
-                    }
-                }
-                // NotSupportedError means the URL/format is invalid
-                else if (err && err.name === 'NotSupportedError') {
-                    const errEl = document.getElementById('snxMusicError');
-                    if (errEl) {
-                        errEl.textContent = '⚠️ Audio format not supported or URL is not accessible.';
-                        errEl.style.display = '';
-                    }
+                    // Browser requires a direct user gesture — common on iOS/Android
+                    _errShow('⚠️ Tap Play again — your browser requires a direct tap to start audio.');
+                } else if (err && err.name === 'NotSupportedError') {
+                    _errShow('⚠️ Audio format not supported or URL is not accessible.');
+                } else if (err && err.name === 'AbortError') {
+                    // load() interrupted play() — retry once after load settles
+                    audio.addEventListener('canplay', function _retry() {
+                        audio.removeEventListener('canplay', _retry);
+                        audio.play().catch(() => {});
+                    }, { once: true });
                 }
             });
         }
@@ -29824,16 +29887,16 @@ window.snxMusicVolume = function(pId, val) {
     const audio = document.getElementById(pId);
     if (!audio) return;
     audio.volume = val / 100;
-    audio.muted  = val == 0;
-    const icon = document.querySelector('#snxMusicPlayerUI .pm-vol-icon');
-    if (icon) icon.textContent = val == 0 ? '🔇' : val < 40 ? '🔉' : '🔊';
+    audio.muted  = (val == 0);
+    const icon = document.getElementById('snxMusicVolIcon');
+    if (icon) icon.textContent = (val == 0) ? '🔇' : (val < 40) ? '🔉' : '🔊';
 };
 
 window.snxMusicToggleMute = function(pId) {
     const audio = document.getElementById(pId);
     if (!audio) return;
     audio.muted = !audio.muted;
-    const icon   = document.querySelector('#snxMusicPlayerUI .pm-vol-icon');
+    const icon   = document.getElementById('snxMusicVolIcon');
     const slider = document.getElementById('snxMusicVol');
     if (audio.muted) {
         if (icon) icon.textContent = '🔇';
@@ -30008,107 +30071,11 @@ async function _renderFeaturedPosts(pc, isSelf) {
 })();
 
 /* ════════════════════════════════════════════════════════
-   15. SAVE PROFILE — extend to include music + new fields
-   ════════════════════════════════════════════════════════
-   Strategy: we wrap btnSaveProfile.onclick so that just before the
-   original onclick fires, we collect the extra fields and stash them in
-   window._snxProfileCustomPatch.  We simultaneously wrap the Firestore
-   updateDoc (via window._snxFirestore) so that when the original onclick
-   calls updateDoc with a profileCustom payload, we merge our extra fields
-   in before the write.  After the write we also patch the local userData
-   cache so that applyProfileCustom immediately picks up the new music data
-   without waiting for the next onSnapshot. */
-(function() {
-    // ── Helper: collect current music + extra-section values from the modal ──
-    function _collectMusicPatch() {
-        const musicTitle    = (document.getElementById('editMusicTitle')?.value  || '').trim().substring(0, 80);
-        const musicArtist   = (document.getElementById('editMusicArtist')?.value || '').trim().substring(0, 80);
-        const musicUrl      = (document.getElementById('editMusicUrl')?.value    || '').trim();
-        const musicAuto     = document.getElementById('editMusicAutoplay')?.value || 'no';
-        const musicRepeat   = document.getElementById('editMusicRepeat')?.value   || 'no';
-        const bannerAnim    = document.getElementById('editBannerAnim')?.value    || 'none';
-
-        const featPostIds   = [...document.querySelectorAll('.epm-featured-post-id')]
-                                .map(i => i.value.trim()).filter(Boolean).slice(0, 3);
-        const featMediaUrls = [...document.querySelectorAll('.epm-featured-media-url')]
-                                .map(i => i.value.trim()).filter(Boolean).slice(0, 6);
-
-        // Read checkbox values directly — default true if element missing
-        const _chkVal = id => { const el = document.getElementById(id); return el ? el.checked : true; };
-        return {
-            music: { title: musicTitle, artist: musicArtist, url: musicUrl, autoplay: musicAuto, repeat: musicRepeat },
-            animatedBanner: bannerAnim,
-            featuredPostIds: featPostIds,
-            featuredMediaUrls: featMediaUrls,
-            _extraSections: {
-                showMusic:          _chkVal('secShowMusic'),
-                showVisitors:       _chkVal('secShowVisitors'),
-                showAchievements:   _chkVal('secShowAchievements'),
-                showFeaturedMedia:  _chkVal('secShowFeaturedMedia'),
-                showFeaturedPosts:  _chkVal('secShowFeaturedPosts'),
-            },
-        };
-    }
-
-    // ── Wrap btnSaveProfile.onclick ──
-    const _btn = document.getElementById('btnSaveProfile');
-    if (!_btn) return;
-    const _origClick = _btn.onclick;
-    _btn.onclick = async function() {
-        window._snxProfileCustomPatch = _collectMusicPatch();
-        if (_origClick) await _origClick.call(this);
-        // After the original save, also patch the local userData cache so that
-        // _renderProfileMusic immediately reflects the saved music without
-        // waiting for the Firestore onSnapshot to re-fire.
-        const patch = window._snxProfileCustomPatch; // may already be null if merged
-        const ud = window._snxUserData || window.userData;
-        if (ud) {
-            const pc = ud.profileCustom || (ud.profileCustom = {});
-            const savedPatch = patch || window._snxLastMusicPatch;
-            if (savedPatch) {
-                if (savedPatch.music) pc.music = savedPatch.music;
-                if (savedPatch.animatedBanner !== undefined) pc.animatedBanner = savedPatch.animatedBanner;
-                if (savedPatch.featuredPostIds)  pc.featuredPostIds  = savedPatch.featuredPostIds;
-                if (savedPatch.featuredMediaUrls) pc.featuredMediaUrls = savedPatch.featuredMediaUrls;
-                if (savedPatch._extraSections) {
-                    pc.sections = Object.assign(pc.sections || {}, savedPatch._extraSections);
-                }
-                window._snxLastMusicPatch = null;
-            }
-        }
-        window._snxProfileCustomPatch = null;
-    };
-
-    // ── Wrap Firestore updateDoc to merge music fields into the profileCustom write ──
-    // We poll until _snxFirestore is initialised (it loads asynchronously).
-    const _waitForFs = setInterval(() => {
-        const fs = window._snxFirestore;
-        if (!fs || !fs.updateDoc) return;
-        clearInterval(_waitForFs);
-
-        const _origUpdateDoc = fs.updateDoc;
-        fs.updateDoc = async function(ref, data, ...rest) {
-            const patch = window._snxProfileCustomPatch;
-            if (patch && data && data.profileCustom) {
-                const pc = data.profileCustom;
-                // Always merge music — even if url is empty (clears the player)
-                pc.music = patch.music;
-                // Always save animatedBanner (including 'none')
-                pc.animatedBanner = patch.animatedBanner;
-                // Always save arrays (may be empty to clear them)
-                pc.featuredPostIds   = patch.featuredPostIds;
-                pc.featuredMediaUrls = patch.featuredMediaUrls;
-                if (patch._extraSections) {
-                    pc.sections = Object.assign(pc.sections || {}, patch._extraSections);
-                }
-                // Keep a copy for the post-save cache patch above
-                window._snxLastMusicPatch = Object.assign({}, patch);
-                window._snxProfileCustomPatch = null;
-            }
-            return _origUpdateDoc.call(this, ref, data, ...rest);
-        };
-    }, 200);
-})();
+   15. SAVE PROFILE — music fields are now collected directly
+       inside the module's btnSaveProfile.onclick handler.
+       This section is kept as a no-op placeholder so line
+       numbers remain stable for debugging.
+   ════════════════════════════════════════════════════════ */
 
 /* ════════════════════════════════════════════════════════
    16. POPULATE NEW PROFILE EDIT FIELDS ON MODAL OPEN
