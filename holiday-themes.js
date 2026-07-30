@@ -421,10 +421,27 @@
     };
   }
 
+  /* ── Founder email constant — must match the one in index.html ── */
+  const _FOUNDER_EMAIL = 'christijerina46@gmail.com';
+
   function _founderCheck() {
+    // 1. window._snxRole is set immediately from email in onAuthStateChanged —
+    //    most reliable check, available even before Firestore snapshot returns.
+    if (window._snxRole === 'founder') return true;
+    // 2. window.userData is kept in sync by the onSnapshot listener in index.html.
     if (window.userData && window.userData.role === 'founder') return true;
+    // 3. window._snxUserData is the same object under the canonical alias.
+    if (window._snxUserData && window._snxUserData.role === 'founder') return true;
+    // 4. Delegate to the main founderOnly() guard (index.html IIFE scope).
     if (typeof founderOnly === 'function') return founderOnly();
-    _toast('⛔ Founder access only.');
+    // 5. Last resort: verify by email directly.
+    const _cu = window._snxCurrentUser || null;
+    if (_cu && _cu.email && _cu.email.toLowerCase() === _FOUNDER_EMAIL) return true;
+    // Log the exact state for debugging instead of a generic error.
+    const _role  = window._snxRole || (window.userData && window.userData.role) || 'unknown';
+    const _email = (_cu && _cu.email) || 'not signed in';
+    console.warn('[HolidayThemes] _founderCheck denied. _snxRole=' + _role + ', email=' + _email);
+    _toast('⛔ Founder access only. (role: ' + _role + ')');
     return false;
   }
 

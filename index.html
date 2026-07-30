@@ -12056,6 +12056,9 @@ body.arcade-fs-ios body::after { display:none !important; }
               if (!docSnap.exists()) return;
               userData = docSnap.data();
               window._snxUserData = userData;
+              // Keep window.userData in sync so holiday-themes.js and other external
+              // scripts can check window.userData.role without accessing the closure var.
+              window.userData = userData;
               // Founder email always takes priority — never let Firestore override it
               const isFounderEmail = user.email && user.email.toLowerCase() === FOUNDER_EMAIL.toLowerCase();
               if (!isFounderEmail) {
@@ -12283,6 +12286,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           }
           // Explicit logout path — tear down listeners below.
           currentUser = null; userData = null;
+          window.userData = null;
+          window._snxUserData = null;
           // Clear the presence heartbeat interval so it stops firing after logout
           if (window._snxPresenceHeartbeat) { clearInterval(window._snxPresenceHeartbeat); window._snxPresenceHeartbeat = null; }
           // ── Tear down EVERY real-time listener so nothing fires against a null user ──
@@ -16822,8 +16827,20 @@ body.arcade-fs-ios body::after { display:none !important; }
       try { await addDoc(collection(db,'auditLog'),{ action, details, adminUid:currentUser.uid, adminName:userData.displayName, ts:Date.now() }); } catch(_) {}
   }
   function founderOnly() {
-      if (!userData || userData.role !== 'founder') { toastNotification('⛔ Founder access only.'); return false; }
-      return true;
+      // Primary check: window._snxRole is set immediately from the founder email
+      // during onAuthStateChanged — it is reliable even before userData snapshot fires.
+      if (window._snxRole === 'founder') return true;
+      // Secondary check: Firestore userData snapshot (may not have fired yet on fresh login).
+      if (userData && userData.role === 'founder') return true;
+      // Tertiary check: direct email comparison as a last resort
+      const _cu = window._snxCurrentUser || (typeof currentUser !== 'undefined' ? currentUser : null);
+      if (_cu && _cu.email && _cu.email.toLowerCase() === FOUNDER_EMAIL.toLowerCase()) return true;
+      // Diagnostic toast — log the actual state so it's debuggable
+      const _diagRole = window._snxRole || (userData && userData.role) || 'unknown';
+      const _diagEmail = (_cu && _cu.email) || 'not signed in';
+      console.warn('[founderOnly] Access denied. role=' + _diagRole + ', email=' + _diagEmail);
+      toastNotification('⛔ Founder access only. (role: ' + _diagRole + ')');
+      return false;
   }
   window.switchAdminTab = function(tab) {
       // 'emergency' is now fused into 'pages' — treat it as an alias
