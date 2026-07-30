@@ -1,11 +1,86 @@
 /* ═══════════════════════════════════════════════════════════════════
-   SHADOW NEXUS SOCIAL — HOLIDAY THEMES  v2.0
+   SHADOW NEXUS SOCIAL — FOUNDER THEME ENGINE  v3.0
    Applied via [data-snx-theme] on <html> element by holiday-themes.js.
    Each theme overrides the CSS custom properties from :root.
-   Also applies targeted overrides to buttons, nav, cards, and other
-   site-wide elements so every page reflects the holiday fully.
+   Also applies targeted overrides to buttons, nav, cards, and all
+   site-wide elements so every page reflects the theme fully.
    No layout or functionality is affected — cosmetics only.
+   Zero impact on Firebase, user data, streams, or app logic.
    ═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────
+   THEME ENGINE CSS CUSTOM PROPERTIES  (new in v3)
+   ───────────────────────────────────────────────────────────────────── */
+:root {
+  /* Typography */
+  --ht-font-body:       'Segoe UI', Arial, sans-serif;
+  --ht-font-heading:    'Segoe UI', Arial, sans-serif;
+  --ht-font-size-base:  14px;
+  --ht-font-size-sm:    12px;
+  --ht-font-size-lg:    16px;
+  --ht-font-weight:     400;
+  --ht-line-height:     1.6;
+  --ht-letter-spacing:  0;
+
+  /* Scrollbars */
+  --ht-scrollbar-thumb:  rgba(0,100,220,0.22);
+  --ht-scrollbar-track:  transparent;
+  --ht-scrollbar-width:  4px;
+
+  /* Shadows & Glow */
+  --ht-shadow-card:      0 2px 12px rgba(0,0,0,0.55);
+  --ht-shadow-btn:       0 2px 8px rgba(0,0,0,0.40);
+  --ht-glow-intensity:   1;
+
+  /* Page & button border-radius */
+  --ht-radius-card:      10px;
+  --ht-radius-btn:       8px;
+  --ht-radius-input:     8px;
+
+  /* Transitions */
+  --ht-transition-dur:   0.45s;
+  --ht-page-transition:  fadeSlide;
+
+  /* Wallpaper / background image */
+  --ht-wallpaper:        none;
+  --ht-wallpaper-opacity: 0.12;
+
+  /* Logo override */
+  --ht-logo-url:         none;
+
+  /* Cursor */
+  --ht-cursor:           auto;
+  --ht-cursor-pointer:   pointer;
+
+  /* Banner gradient (used by custom + all themes) */
+  --ht-banner-gradient:  linear-gradient(90deg,#00AEEF,#39FF14,#00AEEF);
+
+  /* Per-page tint overlays (transparent = no override) */
+  --ht-feed-bg:          transparent;
+  --ht-profile-bg:       transparent;
+  --ht-messages-bg:      transparent;
+  --ht-communities-bg:   transparent;
+  --ht-events-bg:        transparent;
+  --ht-live-bg:          transparent;
+  --ht-games-bg:         transparent;
+  --ht-notifications-bg: transparent;
+
+  /* Button colour overrides */
+  --ht-btn-bg:           var(--bg-card);
+  --ht-btn-color:        var(--text-primary);
+  --ht-btn-border:       var(--border-color);
+  --ht-btn-primary-bg:   linear-gradient(135deg,var(--neon-blue-dim),var(--neon-blue));
+  --ht-btn-primary-color: #fff;
+
+  /* Menu / nav colours */
+  --ht-nav-bg:           var(--bg-deeper);
+  --ht-nav-color:        var(--text-secondary);
+  --ht-nav-active-color: var(--neon-blue);
+  --ht-nav-active-bg:    rgba(255,255,255,0.05);
+
+  /* Sound toggle flag (cosmetic only — actual audio is JS) */
+  --ht-sound-enabled:    0;
+}
 
 /* ── Seasonal top-banner stripe ── */
 #snxHolidayBanner {
@@ -97,6 +172,142 @@
 .ht-splash-emoji { font-size: 64px; line-height: 1; margin-bottom: 12px; }
 .ht-splash-name  { font-size: 20px; font-weight: 800; color: var(--neon-blue, #00AEEF); letter-spacing: 1px; }
 
+/* ── Wallpaper overlay ── */
+#snxThemeWallpaper {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--ht-wallpaper, none);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  opacity: var(--ht-wallpaper-opacity, 0.12);
+  transition: opacity 0.6s ease;
+}
+#snxThemeWallpaper.visible { display: block; }
+
+/* ── Cursor effect overlay ── */
+#snxCursorEffect {
+  display: none;
+  position: fixed;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 999999;
+  transform: translate(-50%, -50%);
+  transition: transform 0.08s ease, opacity 0.15s ease;
+  mix-blend-mode: screen;
+}
+#snxCursorEffect.visible { display: block; }
+
+/* Cursor trail sparkle */
+.snx-cursor-trail {
+  position: fixed;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 999998;
+  transform: translate(-50%, -50%);
+  animation: cursorTrailFade 0.5s ease forwards;
+}
+@keyframes cursorTrailFade {
+  from { opacity: 0.9; transform: translate(-50%,-50%) scale(1.2); }
+  to   { opacity: 0;   transform: translate(-50%,-50%) scale(0.2); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   THEME ENGINE — apply body font & wallpaper from CSS vars
+   ══════════════════════════════════════════════════════════════════ */
+[data-snx-theme] body {
+  font-family: var(--ht-font-body) !important;
+  font-size: var(--ht-font-size-base) !important;
+  font-weight: var(--ht-font-weight) !important;
+  line-height: var(--ht-line-height) !important;
+}
+[data-snx-theme] h1,
+[data-snx-theme] h2,
+[data-snx-theme] h3,
+[data-snx-theme] h4,
+[data-snx-theme] .eclipse-title,
+[data-snx-theme] .section-title {
+  font-family: var(--ht-font-heading) !important;
+  letter-spacing: var(--ht-letter-spacing) !important;
+}
+
+/* ── Scrollbars — themed ── */
+[data-snx-theme] * {
+  scrollbar-color: var(--ht-scrollbar-thumb) var(--ht-scrollbar-track) !important;
+}
+[data-snx-theme] ::-webkit-scrollbar {
+  width: var(--ht-scrollbar-width) !important;
+  height: var(--ht-scrollbar-width) !important;
+}
+[data-snx-theme] ::-webkit-scrollbar-track {
+  background: var(--ht-scrollbar-track) !important;
+}
+[data-snx-theme] ::-webkit-scrollbar-thumb {
+  background: var(--ht-scrollbar-thumb) !important;
+  border-radius: 4px;
+}
+
+/* ── Per-page tint overlays ── */
+[data-snx-theme] #feed           { background-color: var(--ht-feed-bg,         transparent) !important; }
+[data-snx-theme] #profile        { background-color: var(--ht-profile-bg,       transparent) !important; }
+[data-snx-theme] #inboxPage      { background-color: var(--ht-messages-bg,      transparent) !important; }
+[data-snx-theme] #communityPage,
+[data-snx-theme] #stormRoomsPage,
+[data-snx-theme] #supportRoomsPage { background-color: var(--ht-communities-bg, transparent) !important; }
+[data-snx-theme] #notificationsPage { background-color: var(--ht-notifications-bg, transparent) !important; }
+[data-snx-theme] #liveHubPage    { background-color: var(--ht-live-bg,          transparent) !important; }
+[data-snx-theme] #arcadeGameModal { background-color: var(--ht-games-bg,        transparent) !important; }
+
+/* ── Border-radius theming ── */
+[data-snx-theme] .section-card,
+[data-snx-theme] .post-card,
+[data-snx-theme] .event-card,
+[data-snx-theme] .community-card,
+[data-snx-theme] .msg-bubble {
+  border-radius: var(--ht-radius-card) !important;
+  box-shadow: var(--ht-shadow-card) !important;
+}
+[data-snx-theme] button {
+  border-radius: var(--ht-radius-btn) !important;
+}
+[data-snx-theme] input,
+[data-snx-theme] textarea,
+[data-snx-theme] select {
+  border-radius: var(--ht-radius-input) !important;
+}
+
+/* ── Nav bar theming ── */
+[data-snx-theme] .sidebar,
+[data-snx-theme] #snxSideNav,
+[data-snx-theme] .bottom-nav,
+[data-snx-theme] .nav-bar {
+  background: var(--ht-nav-bg) !important;
+}
+[data-snx-theme] .nav-item { color: var(--ht-nav-color) !important; }
+[data-snx-theme] .nav-item.active,
+[data-snx-theme] .nav-item:hover {
+  color: var(--ht-nav-active-color) !important;
+  background: var(--ht-nav-active-bg) !important;
+}
+
+/* ── Button theming ── */
+[data-snx-theme] button:not(.nav-item):not(.admin-tab):not([style]) {
+  background: var(--ht-btn-bg) !important;
+  color: var(--ht-btn-color) !important;
+  border-color: var(--ht-btn-border) !important;
+  box-shadow: var(--ht-shadow-btn) !important;
+}
+[data-snx-theme] .btn-primary,
+[data-snx-theme] button.primary {
+  background: var(--ht-btn-primary-bg) !important;
+  color: var(--ht-btn-primary-color) !important;
+}
+
 /* ══════════════════════════════════════════════════════════════════
    SHARED THEME TRANSITION — smooth theme switching on every element
    ══════════════════════════════════════════════════════════════════ */
@@ -109,10 +320,10 @@
 [data-snx-theme] textarea,
 [data-snx-theme] select {
   transition:
-    background-color 0.45s ease,
-    border-color     0.45s ease,
-    color            0.45s ease,
-    box-shadow       0.45s ease !important;
+    background-color var(--ht-transition-dur, 0.45s) ease,
+    border-color     var(--ht-transition-dur, 0.45s) ease,
+    color            var(--ht-transition-dur, 0.45s) ease,
+    box-shadow       var(--ht-transition-dur, 0.45s) ease !important;
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -126,27 +337,12 @@
 [data-snx-theme] .page {
   background-color: var(--bg-main) !important;
 }
-[data-snx-theme] button {
-  border-color: var(--border-color);
-}
-[data-snx-theme] button:not([style]):not(.nav-item):not(.admin-tab) {
-  background: var(--bg-card);
-  color: var(--text-primary);
-}
 [data-snx-theme] input,
 [data-snx-theme] textarea,
 [data-snx-theme] select {
   background: var(--bg-input) !important;
   color: var(--text-primary) !important;
   border-color: var(--border-color) !important;
-}
-[data-snx-theme] .nav-item {
-  color: var(--text-secondary);
-}
-[data-snx-theme] .nav-item:hover,
-[data-snx-theme] .nav-item.active {
-  color: var(--neon-blue);
-  background: rgba(255,255,255,0.05);
 }
 [data-snx-theme] .eclipse-title {
   color: var(--neon-blue) !important;
@@ -183,6 +379,11 @@
   --blue-glow-lg:0 0 44px rgba(255,215,0,0.70);
   --green-glow-sm:0 0 10px rgba(255,215,0,0.50);
   --green-glow-md:0 0 24px rgba(255,215,0,0.60);
+  --ht-scrollbar-thumb: rgba(255,215,0,0.35);
+  --ht-shadow-card: 0 2px 16px rgba(255,215,0,0.12);
+  --ht-nav-bg: #07070f;
+  --ht-btn-primary-bg: linear-gradient(135deg,#8B6000,#FFD700);
+  --ht-btn-primary-color: #000;
 }
 [data-snx-theme="newyears"] #snxHolidayBanner {
   background:linear-gradient(90deg,#FFD700,#fff9a0,#FFD700,#fff9a0,#FFD700);
@@ -213,6 +414,11 @@
   --blue-glow-lg:0 0 44px rgba(255,107,138,0.70);
   --green-glow-sm:0 0 10px rgba(255,107,138,0.50);
   --green-glow-md:0 0 24px rgba(255,107,138,0.60);
+  --ht-scrollbar-thumb: rgba(255,107,138,0.35);
+  --ht-shadow-card: 0 2px 16px rgba(255,107,138,0.12);
+  --ht-nav-bg: #120608;
+  --ht-btn-primary-bg: linear-gradient(135deg,#8B002A,#FF6B8A);
+  --ht-btn-primary-color: #fff;
 }
 [data-snx-theme="valentines"] #snxHolidayBanner {
   background:linear-gradient(90deg,#FF6B8A,#FFBFD0,#FF6B8A,#FFBFD0,#FF6B8A);
@@ -247,6 +453,9 @@
   --blue-glow-lg:0 0 44px rgba(46,215,74,0.70);
   --green-glow-sm:0 0 10px rgba(46,215,74,0.50);
   --green-glow-md:0 0 24px rgba(46,215,74,0.60);
+  --ht-scrollbar-thumb: rgba(46,215,74,0.35);
+  --ht-shadow-card: 0 2px 16px rgba(46,215,74,0.10);
+  --ht-nav-bg: #040f05;
 }
 [data-snx-theme="stpatricks"] #snxHolidayBanner {
   background:linear-gradient(90deg,#1a7a28,#2ED74A,#FFD700,#2ED74A,#1a7a28);
@@ -271,6 +480,9 @@
   --blue-glow-lg:0 0 44px rgba(184,124,255,0.70);
   --green-glow-sm:0 0 10px rgba(128,232,120,0.50);
   --green-glow-md:0 0 24px rgba(128,232,120,0.60);
+  --ht-scrollbar-thumb: rgba(184,124,255,0.35);
+  --ht-shadow-card: 0 2px 16px rgba(184,124,255,0.12);
+  --ht-nav-bg: #0a0814;
 }
 [data-snx-theme="easter"] #snxHolidayBanner {
   background:linear-gradient(90deg,#B87CFF,#80E878,#FFD700,#7EB8FF,#FF9EB8,#B87CFF);
@@ -295,6 +507,9 @@
   --blue-glow-lg:0 0 44px rgba(74,144,217,0.70);
   --green-glow-sm:0 0 10px rgba(217,48,48,0.50);
   --green-glow-md:0 0 24px rgba(217,48,48,0.60);
+  --ht-scrollbar-thumb: rgba(74,144,217,0.35);
+  --ht-shadow-card: 0 2px 16px rgba(74,144,217,0.12);
+  --ht-nav-bg: #030710;
 }
 [data-snx-theme="memorialday"] #snxHolidayBanner {
   background:linear-gradient(90deg,#B82020,#D93030,#ffffff,#4A90D9,#2D6099,#D93030,#B82020);
@@ -315,6 +530,10 @@
   --blue-glow-lg:0 0 44px rgba(68,102,255,0.70);
   --green-glow-sm:0 0 12px rgba(255,51,34,0.55);
   --green-glow-md:0 0 24px rgba(255,51,34,0.65);
+  --ht-scrollbar-thumb: rgba(68,102,255,0.35);
+  --ht-shadow-card: 0 2px 16px rgba(68,102,255,0.12);
+  --ht-nav-bg: #020510;
+  --ht-btn-primary-bg: linear-gradient(135deg,#2244CC,#4466FF);
 }
 [data-snx-theme="july4"] #snxHolidayBanner {
   background:linear-gradient(90deg,#FF3322,#ffffff,#4466FF,#ffffff,#FF3322);
@@ -343,6 +562,11 @@
   --blue-glow-lg:0 0 44px rgba(255,106,0,0.70);
   --green-glow-sm:0 0 10px rgba(170,68,255,0.50);
   --green-glow-md:0 0 24px rgba(170,68,255,0.60);
+  --ht-scrollbar-thumb: rgba(255,106,0,0.40);
+  --ht-shadow-card: 0 2px 20px rgba(170,68,255,0.15);
+  --ht-nav-bg: #080203;
+  --ht-btn-primary-bg: linear-gradient(135deg,#7722CC,#AA44FF);
+  --ht-font-body: 'Segoe UI', Arial, sans-serif;
 }
 [data-snx-theme="halloween"] #snxHolidayBanner {
   background:linear-gradient(90deg,#FF6A00,#AA44FF,#FF6A00,#AA44FF,#FF6A00);
@@ -385,6 +609,9 @@
   --blue-glow-lg:0 0 44px rgba(224,112,32,0.70);
   --green-glow-sm:0 0 10px rgba(212,146,10,0.50);
   --green-glow-md:0 0 24px rgba(212,146,10,0.60);
+  --ht-scrollbar-thumb: rgba(224,112,32,0.35);
+  --ht-shadow-card: 0 2px 16px rgba(224,112,32,0.10);
+  --ht-nav-bg: #0a0601;
 }
 [data-snx-theme="thanksgiving"] #snxHolidayBanner {
   background:linear-gradient(90deg,#8B3A00,#E07020,#D4920A,#E07020,#8B3A00);
@@ -409,6 +636,10 @@
   --blue-glow-lg:0 0 44px rgba(212,32,32,0.70);
   --green-glow-sm:0 0 10px rgba(40,204,48,0.50);
   --green-glow-md:0 0 24px rgba(40,204,48,0.60);
+  --ht-scrollbar-thumb: rgba(212,32,32,0.35);
+  --ht-shadow-card: 0 2px 16px rgba(40,204,48,0.10);
+  --ht-nav-bg: #020802;
+  --ht-btn-primary-bg: linear-gradient(135deg,#7a0a0a,#D42020);
 }
 [data-snx-theme="christmas"] #snxHolidayBanner {
   background:linear-gradient(90deg,#D42020,#28CC30,#FFD700,#28CC30,#D42020);
@@ -447,6 +678,9 @@
   --blue-glow-lg:0 0 44px rgba(126,200,227,0.70);
   --green-glow-sm:0 0 10px rgba(176,216,248,0.50);
   --green-glow-md:0 0 24px rgba(176,216,248,0.60);
+  --ht-scrollbar-thumb: rgba(126,200,227,0.35);
+  --ht-shadow-card: 0 2px 16px rgba(126,200,227,0.10);
+  --ht-nav-bg: #030a12;
 }
 [data-snx-theme="winter"] #snxHolidayBanner {
   background:linear-gradient(90deg,#3a7090,#7EC8E3,#C0E8F5,#7EC8E3,#3a7090);
@@ -475,6 +709,10 @@
   --blue-glow-lg:0 0 44px rgba(255,68,204,0.70);
   --green-glow-sm:0 0 10px rgba(255,221,0,0.50);
   --green-glow-md:0 0 24px rgba(255,221,0,0.60);
+  --ht-scrollbar-thumb: rgba(255,68,204,0.35);
+  --ht-shadow-card: 0 2px 16px rgba(255,68,204,0.12);
+  --ht-nav-bg: #07030f;
+  --ht-btn-primary-bg: linear-gradient(135deg,#CC2299,#FF44CC);
 }
 [data-snx-theme="birthday"] #snxHolidayBanner {
   background:linear-gradient(90deg,#FF44CC,#FFDD00,#44CCFF,#FF8800,#FF44CC);
@@ -507,6 +745,10 @@
   --blue-glow-lg:0 0 44px rgba(212,168,64,0.70);
   --green-glow-sm:0 0 10px rgba(200,128,90,0.50);
   --green-glow-md:0 0 24px rgba(200,128,90,0.60);
+  --ht-scrollbar-thumb: rgba(212,168,64,0.35);
+  --ht-shadow-card: 0 2px 16px rgba(212,168,64,0.10);
+  --ht-nav-bg: #080602;
+  --ht-btn-primary-bg: linear-gradient(135deg,#9A7820,#D4A840);
 }
 [data-snx-theme="anniversary"] #snxHolidayBanner {
   background:linear-gradient(90deg,#8B6000,#D4A840,#EED090,#D4A840,#8B6000);
@@ -519,7 +761,7 @@
 /* ══════════════════════════════════════════════════════════════════
    CUSTOM — variables injected dynamically by holiday-themes.js
    ══════════════════════════════════════════════════════════════════ */
-[data-snx-theme="custom"] { /* vars set via element.style.setProperty() */ }
+[data-snx-theme="custom"] { /* all vars set via element.style.setProperty() */ }
 [data-snx-theme="custom"] #snxHolidayBanner {
   background:var(--ht-banner-gradient,linear-gradient(90deg,#00AEEF,#39FF14,#00AEEF));
 }
@@ -541,18 +783,38 @@
 [data-snx-theme="anniversary"]  .notification-item.unread { border-left-color: #D4A840 !important; }
 
 /* ══════════════════════════════════════════════════════════════════
-   PAGE TRANSITION FADE — smooth slide on page switches
+   PAGE TRANSITION — configurable per theme
    ══════════════════════════════════════════════════════════════════ */
+/* Default: fade + slide */
 [data-snx-theme] .page {
-  animation: htPageFadeIn 0.35s ease forwards;
+  animation: htPageFadeIn var(--ht-transition-dur, 0.35s) ease forwards;
 }
 @keyframes htPageFadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Zoom-in variant */
+[data-snx-theme="birthday"] .page,
+[data-snx-theme="newyears"] .page {
+  animation: htPageZoomIn var(--ht-transition-dur, 0.35s) ease forwards;
+}
+@keyframes htPageZoomIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Slide-right variant */
+[data-snx-theme="halloween"] .page {
+  animation: htPageSlideRight var(--ht-transition-dur, 0.35s) ease forwards;
+}
+@keyframes htPageSlideRight {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 /* ══════════════════════════════════════════════════════════════════
-   FOUNDER CONTROL PANEL — Holiday Themes tab UI styles
+   FOUNDER CONTROL PANEL — Theme Engine tab UI styles
    ══════════════════════════════════════════════════════════════════ */
 .snx-holiday-grid {
   display: grid;
@@ -591,6 +853,7 @@
 .snx-holiday-card.active-theme .ht-active-badge { display:block; }
 .snx-holiday-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
 
+/* ── Custom Theme Builder ── */
 .snx-custom-theme-builder {
   background:rgba(255,255,255,0.03);
   border:1px solid rgba(255,255,255,0.1);
@@ -606,21 +869,25 @@
   letter-spacing:0.6px;
 }
 .snx-color-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
-.snx-color-row label { font-size:11px; color:var(--text-secondary,#b8d4f0); min-width:120px; }
+.snx-color-row label { font-size:11px; color:var(--text-secondary,#b8d4f0); min-width:130px; }
 .snx-color-row input[type="color"] {
   width:40px; height:28px;
   border:1.5px solid rgba(255,255,255,0.2);
   border-radius:6px; padding:2px;
   background:transparent; cursor:pointer;
 }
-.snx-color-row input[type="text"] {
-  width:90px; font-size:11px; font-family:monospace;
+.snx-color-row input[type="text"],
+.snx-color-row input[type="number"],
+.snx-color-row select {
+  width:110px; font-size:11px; font-family:monospace;
   padding:4px 8px; border-radius:6px;
   background:rgba(255,255,255,0.06);
   border:1px solid rgba(255,255,255,0.15);
   color:var(--text-primary,#fff);
 }
+.snx-color-row select { width:140px; font-family:inherit; }
 
+/* ── Schedule rows ── */
 .snx-schedule-row {
   display:flex; align-items:center; gap:10px;
   padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06);
@@ -639,3 +906,34 @@
   background:rgba(57,255,20,0.15);
   color:#39FF14;
 }
+
+/* ── Theme Engine section tabs ── */
+.ht-sub-tabs {
+  display:flex; gap:6px; flex-wrap:wrap;
+  margin-bottom:14px;
+}
+.ht-sub-tab {
+  padding:5px 14px; font-size:11px; font-weight:700;
+  border-radius:20px; cursor:pointer;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.12);
+  color:var(--text-secondary,#b8d4f0);
+  transition:all 0.15s;
+}
+.ht-sub-tab:hover { border-color:rgba(0,174,239,0.4); color:#00d4ff; }
+.ht-sub-tab.active {
+  background:rgba(0,174,239,0.12);
+  border-color:rgba(0,174,239,0.5);
+  color:#00d4ff;
+}
+
+/* ── Preset chips ── */
+.ht-preset-chip {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 10px; border-radius:20px;
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.12);
+  font-size:11px; color:var(--text-secondary,#b8d4f0);
+  cursor:pointer; transition:all 0.12s;
+}
+.ht-preset-chip:hover { border-color:rgba(57,255,20,0.35); color:#39FF14; }

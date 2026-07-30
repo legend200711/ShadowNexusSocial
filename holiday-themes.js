@@ -1,36 +1,55 @@
 /* ══════════════════════════════════════════════════════════════════
-   SHADOW NEXUS SOCIAL — HOLIDAY THEMES ENGINE  v2.0
+   SHADOW NEXUS SOCIAL — FOUNDER THEME ENGINE  v3.0
    ─────────────────────────────────────────────────────────────────
    • Reads siteSettings/holidayTheme from Firestore in real-time
    • Applies [data-snx-theme] to <html> for CSS variable overrides
-   • Renders floating particles (snow, confetti, hearts, fireworks…)
-   • Seasonal 3px colour stripe banner at the top of the page
-   • Holiday music player (Founder enable/disable; users toggle)
-   • Theme preset save/restore system
-   • Scheduling: auto-activates themes on calendar dates
-   • Preview mode before publishing (Founder only)
-   • Real-time BroadcastChannel sync across all open tabs
-   • Fully compatible — zero impact on streams, messages, or data
+   • Full colour palette: backgrounds, text, buttons, nav, cards,
+     borders, accents — all configurable per theme
+   • Typography: font family, size, weight, line-height per theme
+   • Wallpaper / background image with opacity control
+   • Logo override (injects CSS variable used by logo elements)
+   • Scrollbar theming per theme
+   • Shadows & glow effects per theme
+   • Per-page tint overrides: Feed, Profile, Messages, Communities,
+     Events, Live, Games, Notifications
+   • Cursor effects (desktop sparkle trail) — optional per theme
+   • Sound effects (Web Audio API ambient tones) — user-toggleable
+   • Page transition animations — variant per theme
+   • Loading screen & Splash screen — themed
+   • Floating particles (snow, confetti, hearts, fireworks, etc.)
+   • Seasonal 3px colour stripe banner at top of page
+   • Holiday presets: Christmas, Halloween, Valentine's Day, Easter,
+     Independence Day, Thanksgiving, New Year's, Winter + more
+   • Custom theme builder — unlimited custom themes
+   • Duplicate & edit existing themes
+   • Save/load/delete named presets — unlimited
+   • Preview mode (Founder-only, 30s auto-cancel)
+   • One-click Publish → real-time push to ALL users via Firestore
+   • One-click Restore Default
+   • Auto-schedule by calendar date — Founder can toggle on/off
+   • BroadcastChannel sync across all open tabs (same origin)
+   • Fully compatible — zero impact on Firebase data, streams,
+     messages, or any app logic
    ══════════════════════════════════════════════════════════════════ */
 (function _snxHolidayThemes() {
   'use strict';
 
   /* ── Theme catalogue ────────────────────────────────────────────── */
   const THEMES = {
-    none:         { id:'none',         name:'Default (No Theme)',  emoji:'🌑', swatch:'#0B1F3A,#00AEEF',   particles:null,        font:null,     music:null         },
-    newyears:     { id:'newyears',     name:"New Year's",          emoji:'🎆', swatch:'#0a0a12,#FFD700',   particles:'confetti',  font:null,     music:'newyears'   },
-    valentines:   { id:'valentines',   name:"Valentine's Day",     emoji:'💝', swatch:'#1a0810,#FF6B8A',   particles:'hearts',    font:null,     music:'valentines' },
-    stpatricks:   { id:'stpatricks',   name:"St. Patrick's Day",   emoji:'🍀', swatch:'#061a08,#2ED74A',   particles:'clovers',   font:null,     music:'stpatricks' },
-    easter:       { id:'easter',       name:'Easter',              emoji:'🐣', swatch:'#120e1f,#B87CFF',   particles:'eggs',      font:null,     music:null         },
-    memorialday:  { id:'memorialday',  name:'Memorial Day',        emoji:'🇺🇸', swatch:'#060b1a,#4A90D9',   particles:'stars',     font:null,     music:'patriotic'  },
-    july4:        { id:'july4',        name:'Independence Day',    emoji:'🎇', swatch:'#03081a,#4466FF',   particles:'fireworks', font:null,     music:'patriotic'  },
-    halloween:    { id:'halloween',    name:'Halloween',           emoji:'🎃', swatch:'#0f0508,#FF6A00',   particles:'bats',      font:null,     music:'halloween'  },
-    thanksgiving: { id:'thanksgiving', name:'Thanksgiving',        emoji:'🦃', swatch:'#110a02,#E07020',   particles:'leaves',    font:null,     music:null         },
-    christmas:    { id:'christmas',    name:'Christmas',           emoji:'🎄', swatch:'#040f04,#D42020',   particles:'snow',      font:null,     music:'christmas'  },
-    winter:       { id:'winter',       name:'Winter',              emoji:'❄️', swatch:'#050d18,#7EC8E3',   particles:'snow',      font:null,     music:'winter'     },
-    birthday:     { id:'birthday',     name:'Birthday',            emoji:'🎂', swatch:'#0a0418,#FF44CC',   particles:'confetti',  font:null,     music:'birthday'   },
-    anniversary:  { id:'anniversary',  name:'Anniversary',         emoji:'💫', swatch:'#0e0a04,#D4A840',   particles:'sparkles',  font:null,     music:null         },
-    custom:       { id:'custom',       name:'Custom Theme',        emoji:'🎨', swatch:'#0B1F3A,#00AEEF',   particles:'sparkles',  font:null,     music:null         },
+    none:         { id:'none',         name:'Default (No Theme)',  emoji:'🌑', swatch:'#0B1F3A,#00AEEF',   particles:null,        font:null,     music:null,         cursor:null,   transition:'fadeSlide' },
+    newyears:     { id:'newyears',     name:"New Year's",          emoji:'🎆', swatch:'#0a0a12,#FFD700',   particles:'confetti',  font:null,     music:'newyears',   cursor:'sparkle', transition:'zoom' },
+    valentines:   { id:'valentines',   name:"Valentine's Day",     emoji:'💝', swatch:'#1a0810,#FF6B8A',   particles:'hearts',    font:null,     music:'valentines', cursor:'heart',   transition:'fadeSlide' },
+    stpatricks:   { id:'stpatricks',   name:"St. Patrick's Day",   emoji:'🍀', swatch:'#061a08,#2ED74A',   particles:'clovers',   font:null,     music:'stpatricks', cursor:null,      transition:'fadeSlide' },
+    easter:       { id:'easter',       name:'Easter',              emoji:'🐣', swatch:'#120e1f,#B87CFF',   particles:'eggs',      font:null,     music:null,         cursor:'sparkle', transition:'fadeSlide' },
+    memorialday:  { id:'memorialday',  name:'Memorial Day',        emoji:'🇺🇸', swatch:'#060b1a,#4A90D9',  particles:'stars',     font:null,     music:'patriotic',  cursor:null,      transition:'fadeSlide' },
+    july4:        { id:'july4',        name:'Independence Day',    emoji:'🎇', swatch:'#03081a,#4466FF',   particles:'fireworks', font:null,     music:'patriotic',  cursor:'sparkle', transition:'fadeSlide' },
+    halloween:    { id:'halloween',    name:'Halloween',           emoji:'🎃', swatch:'#0f0508,#FF6A00',   particles:'bats',      font:null,     music:'halloween',  cursor:'sparkle', transition:'slideRight' },
+    thanksgiving: { id:'thanksgiving', name:'Thanksgiving',        emoji:'🦃', swatch:'#110a02,#E07020',   particles:'leaves',    font:null,     music:null,         cursor:null,      transition:'fadeSlide' },
+    christmas:    { id:'christmas',    name:'Christmas',           emoji:'🎄', swatch:'#040f04,#D42020',   particles:'snow',      font:null,     music:'christmas',  cursor:'snowflake', transition:'fadeSlide' },
+    winter:       { id:'winter',       name:'Winter',              emoji:'❄️', swatch:'#050d18,#7EC8E3',  particles:'snow',      font:null,     music:'winter',     cursor:'snowflake', transition:'fadeSlide' },
+    birthday:     { id:'birthday',     name:'Birthday',            emoji:'🎂', swatch:'#0a0418,#FF44CC',   particles:'confetti',  font:null,     music:'birthday',   cursor:'sparkle', transition:'zoom' },
+    anniversary:  { id:'anniversary',  name:'Anniversary',         emoji:'💫', swatch:'#0e0a04,#D4A840',   particles:'sparkles',  font:null,     music:null,         cursor:'sparkle', transition:'fadeSlide' },
+    custom:       { id:'custom',       name:'Custom Theme',        emoji:'🎨', swatch:'#0B1F3A,#00AEEF',   particles:'sparkles',  font:null,     music:null,         cursor:null,      transition:'fadeSlide' },
   };
 
   /* ── Auto-activation calendar ───────────────────────────────────── */
@@ -49,7 +68,7 @@
     { month:2,  startDay:1,  endDay:9,   themeId:'winter'       },
   ];
 
-  /* ── Music tracks (Web Audio API generated tones / royalty-free URLs) ─ */
+  /* ── Music tracks (Web Audio API generated tones) ─────────────── */
   const MUSIC_TRACKS = {
     newyears:   { label:"New Year's Fanfare",    loops:true  },
     valentines: { label:'Romantic Ambience',     loops:true  },
@@ -87,6 +106,9 @@
   let _musicInterval  = null;
   let _savedPresets   = [];
   let _liveData       = {};
+  let _cursorEnabled  = false;
+  let _cursorHandler  = null;
+  let _activeSubTab   = 'themes'; // Admin UI state
 
   /* ── Helpers ────────────────────────────────────────────────────── */
   function _toast(msg) {
@@ -130,7 +152,7 @@
       _fsApi = { db, doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc };
       return _fsApi;
     } catch(e) {
-      console.warn('[HolidayThemes] Firestore bootstrap failed:', e);
+      console.warn('[ThemeEngine] Firestore bootstrap failed:', e);
       return null;
     }
   }
@@ -138,36 +160,82 @@
   /* ── Apply theme to the page ─────────────────────────────────────── */
   function _applyTheme(themeId, customVars) {
     const html = document.documentElement;
+
     if (themeId === 'none') {
       html.removeAttribute('data-snx-theme');
     } else {
       html.setAttribute('data-snx-theme', themeId);
     }
 
-    // Custom vars — inject directly on <html>
+    // Reset all injected CSS vars first (non-custom themes use stylesheet rules)
+    const _allVars = [
+      '--bg-main','--bg-card','--bg-input','--bg-deep','--bg-deeper',
+      '--neon-blue','--neon-cyan','--neon-blue-dim','--neon-green','--neon-green-dim',
+      '--text-primary','--text-secondary','--text-muted','--border-color','--accent-glow',
+      '--blue-glow-sm','--blue-glow-md','--blue-glow-lg','--green-glow-sm','--green-glow-md',
+      '--ht-banner-gradient','--ht-font-body','--ht-font-heading',
+      '--ht-font-size-base','--ht-font-size-sm','--ht-font-size-lg',
+      '--ht-font-weight','--ht-line-height','--ht-letter-spacing',
+      '--ht-scrollbar-thumb','--ht-scrollbar-track','--ht-scrollbar-width',
+      '--ht-shadow-card','--ht-shadow-btn','--ht-glow-intensity',
+      '--ht-radius-card','--ht-radius-btn','--ht-radius-input',
+      '--ht-transition-dur','--ht-wallpaper','--ht-wallpaper-opacity',
+      '--ht-logo-url','--ht-cursor','--ht-cursor-pointer',
+      '--ht-feed-bg','--ht-profile-bg','--ht-messages-bg','--ht-communities-bg',
+      '--ht-events-bg','--ht-live-bg','--ht-games-bg','--ht-notifications-bg',
+      '--ht-btn-bg','--ht-btn-color','--ht-btn-border',
+      '--ht-btn-primary-bg','--ht-btn-primary-color',
+      '--ht-nav-bg','--ht-nav-color','--ht-nav-active-color','--ht-nav-active-bg',
+    ];
+
     if (themeId === 'custom' && customVars) {
+      // For custom themes, inject all provided vars directly
       for (const [key, val] of Object.entries(customVars)) {
         html.style.setProperty(key, val);
       }
-    } else if (themeId !== 'custom') {
-      ['--bg-main','--bg-card','--bg-input','--bg-deep','--bg-deeper',
-       '--neon-blue','--neon-cyan','--neon-blue-dim','--neon-green','--neon-green-dim',
-       '--text-primary','--text-secondary','--text-muted','--border-color','--accent-glow',
-       '--blue-glow-sm','--blue-glow-md','--blue-glow-lg','--green-glow-sm','--green-glow-md',
-       '--ht-banner-gradient','--ht-font-body','--ht-font-heading',
-       '--ht-transition-dur','--ht-border-radius',
-      ].forEach(k => html.style.removeProperty(k));
+    } else {
+      // Remove any previously injected inline vars so CSS rules take over
+      _allVars.forEach(k => html.style.removeProperty(k));
+
+      // Apply extended vars from Firestore data if they exist on this theme entry
+      if (customVars) {
+        for (const [key, val] of Object.entries(customVars)) {
+          html.style.setProperty(key, val);
+        }
+      }
     }
+
+    // Apply cursor override on <html>
+    if (themeId !== 'none') {
+      const t = THEMES[themeId] || {};
+      const cursorVal = customVars && customVars['--ht-cursor'] ? customVars['--ht-cursor'] : null;
+      if (cursorVal && cursorVal !== 'auto') {
+        document.body.style.cursor = cursorVal;
+      } else {
+        document.body.style.cursor = '';
+      }
+    } else {
+      document.body.style.cursor = '';
+    }
+
+    // Logo override
+    _applyLogoOverride(themeId, customVars);
+
+    // Wallpaper overlay
+    _applyWallpaper(themeId, customVars);
 
     // Banner stripe
     const banner = document.getElementById('snxHolidayBanner');
     if (banner) banner.classList.toggle('visible', themeId !== 'none');
 
-    // Loading screen
+    // Loading/splash screen
     _updateLoadingScreen(themeId);
 
     // Particles
     _startParticles(themeId);
+
+    // Cursor effect
+    _startCursorEffect(themeId, customVars);
 
     // Music
     if (_musicEnabled && _userMusicOn) {
@@ -183,6 +251,37 @@
     _syncAdminUI();
   }
 
+  /* ── Logo override ───────────────────────────────────────────────── */
+  function _applyLogoOverride(themeId, customVars) {
+    const logoUrl = customVars && customVars['--ht-logo-url'];
+    // Apply to any element with data-snx-logo attribute
+    document.querySelectorAll('[data-snx-logo]').forEach(el => {
+      if (logoUrl && logoUrl !== 'none' && logoUrl !== '') {
+        el.src = logoUrl;
+        el.dataset.snxLogoOverride = '1';
+      } else if (el.dataset.snxLogoOverride && el.dataset.snxLogoOriginal) {
+        el.src = el.dataset.snxLogoOriginal;
+        delete el.dataset.snxLogoOverride;
+      }
+    });
+  }
+
+  /* ── Wallpaper overlay ───────────────────────────────────────────── */
+  function _applyWallpaper(themeId, customVars) {
+    const wallEl = document.getElementById('snxThemeWallpaper');
+    if (!wallEl) return;
+    const wallUrl = customVars && customVars['--ht-wallpaper'];
+    const wallOp  = customVars && customVars['--ht-wallpaper-opacity'];
+    if (wallUrl && wallUrl !== 'none' && wallUrl !== '') {
+      wallEl.style.backgroundImage = `url('${wallUrl}')`;
+      wallEl.style.opacity = wallOp || '0.12';
+      wallEl.classList.add('visible');
+    } else {
+      wallEl.classList.remove('visible');
+      wallEl.style.backgroundImage = '';
+    }
+  }
+
   /* ── Update loading screen for theme ─────────────────────────────── */
   function _updateLoadingScreen(themeId) {
     const splash = document.getElementById('snxHolidayLoadingSplash');
@@ -192,9 +291,65 @@
       splash.style.display = 'none';
       return;
     }
-    splash.querySelector('.ht-splash-emoji').textContent = t.emoji;
-    splash.querySelector('.ht-splash-name').textContent  = t.name;
-    // The loading screen itself only appears during actual page loads via CSS
+    const emojiEl = splash.querySelector('.ht-splash-emoji');
+    const nameEl  = splash.querySelector('.ht-splash-name');
+    if (emojiEl) emojiEl.textContent = t.emoji;
+    if (nameEl)  nameEl.textContent  = t.name;
+  }
+
+  /* ── Cursor effect ───────────────────────────────────────────────── */
+  function _startCursorEffect(themeId, customVars) {
+    // Stop existing cursor effect
+    _stopCursorEffect();
+
+    const t = THEMES[themeId];
+    const cursorType = (customVars && customVars['--ht-cursor-effect']) ||
+                       (t && t.cursor) || null;
+
+    if (!cursorType || themeId === 'none') return;
+    if (window.matchMedia('(pointer: coarse)').matches) return; // skip on touch devices
+
+    const cursorEl = document.getElementById('snxCursorEffect');
+    if (!cursorEl) return;
+
+    // Set cursor colour based on theme accent
+    const html = document.documentElement;
+    const accentColor = getComputedStyle(html).getPropertyValue('--neon-blue').trim() || '#00AEEF';
+    cursorEl.style.background = accentColor;
+    cursorEl.style.boxShadow  = `0 0 8px ${accentColor}, 0 0 20px ${accentColor}66`;
+    cursorEl.classList.add('visible');
+
+    _cursorEnabled = true;
+
+    _cursorHandler = (e) => {
+      if (!_cursorEnabled) return;
+      cursorEl.style.left = e.clientX + 'px';
+      cursorEl.style.top  = e.clientY + 'px';
+
+      // Spawn trail dot
+      const trail = document.createElement('div');
+      trail.className = 'snx-cursor-trail';
+      trail.style.left       = e.clientX + 'px';
+      trail.style.top        = e.clientY + 'px';
+      trail.style.background = accentColor;
+      trail.style.boxShadow  = `0 0 4px ${accentColor}`;
+      document.body.appendChild(trail);
+      setTimeout(() => { if (trail.parentNode) trail.parentNode.removeChild(trail); }, 500);
+    };
+
+    document.addEventListener('mousemove', _cursorHandler, { passive: true });
+  }
+
+  function _stopCursorEffect() {
+    _cursorEnabled = false;
+    if (_cursorHandler) {
+      document.removeEventListener('mousemove', _cursorHandler);
+      _cursorHandler = null;
+    }
+    const cursorEl = document.getElementById('snxCursorEffect');
+    if (cursorEl) cursorEl.classList.remove('visible');
+    // Clean up any remaining trail dots
+    document.querySelectorAll('.snx-cursor-trail').forEach(el => el.remove());
   }
 
   /* ── Music system (Web Audio API — procedural ambient tones) ─────── */
@@ -242,10 +397,10 @@
     const seq  = _MUSIC_SEQUENCES[t.music] || _MUSIC_SEQUENCES.christmas;
     let   step = 0;
     const bpm  = 72;
-    const dur  = (60 / bpm) * 0.8; // note duration in seconds
+    const dur  = (60 / bpm) * 0.8;
 
     _musicGain = _audioCtx.createGain();
-    _musicGain.gain.setValueAtTime(0.08, _audioCtx.currentTime); // gentle volume
+    _musicGain.gain.setValueAtTime(0.08, _audioCtx.currentTime);
     _musicGain.connect(_audioCtx.destination);
 
     function _playNote() {
@@ -267,7 +422,6 @@
     _playNote();
     _musicInterval = setInterval(_playNote, dur * 1000);
 
-    // Update music toggle UI
     const muteBtn = document.getElementById('snxMusicToggleBtn');
     if (muteBtn) { muteBtn.textContent = '🎵 Music ON'; muteBtn.classList.add('music-on'); }
   }
@@ -324,14 +478,13 @@
             _broadcastApply(resolvedTheme, customVars);
           }
 
-          // Sync admin UI if open
           _syncAdminUI();
           _syncAdminFullUI(data);
         },
-        (err) => { console.warn('[HolidayThemes] snapshot error:', err); }
+        (err) => { console.warn('[ThemeEngine] snapshot error:', err); }
       );
     } catch(e) {
-      console.warn('[HolidayThemes] listener failed:', e);
+      console.warn('[ThemeEngine] listener failed:', e);
       setTimeout(_startFirestoreListener, 5000);
     }
   }
@@ -409,7 +562,6 @@
           ctx.beginPath();
           ctx.arc(0, 0, s/2, 0, Math.PI*2);
           ctx.fill();
-          // Snowflake arms
           ctx.lineWidth = 1;
           for (let i = 0; i < 6; i++) {
             ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-s); ctx.stroke();
@@ -429,7 +581,7 @@
           break;
         case 'sparkles':
         case 'stars':
-        case 'fireworks':
+        case 'fireworks': {
           ctx.lineWidth = (s > 5) ? 2 : 1.5;
           const arms = (type === 'fireworks') ? 6 : 4;
           const step = (Math.PI * 2) / arms;
@@ -438,8 +590,8 @@
             ctx.rotate(step);
           }
           break;
+        }
         case 'clovers':
-          // 4-leaf clover shape
           for (let i = 0; i < 4; i++) {
             ctx.beginPath();
             ctx.arc(s*0.3, 0, s*0.38, 0, Math.PI*2);
@@ -453,7 +605,6 @@
           ctx.fill();
           break;
         default:
-          // confetti rectangle
           ctx.fillRect(-s*0.25, -s*0.5, s*0.5, s);
       }
       ctx.restore();
@@ -507,6 +658,50 @@
       nEl.textContent = `${t.emoji} ${t.name}`;
     }
     _renderPresets(data.presets || []);
+
+    // Populate custom form with live data if custom theme is active
+    if (data.manualTheme === 'custom' && data.customVars) {
+      _populateCustomForm(data.customVars);
+    }
+  }
+
+  /* ── Populate custom form from saved vars ────────────────────────── */
+  function _populateCustomForm(vars) {
+    const _set = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val) el.value = val;
+    };
+    _set('htCustomBgMainPicker',        vars['--bg-main']);
+    _set('htCustomBgMainHex',           vars['--bg-main']);
+    _set('htCustomBgCardPicker',        vars['--bg-card']);
+    _set('htCustomBgCardHex',           vars['--bg-card']);
+    _set('htCustomBgInputPicker',       vars['--bg-input']);
+    _set('htCustomBgInputHex',          vars['--bg-input']);
+    _set('htCustomAccentPicker',        vars['--neon-blue']);
+    _set('htCustomAccentHex',           vars['--neon-blue']);
+    _set('htCustomAccent2Picker',       vars['--neon-green']);
+    _set('htCustomAccent2Hex',          vars['--neon-green']);
+    _set('htCustomTextPrimaryPicker',   vars['--text-primary']);
+    _set('htCustomTextPrimaryHex',      vars['--text-primary']);
+    _set('htCustomTextSecondaryPicker', vars['--text-secondary']);
+    _set('htCustomTextSecondaryHex',    vars['--text-secondary']);
+    _set('htCustomBorderPicker',        vars['--border-color']);
+    _set('htCustomBorderHex',           vars['--border-color']);
+    _set('htCustomBtnPrimaryPicker',    vars['--ht-btn-primary-bg']);
+    _set('htCustomBanner1Picker',       vars['--ht-banner-a']);
+    _set('htCustomBanner1Hex',          vars['--ht-banner-a']);
+    _set('htCustomBanner2Picker',       vars['--ht-banner-b']);
+    _set('htCustomBanner2Hex',          vars['--ht-banner-b']);
+    _set('htCustomFontBodySel',         vars['--ht-font-body']);
+    _set('htCustomFontHeadingSel',      vars['--ht-font-heading']);
+    _set('htCustomFontSize',            vars['--ht-font-size-base']);
+    _set('htCustomScrollbar',           vars['--ht-scrollbar-thumb']);
+    _set('htCustomWallpaperUrl',        vars['--ht-wallpaper']);
+    _set('htCustomWallpaperOpacity',    vars['--ht-wallpaper-opacity']);
+    _set('htCustomLogoUrl',             vars['--ht-logo-url']);
+    _set('htCustomTransitionDur',       vars['--ht-transition-dur']);
+    _set('htCustomRadiusCard',          vars['--ht-radius-card']);
+    _set('htCustomCursorEffect',        vars['--ht-cursor-effect']);
   }
 
   /* ── User-facing music toggle UI ─────────────────────────────────── */
@@ -530,7 +725,7 @@
     const badge = document.getElementById('snxThemePreviewBadge');
     const t = THEMES[themeId] || THEMES.none;
     if (badge) {
-      badge.innerHTML = `<span style="opacity:0.7">PREVIEW MODE:</span> ${t.emoji} ${t.name} — <span style="color:#39FF14;cursor:pointer;" onclick="snxHtPublish('${themeId}')">Publish</span> &nbsp;·&nbsp; <span style="opacity:0.7;cursor:pointer;" onclick="snxHtCancelPreview()">Cancel</span>`;
+      badge.innerHTML = `<span style="opacity:0.7">PREVIEW:</span> ${t.emoji} ${t.name} &nbsp;·&nbsp; <span style="color:#39FF14;cursor:pointer;" onclick="snxHtPublish('${themeId}')">✅ Publish</span> &nbsp;·&nbsp; <span style="opacity:0.7;cursor:pointer;" onclick="snxHtCancelPreview()">✕ Cancel</span>`;
       badge.classList.add('visible');
     }
     _previewTimer = setTimeout(() => { if (_previewMode) window.snxHtCancelPreview(); }, 30000);
@@ -569,7 +764,7 @@
       _toast(`🎨 Theme published: ${(THEMES[themeId]||{}).name || themeId}`);
       _syncAdminUI();
       if (typeof window.adminAuditLog === 'function')
-        window.adminAuditLog('HOLIDAY_THEME_SET', `theme=${themeId}`);
+        window.adminAuditLog('THEME_ENGINE_SET', `theme=${themeId}`);
     } catch(e) { _toast('❌ Publish failed: ' + e.message); }
   };
 
@@ -580,9 +775,9 @@
     try {
       await fs.setDoc(fs.doc(fs.db,'siteSettings','holidayTheme'),
         { manualTheme:'none', updatedAt: Date.now() }, { merge: true });
-      _toast('🌑 Holiday theme disabled. Default restored.');
+      _toast('🌑 Theme disabled. Default restored.');
       if (typeof window.adminAuditLog === 'function')
-        window.adminAuditLog('HOLIDAY_THEME_SET', 'theme=none (disabled)');
+        window.adminAuditLog('THEME_ENGINE_SET', 'theme=none (default restored)');
     } catch(e) { _toast('❌ ' + e.message); }
   };
 
@@ -613,7 +808,7 @@
     } catch(e) { _toast('❌ ' + e.message); }
   };
 
-  /* User music on/off (initiated by user, no founder check) */
+  /* User music on/off (no founder check) */
   window.snxHtUserMusicToggle = function() {
     _userMusicOn = !_userMusicOn;
     try { localStorage.setItem('snx-music-pref', _userMusicOn ? '1' : '0'); } catch(_) {}
@@ -630,6 +825,7 @@
     }
   };
 
+  /* ── Custom theme publish ─────────────────────────────────────────── */
   window.snxHtPublishCustom = async function() {
     if (!_founderCheck()) return;
     const fs = await _getFs();
@@ -640,7 +836,7 @@
         { manualTheme:'custom', customVars: vars, updatedAt: Date.now() }, { merge: true });
       _toast('🎨 Custom theme published!');
       if (typeof window.adminAuditLog === 'function')
-        window.adminAuditLog('HOLIDAY_THEME_SET', 'theme=custom');
+        window.adminAuditLog('THEME_ENGINE_SET', 'theme=custom');
     } catch(e) { _toast('❌ ' + e.message); }
   };
 
@@ -648,13 +844,40 @@
     const vars = _readCustomFormVars();
     _previewMode = true;
     window._snxHtSelectedPreview = 'custom';
-    for (const [k, v] of Object.entries(vars))
-      document.documentElement.style.setProperty(k, v);
     _applyTheme('custom', vars);
     const badge = document.getElementById('snxThemePreviewBadge');
-    if (badge) { badge.innerHTML = 'PREVIEW: 🎨 Custom Theme — <span style="color:#39FF14;cursor:pointer;" onclick="snxHtPublishCustom()">Publish</span> &nbsp;·&nbsp; <span style="opacity:0.7;cursor:pointer;" onclick="snxHtCancelPreview()">Cancel</span>'; badge.classList.add('visible'); }
+    if (badge) {
+      badge.innerHTML = 'PREVIEW: 🎨 Custom Theme &nbsp;·&nbsp; <span style="color:#39FF14;cursor:pointer;" onclick="snxHtPublishCustom()">✅ Publish</span> &nbsp;·&nbsp; <span style="opacity:0.7;cursor:pointer;" onclick="snxHtCancelPreview()">✕ Cancel</span>';
+      badge.classList.add('visible');
+    }
     if (_previewTimer) clearTimeout(_previewTimer);
     _previewTimer = setTimeout(() => { if (_previewMode) window.snxHtCancelPreview(); }, 30000);
+  };
+
+  /* ── Duplicate existing theme into custom builder ─────────────────── */
+  window.snxHtDuplicateTheme = function(themeId) {
+    // Read CSS vars currently applied by that theme and push into custom form
+    // We do this by temporarily applying the theme, reading computed style, then restoring
+    const prevTheme = _currentTheme;
+    const html = document.documentElement;
+    html.setAttribute('data-snx-theme', themeId);
+    const cs = getComputedStyle(html);
+    const snap = {};
+    ['--bg-main','--bg-card','--bg-input','--neon-blue','--neon-cyan','--neon-blue-dim',
+     '--neon-green','--neon-green-dim','--text-primary','--text-secondary','--text-muted',
+     '--border-color','--ht-scrollbar-thumb','--ht-shadow-card','--ht-nav-bg',
+     '--ht-btn-primary-bg','--ht-btn-primary-color'].forEach(k => {
+      const v = cs.getPropertyValue(k).trim();
+      if (v) snap[k] = v;
+    });
+    // Restore
+    if (prevTheme === 'none') html.removeAttribute('data-snx-theme');
+    else html.setAttribute('data-snx-theme', prevTheme);
+
+    // Switch to Custom sub-tab and populate form
+    window.snxHtSwitchSubTab('custom');
+    _populateCustomForm(snap);
+    _toast(`📋 Duplicated "${(THEMES[themeId]||{}).name||themeId}" into Custom Builder`);
   };
 
   /* ── Save preset ─────────────────────────────────────────────────── */
@@ -687,8 +910,14 @@
     if (!_founderCheck()) return;
     const preset = _savedPresets.find(p => p.id === presetId);
     if (!preset) { _toast('❌ Preset not found'); return; }
-    await window.snxHtPublish(preset.themeId);
-    _toast(`✅ Preset loaded: "${preset.name}"`);
+    const fs = await _getFs();
+    if (!fs) return;
+    try {
+      await fs.setDoc(fs.doc(fs.db,'siteSettings','holidayTheme'),
+        { manualTheme: preset.themeId, customVars: preset.customVars || null, updatedAt: Date.now() },
+        { merge: true });
+      _toast(`✅ Preset loaded: "${preset.name}"`);
+    } catch(e) { _toast('❌ ' + e.message); }
   };
 
   window.snxHtDeletePreset = async function(presetId) {
@@ -723,30 +952,92 @@
           <div style="font-size:12px;font-weight:700;color:var(--text-primary,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
           <div style="font-size:10px;color:#6a90b8;">${t.name} · ${d.toLocaleDateString()}</div>
         </div>
-        <button onclick="snxHtLoadPreset('${p.id}')" style="font-size:11px;padding:4px 10px;border-radius:7px;background:rgba(57,255,20,0.1);border-color:rgba(57,255,20,0.3);color:#39FF14;">Load</button>
+        <button onclick="snxHtPreview('${p.themeId}')" style="font-size:11px;padding:4px 10px;border-radius:7px;background:rgba(0,174,239,0.10);border-color:rgba(0,174,239,0.25);color:#00d4ff;">👁</button>
+        <button onclick="snxHtLoadPreset('${p.id}')" style="font-size:11px;padding:4px 10px;border-radius:7px;background:rgba(57,255,20,0.10);border-color:rgba(57,255,20,0.3);color:#39FF14;">Load</button>
         <button onclick="snxHtDeletePreset('${p.id}')" style="font-size:11px;padding:4px 10px;border-radius:7px;background:rgba(255,51,80,0.08);border-color:rgba(255,51,80,0.25);color:#ff6680;">✕</button>
       </div>`;
     }).join('');
   }
 
+  /* ── Read ALL fields from custom builder form ────────────────────── */
   function _readCustomFormVars() {
-    const val = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
-    const b1  = val('htCustomBanner1Picker') || val('htCustomBanner1Hex') || '#00AEEF';
-    const b2  = val('htCustomBanner2Picker') || val('htCustomBanner2Hex') || '#39FF14';
-    const acc = val('htCustomAccentPicker')  || val('htCustomAccentHex')  || '#00AEEF';
+    const val = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    const pick = (pickerId, hexId, fallback) =>
+      val(pickerId) || val(hexId) || fallback;
+
+    const bgMain     = pick('htCustomBgMainPicker',        'htCustomBgMainHex',           '#0B1F3A');
+    const bgCard     = pick('htCustomBgCardPicker',        'htCustomBgCardHex',           '#0d2444');
+    const bgInput    = pick('htCustomBgInputPicker',       'htCustomBgInputHex',          '#0a1c35');
+    const acc1       = pick('htCustomAccentPicker',        'htCustomAccentHex',           '#00AEEF');
+    const acc2       = pick('htCustomAccent2Picker',       'htCustomAccent2Hex',          '#39FF14');
+    const textPri    = pick('htCustomTextPrimaryPicker',   'htCustomTextPrimaryHex',      '#ffffff');
+    const textSec    = pick('htCustomTextSecondaryPicker', 'htCustomTextSecondaryHex',    '#b8d4f0');
+    const borderCol  = pick('htCustomBorderPicker',        'htCustomBorderHex',           '#1a3a5c');
+    const bannerA    = pick('htCustomBanner1Picker',       'htCustomBanner1Hex',          acc1);
+    const bannerB    = pick('htCustomBanner2Picker',       'htCustomBanner2Hex',          acc2);
+    const fontBody   = val('htCustomFontBodySel')   || "'Segoe UI', Arial, sans-serif";
+    const fontHead   = val('htCustomFontHeadingSel') || fontBody;
+    const fontSize   = val('htCustomFontSize')      || '14px';
+    const scrollbar  = pick('htCustomScrollbarPicker', 'htCustomScrollbar', `rgba(0,100,220,0.22)`);
+    const wallUrl    = val('htCustomWallpaperUrl');
+    const wallOp     = val('htCustomWallpaperOpacity') || '0.12';
+    const logoUrl    = val('htCustomLogoUrl');
+    const transDur   = val('htCustomTransitionDur')  || '0.45s';
+    const radiusCard = val('htCustomRadiusCard')     || '10px';
+    const cursor     = val('htCustomCursorEffect')   || 'none';
+    const navBg      = pick('htCustomNavBgPicker',    'htCustomNavBgHex',    '#050f1e');
+
     return {
-      '--bg-main':            val('htCustomBgMainPicker')       || val('htCustomBgMainHex')       || '#0B1F3A',
-      '--bg-card':            val('htCustomBgCardPicker')       || val('htCustomBgCardHex')       || '#0d2444',
-      '--neon-blue':          acc,
-      '--neon-cyan':          acc + 'cc',
-      '--neon-blue-dim':      acc,
-      '--neon-green':         val('htCustomAccent2Picker')      || val('htCustomAccent2Hex')      || '#39FF14',
-      '--neon-green-dim':     val('htCustomAccent2Picker')      || val('htCustomAccent2Hex')      || '#39FF14',
-      '--text-primary':       val('htCustomTextPrimaryPicker')  || val('htCustomTextPrimaryHex')  || '#ffffff',
-      '--ht-banner-gradient': `linear-gradient(90deg,${b1},${b2},${b1})`,
-      '--accent-glow':        acc + '4d',
+      '--bg-main':              bgMain,
+      '--bg-card':              bgCard,
+      '--bg-input':             bgInput,
+      '--bg-deep':              bgMain,
+      '--bg-deeper':            bgMain,
+      '--neon-blue':            acc1,
+      '--neon-cyan':            acc1,
+      '--neon-blue-dim':        acc1,
+      '--neon-green':           acc2,
+      '--neon-green-dim':       acc2,
+      '--text-primary':         textPri,
+      '--text-secondary':       textSec,
+      '--text-muted':           textSec,
+      '--border-color':         borderCol,
+      '--accent-glow':          acc1 + '4d',
+      '--blue-glow-sm':         `0 0 10px ${acc1}8c`,
+      '--blue-glow-md':         `0 0 22px ${acc1}a6`,
+      '--blue-glow-lg':         `0 0 44px ${acc1}b3`,
+      '--green-glow-sm':        `0 0 10px ${acc2}80`,
+      '--green-glow-md':        `0 0 24px ${acc2}99`,
+      '--ht-banner-gradient':   `linear-gradient(90deg,${bannerA},${bannerB},${bannerA})`,
+      '--ht-banner-a':          bannerA,
+      '--ht-banner-b':          bannerB,
+      '--ht-font-body':         fontBody,
+      '--ht-font-heading':      fontHead,
+      '--ht-font-size-base':    fontSize,
+      '--ht-scrollbar-thumb':   scrollbar,
+      '--ht-wallpaper':         wallUrl || 'none',
+      '--ht-wallpaper-opacity': wallOp,
+      '--ht-logo-url':          logoUrl || 'none',
+      '--ht-transition-dur':    transDur,
+      '--ht-radius-card':       radiusCard,
+      '--ht-cursor-effect':     cursor === 'none' ? '' : cursor,
+      '--ht-nav-bg':            navBg,
+      '--ht-btn-primary-bg':    `linear-gradient(135deg,${acc1},${acc2})`,
+      '--ht-btn-primary-color': '#fff',
+      '--ht-shadow-card':       `0 2px 16px ${acc1}1f`,
     };
   }
+
+  /* ── Sub-tab switcher for admin panel ────────────────────────────── */
+  window.snxHtSwitchSubTab = function(tab) {
+    _activeSubTab = tab;
+    document.querySelectorAll('.ht-sub-tab').forEach(el => {
+      el.classList.toggle('active', el.dataset.tab === tab);
+    });
+    document.querySelectorAll('.ht-sub-panel').forEach(el => {
+      el.style.display = (el.dataset.panel === tab) ? 'block' : 'none';
+    });
+  };
 
   /* ── Founder check ───────────────────────────────────────────────── */
   const _FOUNDER_EMAIL = 'christijerina46@gmail.com';
@@ -760,31 +1051,39 @@
     if (_cu && _cu.email && _cu.email.toLowerCase() === _FOUNDER_EMAIL) return true;
     const _role  = window._snxRole || (window.userData && window.userData.role) || 'unknown';
     const _email = (_cu && _cu.email) || 'not signed in';
-    console.warn('[HolidayThemes] _founderCheck denied. _snxRole=' + _role + ', email=' + _email);
+    console.warn('[ThemeEngine] _founderCheck denied. _snxRole=' + _role + ', email=' + _email);
     _toast('⛔ Founder access only. (role: ' + _role + ')');
     return false;
   }
 
-  /* ── Render full Holiday Themes tab in Founder Control Panel ─────── */
+  /* ══════════════════════════════════════════════════════════════════
+     RENDER FULL THEME ENGINE TAB IN FOUNDER CONTROL PANEL
+     ══════════════════════════════════════════════════════════════════ */
   window.snxHtRenderAdminTab = function() {
     const container = document.getElementById('adminTab-holidaythemes');
     if (!container) return;
     const autoTheme = _getAutoTheme();
     const months    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+    /* ── Theme grid cards ── */
     const themeCards = Object.values(THEMES).map(t => {
       const [bg, acc] = t.swatch.split(',');
       const isActive  = _currentTheme === t.id;
       return `<div class="snx-holiday-card${isActive ? ' active-theme' : ''}"
                    data-theme-id="${t.id}"
-                   onclick="snxHtPreview('${t.id}')">
+                   onclick="window._snxHtSelectedPreview='${t.id}';document.querySelectorAll('#htThemeGrid .snx-holiday-card').forEach(c=>c.style.outline='');this.style.outline='2px solid #39FF14';snxHtPreview('${t.id}')">
         <span class="ht-emoji">${t.emoji}</span>
         <div class="ht-name">${t.name}</div>
         <div class="ht-swatch" style="background:linear-gradient(90deg,${bg},${acc})"></div>
         <span class="ht-active-badge">LIVE</span>
+        <button onclick="event.stopPropagation();snxHtDuplicateTheme('${t.id}')"
+                style="margin-top:6px;font-size:10px;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.12);color:#b8d4f0;width:100%;">
+          📋 Duplicate
+        </button>
       </div>`;
     }).join('');
 
+    /* ── Schedule rows ── */
     const scheduleRows = SCHEDULE.map(s => {
       const isNow = autoTheme === s.themeId;
       const t     = THEMES[s.themeId] || {};
@@ -796,19 +1095,45 @@
       </div>`;
     }).join('');
 
+    /* ── Font options ── */
+    const FONTS = [
+      ["'Segoe UI', Arial, sans-serif",     'Segoe UI (Default)'],
+      ["'Georgia', serif",                  'Georgia (Serif)'],
+      ["'Courier New', monospace",          'Courier New (Mono)'],
+      ["'Impact', fantasy",                 'Impact (Bold)'],
+      ["'Comic Sans MS', cursive",          'Comic Sans'],
+      ["'Trebuchet MS', sans-serif",        'Trebuchet MS'],
+      ["'Palatino Linotype', serif",        'Palatino'],
+      ["'Arial Black', sans-serif",         'Arial Black'],
+    ];
+    const fontOpts = FONTS.map(([val, lbl]) => `<option value="${val}">${lbl}</option>`).join('');
+
+    /* ── Transition duration options ── */
+    const TRANS_OPTS = ['0.15s','0.25s','0.35s','0.45s','0.6s','0.8s','1s'];
+    const transOpts  = TRANS_OPTS.map(v => `<option value="${v}">${v}</option>`).join('');
+
+    /* ── Cursor effect options ── */
+    const CURSOR_OPTS = [
+      ['none',      'None'],
+      ['sparkle',   'Sparkle Trail'],
+      ['heart',     'Heart Trail'],
+      ['snowflake', 'Snowflake Trail'],
+    ];
+    const cursorOpts = CURSOR_OPTS.map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
+
     container.innerHTML = `
 
-    <!-- ── Status & Quick Controls ── -->
+    <!-- ══ STATUS BAR ══ -->
     <div class="section-card" style="margin-bottom:14px;border-color:rgba(0,174,239,0.45);background:linear-gradient(135deg,rgba(0,30,60,0.55),rgba(11,31,58,0.96));">
-      <h3 style="margin:0 0 14px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎨 Holiday Themes Control</h3>
+      <h3 style="margin:0 0 14px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎨 Founder Theme Engine</h3>
 
       <div class="settings-row">
-        <div class="settings-label">Live Theme<small>Currently active site-wide</small></div>
+        <div class="settings-label">Live Theme<small>Applied site-wide in real time</small></div>
         <strong id="htActiveThemeName" style="color:#00d4ff;font-size:13px;">—</strong>
       </div>
 
       <div class="settings-row">
-        <div class="settings-label">Auto-activate by Calendar<small>Switches themes automatically on holidays</small></div>
+        <div class="settings-label">Auto-activate by Calendar<small>Switches themes on holiday dates automatically</small></div>
         <label class="notif-toggle-wrap">
           <input type="checkbox" id="htToggleAuto" class="notif-toggle-cb" onchange="snxHtSetAuto(this.checked)">
           <span class="notif-toggle-slider"></span>
@@ -830,7 +1155,7 @@
 
       <!-- Quick action buttons -->
       <div class="snx-holiday-actions" style="margin-top:14px;">
-        <button onclick="snxHtPublish(window._snxHtSelectedPreview||(window._snxHolidayThemes&&window._snxHolidayThemes.currentTheme)||'none')"
+        <button onclick="snxHtPublish(window._snxHtSelectedPreview||'none')"
                 style="font-size:12px;padding:8px 18px;border-radius:8px;background:rgba(57,255,20,0.14);border-color:rgba(57,255,20,0.45);color:#39FF14;font-weight:700;">
           ✅ Publish Selected
         </button>
@@ -844,41 +1169,111 @@
       </div>
     </div>
 
-    <!-- ── Theme Selector Grid ── -->
-    <div class="section-card" style="margin-bottom:14px;">
-      <h3 style="margin:0 0 6px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎨 Select a Theme</h3>
-      <p style="font-size:11px;color:#6a90b8;margin:0 0 10px;">Click a card to preview it locally. Press <strong style="color:#39FF14;">Publish Selected</strong> to push to all users in real time.</p>
-      <div class="snx-holiday-grid" id="htThemeGrid">${themeCards}</div>
+    <!-- ══ SUB-TAB NAV ══ -->
+    <div class="ht-sub-tabs">
+      <button class="ht-sub-tab active" data-tab="themes"    onclick="snxHtSwitchSubTab('themes')">🎨 Themes</button>
+      <button class="ht-sub-tab"        data-tab="custom"    onclick="snxHtSwitchSubTab('custom')">🛠 Custom Builder</button>
+      <button class="ht-sub-tab"        data-tab="presets"   onclick="snxHtSwitchSubTab('presets')">💾 Presets</button>
+      <button class="ht-sub-tab"        data-tab="schedule"  onclick="snxHtSwitchSubTab('schedule')">📅 Schedule</button>
     </div>
 
-    <!-- ── Custom Theme Builder ── -->
-    <div class="section-card" style="margin-bottom:14px;">
-      <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎨 Custom Theme Builder</h3>
-      <p style="font-size:11px;color:#6a90b8;margin:0 0 10px;">Design your own colour scheme, preview it live, then publish to all users.</p>
-      <div class="snx-custom-theme-builder">
-        <h4>Colour Settings</h4>
-        <div class="snx-color-row"><label>Background</label>
-          <input type="color" id="htCustomBgMainPicker" value="#0B1F3A" oninput="document.getElementById('htCustomBgMainHex').value=this.value">
-          <input type="text"  id="htCustomBgMainHex"   value="#0B1F3A" oninput="document.getElementById('htCustomBgMainPicker').value=this.value"></div>
-        <div class="snx-color-row"><label>Card Background</label>
-          <input type="color" id="htCustomBgCardPicker" value="#0d2444" oninput="document.getElementById('htCustomBgCardHex').value=this.value">
-          <input type="text"  id="htCustomBgCardHex"   value="#0d2444" oninput="document.getElementById('htCustomBgCardPicker').value=this.value"></div>
-        <div class="snx-color-row"><label>Primary Accent</label>
-          <input type="color" id="htCustomAccentPicker" value="#00AEEF" oninput="document.getElementById('htCustomAccentHex').value=this.value">
-          <input type="text"  id="htCustomAccentHex"   value="#00AEEF" oninput="document.getElementById('htCustomAccentPicker').value=this.value"></div>
-        <div class="snx-color-row"><label>Secondary Accent</label>
-          <input type="color" id="htCustomAccent2Picker" value="#39FF14" oninput="document.getElementById('htCustomAccent2Hex').value=this.value">
-          <input type="text"  id="htCustomAccent2Hex"   value="#39FF14" oninput="document.getElementById('htCustomAccent2Picker').value=this.value"></div>
-        <div class="snx-color-row"><label>Text Colour</label>
-          <input type="color" id="htCustomTextPrimaryPicker" value="#ffffff" oninput="document.getElementById('htCustomTextPrimaryHex').value=this.value">
-          <input type="text"  id="htCustomTextPrimaryHex"   value="#ffffff" oninput="document.getElementById('htCustomTextPrimaryPicker').value=this.value"></div>
-        <div class="snx-color-row"><label>Banner Colour A</label>
-          <input type="color" id="htCustomBanner1Picker" value="#00AEEF" oninput="document.getElementById('htCustomBanner1Hex').value=this.value">
-          <input type="text"  id="htCustomBanner1Hex"   value="#00AEEF" oninput="document.getElementById('htCustomBanner1Picker').value=this.value"></div>
-        <div class="snx-color-row"><label>Banner Colour B</label>
-          <input type="color" id="htCustomBanner2Picker" value="#39FF14" oninput="document.getElementById('htCustomBanner2Hex').value=this.value">
-          <input type="text"  id="htCustomBanner2Hex"   value="#39FF14" oninput="document.getElementById('htCustomBanner2Picker').value=this.value"></div>
-        <div class="snx-holiday-actions" style="margin-top:12px;">
+    <!-- ══ PANEL: THEMES ══ -->
+    <div class="ht-sub-panel" data-panel="themes">
+      <div class="section-card" style="margin-bottom:14px;">
+        <h3 style="margin:0 0 6px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎄 Holiday Presets</h3>
+        <p style="font-size:11px;color:#6a90b8;margin:0 0 10px;">Click a card to preview locally. Press <strong style="color:#39FF14;">Publish Selected</strong> above to push to all users instantly. Click 📋 Duplicate to copy into Custom Builder.</p>
+        <div class="snx-holiday-grid" id="htThemeGrid">${themeCards}</div>
+      </div>
+    </div>
+
+    <!-- ══ PANEL: CUSTOM BUILDER ══ -->
+    <div class="ht-sub-panel" data-panel="custom" style="display:none;">
+      <div class="section-card" style="margin-bottom:14px;">
+        <h3 style="margin:0 0 4px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🛠 Custom Theme Builder</h3>
+        <p style="font-size:11px;color:#6a90b8;margin:0 0 12px;">Design a full custom theme. Preview live, then publish site-wide. Duplicate any holiday preset to start from it.</p>
+
+        <!-- COLOURS -->
+        <div class="snx-custom-theme-builder">
+          <h4>🎨 Background Colours</h4>
+          <div class="snx-color-row"><label>Main Background</label>
+            <input type="color" id="htCustomBgMainPicker"  value="#0B1F3A" oninput="document.getElementById('htCustomBgMainHex').value=this.value">
+            <input type="text"  id="htCustomBgMainHex"     value="#0B1F3A" oninput="document.getElementById('htCustomBgMainPicker').value=this.value"></div>
+          <div class="snx-color-row"><label>Card Background</label>
+            <input type="color" id="htCustomBgCardPicker"  value="#0d2444" oninput="document.getElementById('htCustomBgCardHex').value=this.value">
+            <input type="text"  id="htCustomBgCardHex"     value="#0d2444" oninput="document.getElementById('htCustomBgCardPicker').value=this.value"></div>
+          <div class="snx-color-row"><label>Input Background</label>
+            <input type="color" id="htCustomBgInputPicker" value="#0a1c35" oninput="document.getElementById('htCustomBgInputHex').value=this.value">
+            <input type="text"  id="htCustomBgInputHex"    value="#0a1c35" oninput="document.getElementById('htCustomBgInputPicker').value=this.value"></div>
+          <div class="snx-color-row"><label>Menu / Nav Background</label>
+            <input type="color" id="htCustomNavBgPicker"   value="#050f1e" oninput="document.getElementById('htCustomNavBgHex').value=this.value">
+            <input type="text"  id="htCustomNavBgHex"      value="#050f1e" oninput="document.getElementById('htCustomNavBgPicker').value=this.value"></div>
+        </div>
+
+        <div class="snx-custom-theme-builder" style="margin-top:10px;">
+          <h4>✏️ Text Colours</h4>
+          <div class="snx-color-row"><label>Primary Text</label>
+            <input type="color" id="htCustomTextPrimaryPicker"   value="#ffffff" oninput="document.getElementById('htCustomTextPrimaryHex').value=this.value">
+            <input type="text"  id="htCustomTextPrimaryHex"      value="#ffffff" oninput="document.getElementById('htCustomTextPrimaryPicker').value=this.value"></div>
+          <div class="snx-color-row"><label>Secondary Text</label>
+            <input type="color" id="htCustomTextSecondaryPicker" value="#b8d4f0" oninput="document.getElementById('htCustomTextSecondaryHex').value=this.value">
+            <input type="text"  id="htCustomTextSecondaryHex"    value="#b8d4f0" oninput="document.getElementById('htCustomTextSecondaryPicker').value=this.value"></div>
+        </div>
+
+        <div class="snx-custom-theme-builder" style="margin-top:10px;">
+          <h4>⚡ Accent &amp; Button Colours</h4>
+          <div class="snx-color-row"><label>Primary Accent</label>
+            <input type="color" id="htCustomAccentPicker"  value="#00AEEF" oninput="document.getElementById('htCustomAccentHex').value=this.value">
+            <input type="text"  id="htCustomAccentHex"     value="#00AEEF" oninput="document.getElementById('htCustomAccentPicker').value=this.value"></div>
+          <div class="snx-color-row"><label>Secondary Accent</label>
+            <input type="color" id="htCustomAccent2Picker" value="#39FF14" oninput="document.getElementById('htCustomAccent2Hex').value=this.value">
+            <input type="text"  id="htCustomAccent2Hex"    value="#39FF14" oninput="document.getElementById('htCustomAccent2Picker').value=this.value"></div>
+          <div class="snx-color-row"><label>Border Colour</label>
+            <input type="color" id="htCustomBorderPicker"  value="#1a3a5c" oninput="document.getElementById('htCustomBorderHex').value=this.value">
+            <input type="text"  id="htCustomBorderHex"     value="#1a3a5c" oninput="document.getElementById('htCustomBorderPicker').value=this.value"></div>
+          <div class="snx-color-row"><label>Banner Colour A</label>
+            <input type="color" id="htCustomBanner1Picker" value="#00AEEF" oninput="document.getElementById('htCustomBanner1Hex').value=this.value">
+            <input type="text"  id="htCustomBanner1Hex"    value="#00AEEF" oninput="document.getElementById('htCustomBanner1Picker').value=this.value"></div>
+          <div class="snx-color-row"><label>Banner Colour B</label>
+            <input type="color" id="htCustomBanner2Picker" value="#39FF14" oninput="document.getElementById('htCustomBanner2Hex').value=this.value">
+            <input type="text"  id="htCustomBanner2Hex"    value="#39FF14" oninput="document.getElementById('htCustomBanner2Picker').value=this.value"></div>
+          <div class="snx-color-row"><label>Scrollbar Colour</label>
+            <input type="color" id="htCustomScrollbarPicker" value="#1a3a5c" oninput="document.getElementById('htCustomScrollbar').value=this.value">
+            <input type="text"  id="htCustomScrollbar"       value="rgba(0,100,220,0.22)"></div>
+        </div>
+
+        <div class="snx-custom-theme-builder" style="margin-top:10px;">
+          <h4>🔤 Typography</h4>
+          <div class="snx-color-row"><label>Body Font</label>
+            <select id="htCustomFontBodySel">${fontOpts}</select></div>
+          <div class="snx-color-row"><label>Heading Font</label>
+            <select id="htCustomFontHeadingSel">${fontOpts}</select></div>
+          <div class="snx-color-row"><label>Base Font Size</label>
+            <input type="text" id="htCustomFontSize" value="14px" style="width:80px;"></div>
+        </div>
+
+        <div class="snx-custom-theme-builder" style="margin-top:10px;">
+          <h4>🖼 Wallpaper &amp; Logo</h4>
+          <div class="snx-color-row"><label>Wallpaper URL</label>
+            <input type="text" id="htCustomWallpaperUrl" placeholder="https://…image.jpg" style="width:200px;min-width:0;flex:1;"></div>
+          <div class="snx-color-row"><label>Wallpaper Opacity</label>
+            <input type="number" id="htCustomWallpaperOpacity" value="0.12" min="0.01" max="0.95" step="0.01" style="width:70px;"></div>
+          <div class="snx-color-row"><label>Logo URL</label>
+            <input type="text" id="htCustomLogoUrl" placeholder="https://…logo.png (optional)" style="width:200px;min-width:0;flex:1;"></div>
+          <p style="font-size:10px;color:#6a90b8;margin:4px 0 0;">Add <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:4px;">data-snx-logo</code> attribute to your logo &lt;img&gt; elements to enable logo override.</p>
+        </div>
+
+        <div class="snx-custom-theme-builder" style="margin-top:10px;">
+          <h4>✨ Effects &amp; Animations</h4>
+          <div class="snx-color-row"><label>Page Transition</label>
+            <select id="htCustomTransitionDur">${transOpts}</select></div>
+          <div class="snx-color-row"><label>Card Border Radius</label>
+            <input type="text" id="htCustomRadiusCard" value="10px" style="width:70px;"></div>
+          <div class="snx-color-row"><label>Cursor Effect (Desktop)</label>
+            <select id="htCustomCursorEffect">${cursorOpts}</select></div>
+          <p style="font-size:10px;color:#6a90b8;margin:4px 0 0;">Cursor effects are cosmetic and do not affect touch/mobile devices. Particles are inherited from the base theme type.</p>
+        </div>
+
+        <div class="snx-holiday-actions" style="margin-top:14px;">
           <button onclick="snxHtPreviewCustom()" style="font-size:12px;padding:7px 14px;border-radius:8px;">👁 Preview Custom</button>
           <button onclick="snxHtPublishCustom()"
                   style="font-size:12px;padding:7px 18px;border-radius:8px;background:rgba(57,255,20,0.12);border-color:rgba(57,255,20,0.4);color:#39FF14;font-weight:700;">
@@ -888,22 +1283,26 @@
       </div>
     </div>
 
-    <!-- ── Presets ── -->
-    <div class="section-card" style="margin-bottom:14px;">
-      <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">💾 Theme Presets</h3>
-      <p style="font-size:11px;color:#6a90b8;margin:0 0 10px;">Save the current theme as a named preset to restore it instantly later.</p>
-      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-        <input id="htPresetNameInput" placeholder="Preset name…" style="flex:1;min-width:140px;margin:0;font-size:12px;padding:7px 10px;">
-        <button onclick="snxHtSavePreset()" style="font-size:12px;padding:7px 14px;border-radius:8px;background:rgba(0,174,239,0.12);border-color:rgba(0,174,239,0.35);color:#00d4ff;font-weight:700;">💾 Save</button>
+    <!-- ══ PANEL: PRESETS ══ -->
+    <div class="ht-sub-panel" data-panel="presets" style="display:none;">
+      <div class="section-card" style="margin-bottom:14px;">
+        <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">💾 Theme Presets</h3>
+        <p style="font-size:11px;color:#6a90b8;margin:0 0 10px;">Save the current live theme as a named preset to restore it instantly any time. Unlimited presets supported.</p>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+          <input id="htPresetNameInput" placeholder="Preset name…" style="flex:1;min-width:140px;margin:0;font-size:12px;padding:7px 10px;">
+          <button onclick="snxHtSavePreset()" style="font-size:12px;padding:7px 14px;border-radius:8px;background:rgba(0,174,239,0.12);border-color:rgba(0,174,239,0.35);color:#00d4ff;font-weight:700;">💾 Save Current</button>
+        </div>
+        <div id="htPresetsList"><p style="font-size:12px;color:#6a90b8;margin:0;">No presets saved yet.</p></div>
       </div>
-      <div id="htPresetsList"><p style="font-size:12px;color:#6a90b8;margin:0;">No presets saved yet.</p></div>
     </div>
 
-    <!-- ── Auto-Activation Schedule ── -->
-    <div class="section-card">
-      <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">📅 Auto-Activation Schedule</h3>
-      <p style="font-size:11px;color:#6a90b8;margin:0 0 10px;">When auto-activate is ON, themes switch automatically on these dates. Manual selection always overrides.</p>
-      ${scheduleRows}
+    <!-- ══ PANEL: SCHEDULE ══ -->
+    <div class="ht-sub-panel" data-panel="schedule" style="display:none;">
+      <div class="section-card">
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">📅 Auto-Activation Schedule</h3>
+        <p style="font-size:11px;color:#6a90b8;margin:0 0 10px;">When <strong>Auto-activate by Calendar</strong> is ON, themes switch automatically on these dates. A manual selection always overrides the schedule.</p>
+        ${scheduleRows}
+      </div>
     </div>`;
 
     // Hydrate with Firestore state
@@ -911,10 +1310,8 @@
       if (!fs) return;
       fs.getDoc(fs.doc(fs.db,'siteSettings','holidayTheme')).then(snap => {
         if (!snap.exists()) {
-          const cb = document.getElementById('htToggleAuto');
-          if (cb) cb.checked = true;
-          const mcb = document.getElementById('htToggleMusic');
-          if (mcb) mcb.checked = true;
+          const cb  = document.getElementById('htToggleAuto');  if (cb)  cb.checked  = true;
+          const mcb = document.getElementById('htToggleMusic'); if (mcb) mcb.checked = true;
           return;
         }
         _syncAdminFullUI(snap.data());
@@ -922,14 +1319,8 @@
       }).catch(() => {});
     });
 
-    // Card click → track selection for Publish button
-    document.querySelectorAll('#htThemeGrid .snx-holiday-card').forEach(card => {
-      card.addEventListener('click', () => {
-        window._snxHtSelectedPreview = card.dataset.themeId;
-        document.querySelectorAll('#htThemeGrid .snx-holiday-card').forEach(c => c.style.outline = '');
-        card.style.outline = '2px solid #39FF14';
-      });
-    });
+    // Restore active sub-tab
+    window.snxHtSwitchSubTab(_activeSubTab);
   };
 
   /* ── User music preference restore ──────────────────────────────── */
