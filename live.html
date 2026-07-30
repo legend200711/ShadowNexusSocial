@@ -523,10 +523,17 @@
 <!-- Co-Host add-on — remove to disable entirely -->
 <script type="module" src="cohost.js"></script>
 
-<!-- ── Holiday Themes overlays ── -->
+<!-- ── Holiday Themes overlays v2.0 ── -->
 <div id="snxHolidayBanner" aria-hidden="true"></div>
 <canvas id="snxHolidayParticles" aria-hidden="true"></canvas>
 <div id="snxThemePreviewBadge" role="status" aria-live="polite"></div>
+<div id="snxHolidayLoadingSplash" aria-hidden="true">
+    <div class="ht-splash-emoji">🎄</div>
+    <div class="ht-splash-name">Loading…</div>
+</div>
+<div id="snxMusicPlayerWrap" role="region" aria-label="Holiday Music">
+    <button id="snxMusicToggleBtn" onclick="window.snxHtUserMusicToggle && snxHtUserMusicToggle()">🔇 Music OFF</button>
+</div>
 <script src="holiday-themes.js"></script>
 
 </body>

@@ -9585,6 +9585,11 @@ body.arcade-fs-ios body::after { display:none !important; }
             <li>View analytics, logs, and audit history.</li>
             <li>Manage security settings.</li>
             <li>Access full database management tools.</li>
+            <li>Enable, disable, preview, and publish Holiday Themes site-wide in real time.</li>
+            <li>Schedule holiday themes for automatic activation by date.</li>
+            <li>Create unlimited custom themes and save theme presets.</li>
+            <li>Enable or disable holiday music for all users.</li>
+            <li>Restore the default website theme instantly.</li>
         </ul>
     </div>
 
@@ -10499,9 +10504,11 @@ body.arcade-fs-ios body::after { display:none !important; }
      TAB: HOLIDAY THEMES
 ══════════════════════════════════ -->
 <div class="admin-tab-content" id="adminTab-holidaythemes">
-    <div class="section-card">
-        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎄 Holiday Themes</h3>
-        <p style="font-size:12px;color:#6a90b8;margin:0;">Loading…</p>
+    <!-- Rendered dynamically by window.snxHtRenderAdminTab() in holiday-themes.js -->
+    <div class="section-card" style="border-color:rgba(0,174,239,0.35);">
+        <div style="text-align:center;padding:24px 0;color:#6a90b8;font-size:13px;">
+            🎄 Click the <strong style="color:#00d4ff;">Holiday Themes</strong> tab above to load the theme control panel.
+        </div>
     </div>
 </div>
 
@@ -31668,19 +31675,39 @@ document.addEventListener('input', function(e) {
 window.snxSubmitCreateGroup = async function() {
     const fs = _gcFs();
 
-    // ── Auth verification ──
-    // Use the Firebase Auth instance directly for the most up-to-date token.
-    // Falls back to window._snxCurrentUser (set by onAuthStateChanged) if auth
-    // instance isn't exposed yet (should never happen in practice).
+    // ── Step 1: Verify Firestore is ready ──
+    if (!fs) {
+        if (typeof toastNotification === 'function') toastNotification('⚠️ App not ready — please wait a moment and try again.');
+        console.warn('[groupChat] snxSubmitCreateGroup: _snxFirestore not ready');
+        return;
+    }
+
+    // ── Step 2: Resolve the authenticated user ──
+    // Always read directly from the live Firebase Auth SDK instance.
+    // window._snxCurrentUser (set by onAuthStateChanged) is a reliable fallback
+    // but _snxAuth.currentUser is authoritative and always up to date.
     const _auth = window._snxAuth || null;
     const user  = (_auth && _auth.currentUser) || _gcUser();
 
-    if (!fs) {
-        if (typeof toastNotification === 'function') toastNotification('⚠️ App not ready — please wait a moment and try again.');
+    if (!user || !user.uid) {
+        console.warn('[groupChat] snxSubmitCreateGroup: no authenticated user.',
+            { _authExists: !!_auth, currentUser: _auth && _auth.currentUser,
+              _snxCurrentUser: window._snxCurrentUser });
+        if (typeof toastNotification === 'function') toastNotification('⚠️ You must be signed in to create a group.');
         return;
     }
-    if (!user || !user.uid) {
-        if (typeof toastNotification === 'function') toastNotification('⚠️ You must be signed in to create a group.');
+
+    // ── Step 3: Force-refresh the Firebase Auth token ──
+    // This guarantees Firestore receives a valid, non-expired JWT so that
+    // request.auth is never null when the security rule evaluates the write.
+    // Without this, a race between session restore and the first Firestore
+    // write can produce permission-denied even for fully signed-in users.
+    try {
+        await user.getIdToken(/* forceRefresh */ true);
+        console.log('[groupChat] Auth token refreshed. UID:', user.uid, '| email:', user.email || '(none)');
+    } catch (_tokenErr) {
+        console.error('[groupChat] getIdToken failed — aborting group creation:', _tokenErr);
+        if (typeof toastNotification === 'function') toastNotification('⚠️ Authentication error — please sign out and sign in again.');
         return;
     }
 
@@ -31704,26 +31731,36 @@ window.snxSubmitCreateGroup = async function() {
     // Always include the creator as the first member
     const members = [user.uid, ...selected.map(m => m.uid)];
     const picUrl  = (picEl ? picEl.value : '').trim();
+    const createdAt = Date.now();
+
+    // ── Step 4: Log the exact write that is about to happen ──
+    // These diagnostics appear in the browser console so permission errors
+    // show the exact UID, path, and payload that Firestore rejected.
+    const _writePayload = {
+        name,
+        picUrl,
+        createdBy:  user.uid,
+        createdAt,
+        members,
+        admins:     [user.uid],
+        messages:   [],
+        lastMsgTs:  createdAt,
+        isGroup:    true,
+    };
+    console.log('[groupChat] Writing to Firestore path: groupChats/<auto-id>');
+    console.log('[groupChat] Authenticated UID:', user.uid, '| email:', user.email || '(none)');
+    console.log('[groupChat] Write payload:', JSON.stringify(_writePayload));
 
     try {
-        // Write the group document.
+        // ── Step 5: Create the group document ──
         // The Firestore rule allows create when:
         //   isSignedIn() && request.resource.data.createdBy == request.auth.uid
-        // We explicitly set createdBy = user.uid to satisfy that check.
-        const docRef = await fs.addDoc(fs.collection(fs.db, 'groupChats'), {
-            name,
-            picUrl,
-            createdBy:  user.uid,           // required by Firestore rule
-            createdAt:  Date.now(),
-            members,                         // creator is always first member
-            admins:     [user.uid],
-            messages:   [],
-            lastMsgTs:  Date.now(),
-            isGroup:    true,
-        });
+        // createdBy is set to user.uid (verified above) to satisfy that check.
+        const docRef = await fs.addDoc(fs.collection(fs.db, 'groupChats'), _writePayload);
         const groupId = docRef.id;
+        console.log('[groupChat] Group created successfully. groupId:', groupId);
 
-        // Send group-invite notifications (best-effort — non-blocking)
+        // ── Step 6: Send group-invite notifications (best-effort, non-blocking) ──
         for (const m of selected) {
             try {
                 const _notifFs = _gcFs();
@@ -31755,16 +31792,22 @@ window.snxSubmitCreateGroup = async function() {
         if (typeof toastNotification === 'function') toastNotification('✅ Group "' + name + '" created!');
         window.snxCloseCreateGroupModal();
 
-        // Switch to groups tab and open the new chat immediately
+        // ── Step 7: Show the new group immediately ──
+        // Switch to the Groups tab and open the new group chat right away,
+        // so the creator sees the room without any manual navigation.
         const groupsTab = document.getElementById('inboxTabGroups');
         window.snxSwitchInboxTab('groups', groupsTab);
         setTimeout(() => window.snxOpenGroupChat(groupId), 350);
 
     } catch(e) {
-        // Log the exact Firebase error code and path so it's debuggable
+        // ── Full diagnostic logging on failure ──
         const _code   = e.code   ? ' [' + e.code + ']'   : '';
         const _detail = e.message || 'Unknown error';
-        console.error('[groupChat] Create group failed' + _code + ':', e);
+        console.error('[groupChat] Create group FAILED' + _code + ':', _detail);
+        console.error('[groupChat] Failed write path: groupChats/<auto-id>');
+        console.error('[groupChat] Authenticated UID at time of error:', user.uid);
+        console.error('[groupChat] Authenticated email at time of error:', user.email || '(none)');
+        console.error('[groupChat] Full error object:', e);
         if (typeof toastNotification === 'function') {
             toastNotification('❌ Failed to create group' + _code + ': ' + _detail);
         }
@@ -32400,21 +32443,34 @@ window.snxSubmitInviteMore = async function(existingSet) {
 </script>
 
 <!-- ══════════════════════════════════════════════════════════════
-     HOLIDAY THEMES — overlay DOM elements
+     HOLIDAY THEMES — overlay DOM elements  v2.0
      Must exist on every page that loads holiday-themes.js.
-     Pointer-events none — no impact on existing UI/interactions.
+     All overlays use pointer-events:none — zero impact on UI.
      ══════════════════════════════════════════════════════════════ -->
 
 <!-- Seasonal colour stripe at top of screen -->
 <div id="snxHolidayBanner" aria-hidden="true"></div>
 
-<!-- Floating particle canvas (snow, confetti, hearts, etc.) -->
+<!-- Floating particle canvas (snow, confetti, hearts, fireworks, etc.) -->
 <canvas id="snxHolidayParticles" aria-hidden="true"></canvas>
 
-<!-- Preview-mode badge shown to Founder only -->
+<!-- Preview-mode badge shown to Founder only during preview -->
 <div id="snxThemePreviewBadge" role="status" aria-live="polite"></div>
 
-<!-- ── Holiday Themes engine ── -->
+<!-- Holiday loading screen splash (shown on initial page load when theme is active) -->
+<div id="snxHolidayLoadingSplash" aria-hidden="true">
+    <div class="ht-splash-emoji">🎄</div>
+    <div class="ht-splash-name">Loading…</div>
+</div>
+
+<!-- User-facing music player toggle widget (only visible when Founder enables music) -->
+<div id="snxMusicPlayerWrap" role="region" aria-label="Holiday Music">
+    <button id="snxMusicToggleBtn" onclick="window.snxHtUserMusicToggle && snxHtUserMusicToggle()" aria-pressed="false">
+        🔇 Music OFF
+    </button>
+</div>
+
+<!-- ── Holiday Themes engine v2.0 ── -->
 <script src="holiday-themes.js"></script>
 
 </body>
