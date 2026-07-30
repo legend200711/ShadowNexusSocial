@@ -7544,7 +7544,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     </div>
 
     <!-- ── Profile Music Player ── -->
-    <div id="profileMusicCard" style="display:none;" class="section-card" style="margin-bottom:14px;">
+    <div id="profileMusicCard" style="display:none;margin-bottom:14px;" class="section-card">
         <div class="profile-music-header">
             <span class="profile-music-label">🎵 Profile Music</span>
             <button class="profile-music-edit-btn" id="btnEditProfileMusic" style="display:none;" onclick="openProfileMusicModal()">Edit</button>
@@ -29618,30 +29618,51 @@ function _renderProfileMusic(pc, isSelf) {
     const player = document.getElementById('profileMusicPlayer');
     if (!player) return;
 
-    // Validate URL before rendering — reject obvious non-audio URLs
+    // Validate URL before rendering — reject empty or obviously non-audio values
     const rawUrl = (music.url || '').trim();
     if (!rawUrl) { card.style.display = 'none'; return; }
 
     const safeUrl    = rawUrl.replace(/"/g, '&quot;');
     const safeTitle  = (music.title  || 'Profile Track').replace(/[<>]/g, '');
     const safeArtist = (music.artist || '').replace(/[<>]/g, '');
-    // Use a stable ID so the audio element survives re-renders on the same profile.
     const pId = 'snxProfileAudio';
 
-    // Stop and detach any previously playing audio before replacing the DOM
-    const prevAudio = document.getElementById(pId);
-    if (prevAudio) { try { prevAudio.pause(); prevAudio.src = ''; } catch(_) {} }
+    // ── Skip re-render if the same track is already loaded and playing ──
+    // This prevents a snapshot update (e.g. wall post) from killing playback.
+    const existingAudio = document.getElementById(pId);
+    if (existingAudio) {
+        const existingSrc = existingAudio.getAttribute('src') || existingAudio.currentSrc || '';
+        // Compare decoded URLs — Firebase Storage tokens may differ, so compare pathname only
+        let existingPath = '';
+        let newPath = rawUrl;
+        try { existingPath = new URL(existingSrc).pathname; } catch(_) {}
+        try { newPath = new URL(rawUrl).pathname; } catch(_) {}
+        if (existingPath && existingPath === newPath) {
+            // Same track — just update the title/artist display and edit button, leave audio alone
+            const titleEl = player.querySelector('.profile-music-title');
+            if (titleEl) titleEl.textContent = safeTitle;
+            const artistEl = player.querySelector('.profile-music-artist');
+            if (artistEl) artistEl.textContent = safeArtist;
+            return;
+        }
+        // Different track — stop the old one before replacing
+        try { existingAudio.pause(); existingAudio.src = ''; } catch(_) {}
+    }
 
+    // ── Build player UI ──
+    // No crossorigin attribute by default — Firebase Storage and R2 may reject
+    // credentialed CORS requests and cause an immediate load error.
     player.innerHTML = `
         <div class="profile-music-player-inner" id="snxMusicPlayerUI">
-            <div class="profile-music-icon" id="snxMusicNoteIcon">🎵</div>
+            <div class="profile-music-icon" id="snxMusicNoteIcon" style="animation-play-state:paused;">🎵</div>
             <div class="profile-music-info">
                 <div class="profile-music-title">${safeTitle}</div>
                 ${safeArtist ? `<div class="profile-music-artist">${safeArtist}</div>` : ''}
-                <audio id="${pId}" src="${safeUrl}" preload="metadata"${music.repeat === 'yes' ? ' loop' : ''} style="display:none;" crossorigin="anonymous"></audio>
+                <audio id="${pId}" src="${safeUrl}" preload="metadata"${music.repeat === 'yes' ? ' loop' : ''} style="display:none;"></audio>
                 <div id="snxMusicError" style="display:none;font-size:11px;color:#ff5566;margin-top:4px;"></div>
                 <div class="profile-music-controls">
                     <button class="pm-ctrl-btn" id="snxMusicPlayBtn" onclick="snxMusicTogglePlay('${pId}')" title="Play / Pause" aria-label="Play or pause">▶</button>
+                    <button class="pm-ctrl-btn" id="snxMusicStopBtn" onclick="snxMusicStop('${pId}')" title="Stop" aria-label="Stop" style="font-size:11px;">⏹</button>
                     <div class="pm-progress-wrap">
                         <div class="pm-progress-bar">
                             <div class="pm-progress-fill" id="snxMusicFill"></div>
@@ -29660,7 +29681,7 @@ function _renderProfileMusic(pc, isSelf) {
             </div>
         </div>`;
 
-    // Wire up the audio element events after injecting HTML
+    // Wire up audio element events after injecting HTML
     const audio = document.getElementById(pId);
     if (!audio) return;
 
@@ -29669,10 +29690,9 @@ function _renderProfileMusic(pc, isSelf) {
     const _showMusicError = (msg) => {
         const errEl = document.getElementById('snxMusicError');
         if (errEl) { errEl.textContent = msg; errEl.style.display = msg ? '' : 'none'; }
-        // Only disable the Play button for load errors (not for play-blocked messages
-        // which the user can resolve by tapping again).
+        // Only disable Play for hard load errors, not user-interaction-required messages
         const btn = document.getElementById('snxMusicPlayBtn');
-        if (btn) btn.disabled = !!(msg && !msg.includes('Tap Play again'));
+        if (btn) btn.disabled = !!(msg && !msg.includes('Tap Play'));
     };
 
     audio.addEventListener('timeupdate', () => {
@@ -29702,42 +29722,41 @@ function _renderProfileMusic(pc, isSelf) {
         const icon = document.getElementById('snxMusicNoteIcon');
         if (btn)  btn.textContent = '▶';
         if (icon) icon.style.animationPlayState = 'paused';
+        const fill = document.getElementById('snxMusicFill');
+        const seek = document.getElementById('snxMusicSeek');
+        if (fill) fill.style.width = '0%';
+        if (seek) seek.value = 0;
     });
-    // Show a clear error if the audio fails to load (broken URL, network issue, etc.).
-    // We attempt one silent retry without crossorigin first (some servers reject it),
-    // and only show the error message if the retry also fails.
-    let _musicLoadAttempt = 0;
+
+    // ── Error handling — no crossorigin so no CORS retry needed ──
     audio.addEventListener('error', () => {
-        _musicLoadAttempt++;
-        if (_musicLoadAttempt === 1 && audio.hasAttribute('crossorigin')) {
-            // Silent retry: remove crossorigin attribute and reload
-            audio.removeAttribute('crossorigin');
-            audio.load();
-            return;
-        }
         const code = audio.error ? audio.error.code : 0;
         const msgs = {
             1: 'Playback aborted.',
             2: 'Network error \u2014 check your connection.',
-            3: 'Audio file could not be decoded.',
-            4: 'Audio source not found or not accessible.'
+            3: 'Audio file could not be decoded. The format may not be supported.',
+            4: 'Audio source not found or not accessible. Check the URL or re-upload the file.'
         };
         _showMusicError('\u26a0\ufe0f ' + (msgs[code] || 'Could not load audio. Check the URL or try re-uploading.'));
     });
 
-    // Autoplay with muted fallback (browsers block autoplay with sound)
+    // ── Autoplay with muted fallback ──
+    // Browsers block autoplay with sound; muted autoplay is allowed.
+    // On success the user can unmute via the volume control.
     if (music.autoplay === 'yes') {
         audio.play().catch(() => {
-            // First try: muted autoplay (allowed by most browsers)
+            // Unmuted autoplay blocked — try muted
             audio.muted = true;
-            audio.play().catch(() => {
-                // Autoplay fully blocked — reset to paused state, user must tap Play
+            audio.play().then(() => {
+                // Muted autoplay succeeded — update UI to show muted state
+                const volIcon   = player.querySelector('.pm-vol-icon');
+                const volSlider = document.getElementById('snxMusicVol');
+                if (volIcon)   volIcon.textContent = '🔇';
+                if (volSlider) volSlider.value = 0;
+            }).catch(() => {
+                // All autoplay blocked — reset, user must press Play
                 audio.muted = false;
             });
-            const volIcon = player.querySelector('.pm-vol-icon');
-            if (volIcon) volIcon.textContent = '🔇';
-            const volSlider = document.getElementById('snxMusicVol');
-            if (volSlider) volSlider.value = 0;
         });
     }
 }
@@ -29778,6 +29797,19 @@ window.snxMusicTogglePlay = function(pId) {
     } else {
         audio.pause();
     }
+};
+
+window.snxMusicStop = function(pId) {
+    const audio = document.getElementById(pId);
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    const fill = document.getElementById('snxMusicFill');
+    const seek = document.getElementById('snxMusicSeek');
+    const tEl  = document.getElementById('snxMusicTime');
+    if (fill) fill.style.width = '0%';
+    if (seek) seek.value = 0;
+    if (tEl)  tEl.textContent = '0:00 / ' + _snxMusicFmt(audio.duration || 0);
 };
 
 window.snxMusicSeek = function(pId, pct) {
@@ -29976,59 +30008,79 @@ async function _renderFeaturedPosts(pc, isSelf) {
 })();
 
 /* ════════════════════════════════════════════════════════
-   15. SAVE PROFILE — extend to include new fields
-   ════════════════════════════════════════════════════════ */
+   15. SAVE PROFILE — extend to include music + new fields
+   ════════════════════════════════════════════════════════
+   Strategy: we wrap btnSaveProfile.onclick so that just before the
+   original onclick fires, we collect the extra fields and stash them in
+   window._snxProfileCustomPatch.  We simultaneously wrap the Firestore
+   updateDoc (via window._snxFirestore) so that when the original onclick
+   calls updateDoc with a profileCustom payload, we merge our extra fields
+   in before the write.  After the write we also patch the local userData
+   cache so that applyProfileCustom immediately picks up the new music data
+   without waiting for the next onSnapshot. */
 (function() {
-    const _origBtnSave = document.getElementById('btnSaveProfile');
-    if (!_origBtnSave) return;
+    // ── Helper: collect current music + extra-section values from the modal ──
+    function _collectMusicPatch() {
+        const musicTitle    = (document.getElementById('editMusicTitle')?.value  || '').trim().substring(0, 80);
+        const musicArtist   = (document.getElementById('editMusicArtist')?.value || '').trim().substring(0, 80);
+        const musicUrl      = (document.getElementById('editMusicUrl')?.value    || '').trim();
+        const musicAuto     = document.getElementById('editMusicAutoplay')?.value || 'no';
+        const musicRepeat   = document.getElementById('editMusicRepeat')?.value   || 'no';
+        const bannerAnim    = document.getElementById('editBannerAnim')?.value    || 'none';
 
-    const _origClick = _origBtnSave.onclick;
-    _origBtnSave.onclick = async function() {
-        // Add new fields to profileCustom BEFORE the original save runs
-        // We do this by patching the data inline — the original onclick is async
-        // so we run ours first and let it proceed
-        const musicTitle   = (document.getElementById('editMusicTitle')?.value  || '').trim().substring(0, 80);
-        const musicArtist  = (document.getElementById('editMusicArtist')?.value || '').trim().substring(0, 80);
-        const musicUrl     = (document.getElementById('editMusicUrl')?.value    || '').trim();
-        const musicAuto    = document.getElementById('editMusicAutoplay')?.value || 'no';
-        const musicRepeat  = document.getElementById('editMusicRepeat')?.value  || 'no';
-        const bannerAnim   = document.getElementById('editBannerAnim')?.value   || 'none';
+        const featPostIds   = [...document.querySelectorAll('.epm-featured-post-id')]
+                                .map(i => i.value.trim()).filter(Boolean).slice(0, 3);
+        const featMediaUrls = [...document.querySelectorAll('.epm-featured-media-url')]
+                                .map(i => i.value.trim()).filter(Boolean).slice(0, 6);
 
-        const featPostIds  = [...document.querySelectorAll('.epm-featured-post-id')].map(i => i.value.trim()).filter(Boolean).slice(0,3);
-        const featMediaUrls= [...document.querySelectorAll('.epm-featured-media-url')].map(i => i.value.trim()).filter(Boolean).slice(0,6);
-
-        const secShowMusic       = document.getElementById('secShowMusic')?.checked !== false;
-        const secShowVisitors    = document.getElementById('secShowVisitors')?.checked !== false;
-        const secShowAchievements= document.getElementById('secShowAchievements')?.checked !== false;
-        const secShowFeaturedMedia= document.getElementById('secShowFeaturedMedia')?.checked !== false;
-        const secShowFeaturedPosts= document.getElementById('secShowFeaturedPosts')?.checked !== false;
-
-        // Store as a module-level patch that the original onclick will merge
-        window._snxProfileCustomPatch = {
+        // Read checkbox values directly — default true if element missing
+        const _chkVal = id => { const el = document.getElementById(id); return el ? el.checked : true; };
+        return {
             music: { title: musicTitle, artist: musicArtist, url: musicUrl, autoplay: musicAuto, repeat: musicRepeat },
             animatedBanner: bannerAnim,
             featuredPostIds: featPostIds,
             featuredMediaUrls: featMediaUrls,
             _extraSections: {
-                showMusic: secShowMusic,
-                showVisitors: secShowVisitors,
-                showAchievements: secShowAchievements,
-                showFeaturedMedia: secShowFeaturedMedia,
-                showFeaturedPosts: secShowFeaturedPosts,
+                showMusic:          _chkVal('secShowMusic'),
+                showVisitors:       _chkVal('secShowVisitors'),
+                showAchievements:   _chkVal('secShowAchievements'),
+                showFeaturedMedia:  _chkVal('secShowFeaturedMedia'),
+                showFeaturedPosts:  _chkVal('secShowFeaturedPosts'),
             },
         };
+    }
 
+    // ── Wrap btnSaveProfile.onclick ──
+    const _btn = document.getElementById('btnSaveProfile');
+    if (!_btn) return;
+    const _origClick = _btn.onclick;
+    _btn.onclick = async function() {
+        window._snxProfileCustomPatch = _collectMusicPatch();
         if (_origClick) await _origClick.call(this);
+        // After the original save, also patch the local userData cache so that
+        // _renderProfileMusic immediately reflects the saved music without
+        // waiting for the Firestore onSnapshot to re-fire.
+        const patch = window._snxProfileCustomPatch; // may already be null if merged
+        const ud = window._snxUserData || window.userData;
+        if (ud) {
+            const pc = ud.profileCustom || (ud.profileCustom = {});
+            const savedPatch = patch || window._snxLastMusicPatch;
+            if (savedPatch) {
+                if (savedPatch.music) pc.music = savedPatch.music;
+                if (savedPatch.animatedBanner !== undefined) pc.animatedBanner = savedPatch.animatedBanner;
+                if (savedPatch.featuredPostIds)  pc.featuredPostIds  = savedPatch.featuredPostIds;
+                if (savedPatch.featuredMediaUrls) pc.featuredMediaUrls = savedPatch.featuredMediaUrls;
+                if (savedPatch._extraSections) {
+                    pc.sections = Object.assign(pc.sections || {}, savedPatch._extraSections);
+                }
+                window._snxLastMusicPatch = null;
+            }
+        }
+        window._snxProfileCustomPatch = null;
     };
-})();
 
-/* Hook into the Firestore updateDoc call in btnSaveProfile to merge new fields.
-   We do this by patching the profileCustom object that gets built in the original onclick.
-   The cleanest approach: override applyProfileCustom to also pick up the patch,
-   and override the Firestore write by wrapping it. Since the original onclick
-   directly calls updateDoc, we intercept via the Firebase wrapper. */
-(function() {
-    // Wait for Firebase to be available, then wrap updateDoc
+    // ── Wrap Firestore updateDoc to merge music fields into the profileCustom write ──
+    // We poll until _snxFirestore is initialised (it loads asynchronously).
     const _waitForFs = setInterval(() => {
         const fs = window._snxFirestore;
         if (!fs || !fs.updateDoc) return;
@@ -30036,18 +30088,21 @@ async function _renderFeaturedPosts(pc, isSelf) {
 
         const _origUpdateDoc = fs.updateDoc;
         fs.updateDoc = async function(ref, data, ...rest) {
-            // If this is a profile save (has profileCustom and is the current user's doc)
             const patch = window._snxProfileCustomPatch;
             if (patch && data && data.profileCustom) {
                 const pc = data.profileCustom;
-                // Merge new fields
-                if (patch.music) pc.music = patch.music;
-                if (patch.animatedBanner) pc.animatedBanner = patch.animatedBanner;
-                if (patch.featuredPostIds) pc.featuredPostIds = patch.featuredPostIds;
-                if (patch.featuredMediaUrls) pc.featuredMediaUrls = patch.featuredMediaUrls;
+                // Always merge music — even if url is empty (clears the player)
+                pc.music = patch.music;
+                // Always save animatedBanner (including 'none')
+                pc.animatedBanner = patch.animatedBanner;
+                // Always save arrays (may be empty to clear them)
+                pc.featuredPostIds   = patch.featuredPostIds;
+                pc.featuredMediaUrls = patch.featuredMediaUrls;
                 if (patch._extraSections) {
                     pc.sections = Object.assign(pc.sections || {}, patch._extraSections);
                 }
+                // Keep a copy for the post-save cache patch above
+                window._snxLastMusicPatch = Object.assign({}, patch);
                 window._snxProfileCustomPatch = null;
             }
             return _origUpdateDoc.call(this, ref, data, ...rest);
