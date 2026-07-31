@@ -398,6 +398,7 @@ async function _startCreatorSetup() {
   _hideLoading();
   if (D.setup) D.setup.style.display = 'block';
 
+  console.log('[LiveSetup] Requesting camera + microphone…');
   try {
     _localStream = await navigator.mediaDevices.getUserMedia({
       // Default: 720p 30fps — safe for 5G/4G (adaptive quality shifts tiers automatically)
@@ -409,18 +410,26 @@ async function _startCreatorSetup() {
       },
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
+    const vTracks = _localStream.getVideoTracks();
+    const aTracks = _localStream.getAudioTracks();
+    console.log(`[LiveSetup] Camera OK — video tracks: ${vTracks.length}, audio tracks: ${aTracks.length}`);
+    vTracks.forEach((t, i) => console.log(`[LiveSetup]   video[${i}] label="${t.label}" enabled=${t.enabled} readyState=${t.readyState}`));
+    aTracks.forEach((t, i) => console.log(`[LiveSetup]   audio[${i}] label="${t.label}" enabled=${t.enabled} readyState=${t.readyState}`));
     if (D.setupPreview) {
       D.setupPreview.srcObject = _localStream;
       D.setupPreview.play().catch(() => {});
     }
     _updateSetupPreviewState(true);
   } catch (err) {
+    console.warn('[LiveSetup] Full getUserMedia failed:', err.name, err.message);
     try {
       _localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      console.log('[LiveSetup] Audio-only fallback OK');
       _camOn = false;
       _updateSetupPreviewState(false);
       toast('Camera is audio only');
     } catch (e) {
+      console.error('[LiveSetup] Media access denied entirely:', e.name, e.message);
       _showSetupPermError('Camera & mic access denied. Allow Camera + Microphone in your browser settings, then refresh.');
     }
   }
@@ -515,6 +524,28 @@ async function startLive() {
   if (!_localStream || !_localStream.getTracks().length) {
     toast('Camera or mic not available. Check permissions and refresh.');
     return;
+  }
+
+  // Re-verify every track is still live (iOS/Android can silently stop tracks)
+  const _deadTracks = _localStream.getTracks().filter(t => t.readyState === 'ended');
+  if (_deadTracks.length) {
+    console.warn('[StartLive] Dead tracks detected before going live:', _deadTracks.map(t => `${t.kind}(${t.readyState})`));
+    // Re-acquire the stream rather than going live with dead tracks
+    try {
+      const refreshed = await navigator.mediaDevices.getUserMedia({
+        video: _camOn ? { facingMode: _facingMode, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } } : false,
+        audio: _micOn ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
+      });
+      _localStream.getTracks().forEach(t => t.stop());
+      _localStream = refreshed;
+      if (D.setupPreview) { D.setupPreview.srcObject = refreshed; }
+      console.log('[StartLive] Stream refreshed — new tracks:', refreshed.getTracks().map(t => `${t.kind}(${t.readyState})`));
+    } catch (e) {
+      console.error('[StartLive] Could not refresh dead tracks:', e.message);
+      toast('Camera lost. Please refresh and try again.');
+      if (D.goLiveBtn) { D.goLiveBtn.disabled = false; D.goLiveBtn.textContent = 'Start Live'; }
+      return;
+    }
   }
 
   // ── Kill any previous stuck live session for this user ──
@@ -1260,39 +1291,70 @@ function _setupViewerControls(roomData) {
    WebRTC — CREATOR
    Uses LIVE Realtime Database for signaling.
    ═══════════════════════════════════════════════════ */
+
+/**
+ * Apply the default encoding parameters (720p / 3 000 kbps) to the video
+ * sender of a peer connection.  MUST be called after the connection reaches
+ * 'connected' state — calling setParameters() before negotiation completes
+ * is a spec violation that silently fails on Chrome and Safari.
+ */
+function _applyCreatorEncodings(pc) {
+  if (!pc) return;
+  const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+  if (!sender) return;
+  try {
+    const params = sender.getParameters();
+    if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+    // Default tier: MED — 720p, 3 000 kbps, 30 fps
+    params.encodings[0].maxBitrate            = 3_000_000;
+    params.encodings[0].maxFramerate          = 30;
+    params.encodings[0].scaleResolutionDownBy = 1;
+    sender.setParameters(params).catch(e => console.warn('[CreatorWebRTC] setParameters failed:', e.message));
+  } catch (e) {
+    console.warn('[CreatorWebRTC] _applyCreatorEncodings error:', e.message);
+  }
+}
+
 async function _startCreatorWebRTC() {
   if (!_localStream) {
     toast('Camera or mic not available.');
     return;
   }
 
+  // Verify all tracks are active before publishing — dead tracks cause a black screen
+  const _allTracks = _localStream.getTracks();
+  console.log(`[CreatorWebRTC] Starting — ${_allTracks.length} track(s):`, _allTracks.map(t => `${t.kind}(enabled=${t.enabled} state=${t.readyState})`));
+  const _stoppedTracks = _allTracks.filter(t => t.readyState === 'ended');
+  if (_stoppedTracks.length) {
+    console.error('[CreatorWebRTC] One or more tracks have ended before offer creation:', _stoppedTracks.map(t => t.kind));
+    toast('Camera stopped unexpectedly. Please refresh and try again.');
+    return;
+  }
+
   _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
 
-  // Add tracks with explicit sendonly direction
-  _localStream.getTracks().forEach(track => {
+  // Add tracks — each track is carried as a separate transceiver (video + audio)
+  _allTracks.forEach(track => {
+    console.log(`[CreatorWebRTC] addTrack: kind=${track.kind} enabled=${track.enabled} readyState=${track.readyState}`);
     _rtcPc.addTrack(track, _localStream);
   });
 
-  // Ensure transceivers are sendonly and set initial encoding to 720p / 3000 kbps CBR
+  // Set sendonly direction on each transceiver so the host never receives
+  // an inbound stream on this connection (saves bandwidth + avoids ontrack
+  // firing for the host's own stream).
+  // NOTE: setParameters() must be called AFTER setLocalDescription —
+  //       calling it before is a spec violation that silently fails on Chrome.
+  //       We set direction here and defer encoding params to after negotiation.
   _rtcPc.getTransceivers().forEach(tc => {
     tc.direction = 'sendonly';
-    if (tc.sender && tc.sender.track && tc.sender.track.kind === 'video') {
-      const params = tc.sender.getParameters();
-      if (!params.encodings || !params.encodings.length) {
-        params.encodings = [{}];
-      }
-      // Default tier: MED — 720p, 3000 kbps, 30fps
-      params.encodings[0].maxBitrate           = 3_000_000;
-      params.encodings[0].maxFramerate         = 30;
-      params.encodings[0].scaleResolutionDownBy = 1;
-      tc.sender.setParameters(params).catch(() => {});
-    }
   });
 
   _rtcPc.onconnectionstatechange = () => {
-    const state = _rtcPc.connectionState;
+    const state = _rtcPc?.connectionState;
     console.log(`[CreatorWebRTC] Connection state: ${state}`);
     if (state === 'connected') {
+      // NOW it is safe to set encoding parameters — negotiation is complete
+      _applyCreatorEncodings(_rtcPc);
       // Start adaptive quality monitoring (adjust bitrate based on network conditions)
       _startAdaptiveQuality(_rtcPc);
     } else if (state === 'disconnected') {
@@ -1303,7 +1365,7 @@ async function _startCreatorWebRTC() {
   };
 
   _rtcPc.oniceconnectionstatechange = () => {
-    console.log(`[CreatorWebRTC] ICE state: ${_rtcPc.iceConnectionState}`);
+    console.log(`[CreatorWebRTC] ICE state: ${_rtcPc?.iceConnectionState}`);
   };
 
   const connRef = ref(_liveDB, `liveConnections/${_roomId}`);
@@ -1324,18 +1386,23 @@ async function _startCreatorWebRTC() {
   // createOffer with a 10-second timeout
   let offer;
   try {
+    console.log('[CreatorWebRTC] Creating offer…');
     offer = await Promise.race([
       _rtcPc.createOffer(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('createOffer timed out after 10s')), 10000)),
     ]);
+    console.log('[CreatorWebRTC] Offer created — SDP length:', offer.sdp.length);
   } catch (e) {
+    console.error('[CreatorWebRTC] createOffer failed:', e.message);
     toast('Could not start stream. Please try again.');
     return;
   }
 
   try {
     await _rtcPc.setLocalDescription(offer);
+    console.log('[CreatorWebRTC] setLocalDescription OK');
   } catch (e) {
+    console.error('[CreatorWebRTC] setLocalDescription failed:', e.message);
     toast('Could not start stream. Please try again.');
     return;
   }
@@ -1348,7 +1415,9 @@ async function _startCreatorWebRTC() {
       viewerCandidates:  {},
     });
     _offerWritten = true;
+    console.log('[CreatorWebRTC] Offer written to RTDB — waiting for viewer answer');
   } catch (e) {
+    console.error('[CreatorWebRTC] Failed to write offer to RTDB:', e.message);
     toast('Could not start live. Please try again.');
     return;
   }
@@ -1382,6 +1451,8 @@ async function _startCreatorWebRTC() {
   // offer to RTDB, and flushes any buffered ICE candidates.
   // Returns true on success, false on failure.
   const _doCreatorReoffer = async () => {
+    console.log('[CreatorWebRTC] Creating fresh offer for reconnecting viewer…');
+
     // Close the old RTCPeerConnection — it cannot be re-used once the
     // remote description side changes (the viewer's PeerConnection is new).
     if (_rtcPc) {
@@ -1392,29 +1463,41 @@ async function _startCreatorWebRTC() {
     }
     _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
 
-    // Re-attach local stream tracks to the new connection
+    // Re-attach local stream tracks — verify they are still alive first
     if (_localStream) {
-      _localStream.getTracks().forEach(track => _rtcPc.addTrack(track, _localStream));
+      const liveTracks = _localStream.getTracks().filter(t => t.readyState === 'live');
+      const deadTracks = _localStream.getTracks().filter(t => t.readyState !== 'live');
+      if (deadTracks.length) {
+        console.warn('[CreatorWebRTC] Reoffer: dead tracks detected:', deadTracks.map(t => `${t.kind}(${t.readyState})`));
+      }
+      liveTracks.forEach(track => {
+        console.log(`[CreatorWebRTC] Reoffer addTrack: kind=${track.kind} enabled=${track.enabled}`);
+        _rtcPc.addTrack(track, _localStream);
+      });
+      if (!liveTracks.length) {
+        console.error('[CreatorWebRTC] Reoffer aborted — no live tracks available');
+        return false;
+      }
+    } else {
+      console.error('[CreatorWebRTC] Reoffer aborted — _localStream is null');
+      return false;
     }
+
+    // Set sendonly direction; defer encoding params until after negotiation
     _rtcPc.getTransceivers().forEach(tc => {
       tc.direction = 'sendonly';
-      if (tc.sender?.track?.kind === 'video') {
-        const params = tc.sender.getParameters();
-        if (!params.encodings || !params.encodings.length) params.encodings = [{}];
-        params.encodings[0].maxBitrate            = 3_000_000;
-        params.encodings[0].maxFramerate          = 30;
-        params.encodings[0].scaleResolutionDownBy = 1;
-        tc.sender.setParameters(params).catch(() => {});
-      }
     });
 
     _rtcPc.onconnectionstatechange = () => {
       const state = _rtcPc?.connectionState;
       console.log(`[CreatorWebRTC] Connection state (reoffer): ${state}`);
-      if (state === 'connected') _startAdaptiveQuality(_rtcPc);
+      if (state === 'connected') {
+        _applyCreatorEncodings(_rtcPc);
+        _startAdaptiveQuality(_rtcPc);
+      }
     };
     _rtcPc.oniceconnectionstatechange = () => {
-      console.log(`[CreatorWebRTC] ICE state: ${_rtcPc?.iceConnectionState}`);
+      console.log(`[CreatorWebRTC] ICE state (reoffer): ${_rtcPc?.iceConnectionState}`);
     };
 
     // Collect new ICE candidates for the fresh offer
@@ -1426,8 +1509,10 @@ async function _startCreatorWebRTC() {
       try { await push(ref(_liveDB, `liveConnections/${_roomId}/creatorCandidates`), e.candidate.toJSON()); } catch(_) {}
     };
 
+    console.log('[CreatorWebRTC] Reoffer: calling createOffer…');
     const newOffer = await _rtcPc.createOffer();
     await _rtcPc.setLocalDescription(newOffer);
+    console.log('[CreatorWebRTC] Reoffer: setLocalDescription OK — SDP length:', newOffer.sdp.length);
 
     // Reset applied-candidate tracking for the fresh round
     _appliedViewerCandKeys = new Set();
@@ -1447,7 +1532,7 @@ async function _startCreatorWebRTC() {
       try { await push(ref(_liveDB, `liveConnections/${_roomId}/creatorCandidates`), cand); } catch(_) {}
     }
     _reofferPendingCands.length = 0;
-    console.log('[CreatorWebRTC] Fresh offer written for reconnecting viewer');
+    console.log('[CreatorWebRTC] Fresh offer written to RTDB for reconnecting viewer');
     return true;
   };
 
@@ -1489,9 +1574,13 @@ async function _startCreatorWebRTC() {
     if (d.answer) {
       if (_rtcPc.remoteDescription === null) {
         // First answer from this viewer — apply it normally
+        console.log('[CreatorWebRTC] Applying viewer answer — SDP length:', d.answer.sdp?.length ?? 0);
         try {
           await _rtcPc.setRemoteDescription(new RTCSessionDescription(d.answer));
-        } catch (_) {}
+          console.log('[CreatorWebRTC] setRemoteDescription (answer) OK');
+        } catch (e) {
+          console.error('[CreatorWebRTC] setRemoteDescription (answer) failed:', e.message);
+        }
       } else if (_rtcPc.remoteDescription.sdp !== d.answer.sdp && !_creatorReofferPending) {
         // A different answer SDP arrived — this means a new viewer session connected
         // without going through the viewerReady path (e.g. fresh page load, or the
@@ -1629,20 +1718,56 @@ async function _startViewerWebRTC(roomData) {
   _rtcPc.ontrack = (e) => {
     if (!D.liveVideo) return;
     _trackReceived = true;
+    console.log(`[ViewerWebRTC] ontrack fired — kind=${e.track.kind} streams=${e.streams.length}`);
     // Cancel the no-track watchdog — we have media
     if (_noTrackWatchdogTimer) { clearTimeout(_noTrackWatchdogTimer); _noTrackWatchdogTimer = null; }
-    const stream = e.streams[0] || new MediaStream([e.track]);
-    D.liveVideo.srcObject = stream;
+
+    // Use the stream from the event; fall back to wrapping the bare track.
+    // Prefer e.streams[0] — it contains ALL tracks (video + audio) for this connection.
+    const stream = (e.streams && e.streams[0]) ? e.streams[0] : new MediaStream([e.track]);
+
+    // Set muted BEFORE assigning srcObject — prevents the "play() interrupted"
+    // DOMException on Chrome that fires if muted is changed mid-play.
     D.liveVideo.muted = true;
-    // Buffer / mobile optimisation: low-latency mode where supported
-    if ('playsInline' in D.liveVideo) D.liveVideo.playsInline = true;
-    if (typeof D.liveVideo.disableRemotePlayback !== 'undefined') D.liveVideo.disableRemotePlayback = true;
-    try { D.liveVideo.setPreferredQuality && D.liveVideo.setPreferredQuality('auto'); } catch(_) {}
-    D.liveVideo.play().catch(() => {});
+
+    // Low-latency / mobile optimisations
+    if ('playsInline'             in D.liveVideo) D.liveVideo.playsInline             = true;
+    if ('disableRemotePlayback'   in D.liveVideo) D.liveVideo.disableRemotePlayback   = true;
+
+    D.liveVideo.srcObject = stream;
+    console.log(`[ViewerWebRTC] srcObject set — tracks in stream: ${stream.getTracks().map(t => `${t.kind}(${t.readyState})`).join(', ')}`);
+
+    // play() must be called after srcObject is set.
+    // It returns a promise; swallowing it entirely hides the black-screen root cause.
+    const _playPromise = D.liveVideo.play();
+    if (_playPromise && typeof _playPromise.then === 'function') {
+      _playPromise.then(() => {
+        console.log('[ViewerWebRTC] Video playback started successfully');
+        _hideConnBanner();
+      }).catch(err => {
+        // NotAllowedError → autoplay blocked; show unmute prompt so user taps to unblock.
+        // Any other error → log and attempt muted re-play as a fallback.
+        console.warn('[ViewerWebRTC] video.play() rejected:', err.name, err.message);
+        if (err.name === 'NotAllowedError') {
+          _showUnmutePrompt();
+        } else {
+          // Force muted replay — last-ditch attempt to get any video visible
+          D.liveVideo.muted = true;
+          D.liveVideo.play().then(() => {
+            console.log('[ViewerWebRTC] Muted fallback play succeeded');
+            _hideConnBanner();
+          }).catch(e2 => console.error('[ViewerWebRTC] Muted fallback play also failed:', e2.message));
+        }
+      });
+    }
+
     _showUnmutePrompt();
     _hideConnBanner();
     // Safety: hide banner once video actually starts playing
-    D.liveVideo.addEventListener('playing', _hideConnBanner, { once: true });
+    D.liveVideo.addEventListener('playing', () => {
+      console.log('[ViewerWebRTC] Video element fired "playing" event');
+      _hideConnBanner();
+    }, { once: true });
     // Mark that this viewer has successfully received video in this session
     _viewerHasJoinedBefore = true;
     // Refresh all host cells in the guest grid with the new stream
@@ -1658,6 +1783,7 @@ async function _startViewerWebRTC(roomData) {
       // Mark this viewer as having successfully connected so that any future
       // rejoin (same page session) triggers a viewerReady → fresh offer cycle.
       _viewerHasJoinedBefore = true;
+      console.log('[ViewerWebRTC] Connection established — waiting for tracks');
       // Reattach stream to video element in case it went black after reconnect
       if (D.liveVideo && D.liveVideo.srcObject) {
         if (D.liveVideo.paused) D.liveVideo.play().catch(() => {});
@@ -1672,7 +1798,22 @@ async function _startViewerWebRTC(roomData) {
         if (_viewerLeftFlag) return;
         const v = D.liveVideo;
         if (v && v.srcObject && !v.paused) return; // already playing
-        console.warn('[ViewerWebRTC] Connected but no track received in 5 s — forcing reconnect');
+        console.warn('[ViewerWebRTC] Connected but no track received in 5 s — scheduling reconnect (attempt', _viewerReconnectAttempt + 1, ')');
+        // After several no-track failures show an actionable error rather than
+        // looping endlessly — the host's camera may be genuinely broken.
+        if (_viewerReconnectAttempt >= 3) {
+          _showConnBanner('No video received', 'The host may have camera issues. Tap to retry.');
+          if (D.connBanner) {
+            D.connBanner.style.cursor = 'pointer';
+            D.connBanner.onclick = () => {
+              D.connBanner.onclick = null;
+              D.connBanner.style.cursor = '';
+              _viewerReconnectAttempt = 0;
+              _scheduleViewerReconnect(roomData);
+            };
+          }
+          return;
+        }
         _scheduleViewerReconnect(roomData);
       }, 5000);
     } else if (state === 'disconnected') {
@@ -1696,10 +1837,12 @@ async function _startViewerWebRTC(roomData) {
 
   /* ── Set remote description (offer) ── */
   const offer = connSnap.val().offer;
+  console.log('[ViewerWebRTC] Applying host offer — SDP length:', offer?.sdp?.length ?? 0);
   try {
     await _rtcPc.setRemoteDescription(new RTCSessionDescription(offer));
+    console.log('[ViewerWebRTC] setRemoteDescription (offer) OK');
   } catch (e) {
-    console.warn('[ViewerWebRTC] setRemoteDescription failed — retrying:', e.message);
+    console.error('[ViewerWebRTC] setRemoteDescription failed:', e.message);
     _showConnBanner('Reconnecting…', '');
     if (!_viewerLeftFlag) _scheduleViewerReconnect(roomData);
     return;
@@ -1723,8 +1866,23 @@ async function _startViewerWebRTC(roomData) {
     } catch (_) {}
   };
 
-  const answer = await _rtcPc.createAnswer();
-  await _rtcPc.setLocalDescription(answer);
+  // createAnswer + setLocalDescription — both must succeed or the viewer
+  // gets an unhandled rejection and stays on a black screen indefinitely
+  let answer;
+  try {
+    console.log('[ViewerWebRTC] Creating answer…');
+    answer = await _rtcPc.createAnswer();
+    await _rtcPc.setLocalDescription(answer);
+    console.log('[ViewerWebRTC] Answer set as local description — SDP length:', answer.sdp.length);
+  } catch (e) {
+    console.error('[ViewerWebRTC] createAnswer/setLocalDescription failed:', e.message);
+    _showConnBanner('Reconnecting…', '');
+    if (!_viewerLeftFlag) _scheduleViewerReconnect(roomData);
+    return;
+  }
+
+  // Guard: bail if the viewer left during answer creation
+  if (_viewerLeftFlag) { try { _rtcPc.close(); } catch(_){} _rtcPc = null; return; }
 
   /* ── Write answer to RTDB ── */
   try {
@@ -1732,7 +1890,9 @@ async function _startViewerWebRTC(roomData) {
       answer: { type: answer.type, sdp: answer.sdp },
     });
     _viewerAnswerWritten = true;
+    console.log('[ViewerWebRTC] Answer written to RTDB');
   } catch (e) {
+    console.error('[ViewerWebRTC] Failed to write answer to RTDB:', e.message);
     _showConnBanner('Reconnecting…', '');
     if (!_viewerLeftFlag) _scheduleViewerReconnect(roomData);
     return;
