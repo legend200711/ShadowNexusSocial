@@ -75,10 +75,18 @@ const _ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'turn:openrelay.metered.ca:80',   username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443',  username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    // TURN over UDP, TCP, and TLS/443 — all three transports are required.
+    // Without TCP/TLS TURN fallbacks, symmetric NAT and carrier-grade NAT
+    // (common on mobile networks) lose connectivity after ~30-60 s when
+    // the NAT mapping expires ("black screen after a minute" bug).
+    { urls: 'turn:openrelay.metered.ca:80',                 username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:80?transport=tcp',   username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',                username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp',  username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 /* ── State ── */
@@ -763,12 +771,31 @@ async function flipLiveCamera() {
       D.liveVideo.srcObject = newStream;
       D.liveVideo.play().catch(() => {});
     }
+    // ── Replace the video track in the main creator→viewer connection ──
     if (_rtcPc && newStream.getVideoTracks()[0]) {
       const newVideoTrack = newStream.getVideoTracks()[0];
       const sender = _rtcPc.getSenders().find(s => s.track && s.track.kind === 'video');
       if (sender) {
         await sender.replaceTrack(newVideoTrack).catch(() => {});
       }
+    }
+    // ── Replace the video track in every active guest peer connection ──
+    // Without this, all guest WebRTC connections continue sending the stopped
+    // old track → the host's camera appears black in every guest's view.
+    if (newStream.getVideoTracks()[0]) {
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      for (const uid of Object.keys(_guestPeers)) {
+        const { pc } = _guestPeers[uid] || {};
+        if (!pc) continue;
+        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) { sender.replaceTrack(newVideoTrack).catch(() => {}); }
+      }
+    }
+    // ── Update the host cell <video> in the host-side guest grid ──
+    const hostCell = D.guestGrid?.querySelector('.host-cell');
+    if (hostCell) {
+      const vid = hostCell.querySelector('video');
+      if (vid) { vid.srcObject = newStream; vid.play().catch(() => {}); }
     }
   } catch (e) {
     toast('Could not flip camera.');
@@ -1190,10 +1217,20 @@ async function _startCreatorWebRTC() {
   });
 
   _rtcPc.onconnectionstatechange = () => {
-    if (_rtcPc.connectionState === 'connected') {
+    const state = _rtcPc.connectionState;
+    console.log(`[CreatorWebRTC] Connection state: ${state}`);
+    if (state === 'connected') {
       // Start adaptive quality monitoring (adjust bitrate based on network conditions)
       _startAdaptiveQuality(_rtcPc);
+    } else if (state === 'disconnected') {
+      console.warn('[CreatorWebRTC] Connection disconnected — awaiting ICE recovery');
+    } else if (state === 'failed') {
+      console.warn('[CreatorWebRTC] Connection failed');
     }
+  };
+
+  _rtcPc.oniceconnectionstatechange = () => {
+    console.log(`[CreatorWebRTC] ICE state: ${_rtcPc.iceConnectionState}`);
   };
 
   const connRef = ref(_liveDB, `liveConnections/${_roomId}`);
@@ -1331,21 +1368,24 @@ async function _startViewerWebRTC(roomData) {
     _hideConnBanner();
     // Safety: hide banner once video actually starts playing
     D.liveVideo.addEventListener('playing', _hideConnBanner, { once: true });
-    // ── If the guest grid is already showing a host cell, attach the stream now ──
-    const hostCell = D.guestGrid?.querySelector('.vgc-cell.host-cell');
-    if (hostCell && !hostCell.querySelector('video')) {
-      _attachHostVideoToCell(hostCell);
-    }
+    // ── Refresh all host cells in the guest grid with the new stream ──
+    // This handles both the initial attach and stream replacement (e.g. host
+    // camera flip mid-stream). Without this, host cells go black after a flip.
+    _refreshHostCellsWithStream();
   };
 
   _rtcPc.onconnectionstatechange = () => {
     const state = _rtcPc.connectionState;
+    console.log(`[ViewerWebRTC] Connection state: ${state}`);
     if (state === 'connected') {
       _hideConnBanner();
       _viewerReconnectAttempt = 0; // reset on successful connection
     } else if (state === 'disconnected' || state === 'failed') {
+      console.warn(`[ViewerWebRTC] Connection ${state} — scheduling reconnect`);
       _showConnBanner('Reconnecting…', '');
       _scheduleViewerReconnect(roomData);
+    } else if (state === 'closed') {
+      console.warn('[ViewerWebRTC] Connection closed');
     }
   };
 
@@ -2254,7 +2294,12 @@ function _startViewerGuestGrid() {
 /* ── Attach the host's live video stream into a viewer-side host cell ──
    The host stream arrives via WebRTC on #liveVideo. We create a <video>
    element in the host cell that reads from the same MediaStream so the
-   host camera is always visible, even when the guest grid is shown. */
+   host camera is always visible, even when the guest grid is shown.
+
+   Called both on initial render and whenever the host stream changes
+   (e.g. camera flip triggers a new MediaStream on #liveVideo). If a
+   video element already exists but its srcObject is stale (stopped tracks)
+   we replace it so the cell never shows a frozen / black frame. */
 function _attachHostVideoToCell(cell) {
   const _tryAttach = (attempts) => {
     const liveVid = D.liveVideo;
@@ -2265,13 +2310,20 @@ function _attachHostVideoToCell(cell) {
       if (attempts > 0) setTimeout(() => _tryAttach(attempts - 1), 100);
       return;
     }
-    // Don't add a second video if one already exists
-    if (cell.querySelector('video')) return;
-    const vid = document.createElement('video');
-    vid.autoplay   = true;
-    vid.muted      = false;   // viewers should hear the host
+    let vid = cell.querySelector('video');
+    if (vid) {
+      // Already have a video element — only replace if the stream changed
+      // (this covers camera-flip: old MediaStream has stopped tracks → black box)
+      if (vid.srcObject === stream) return; // already correct, nothing to do
+      vid.srcObject = stream;
+      vid.play().catch(() => {});
+      return;
+    }
+    vid = document.createElement('video');
+    vid.autoplay    = true;
+    vid.muted       = false;  // viewers should hear the host
     vid.playsInline = true;
-    vid.srcObject  = stream;
+    vid.srcObject   = stream;
     vid.play().catch(() => {});
     // Insert before the name label so it sits behind the overlay elements
     const nameEl = cell.querySelector('.vgc-name, .guest-cell-name');
@@ -2284,6 +2336,18 @@ function _attachHostVideoToCell(cell) {
     if (camOff) camOff.classList.remove('vgc-cam-off--visible');
   };
   _tryAttach(30);
+}
+
+/* ── Re-attach the host stream to all existing host cells in the viewer grid ──
+   Called after a track arrives or the stream is replaced (e.g. camera flip).
+   Ensures every host cell (there should be at most one) always shows the
+   current live feed. */
+function _refreshHostCellsWithStream() {
+  const grid = D.guestGrid;
+  if (!grid) return;
+  grid.querySelectorAll('.vgc-cell.host-cell').forEach(cell => {
+    _attachHostVideoToCell(cell);
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2643,11 +2707,34 @@ async function _guestJoinAsViewer() {
     try { await guestPc.addIceCandidate(new RTCIceCandidate(c)); } catch(_) {}
   }
 
-  // Listen for more host candidates — store unsub so _guestDoLeave can clean up
+  // ── Listen for host candidates AND ICE-restart re-offers ──────────────────
+  // The host may write a new offer with iceRestart:true when it detects a
+  // stalled connection.  We track the last applied offer SDP so we can
+  // detect when a brand-new offer arrives and re-negotiate without a full
+  // box teardown.
+  let _lastAppliedOfferSdp = sigData.offer?.sdp || null;
   if (_guestSigUnsub) { try { off(sigRef); } catch(_) {} _guestSigUnsub = null; }
   _guestSigUnsub = onValue(sigRef, async snap => {
     if (!snap.exists()) return;
     const d = snap.val();
+
+    // ── Handle ICE-restart re-offer from host ──────────────────────────────
+    if (d.offer && d.offer.sdp !== _lastAppliedOfferSdp) {
+      _lastAppliedOfferSdp = d.offer.sdp;
+      // Reset applied candidates — the new offer starts fresh ICE gathering
+      appliedHostCands.clear();
+      console.log('[GuestBox] Received ICE-restart re-offer from host — renegotiating');
+      try {
+        await guestPc.setRemoteDescription(new RTCSessionDescription(d.offer));
+        const newAnswer = await guestPc.createAnswer();
+        await guestPc.setLocalDescription(newAnswer);
+        await update(sigRef, { answer: { type: newAnswer.type, sdp: newAnswer.sdp } }).catch(() => {});
+      } catch (e) {
+        console.warn('[GuestBox] Failed to apply ICE-restart re-offer:', e.message);
+      }
+    }
+
+    // ── Accumulate new host ICE candidates ──────────────────────────────────
     if (d.hostCandidates) {
       for (const [k, c] of Object.entries(d.hostCandidates)) {
         if (appliedHostCands.has(k)) continue;
@@ -2724,9 +2811,32 @@ async function _guestJoinAsViewer() {
     _guestDoLeave();
   });
 
-  // Handle peer disconnect: delegate to _guestDoLeave for consistent cleanup
+  // ── Handle peer disconnect ──────────────────────────────────────────────
+  // `disconnected` is TRANSIENT — the browser may recover on its own or
+  // after an ICE restart.  Tearing down the box on `disconnected` was the
+  // root cause of "guest box disappears after a brief network hiccup".
+  // Only `failed` and `closed` are genuine unrecoverable states.
+  let _guestDcTimer = null;
   guestPc.onconnectionstatechange = () => {
-    if (guestPc.connectionState === 'disconnected' || guestPc.connectionState === 'failed' || guestPc.connectionState === 'closed') {
+    const state = guestPc.connectionState;
+    console.log(`[GuestBox] Peer connection state: ${state}`);
+
+    if (state === 'disconnected') {
+      // Give the browser a grace window to self-recover.
+      // If still disconnected after 6 s, attempt an ICE restart.
+      if (_guestDcTimer) return; // already waiting
+      _guestDcTimer = setTimeout(() => {
+        _guestDcTimer = null;
+        if (guestPc.connectionState === 'disconnected') {
+          console.warn('[GuestBox] Still disconnected after grace — trying ICE restart');
+          try { guestPc.restartIce && guestPc.restartIce(); } catch(_) {}
+        }
+      }, 6000);
+    } else if (state === 'connected' || state === 'completed') {
+      if (_guestDcTimer) { clearTimeout(_guestDcTimer); _guestDcTimer = null; }
+    } else if (state === 'failed' || state === 'closed') {
+      if (_guestDcTimer) { clearTimeout(_guestDcTimer); _guestDcTimer = null; }
+      console.warn(`[GuestBox] Peer connection ${state} — leaving guest box`);
       // Only run if _guestDoLeave hasn't already cleaned up
       if (_guestStream || _guestPc) {
         _guestDoLeave();
@@ -2914,6 +3024,15 @@ async function _hostAcceptGuest(req) {
   const requestId = req.requestId || `${_roomId}_${guestUid}`;
   const sigRef    = ref(_liveDB, `guestSignaling/${_roomId}/${guestUid}`);
 
+  // ── Guard: if this guest already has a peer, clean it up first ──
+  // This handles re-join after removal or a stale peer from a prior session.
+  if (_guestPeers[guestUid]) {
+    console.log('[BoxRequest] Cleaning up stale peer for re-joining guest:', guestUid);
+    _hostDoRemoveGuest(guestUid);
+    // Small delay so cleanup completes before we create a new peer
+    await new Promise(r => setTimeout(r, 300));
+  }
+
   console.log('[BoxRequest] Host accepting guest:', guestUid, 'name:', req.name);
 
   // ── Update Firestore boxRequest status to "accepted" ──
@@ -2932,9 +3051,13 @@ async function _hostAcceptGuest(req) {
   // Create peer connection for this guest
   const guestPc = new RTCPeerConnection(_ICE_SERVERS);
 
-  // Receive guest's video track
+  // ── Receive guest video/audio tracks ────────────────────────────────────
+  // ontrack fires for every incoming track (could fire more than once, e.g.
+  // on ICE restart).  _hostAddGuestCell is idempotent — it updates the cell's
+  // video srcObject if the cell already exists instead of creating a duplicate.
   guestPc.ontrack = (e) => {
     const stream = e.streams[0] || new MediaStream([e.track]);
+    console.log(`[HostGuestPeer:${guestUid}] ontrack — kind:`, e.track.kind);
     _hostAddGuestCell(guestUid, req.name || 'Guest', req.avatar || '', stream, guestPc);
   };
 
@@ -2961,13 +3084,26 @@ async function _hostAcceptGuest(req) {
   }
   _pendingHostCands.length = 0;
 
-  // Watch for guest answer + ICE — store unsub so _hostDoRemoveGuest can clean up
+  // ── Watch for guest answer + ICE (and ICE-restart re-answers) ─────────────
+  // Tracks last applied answer SDP so it can apply a fresh ICE-restart answer
+  // from the guest without tearing down the peer connection.
   const appliedGuestCands = new Set();
+  let _lastAppliedAnswerSdp = null;
   const _hostGuestSigUnsub = onValue(sigRef, async snap => {
     if (!snap.exists()) return;
     const d = snap.val();
-    if (d.answer && guestPc.remoteDescription === null) {
-      try { await guestPc.setRemoteDescription(new RTCSessionDescription(d.answer)); } catch(_) {}
+
+    // Apply initial or ICE-restart answer
+    if (d.answer && d.answer.sdp !== _lastAppliedAnswerSdp) {
+      _lastAppliedAnswerSdp = d.answer.sdp;
+      if (guestPc.remoteDescription !== null) {
+        // ICE-restart re-answer — clear old candidate set for the new ICE round
+        appliedGuestCands.clear();
+        console.log(`[HostGuestPeer:${guestUid}] Applying ICE-restart re-answer from guest`);
+      }
+      try { await guestPc.setRemoteDescription(new RTCSessionDescription(d.answer)); } catch(e) {
+        console.warn(`[HostGuestPeer:${guestUid}] setRemoteDescription (answer) failed:`, e.message);
+      }
     }
     if (guestPc.remoteDescription && d.guestCandidates) {
       for (const [k, c] of Object.entries(d.guestCandidates)) {
@@ -3019,7 +3155,7 @@ async function _hostDeclineGuest(guestUid, requestId) {
   }, 5000);
 }
 
-/* ── HOST: Add a guest cell to the video grid ── */
+/* ── HOST: Add a guest cell to the video grid (idempotent) ── */
 function _hostAddGuestCell(uid, name, avatar, stream, pc) {
   const grid = D.guestGrid;
   if (!grid) return;
@@ -3029,8 +3165,17 @@ function _hostAddGuestCell(uid, name, avatar, stream, pc) {
     _addHostCellToGrid();
   }
 
-  // Prevent duplicate guest cells
-  if (grid.querySelector(`[data-uid="${uid}"]`)) return;
+  // ── If cell already exists (e.g. ICE restart), just update the stream ──
+  const existing = grid.querySelector(`.guest-cell[data-uid="${uid}"]`);
+  if (existing) {
+    const vid = existing.querySelector('video');
+    if (vid && vid.srcObject !== stream) {
+      vid.srcObject = stream;
+      vid.play().catch(() => {});
+    }
+    if (_guestPeers[uid]) _guestPeers[uid].stream = stream;
+    return;
+  }
 
   grid.classList.add('has-guests');
   grid.dataset.count = (Object.keys(_guestPeers).length).toString();
@@ -3070,27 +3215,58 @@ function _hostAddGuestCell(uid, name, avatar, stream, pc) {
 
   _applyGuestLayout();
 
-  // ── Fast disconnect detection: connectionstatechange fires within ~1-2 s ──
-  let _dcTimer = null;
+  // ── Disconnect detection with ICE restart recovery ───────────────────────
+  // `disconnected` is TRANSIENT (mobile often blips 1–10 s during handoff).
+  // We give the browser a 6 s grace window; if still down we try an ICE
+  // restart (new offer with iceRestart:true) before evicting the guest.
+  // Only `failed` / `closed` immediately removes the box.
+  let _dcTimer     = null;
+  let _iceRestarted = false;
   pc.onconnectionstatechange = () => {
     const state = pc.connectionState;
+    console.log(`[HostGuestPeer:${uid}] Connection state: ${state}`);
     if (state === 'disconnected') {
-      // Give a 1.5 s grace period — WebRTC may briefly disconnect then recover
-      if (!_dcTimer) {
-        _dcTimer = setTimeout(() => {
-          _dcTimer = null;
-          // Only remove if still disconnected (not reconnected or already removed)
-          if (pc.connectionState !== 'connected' && _guestPeers[uid]) {
-            _hostDoRemoveGuest(uid);
+      if (_dcTimer) return; // already in grace window
+      _dcTimer = setTimeout(async () => {
+        _dcTimer = null;
+        if (!_guestPeers[uid]) return; // already removed
+        if (pc.connectionState === 'connected' || pc.connectionState === 'completed') return; // recovered on its own
+        if (!_iceRestarted) {
+          _iceRestarted = true;
+          console.warn(`[HostGuestPeer:${uid}] ICE stalled — attempting ICE restart`);
+          try {
+            const offer = await pc.createOffer({ iceRestart: true });
+            await pc.setLocalDescription(offer);
+            // Overwrite the signaling node so the guest picks up the new offer
+            await set(ref(_liveDB, `guestSignaling/${_roomId}/${uid}`), {
+              offer:           { type: offer.type, sdp: offer.sdp },
+              guestCandidates: {},
+              hostCandidates:  {},
+            }).catch(() => {});
+          } catch (e) {
+            console.warn(`[HostGuestPeer:${uid}] ICE restart failed:`, e.message);
           }
-        }, 1500);
-      }
+          // Give ICE restart a further 8 s to connect before giving up
+          _dcTimer = setTimeout(() => {
+            _dcTimer = null;
+            if (pc.connectionState !== 'connected' && pc.connectionState !== 'completed' && _guestPeers[uid]) {
+              console.warn(`[HostGuestPeer:${uid}] ICE restart did not recover — removing guest`);
+              _hostDoRemoveGuest(uid);
+            }
+          }, 8000);
+        } else {
+          // Already tried ICE restart and still not connected
+          if (_guestPeers[uid]) _hostDoRemoveGuest(uid);
+        }
+      }, 6000);
+    } else if (state === 'connected' || state === 'completed') {
+      // Recovered — cancel any pending removal, reset the restart flag
+      if (_dcTimer) { clearTimeout(_dcTimer); _dcTimer = null; }
+      _iceRestarted = false;
     } else if (state === 'failed' || state === 'closed') {
       if (_dcTimer) { clearTimeout(_dcTimer); _dcTimer = null; }
-      _hostDoRemoveGuest(uid);
-    } else if (state === 'connected') {
-      // Recovered — cancel any pending removal
-      if (_dcTimer) { clearTimeout(_dcTimer); _dcTimer = null; }
+      console.warn(`[HostGuestPeer:${uid}] Connection ${state} — removing guest`);
+      if (_guestPeers[uid]) _hostDoRemoveGuest(uid);
     }
   };
 }
