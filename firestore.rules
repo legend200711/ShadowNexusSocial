@@ -64,6 +64,19 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
     }
 
+    // Returns true if the update touches any profile-theme-owned fields.
+    // These may only be written by the profile owner — never via delivery updates.
+    function touchesThemeFields() {
+      let themeFields = [
+        'profileTheme',
+        'profileSavedThemes',
+        'profileActiveThemeId',
+        'profileMusicSettings'
+      ];
+      return request.resource.data.diff(resource.data).affectedKeys()
+               .hasAny(themeFields);
+    }
+
     // ── Users ─────────────────────────────────────────────────────────────────
 
     match /users/{uid} {
@@ -73,7 +86,7 @@ service cloud.firestore {
 
       allow update: if
         isOwner(uid)
-        || (isSignedIn() && isDeliveryUpdate())
+        || (isSignedIn() && isDeliveryUpdate() && !touchesThemeFields())
         || isModerator();
 
       // ── Per-user notifications subcollection ──────────────────────────────

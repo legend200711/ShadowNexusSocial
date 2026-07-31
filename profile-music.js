@@ -11,8 +11,8 @@
   const ALLOWED_AUDIO_EXT = /\.(mp3|wav|ogg|aac|flac|m4a|opus)$/i;
   const MAX_AUDIO_MB = 50;
   const COLL_SONGS     = 'profileMusic';       // /profileMusic/{songId}
-  const COLL_PLAYLISTS = 'profilePlaylists';  // /profilePlaylists/{plId}
-  const COLL_SETTINGS  = 'profileMusicSettings'; // stored in users/{uid} sub-field
+  const COLL_PLAYLISTS = 'profilePlaylists';   // /profilePlaylists/{plId}
+  // musicSettings stored as a field inside users/{uid}
 
   // ── State ─────────────────────────────────────────────────────
   const state = {
@@ -43,32 +43,51 @@
   }
 
   // ── Firebase helpers ──────────────────────────────────────────
-  function fs() { return window._snxFirestore; }
-  function db() { return window._snxDb; }
+  // These are set by the Firebase module script in index.html.
+  // We read them lazily (at call-time) so we never capture stale undefined.
+  function fs() {
+    const f = window._snxFirestore;
+    if (!f) throw new Error('Firestore not ready. Please wait a moment and try again.');
+    return f;
+  }
+  function db() {
+    const d = window._snxDb;
+    if (!d) throw new Error('Firestore DB not ready.');
+    return d;
+  }
   function storage() {
     return window._snxStorage;
   }
 
+  // ── Storage upload ─────────────────────────────────────────────
   async function uploadFile(path, file, onProgress) {
-    // Use Firebase Storage SDK if available, else throw
-    const { ref, uploadBytesResumable, getDownloadURL } = window._snxFirebaseStorage || {};
-    if (!ref) throw new Error('Storage SDK not loaded');
+    const sdk = window._snxFirebaseStorage;
+    if (!sdk || !sdk.ref) throw new Error('Firebase Storage SDK not loaded. Cannot upload file.');
+    const { ref, uploadBytesResumable, getDownloadURL } = sdk;
     const storageRef = ref(storage(), path);
     return new Promise((resolve, reject) => {
       const task = uploadBytesResumable(storageRef, file);
-      task.on('state_changed', snap => {
-        if (onProgress) onProgress(snap.bytesTransferred / snap.totalBytes * 100);
-      }, reject, async () => {
-        const url = await getDownloadURL(task.snapshot.ref);
-        resolve(url);
-      });
+      task.on(
+        'state_changed',
+        snap => { if (onProgress) onProgress(snap.bytesTransferred / snap.totalBytes * 100); },
+        err => reject(err),
+        async () => {
+          try {
+            const url = await getDownloadURL(task.snapshot.ref);
+            resolve(url);
+          } catch (e) {
+            reject(e);
+          }
+        }
+      );
     });
   }
 
   async function deleteStorageFile(url) {
     try {
-      const { ref, deleteObject } = window._snxFirebaseStorage || {};
-      if (!ref) return;
+      const sdk = window._snxFirebaseStorage;
+      if (!sdk || !sdk.ref) return;
+      const { ref, deleteObject } = sdk;
       const fileRef = ref(storage(), decodeURIComponent(url.split('/o/')[1].split('?')[0]));
       await deleteObject(fileRef);
     } catch (e) { /* best effort */ }
@@ -77,16 +96,45 @@
   // ── Firestore ops ─────────────────────────────────────────────
   async function loadSongs(uid) {
     const { collection, query, where, orderBy, getDocs } = fs();
-    const q = query(collection(db(), COLL_SONGS), where('ownerUid','==', uid), orderBy('uploadedAt', 'asc'));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Sort newest-first (desc). A composite index on (ownerUid, uploadedAt desc)
+    // is required in Firestore — if missing, this falls back gracefully below.
+    try {
+      const q = query(
+        collection(db(), COLL_SONGS),
+        where('ownerUid', '==', uid),
+        orderBy('uploadedAt', 'desc')
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+      // Composite index may not exist yet — fall back to unordered query and
+      // sort client-side so songs still appear.
+      console.warn('[SNX Music] loadSongs index fallback:', err.message);
+      const q2 = query(collection(db(), COLL_SONGS), where('ownerUid', '==', uid));
+      const snap2 = await getDocs(q2);
+      const docs = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Sort newest-first client-side using uploadedAt seconds when available
+      docs.sort((a, b) => {
+        const ta = a.uploadedAt?.seconds ?? 0;
+        const tb = b.uploadedAt?.seconds ?? 0;
+        return tb - ta;
+      });
+      return docs;
+    }
   }
 
   async function loadPlaylists(uid) {
     const { collection, query, where, orderBy, getDocs } = fs();
-    const q = query(collection(db(), COLL_PLAYLISTS), where('ownerUid','==', uid), orderBy('createdAt','asc'));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const q = query(collection(db(), COLL_PLAYLISTS), where('ownerUid','==', uid), orderBy('createdAt','asc'));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.warn('[SNX Music] loadPlaylists index fallback:', err.message);
+      const q2 = query(collection(db(), COLL_PLAYLISTS), where('ownerUid', '==', uid));
+      const snap2 = await getDocs(q2);
+      return snap2.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
   }
 
   async function loadSettings(uid) {
@@ -143,7 +191,6 @@
     if (state.activePlId === '__all__') return state.songs;
     const pl = state.playlists.find(p => p.id === state.activePlId);
     if (!pl) return state.songs;
-    const ids = new Set(pl.songIds || []);
     // maintain playlist order
     return (pl.songIds || []).map(id => state.songs.find(s => s.id === id)).filter(Boolean);
   }
@@ -338,9 +385,10 @@
       <div class="snx-music-form" id="snxMusicForm">
         <h4>🎵 Add Track Details</h4>
         <div id="snxMusicFormFields"></div>
-        <div class="snx-music-form-progress" id="snxMusicProgress">
-          <div class="snx-music-form-progress-bar" id="snxMusicProgressBar"></div>
+        <div class="snx-music-form-progress" id="snxMusicProgress" style="display:none">
+          <div class="snx-music-form-progress-bar" id="snxMusicProgressBar" style="width:0%"></div>
         </div>
+        <div id="snxMusicUploadStatus" style="font-size:12px;color:#4a9aef;min-height:18px;margin-bottom:6px;"></div>
         <div class="snx-music-form-btns">
           <button class="snx-music-btn-cancel" id="snxMusicCancelBtn">Cancel</button>
           <button class="snx-music-btn-upload" id="snxMusicUploadBtn">Upload All</button>
@@ -390,9 +438,17 @@
       </div>
       <div class="snx-playlist-tabs" id="snxPlaylistTabsRow">`;
     tabs.forEach(t => {
-      html += `<button class="snx-playlist-tab${t.id === state.activePlId ? ' active' : ''}" data-pl="${t.id}">${t.name}<span class="snx-pl-count">${t.count}</span></button>`;
+      html += `<button class="snx-playlist-tab${t.id === state.activePlId ? ' active' : ''}" data-pl="${t.id}">${esc(t.name)}<span class="snx-pl-count">${t.count}</span></button>`;
     });
     html += `</div>`;
+    // Playlist management buttons (rename/delete) — shown for owner when a specific playlist is active
+    if (state.isSelf && state.activePlId !== '__all__') {
+      html += `
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <button class="snx-music-section-action" id="snxRenamePlaylistBtn" style="font-size:11px;">✏️ Rename</button>
+          <button class="snx-music-section-action" id="snxDeletePlaylistBtn" style="font-size:11px;color:#ff4757;">🗑 Delete Playlist</button>
+        </div>`;
+    }
     return html;
   }
 
@@ -406,7 +462,7 @@
       html += `
         <li class="snx-song-item${state.currentIdx === i ? ' playing' : ''}" data-idx="${i}" draggable="${state.isSelf && state.activePlId !== '__all__' ? 'true' : 'false'}">
           ${state.isSelf && state.activePlId !== '__all__' ? '<span class="snx-song-drag-handle">⋮⋮</span>' : ''}
-          <img class="snx-song-thumb" src="${s.artUrl || ''}" alt="" style="${s.artUrl ? '' : 'opacity:0.3'}">
+          <img class="snx-song-thumb" src="${esc(s.artUrl || '')}" alt="" style="${s.artUrl ? '' : 'opacity:0.3'}">
           <div class="snx-song-meta">
             <div class="snx-song-name">${esc(s.title || 'Unknown')}</div>
             <div class="snx-song-sub">${esc(s.artist || '')}${s.album ? ' — ' + esc(s.album) : ''}</div>
@@ -415,6 +471,7 @@
           ${state.isSelf ? `
             <div class="snx-song-actions">
               <button class="snx-song-action-btn" data-action="addtopl" data-id="${s.id}" title="Add to playlist">➕</button>
+              ${state.activePlId !== '__all__' ? `<button class="snx-song-action-btn" data-action="removefrompl" data-id="${s.id}" title="Remove from playlist">➖</button>` : ''}
               <button class="snx-song-action-btn danger" data-action="del" data-id="${s.id}" title="Delete">🗑</button>
             </div>` : ''}
         </li>`;
@@ -453,7 +510,10 @@
     }
 
     const cancelBtn = document.getElementById('snxMusicCancelBtn');
-    if (cancelBtn) cancelBtn.onclick = () => { document.getElementById('snxMusicForm').classList.remove('open'); };
+    if (cancelBtn) cancelBtn.onclick = () => {
+      document.getElementById('snxMusicForm').classList.remove('open');
+      _pendingFiles = [];
+    };
 
     const uploadBtn = document.getElementById('snxMusicUploadBtn');
     if (uploadBtn) uploadBtn.onclick = () => submitUploads();
@@ -488,12 +548,28 @@
       state.activePlId = btn.dataset.pl;
       state.currentIdx = -1;
       document.querySelectorAll('.snx-playlist-tab').forEach(b => b.classList.toggle('active', b.dataset.pl === state.activePlId));
+      // Re-render playlist header (for rename/delete buttons) and song list
+      const listWrap = document.getElementById('snxMusicListWrap');
+      if (listWrap) {
+        listWrap.innerHTML = `
+          ${renderPlaylistTabs()}
+          <div id="snxSongListWrap">${renderSongList()}</div>
+        `;
+        attachMusicEvents(); // re-attach since we replaced the whole list wrap
+        return;
+      }
       document.getElementById('snxSongListWrap').innerHTML = renderSongList();
       attachSongListEvents();
     });
 
     // New playlist btn
     document.getElementById('snxNewPlaylistBtn')?.addEventListener('click', () => promptNewPlaylist());
+
+    // Rename playlist
+    document.getElementById('snxRenamePlaylistBtn')?.addEventListener('click', () => promptRenamePlaylist());
+
+    // Delete playlist
+    document.getElementById('snxDeletePlaylistBtn')?.addEventListener('click', () => promptDeletePlaylist());
 
     attachSongListEvents();
   }
@@ -521,6 +597,7 @@
         const { action, id } = btn.dataset;
         if (action === 'del') confirmDeleteSong(id);
         if (action === 'addtopl') promptAddToPlaylist(id);
+        if (action === 'removefrompl') removeFromPlaylist(id);
       });
     });
     // Drag-and-drop reorder (playlist only)
@@ -581,7 +658,7 @@
           </div>
           <div class="snx-music-form-row">
             <div><label>Year</label><input data-fi="${i}" data-field="year" placeholder="2024" type="number"></div>
-            <div><label>Album Artwork</label><input type="file" data-fi="${i}" data-field="artFile" accept="image/*" style="font-size:11px;color:#6a90b8;"></div>
+            <div><label>Album Artwork</label><input type="file" id="snxArtFile_${i}" accept="image/*" style="font-size:11px;color:#6a90b8;"></div>
           </div>
           <div class="snx-music-form-row full">
             <div><label>Description</label><textarea data-fi="${i}" data-field="desc" placeholder="Describe the song…" rows="2"></textarea></div>
@@ -590,60 +667,126 @@
     });
   }
 
+  function setUploadStatus(msg) {
+    const el = document.getElementById('snxMusicUploadStatus');
+    if (el) el.textContent = msg;
+  }
+
   async function submitUploads() {
-    if (!state.profileUid) return;
+    if (!state.profileUid) { toast('Not logged in.', 'error'); return; }
+
+    // Verify Firebase is ready before doing anything
+    try { fs(); db(); } catch (e) {
+      toast(e.message, 'error');
+      console.error('[SNX Music] Firebase not ready:', e);
+      return;
+    }
+
     const btn = document.getElementById('snxMusicUploadBtn');
     const progressWrap = document.getElementById('snxMusicProgress');
     const progressBar = document.getElementById('snxMusicProgressBar');
     if (btn) btn.disabled = true;
     if (progressWrap) progressWrap.style.display = 'block';
+    if (progressBar) progressBar.style.width = '0%';
+    setUploadStatus('');
 
     const formEl = document.getElementById('snxMusicFormFields');
     const uid = state.profileUid;
     const results = [];
+    const total = _pendingFiles.length;
 
-    for (let i = 0; i < _pendingFiles.length; i++) {
+    for (let i = 0; i < total; i++) {
       const f = _pendingFiles[i];
+      setUploadStatus(`Uploading ${i + 1} of ${total}: ${f.name}…`);
+
+      // Collect text fields — skip file inputs (type="file")
       const fields = {};
       if (formEl) {
         formEl.querySelectorAll(`[data-fi="${i}"][data-field]`).forEach(el => {
-          fields[el.dataset.field] = el.value || '';
+          if (el.type !== 'file') {
+            fields[el.dataset.field] = el.value || '';
+          }
         });
-        const artInput = formEl.querySelector(`input[type="file"][data-fi="${i}"]`);
+        // Artwork file input is identified by dedicated id, not data-field
+        const artInput = document.getElementById(`snxArtFile_${i}`);
         if (artInput && artInput.files[0]) fields.artFile = artInput.files[0];
       }
 
       try {
-        const path = `profileMusic/${uid}/${Date.now()}_${f.name}`;
-        const audioUrl = await uploadFile(path, f, pct => {
-          if (progressBar) progressBar.style.width = pct + '%';
+        // 1. Upload audio file to Cloud Storage
+        const audioPath = `profileMusic/${uid}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        setUploadStatus(`Uploading audio ${i + 1}/${total}…`);
+        const audioUrl = await uploadFile(audioPath, f, pct => {
+          // Progress covers this file's share of total progress
+          const overall = ((i / total) + (pct / 100 / total)) * 100;
+          if (progressBar) progressBar.style.width = Math.round(overall) + '%';
         });
 
+        // 2. Upload artwork if provided
         let artUrl = '';
-        if (fields.artFile) {
-          const artPath = `profileMusicArt/${uid}/${Date.now()}_art`;
-          artUrl = await uploadFile(artPath, fields.artFile, () => {}).catch(() => '');
+        if (fields.artFile instanceof File) {
+          setUploadStatus(`Uploading artwork for track ${i + 1}…`);
+          artUrl = await uploadFile(
+            `profileMusicArt/${uid}/${Date.now()}_art_${i}`,
+            fields.artFile,
+            () => {}
+          ).catch(e => { console.warn('[SNX Music] Artwork upload failed:', e); return ''; });
         }
 
-        // Get duration
-        const dur = await getAudioDuration(f).catch(() => 0);
+        // 3. Read audio duration locally (with 10s timeout so it never hangs)
+        setUploadStatus(`Reading metadata for track ${i + 1}…`);
+        const dur = await Promise.race([
+          getAudioDuration(f),
+          new Promise(res => setTimeout(() => res(0), 10000)),
+        ]).catch(() => 0);
 
-        await addSong({ ownerUid: uid, url: audioUrl, artUrl, title: fields.title || f.name, artist: fields.artist || '', album: fields.album || '', genre: fields.genre || '', year: fields.year || '', description: fields.desc || '', duration: dur });
-        results.push({ ok: true });
+        // 4. Save all metadata to Firestore
+        setUploadStatus(`Saving track ${i + 1} to library…`);
+        const songRef = await addSong({
+          ownerUid:    uid,
+          url:         audioUrl,
+          artUrl:      artUrl,
+          title:       fields.title  || f.name,
+          artist:      fields.artist || '',
+          album:       fields.album  || '',
+          genre:       fields.genre  || '',
+          year:        fields.year   || '',
+          description: fields.desc   || '',
+          duration:    dur,
+        });
+
+        console.log('[SNX Music] Saved song:', songRef.id, { url: audioUrl });
+        results.push({ ok: true, id: songRef.id });
+
       } catch (err) {
-        results.push({ ok: false, name: f.name });
+        console.error(`[SNX Music] Failed to upload "${f.name}":`, err);
+        results.push({ ok: false, name: f.name, err: err.message || String(err) });
       }
     }
 
+    // Reset UI state
     if (btn) btn.disabled = false;
+    if (progressBar) progressBar.style.width = '0%';
     if (progressWrap) progressWrap.style.display = 'none';
+    setUploadStatus('');
     document.getElementById('snxMusicForm').classList.remove('open');
     _pendingFiles = [];
 
-    const failed = results.filter(r => !r.ok);
-    if (failed.length) toast(`${results.length - failed.length} uploaded, ${failed.length} failed.`, 'error');
-    else toast(`🎵 ${results.length} track${results.length > 1 ? 's' : ''} uploaded!`);
+    // Reset file input so the same file can be selected again
+    const fileInp = document.getElementById('snxMusicFileInput');
+    if (fileInp) fileInp.value = '';
 
+    const failed = results.filter(r => !r.ok);
+    if (failed.length && results.length === failed.length) {
+      // All failed — show first error
+      toast(`Upload failed: ${failed[0].err}`, 'error');
+    } else if (failed.length) {
+      toast(`${results.length - failed.length} uploaded, ${failed.length} failed. Check console for details.`, 'error');
+    } else {
+      toast(`🎵 ${results.length} track${results.length > 1 ? 's' : ''} uploaded successfully!`);
+    }
+
+    // Refresh the music library immediately — no page reload needed
     await reload();
   }
 
@@ -652,7 +795,7 @@
       const url = URL.createObjectURL(file);
       const a = new Audio(url);
       a.addEventListener('loadedmetadata', () => { URL.revokeObjectURL(url); resolve(a.duration); });
-      a.addEventListener('error', reject);
+      a.addEventListener('error', err => { URL.revokeObjectURL(url); reject(err); });
     });
   }
 
@@ -664,11 +807,17 @@
       if (song.url) await deleteStorageFile(song.url);
       if (song.artUrl) await deleteStorageFile(song.artUrl);
     }
-    await deleteSong(songId);
+    try {
+      await deleteSong(songId);
+    } catch (e) {
+      toast('Failed to delete track: ' + (e.message || e), 'error');
+      console.error('[SNX Music] deleteSong error:', e);
+      return;
+    }
     // Remove from playlists
     for (const pl of state.playlists) {
       const ids = (pl.songIds || []).filter(id => id !== songId);
-      if (ids.length !== (pl.songIds || []).length) await updatePlaylist(pl.id, { songIds: ids });
+      if (ids.length !== (pl.songIds || []).length) await updatePlaylist(pl.id, { songIds: ids }).catch(() => {});
     }
     toast('Track deleted.');
     await reload();
@@ -678,11 +827,49 @@
   async function promptNewPlaylist() {
     const name = prompt('Playlist name:');
     if (!name || !name.trim()) return;
-    const ref = await addPlaylist({ ownerUid: state.profileUid, name: name.trim(), songIds: [] });
-    toast(`Playlist "${name}" created!`);
-    await reload();
-    state.activePlId = ref.id;
-    renderMusicTab();
+    try {
+      const ref = await addPlaylist({ ownerUid: state.profileUid, name: name.trim(), songIds: [] });
+      toast(`Playlist "${name.trim()}" created!`);
+      await reload();
+      state.activePlId = ref.id;
+      renderMusicTab();
+    } catch (e) {
+      toast('Failed to create playlist: ' + (e.message || e), 'error');
+      console.error('[SNX Music] addPlaylist error:', e);
+    }
+  }
+
+  async function promptRenamePlaylist() {
+    const pl = state.playlists.find(p => p.id === state.activePlId);
+    if (!pl) return;
+    const name = prompt('New name:', pl.name);
+    if (!name || !name.trim() || name.trim() === pl.name) return;
+    try {
+      await updatePlaylist(pl.id, { name: name.trim() });
+      pl.name = name.trim();
+      toast(`Renamed to "${name.trim()}"`);
+      await reload();
+      renderMusicTab();
+    } catch (e) {
+      toast('Failed to rename: ' + (e.message || e), 'error');
+      console.error('[SNX Music] renamePlaylist error:', e);
+    }
+  }
+
+  async function promptDeletePlaylist() {
+    const pl = state.playlists.find(p => p.id === state.activePlId);
+    if (!pl) return;
+    if (!confirm(`Delete playlist "${pl.name}"? Songs will not be deleted.`)) return;
+    try {
+      await deletePlaylist(pl.id);
+      state.activePlId = '__all__';
+      toast(`Playlist "${pl.name}" deleted.`);
+      await reload();
+      renderMusicTab();
+    } catch (e) {
+      toast('Failed to delete playlist: ' + (e.message || e), 'error');
+      console.error('[SNX Music] deletePlaylist error:', e);
+    }
   }
 
   async function promptAddToPlaylist(songId) {
@@ -693,8 +880,31 @@
     const pl = state.playlists[idx];
     const ids = [...new Set([...(pl.songIds || []), songId])];
     pl.songIds = ids;
-    await updatePlaylist(pl.id, { songIds: ids });
-    toast(`Added to "${pl.name}"!`);
+    try {
+      await updatePlaylist(pl.id, { songIds: ids });
+      toast(`Added to "${pl.name}"!`);
+    } catch (e) {
+      toast('Failed to update playlist: ' + (e.message || e), 'error');
+      console.error('[SNX Music] addToPlaylist error:', e);
+      return;
+    }
+    document.getElementById('snxSongListWrap').innerHTML = renderSongList();
+    attachSongListEvents();
+  }
+
+  async function removeFromPlaylist(songId) {
+    const pl = state.playlists.find(p => p.id === state.activePlId);
+    if (!pl) return;
+    const ids = (pl.songIds || []).filter(id => id !== songId);
+    pl.songIds = ids;
+    try {
+      await updatePlaylist(pl.id, { songIds: ids });
+      toast(`Removed from "${pl.name}".`);
+    } catch (e) {
+      toast('Failed to update playlist: ' + (e.message || e), 'error');
+      console.error('[SNX Music] removeFromPlaylist error:', e);
+      return;
+    }
     document.getElementById('snxSongListWrap').innerHTML = renderSongList();
     attachSongListEvents();
   }
@@ -703,10 +913,16 @@
   async function reload() {
     const uid = state.profileUid;
     if (!uid) return;
-    state.songs = await loadSongs(uid).catch(() => []);
-    state.playlists = await loadPlaylists(uid).catch(() => []);
+    try {
+      state.songs     = await loadSongs(uid);
+      state.playlists = await loadPlaylists(uid);
+    } catch (e) {
+      console.error('[SNX Music] reload error:', e);
+      toast('Failed to refresh music library: ' + (e.message || e), 'error');
+      return;
+    }
     renderMusicTab();
-    // Restore player if audio was playing
+    // Restore player highlight if audio was playing
     if (!getAudio().paused && state.currentIdx >= 0) {
       document.querySelectorAll('.snx-song-item').forEach((el, i) => el.classList.toggle('playing', i === state.currentIdx));
     }
@@ -721,8 +937,16 @@
     state.autoplayUnlocked = false;
 
     // Load settings
-    const savedSettings = await loadSettings(uid).catch(() => ({}));
-    state.settings = Object.assign({ enabled: true, autoplay: true, loop: false, repeat: false, repeatOne: false, shuffle: false, showPlayer: true, showPlaylist: true }, savedSettings);
+    let savedSettings = {};
+    try {
+      savedSettings = await loadSettings(uid);
+    } catch (e) {
+      console.warn('[SNX Music] loadSettings failed:', e);
+    }
+    state.settings = Object.assign(
+      { enabled: true, autoplay: true, loop: false, repeat: false, repeatOne: false, shuffle: false, showPlayer: true, showPlaylist: true },
+      savedSettings
+    );
 
     if (!state.settings.enabled && !isSelf) {
       const c = document.getElementById('tabContentMusic');
@@ -730,9 +954,17 @@
       return;
     }
 
-    // Load data
-    state.songs = await loadSongs(uid).catch(() => []);
-    state.playlists = await loadPlaylists(uid).catch(() => []);
+    // Load songs and playlists
+    try {
+      state.songs     = await loadSongs(uid);
+      state.playlists = await loadPlaylists(uid);
+    } catch (e) {
+      console.error('[SNX Music] initMusicTab load error:', e);
+      const c = document.getElementById('tabContentMusic');
+      if (c) c.innerHTML = `<div class="snx-music-empty" style="color:#ff4757;">Failed to load music: ${esc(e.message || String(e))}</div>`;
+      return;
+    }
+
     renderMusicTab();
 
     // Autoplay when visiting another profile

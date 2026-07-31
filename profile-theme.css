@@ -395,6 +395,31 @@
   text-align: center;
 }
 
+/* ── View-only mode — disable all inputs/controls for visitors ── */
+.snx-theme-readonly .snx-theme-main {
+  position: relative;
+}
+/* Overlay that captures pointer events over the entire editor */
+.snx-theme-readonly .snx-theme-main::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  border-radius: 12px;
+  cursor: not-allowed;
+}
+/* Visually dim interactive elements so it's clear they are inactive */
+.snx-theme-readonly input,
+.snx-theme-readonly select,
+.snx-theme-readonly textarea,
+.snx-theme-readonly button,
+.snx-theme-readonly .snx-builtin-card,
+.snx-theme-readonly .snx-style-option,
+.snx-theme-readonly .snx-anim-toggle {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
 /* ── Save/Apply Toolbar ─────────────────────────────────────── */
 .snx-theme-toolbar {
   display: flex;

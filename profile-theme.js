@@ -350,8 +350,8 @@
     const isOwner = state.isSelf;
 
     container.innerHTML = `
-      ${!isOwner ? '<div class="snx-theme-owner-note">Only the profile owner can edit themes. You are viewing the applied theme.</div>' : ''}
-      <div class="snx-theme-editor">
+      ${!isOwner ? '<div class="snx-theme-owner-note">👁 View-only — only the profile owner can edit themes.</div>' : ''}
+      <div class="snx-theme-editor${!isOwner ? ' snx-theme-readonly' : ''}">
         ${renderSidebar()}
         <div class="snx-theme-main" id="snxThemeMain">
           ${renderAllPanels(t)}
@@ -577,6 +577,7 @@
   }
 
   function renderManagerPanel() {
+    const isOwner = state.isSelf;
     const themes = state.savedThemes;
     let list = '';
     themes.forEach(th => {
@@ -584,25 +585,29 @@
         <div class="snx-saved-theme-item${state.activeThemeId === th.id ? ' active' : ''}" data-saved-id="${th.id}">
           <div class="snx-saved-theme-swatch" style="background:${th.theme?.colorCard || '#0d2444'};border-color:${th.theme?.colorAccent || '#00AEEF'};"></div>
           <span class="snx-saved-theme-name">${esc(th.name)}</span>
-          <div class="snx-saved-theme-actions">
+          ${isOwner ? `<div class="snx-saved-theme-actions">
             <button class="snx-saved-theme-btn" data-action="load" data-id="${th.id}" title="Load">↺</button>
             <button class="snx-saved-theme-btn" data-action="rename" data-id="${th.id}" title="Rename">✏</button>
             <button class="snx-saved-theme-btn" data-action="dup" data-id="${th.id}" title="Duplicate">⧉</button>
             <button class="snx-saved-theme-btn danger" data-action="del" data-id="${th.id}" title="Delete">🗑</button>
-          </div>
+          </div>` : ''}
         </div>`;
     });
-    return `<div class="snx-theme-panel" id="snxPanel-manager">
-      <div class="snx-theme-panel-title">💾 Theme Manager</div>
+    const ownerControls = isOwner ? `
       <div class="snx-theme-save-row">
         <input class="snx-theme-save-input" id="snxThemeSaveName" placeholder="Theme name…">
         <button class="snx-theme-save-btn" id="snxThemeSaveBtn">💾 Save Current</button>
-      </div>
-      <div class="snx-saved-theme-list">${list || '<div class="snx-music-empty" style="padding:16px;">No saved themes yet.</div>'}</div>
+      </div>` : '';
+    const ioControls = isOwner ? `
       <div class="snx-theme-import-export">
         <button class="snx-theme-io-btn" id="snxThemeExportBtn">⬆ Export Theme</button>
         <label class="snx-theme-io-btn" style="cursor:pointer;">⬇ Import Theme<input type="file" id="snxThemeImportFile" accept=".json" style="display:none"></label>
-      </div>
+      </div>` : '';
+    return `<div class="snx-theme-panel" id="snxPanel-manager">
+      <div class="snx-theme-panel-title">💾 Theme Manager</div>
+      ${ownerControls}
+      <div class="snx-saved-theme-list">${list || '<div class="snx-music-empty" style="padding:16px;">No saved themes yet.</div>'}</div>
+      ${ioControls}
     </div>`;
   }
 
@@ -617,10 +622,13 @@
 
   // ── Event Wiring ──────────────────────────────────────────────
   function attachThemeEvents() {
-    // Sidebar nav
+    // Sidebar nav — always available (read-only navigation is fine for visitors)
     document.querySelectorAll('.snx-theme-nav-btn[data-panel]').forEach(btn => {
       btn.addEventListener('click', () => showPanel(btn.dataset.panel));
     });
+
+    // ── All edit interactions below are owner-only ─────────────
+    if (!state.isSelf) return;
 
     // Built-in theme selection
     document.querySelectorAll('.snx-builtin-card[data-builtin]').forEach(card => {
@@ -628,7 +636,6 @@
         const key = card.dataset.builtin;
         const bt = BUILTIN_THEMES[key];
         if (!bt) return;
-        // Map built-in to theme state
         state.theme = { ...state.theme, ...DEFAULT_THEME,
           bgType: 'gradient', bgGradient: bt.gradient,
           colorBg: bt.bg, colorCard: bt.card, colorAccent: bt.accent,
@@ -638,7 +645,7 @@
         state.activeThemeId = `builtin_${key}`;
         document.querySelectorAll('.snx-builtin-card').forEach(c => c.classList.remove('active'));
         card.classList.add('active');
-        if (state.isSelf) applyThemeToProfile(state.profileUid, state.theme);
+        applyThemeToProfile(state.profileUid, state.theme);
       });
     });
 
@@ -648,7 +655,6 @@
         const key = el.dataset.key;
         const val = el.type === 'checkbox' ? el.checked : (el.type === 'number' ? parseFloat(el.value) : el.value);
         state.theme[key] = val;
-        // Update range label
         if (el.type === 'range') {
           const label = el.closest('.snx-theme-field')?.querySelector('.snx-range-value');
           if (label) label.textContent = val + (key.includes('Blur') ? 'px' : '%');
@@ -721,7 +727,7 @@
       showPanel('manager');
     });
 
-    // Manager actions
+    // Manager actions (load, rename, dup, del)
     document.querySelectorAll('.snx-saved-theme-btn[data-action]').forEach(btn => {
       btn.addEventListener('click', async e => {
         e.stopPropagation();
@@ -759,7 +765,7 @@
       });
     });
 
-    // Saved theme click to load
+    // Saved theme click to load (owner only — changes local state)
     document.querySelectorAll('.snx-saved-theme-item[data-saved-id]').forEach(el => {
       el.addEventListener('click', e => {
         if (e.target.closest('.snx-saved-theme-btn')) return;
@@ -768,7 +774,7 @@
         if (!found) return;
         state.theme = { ...DEFAULT_THEME, ...found.theme };
         state.activeThemeId = id;
-        if (state.isSelf) applyThemeToProfile(state.profileUid, state.theme);
+        applyThemeToProfile(state.profileUid, state.theme);
       });
     });
 
@@ -792,7 +798,6 @@
           const data = JSON.parse(ev.target.result);
           if (data.theme) { state.theme = { ...DEFAULT_THEME, ...data.theme }; }
           if (Array.isArray(data.savedThemes)) {
-            // Merge, avoiding duplicates
             data.savedThemes.forEach(th => {
               if (!state.savedThemes.find(s => s.id === th.id)) state.savedThemes.push(th);
             });
