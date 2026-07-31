@@ -10,8 +10,9 @@
  * GitHub Pages (/ShadowNexusSocial/) and any local dev server (/).
  */
 
-const CACHE_VERSION = 'v11';
+const CACHE_VERSION = 'v14';
 const CACHE_NAME    = `shadow-nexus-${CACHE_VERSION}`;
+const MEDIA_CACHE   = `shadow-nexus-media-${CACHE_VERSION}`;
 
 // Detect base path from the SW's own URL (e.g. /ShadowNexusSocial/ or /)
 const SW_URL  = new URL(self.location.href);
@@ -24,7 +25,9 @@ const SHELL_FILES = [
   'index.html',
   'offline.html',
   'style.css',
+  'album.css',
   'script.js',
+  'snx-net.js',
   'manifest.json',
   'icon-192.png',
   'icon-512.png',
@@ -34,6 +37,11 @@ const SHELL_FILES = [
   'favicon-16x16.png',
   // live.html / live.js / live.css intentionally excluded — always network-fresh
 ];
+
+/** Max entries for the media cache (CDN images / avatars). */
+const MEDIA_CACHE_MAX = 100;
+/** Max age for media cache entries (24 hours). */
+const MEDIA_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** Paths that must always go to the network (never served from cache) */
 const NETWORK_FIRST_PATHS = ['live.html', 'live.js', 'live.css'];
@@ -80,7 +88,7 @@ self.addEventListener('activate', (event) => {
       .then((names) =>
         Promise.all(
           names
-            .filter((n) => n !== CACHE_NAME)
+            .filter((n) => n !== CACHE_NAME && n !== MEDIA_CACHE)
             .map((n) => {
               console.log(`[SW] Deleting old cache: ${n}`);
               return caches.delete(n);
@@ -154,7 +162,44 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cross-origin assets (CDN) — network-first, cache fallback
+  // Cross-origin CDN media (images, avatars) — stale-while-revalidate with size cap
+  const isMedia = /\.(jpe?g|png|gif|webp|svg|mp4|webm|mp3|m4a|ogg|opus)(\?|$)/i.test(url.pathname);
+  if (isMedia) {
+    event.respondWith(
+      caches.open(MEDIA_CACHE).then(async (cache) => {
+        const cached = await cache.match(request);
+        if (cached) {
+          // Serve cached copy; revalidate in background
+          const dateHeader = cached.headers.get('date');
+          const age = dateHeader ? Date.now() - new Date(dateHeader).getTime() : Infinity;
+          if (age < MEDIA_CACHE_MAX_AGE_MS) {
+            return cached; // fresh enough — no revalidation needed
+          }
+          // Stale — refresh in background
+          fetch(request).then((fresh) => {
+            if (fresh && fresh.status === 200) {
+              _trimMediaCache(cache).then(() => cache.put(request, fresh.clone()));
+            }
+          }).catch(() => {});
+          return cached;
+        }
+        // Not in cache — fetch, store, then serve
+        try {
+          const response = await fetch(request);
+          if (response && response.status === 200) {
+            await _trimMediaCache(cache);
+            cache.put(request, response.clone());
+          }
+          return response;
+        } catch (_) {
+          return caches.match(request);
+        }
+      })
+    );
+    return;
+  }
+
+  // Cross-origin non-media assets (fonts, scripts from CDN) — network-first, cache fallback
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -168,16 +213,56 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+/** Trim media cache to MEDIA_CACHE_MAX entries (LRU by insertion order). */
+async function _trimMediaCache(cache) {
+  const keys = await cache.keys();
+  if (keys.length >= MEDIA_CACHE_MAX) {
+    const toDelete = keys.slice(0, keys.length - MEDIA_CACHE_MAX + 1);
+    await Promise.all(toDelete.map((k) => cache.delete(k)));
+  }
+}
+
 /* ─────────────────────────────────────────────
    MESSAGE — cache control from the page
    ───────────────────────────────────────────── */
+/** Current network tier reported by snx-net.js on any page */
+let _snxNetTier     = 'good';
+let _snxDataSaver   = false;
+let _snxOffline     = false;
+
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
+    // Take over immediately — all clients will reload via controllerchange
     self.skipWaiting();
   }
   if (event.data?.type === 'CLEAR_CACHE') {
     caches.delete(CACHE_NAME).then(() => {
       event.source?.postMessage({ type: 'CACHE_CLEARED' });
     });
+  }
+  if (event.data?.type === 'CHECK_UPDATE') {
+    // Client asked if there's a newer SW ready; respond immediately
+    event.source?.postMessage({
+      type:       'UPDATE_STATUS',
+      hasUpdate:  false,  // SW itself can't self-inspect; client handles via reg.waiting
+    });
+  }
+
+  // ── SNX-NET: network quality state update from snx-net.js ──
+  if (event.data?.type === 'SNX_NET_STATE') {
+    _snxNetTier   = event.data.tier      ?? 'good';
+    _snxDataSaver = event.data.dataSaver ?? false;
+    _snxOffline   = event.data.offline   ?? false;
+    // On data-saver tier: trim media cache more aggressively
+    if (_snxDataSaver) {
+      caches.open(MEDIA_CACHE).then(cache => {
+        cache.keys().then(keys => {
+          // Keep only the 30 most-recently-cached items when bandwidth is tight
+          if (keys.length > 30) {
+            keys.slice(0, keys.length - 30).forEach(k => cache.delete(k));
+          }
+        });
+      }).catch(() => {});
+    }
   }
 });

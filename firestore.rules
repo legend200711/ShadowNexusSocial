@@ -360,6 +360,40 @@ service cloud.firestore {
       }
     }
 
+    // ── Box Requests (guest box join requests for live streams) ───────────────
+    //
+    //   /boxRequests/{requestId}
+    //     liveId, hostId, viewerId, viewerName, viewerProfileImage,
+    //     status: 'pending' | 'accepted' | 'declined'
+    //     createdAt
+    //
+    //   requestId = "{liveId}_{viewerUid}"
+
+    match /boxRequests/{requestId} {
+      // Viewer (requester) can read their own request
+      allow read: if isSignedIn()
+        && (request.auth.uid == resource.data.viewerId
+            || request.auth.uid == resource.data.hostId
+            || isFounder());
+
+      // Any signed-in (non-anonymous) user can create a request for themselves
+      allow create: if isSignedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && request.resource.data.viewerId == request.auth.uid;
+
+      // Host can update status (accept/decline); viewer cannot change status
+      allow update: if isSignedIn()
+        && (request.auth.uid == resource.data.hostId
+            || request.auth.uid == resource.data.viewerId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+
+      // Viewer or host can delete (cleanup); Founder can always delete
+      allow delete: if isSignedIn()
+        && (request.auth.uid == resource.data.viewerId
+            || request.auth.uid == resource.data.hostId
+            || isFounder());
+    }
+
     // ── Live Rooms ─────────────────────────────────────────────────────────────
     //
     //   /liveRooms/{uid}             — one doc per host, keyed by host uid
@@ -384,11 +418,15 @@ service cloud.firestore {
       // Allowed updates:
       //  - host can update anything in their own room (uid == doc key)
       //  - any signed-in user can increment viewers / likes (fields only)
+      //  - host can update layout/size fields (guestLayout, guestBoxSize)
       allow update: if isSignedIn()
         && (
           resource.data.hostId == request.auth.uid
           || request.resource.data.diff(resource.data)
                .affectedKeys().hasOnly(['viewers', 'likes'])
+          || (resource.data.hostId == request.auth.uid
+              && request.resource.data.diff(resource.data)
+                   .affectedKeys().hasOnly(['guestLayout', 'guestBoxSize']))
         );
 
       // Only the host or Founder may delete a room
@@ -405,7 +443,7 @@ service cloud.firestore {
         allow delete: if isSignedIn()
           && (
             resource.data.userId == request.auth.uid
-            || get(/databases/$(database)/documents/liveRooms/$(roomId)).data.hostId == request.auth.uid
+            || get(/databases/$(database)/documents/liveRooms/$(uid)).data.hostId == request.auth.uid
             || isFounder()
           );
         allow update: if false;
@@ -489,6 +527,49 @@ service cloud.firestore {
           allow update: if false;
         }
       }
+    }
+
+    // ── Co-Host Requests ───────────────────────────────────────────────────────
+    //
+    //   /coHostRequests/{requestId}
+    //     liveId      — the host's RTDB room id
+    //     hostId      — host uid
+    //     guestId     — invitee uid
+    //     status      — 'pending' | 'accepted' | 'declined'
+    //     createdAt   — server timestamp
+    //
+    //   requestId = "{liveId}_{guestId}"
+    //
+    // Host creates; guest reads their own invite and updates status.
+    // Viewers can read accepted records so they see the active co-host list.
+
+    match /coHostRequests/{requestId} {
+      // Host can create an invite for a specific guest
+      allow create: if isSignedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && request.resource.data.hostId == request.auth.uid;
+
+      // Host or guest can read; viewers can read accepted ones
+      allow read: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.hostId
+          || request.auth.uid == resource.data.guestId
+          || resource.data.status == 'accepted'
+        );
+
+      // Guest can update status (accept / decline)
+      // Host can also update status (e.g. cancel invite after removing co-host)
+      allow update: if isSignedIn()
+        && (request.auth.uid == resource.data.guestId || request.auth.uid == resource.data.hostId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+
+      // Host or guest can delete (cleanup); Founder always can
+      allow delete: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.hostId
+          || request.auth.uid == resource.data.guestId
+          || isFounder()
+        );
     }
 
     // ── Wall Post Comments ─────────────────────────────────────────────────────
