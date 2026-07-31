@@ -44,6 +44,8 @@
 <!-- ── Shared stylesheet ── -->
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="album.css">
+<link rel="stylesheet" href="profile-music.css">
+<link rel="stylesheet" href="holiday-themes.css">
 
 <!-- ── Preconnect to Firebase + R2 CDN so first load is faster ── -->
 <link rel="preconnect" href="https://www.gstatic.com">
@@ -6167,6 +6169,46 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="profile-spotlight-text" id="profileSpotlightText"></div>
     </div>
 
+    <!-- ── Profile Music Player ── -->
+    <div id="snxProfileMusicPlayer" data-has-track="0">
+        <div class="pmp-top">
+            <!-- Album artwork -->
+            <div class="pmp-artwork">
+                <div class="pmp-artwork-ring"></div>
+                <img class="pmp-artwork-img" src="" alt="art" style="display:none;">
+                <span class="pmp-artwork-icon">🎵</span>
+            </div>
+            <!-- Track info -->
+            <div class="pmp-info">
+                <div class="pmp-label">🎵 Profile Music</div>
+                <div class="pmp-title">—</div>
+                <div class="pmp-artist">—</div>
+            </div>
+            <!-- Controls -->
+            <div class="pmp-controls">
+                <button class="pmp-btn" id="pmpShuffleBtn" onclick="snxPmpToggleShuffle()" title="Shuffle">🔀</button>
+                <button class="pmp-btn" onclick="snxPmpPrev()" title="Previous">⏮</button>
+                <button class="pmp-btn pmp-btn-play" id="pmpPlayBtn" onclick="snxPmpTogglePlay()" title="Play / Pause">▶</button>
+                <button class="pmp-btn" onclick="snxPmpNext()" title="Next">⏭</button>
+                <button class="pmp-btn" id="pmpRepeatBtn" onclick="snxPmpToggleRepeat()" title="Repeat">🔁</button>
+            </div>
+        </div>
+        <!-- Progress bar -->
+        <div class="pmp-progress-row">
+            <span class="pmp-time pmp-time-current">0:00</span>
+            <div class="pmp-progress-track" onclick="snxPmpClickProgress(event)">
+                <div class="pmp-progress-fill"></div>
+            </div>
+            <span class="pmp-time pmp-time-total">0:00</span>
+        </div>
+        <!-- Volume -->
+        <div class="pmp-volume-row">
+            <span class="pmp-vol-icon">🔉</span>
+            <input type="range" class="pmp-volume-slider" min="0" max="1" step="0.02" value="0.8"
+                   oninput="snxPmpVolume(this)" title="Volume">
+        </div>
+    </div>
+
     <!-- Per-profile custom style injection (scoped to this profile render) -->
     <style id="profileCustomStyle"></style>
 
@@ -6185,6 +6227,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <button class="epm-tab" onclick="switchEpmTab('sandbox',this)">🏗 Sandbox</button>
                 <button class="epm-tab" onclick="switchEpmTab('links',this)">🔗 Links</button>
                 <button class="epm-tab" onclick="switchEpmTab('sections',this)">📋 Sections</button>
+                <button class="epm-tab" onclick="switchEpmTab('music',this)">🎵 Music</button>
             </div>
 
             <!-- ── Tab: Basics ── -->
@@ -6490,6 +6533,13 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <div class="epm-section-toggle-row">
                     <span>🕹️ Arcade Stats &amp; Records</span>
                     <label class="notif-toggle-wrap"><input type="checkbox" id="secShowArcade" class="notif-toggle-cb" checked><span class="notif-toggle-slider"></span></label>
+                </div>
+            </div>
+
+            <!-- ── Tab: Music ── -->
+            <div class="epm-panel" id="epmPanel-music">
+                <div id="pmpEditWrap">
+                    <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;line-height:1.5;">Loading…</p>
                 </div>
             </div>
 
@@ -7563,6 +7613,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     <button class="admin-tab" onclick="switchAdminTab('shadowbot')">🤖 Shadow Bot</button>
     <button class="admin-tab" onclick="switchAdminTab('liverooms')">🔴 Live Rooms</button>
     <button class="admin-tab" onclick="switchAdminTab('pages')">👁 Pages &amp; Controls</button>
+    <button class="admin-tab" onclick="switchAdminTab('themes')">🎨 Theme Manager</button>
 </div>
 
 <!-- ══════════════════════════════════
@@ -8409,9 +8460,13 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="settings-label">🤖 AI Moderation<small>AI safety &amp; moderation system</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="esAI" class="notif-toggle-cb" checked onchange="window.founderToggleAIModeration()"><span class="notif-toggle-slider"></span></label>
         </div>
-        <div class="settings-row" style="border-bottom:none;">
+        <div class="settings-row">
             <div class="settings-label">🤖 Shadow Bot<small>Bot posts &amp; welcome messages</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="esBot" class="notif-toggle-cb" checked onchange="emergencyToggle('shadowBotEnabled',this.checked,'Shadow Bot')"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row" style="border-bottom:none;">
+            <div class="settings-label">🎵 Profile Music<small>Allow users to add a profile song</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esProfileMusic" class="notif-toggle-cb" checked onchange="snxPmpFounderToggle(this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
     </div>
 
@@ -8462,6 +8517,200 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 <!-- adminTab-emergency kept as empty alias so any direct JS reference doesn't crash -->
 <div class="admin-tab-content" id="adminTab-emergency" style="display:none;"></div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     TAB: THEME MANAGER (Founder only)
+     Extends holiday-themes.js — all theme engine calls go through
+     snxHt* functions already in holiday-themes.js
+     ══════════════════════════════════════════════════════════════ -->
+<div class="admin-tab-content" id="adminTab-themes">
+
+  <!-- Header + status -->
+  <div class="section-card" style="margin-bottom:16px;border-color:rgba(0,174,239,0.35);background:linear-gradient(135deg,rgba(0,30,80,0.35),rgba(11,31,58,0.92));">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+      <div>
+        <h3 style="margin:0 0 4px;font-size:14px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎨 Founder Theme Manager</h3>
+        <div style="font-size:12px;color:#6a90b8;">Active theme: <span id="htTMActiveName" style="color:#39FF14;font-weight:700;">—</span></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button onclick="snxHtDisable()" style="font-size:12px;padding:6px 14px;border-radius:9px;background:rgba(255,51,80,0.10);border-color:rgba(255,51,80,0.40);color:#ff6680;">🔄 Restore Default</button>
+        <button onclick="snxTmExportTheme()" style="font-size:12px;padding:6px 14px;border-radius:9px;background:rgba(0,174,239,0.10);border-color:rgba(0,174,239,0.35);color:#00d4ff;">📤 Export</button>
+        <button onclick="document.getElementById('snxTmImportInput').click()" style="font-size:12px;padding:6px 14px;border-radius:9px;background:rgba(57,255,20,0.08);border-color:rgba(57,255,20,0.35);color:#39FF14;">📥 Import</button>
+        <input type="file" id="snxTmImportInput" accept=".json" style="display:none;" onchange="snxTmImportTheme(this)">
+      </div>
+    </div>
+
+    <!-- Global toggles -->
+    <div style="display:flex;flex-wrap:wrap;gap:10px;">
+      <div class="settings-row" style="flex:1;min-width:200px;border:none;padding:0;">
+        <div class="settings-label">🗓 Auto Holiday Themes<small>Apply seasonal themes automatically</small></div>
+        <label class="notif-toggle-wrap"><input type="checkbox" id="htToggleAuto" class="notif-toggle-cb" checked onchange="snxHtSetAuto(this.checked)"><span class="notif-toggle-slider"></span></label>
+      </div>
+      <div class="settings-row" style="flex:1;min-width:200px;border:none;padding:0;">
+        <div class="settings-label">🎵 Holiday Theme Music<small>Play ambient music with themes</small></div>
+        <label class="notif-toggle-wrap"><input type="checkbox" id="htToggleMusic" class="notif-toggle-cb" checked onchange="snxHtSetMusic(this.checked)"><span class="notif-toggle-slider"></span></label>
+      </div>
+      <div class="settings-row" style="flex:1;min-width:200px;border:none;padding:0;">
+        <div class="settings-label">🔒 Lock Theme<small>Prevent users from overriding theme</small></div>
+        <label class="notif-toggle-wrap"><input type="checkbox" id="htTMLockTheme" class="notif-toggle-cb" onchange="snxTmSetLock(this.checked)"><span class="notif-toggle-slider"></span></label>
+      </div>
+      <div class="settings-row" style="flex:1;min-width:200px;border:none;padding:0;">
+        <div class="settings-label">✨ Animations<small>Enable particle &amp; cursor animations</small></div>
+        <label class="notif-toggle-wrap"><input type="checkbox" id="htTMAnimations" class="notif-toggle-cb" checked onchange="snxTmSetAnimations(this.checked)"><span class="notif-toggle-slider"></span></label>
+      </div>
+      <div class="settings-row" style="flex:1;min-width:200px;border:none;padding:0;">
+        <div class="settings-label">🎵 Profile Music Feature<small>Allow users to add profile songs</small></div>
+        <label class="notif-toggle-wrap"><input type="checkbox" id="htTMProfileMusic" class="notif-toggle-cb" checked onchange="snxPmpFounderToggle(this.checked)"><span class="notif-toggle-slider"></span></label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-tabs -->
+  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;">
+    <button class="ht-sub-tab active-sub" data-tab="holiday" onclick="snxTmSwitchTab('holiday',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.30);color:#00d4ff;cursor:pointer;transition:all 0.15s;">🗓 Holiday</button>
+    <button class="ht-sub-tab" data-tab="exclusive" onclick="snxTmSwitchTab('exclusive',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,30,70,0.5);border:1px solid rgba(0,174,239,0.20);color:#6a90b8;cursor:pointer;transition:all 0.15s;">🌑 SNX Exclusive</button>
+    <button class="ht-sub-tab" data-tab="custom" onclick="snxTmSwitchTab('custom',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,30,70,0.5);border:1px solid rgba(0,174,239,0.20);color:#6a90b8;cursor:pointer;transition:all 0.15s;">🎨 Custom Builder</button>
+    <button class="ht-sub-tab" data-tab="presets" onclick="snxTmSwitchTab('presets',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,30,70,0.5);border:1px solid rgba(0,174,239,0.20);color:#6a90b8;cursor:pointer;transition:all 0.15s;">📁 Saved Presets</button>
+    <button class="ht-sub-tab" data-tab="schedule" onclick="snxTmSwitchTab('schedule',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,30,70,0.5);border:1px solid rgba(0,174,239,0.20);color:#6a90b8;cursor:pointer;transition:all 0.15s;">📅 Schedule</button>
+    <button class="ht-sub-tab" data-tab="background" onclick="snxTmSwitchTab('background',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,30,70,0.5);border:1px solid rgba(0,174,239,0.20);color:#6a90b8;cursor:pointer;transition:all 0.15s;">🌌 Backgrounds</button>
+  </div>
+
+  <!-- Panel: Holiday Themes -->
+  <div class="snx-tm-panel" id="snxTmPanel-holiday">
+    <div id="htThemeGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px;"></div>
+    <button onclick="if(window._snxHtSelectedPreview)snxHtPublish(window._snxHtSelectedPreview)" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#003399,#0055cc);border-color:rgba(0,174,239,0.65);color:#fff;font-size:13px;font-weight:700;">🚀 Apply Selected Theme to Everyone</button>
+  </div>
+
+  <!-- Panel: SNX Exclusive Themes -->
+  <div class="snx-tm-panel" id="snxTmPanel-exclusive" style="display:none;">
+    <div id="htExclusiveGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px;"></div>
+    <button onclick="if(window._snxHtSelectedPreview)snxHtPublish(window._snxHtSelectedPreview)" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#003399,#0055cc);border-color:rgba(0,174,239,0.65);color:#fff;font-size:13px;font-weight:700;">🚀 Apply Selected Theme to Everyone</button>
+  </div>
+
+  <!-- Panel: Custom Builder -->
+  <div class="snx-tm-panel" id="snxTmPanel-custom" style="display:none;">
+    <div id="adminTab-holidaythemes" style="padding:0;background:none;border:none;"></div>
+  </div>
+
+  <!-- Panel: Saved Presets -->
+  <div class="snx-tm-panel" id="snxTmPanel-presets" style="display:none;">
+    <div class="section-card" style="margin-bottom:14px;">
+      <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">💾 Save Current Theme as Preset</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input id="htPresetNameInput" placeholder="Preset name…" style="flex:1;margin:0;">
+        <button onclick="snxHtSavePreset()" style="padding:8px 16px;border-radius:8px;background:rgba(57,255,20,0.10);border-color:rgba(57,255,20,0.40);color:#39FF14;font-size:12px;font-weight:700;">💾 Save Preset</button>
+      </div>
+    </div>
+    <div id="htPresetsList" style="min-height:40px;"></div>
+  </div>
+
+  <!-- Panel: Schedule -->
+  <div class="snx-tm-panel" id="snxTmPanel-schedule" style="display:none;">
+    <div class="section-card" style="margin-bottom:14px;">
+      <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">📅 Auto Schedule</h3>
+      <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;line-height:1.6;">Themes are applied automatically on the dates below when Auto Holiday Themes is enabled. The Founder can override at any time.</p>
+      <div id="snxTmScheduleTable" style="overflow-x:auto;"></div>
+    </div>
+    <!-- Scheduled theme overrides by date -->
+    <div class="section-card">
+      <h3 style="margin:0 0 10px;font-size:13px;color:#ffe566;text-transform:uppercase;letter-spacing:0.8px;">📅 Scheduled Theme Override</h3>
+      <p style="font-size:12px;color:#6a90b8;margin:0 0 10px;">Set a theme to activate on a specific date (Firestore-synced, real-time).</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:1;min-width:140px;">
+          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Theme</label>
+          <select id="snxTmSchedTheme" style="margin:0;width:100%;font-size:12px;padding:6px 10px;"></select>
+        </div>
+        <div style="flex:1;min-width:140px;">
+          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Activate Date</label>
+          <input type="date" id="snxTmSchedDate" style="margin:0;font-size:12px;padding:7px 10px;">
+        </div>
+        <button onclick="snxTmAddScheduled()" style="padding:8px 16px;border-radius:8px;border-color:rgba(0,174,239,0.5);color:#00d4ff;font-size:12px;font-weight:700;">➕ Add</button>
+      </div>
+      <div id="snxTmSchedList" style="margin-top:12px;min-height:30px;"></div>
+    </div>
+  </div>
+
+  <!-- Panel: Backgrounds -->
+  <div class="snx-tm-panel" id="snxTmPanel-background" style="display:none;">
+    <div class="section-card" style="margin-bottom:14px;">
+      <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🌌 Background Options</h3>
+      <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;line-height:1.6;">Choose a site-wide background effect. Applies instantly to all users.</p>
+      <div id="snxBgGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:flex-end;">
+        <div style="flex:1;min-width:180px;">
+          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Custom Image URL</label>
+          <input id="snxBgCustomUrl" placeholder="https://…" style="margin:0;font-size:12px;">
+        </div>
+        <button onclick="snxTmSetBackground('custom-image',document.getElementById('snxBgCustomUrl').value)" style="padding:8px 16px;border-radius:8px;border-color:rgba(0,174,239,0.5);color:#00d4ff;font-size:12px;font-weight:700;">Apply Image</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:flex-end;">
+        <div style="flex:1;min-width:180px;">
+          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Video Background URL</label>
+          <input id="snxBgVideoUrl" placeholder="https://…/video.mp4" style="margin:0;font-size:12px;">
+        </div>
+        <button onclick="snxTmSetBackground('video',document.getElementById('snxBgVideoUrl').value)" style="padding:8px 16px;border-radius:8px;border-color:rgba(57,255,20,0.5);color:#39FF14;font-size:12px;font-weight:700;">Apply Video</button>
+      </div>
+    </div>
+    <!-- Color controls for bg, nav, cards, etc. -->
+    <div class="section-card">
+      <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎨 Website Color Controls</h3>
+      <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;">Changes go into the active Custom Theme. Preview first, then Publish.</p>
+      <div id="snxColorGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        <button onclick="snxTmPreviewColors()" style="flex:1;padding:9px;border-radius:10px;border-color:rgba(0,174,239,0.45);color:#00AEEF;font-size:12px;font-weight:700;">👁 Preview Colors</button>
+        <button onclick="snxTmPublishColors()" style="flex:1;padding:9px;border-radius:10px;background:linear-gradient(135deg,#003399,#0055cc);border-color:rgba(0,174,239,0.65);color:#fff;font-size:12px;font-weight:700;">🚀 Publish Colors</button>
+      </div>
+    </div>
+    <!-- Font controls -->
+    <div class="section-card">
+      <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🖋 Typography</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;">
+        <div>
+          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Body Font</label>
+          <select id="snxFontBody" style="margin:0;font-size:12px;padding:6px 10px;width:100%;" onchange="snxTmMarkColorDirty()">
+            <option value="'Segoe UI',Arial,sans-serif">Segoe UI (Default)</option>
+            <option value="'Courier New',monospace">Courier New</option>
+            <option value="Georgia,serif">Georgia</option>
+            <option value="Impact,sans-serif">Impact</option>
+            <option value="'Arial Black',sans-serif">Arial Black</option>
+            <option value="'Trebuchet MS',sans-serif">Trebuchet MS</option>
+            <option value="Verdana,sans-serif">Verdana</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Base Font Size</label>
+          <select id="snxFontSize" style="margin:0;font-size:12px;padding:6px 10px;width:100%;" onchange="snxTmMarkColorDirty()">
+            <option value="13px">Small (13px)</option>
+            <option value="14px" selected>Default (14px)</option>
+            <option value="15px">Medium (15px)</option>
+            <option value="16px">Large (16px)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Border Radius</label>
+          <select id="snxBorderRadius" style="margin:0;font-size:12px;padding:6px 10px;width:100%;" onchange="snxTmMarkColorDirty()">
+            <option value="4px">Sharp (4px)</option>
+            <option value="8px">Medium (8px)</option>
+            <option value="10px" selected>Default (10px)</option>
+            <option value="16px">Rounded (16px)</option>
+            <option value="24px">Pill (24px)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Animation Speed</label>
+          <select id="snxAnimSpeed" style="margin:0;font-size:12px;padding:6px 10px;width:100%;" onchange="snxTmMarkColorDirty()">
+            <option value="0.15s">Fast</option>
+            <option value="0.25s">Normal</option>
+            <option value="0.45s" selected>Default (0.45s)</option>
+            <option value="0.7s">Slow</option>
+            <option value="0s">None</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end adminTab-themes -->
 
 <!-- ── Edit Message Modal ── -->
 <div id="scbEditModal">
@@ -12663,6 +12912,11 @@ body.arcade-fs-ios body::after { display:none !important; }
           epmPreviewUpdate();
       }
 
+      // Load profile music player for this profile
+      if (typeof window.snxProfileMusicLoad === 'function') {
+          window.snxProfileMusicLoad(uid);
+      }
+
       // Tear down previous snapshot listener
       if(activeProfileUnsubscribe) { activeProfileUnsubscribe(); activeProfileUnsubscribe = null; }
 
@@ -16535,6 +16789,11 @@ function switchEpmTab(name, btn) {
     if (btn) btn.classList.add('active');
     const panel = document.getElementById('epmPanel-' + name);
     if (panel) panel.classList.add('active');
+    // Lazy-init the Music tab edit panel
+    if (name === 'music' && typeof window.snxProfileMusicLoad === 'function') {
+        const uid = window._snxCurrentUser && window._snxCurrentUser.uid;
+        if (uid) window.snxProfileMusicLoad(uid);
+    }
 }
 
 /* ── Live preview update ── */
@@ -24373,6 +24632,30 @@ window.switchAdminTab = function(tab) {
 
 <!-- ── Profile Photo Album module (must load after the main IIFE) ── -->
 <script src="album.js"></script>
+
+<!-- ── Profile Music player (must load after the main IIFE) ── -->
+<script src="profile-music.js"></script>
+
+<!-- ── Holiday / Founder Theme Engine ── -->
+<script src="holiday-themes.js"></script>
+
+<!-- ── Background effect DOM elements (used by snxTmSetBackground) ── -->
+<video id="snxBgVideo" autoplay muted loop playsinline></video>
+<div id="snxBgImage"></div>
+
+<!-- ── Theme Engine required DOM elements ── -->
+<div id="snxHolidayBanner"></div>
+<canvas id="snxHolidayParticles"></canvas>
+<div id="snxThemePreviewBadge"></div>
+<div id="snxMusicPlayerWrap">
+  <button id="snxMusicToggleBtn" onclick="snxHtUserMusicToggle()">🔇 Music OFF</button>
+</div>
+<div id="snxHolidayLoadingSplash">
+  <div class="ht-splash-emoji">🌑</div>
+  <div class="ht-splash-name">Shadow Nexus</div>
+</div>
+<div id="snxThemeWallpaper"></div>
+<div id="snxCursorEffect"></div>
 
 </body>
 </html>

@@ -125,6 +125,15 @@ let _toastTimer       = null;
 let _viewerLeftFlag   = false;  // guard: prevent double-decrement on mobile
 let _creatorEndedFlag = false;  // guard: prevent beforeunload re-running endLive cleanup
 
+// Viewer offer-wait listener — stored so it can be torn down on leave/reconnect
+let _offerWaitRef      = null;
+let _offerWaitListener = null;
+// Stalled-video watchdog interval — tracked so duplicates are prevented
+let _stalledTimer      = null;
+// Guard: tracks whether the online/visibilitychange listeners have been attached
+// so they are only registered once per page load (not once per reconnect).
+let _viewerNetListenersAttached = false;
+
 /* ══════════════════════════════════════════════════
    GUEST BOX CONFIGURATION — change here to update max
    ══════════════════════════════════════════════════ */
@@ -1011,6 +1020,11 @@ async function _notifyFollowersLive(creatorData) {
    VIEWER — join a live stream
    ═══════════════════════════════════════════════════ */
 async function _startViewer() {
+  // ── Reset leave-guard so a viewer who left and rejoined (same page load) works ──
+  _viewerLeftFlag = false;
+  _viewerReconnectAttempt = 0;
+  if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
+
   let roomData = null;
 
   const _MAX_RETRIES = 8;
@@ -1107,35 +1121,35 @@ async function _startViewer() {
   window.addEventListener('beforeunload', _viewerLeave);
   window.addEventListener('pagehide',     _viewerLeave);
 
-  // ── Auto-reconnect on network restore ──
-  // If the device was offline briefly and comes back, try reconnecting immediately
-  // instead of waiting for the exponential back-off timer.
-  window.addEventListener('online', () => {
-    if (_viewerLeftFlag) return;
-    const state = _rtcPc?.connectionState;
-    if (state === 'disconnected' || state === 'failed' || state === 'closed' || !_rtcPc) {
-      // Reset attempt counter so we get a fresh fast reconnect after network restore
-      _viewerReconnectAttempt = 0;
-      if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
-      _scheduleViewerReconnect(roomData);
-    }
-  }, { once: false });
+  // ── Auto-reconnect on network restore and visibility change ──
+  // Register ONCE per page load — prevents duplicate handlers stacking on rejoin.
+  if (!_viewerNetListenersAttached) {
+    _viewerNetListenersAttached = true;
 
-  // ── Visibility change: resume playback when tab becomes visible again ──
-  document.addEventListener('visibilitychange', () => {
-    if (_viewerLeftFlag || document.hidden) return;
-    const v = D.liveVideo;
-    if (v && v.srcObject && v.paused) {
-      v.play().catch(() => {});
-    }
-    // If connection dropped while tab was hidden, reconnect immediately
-    const state = _rtcPc?.connectionState;
-    if (state === 'disconnected' || state === 'failed' || state === 'closed' || !_rtcPc) {
-      _viewerReconnectAttempt = 0;
-      if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
-      _scheduleViewerReconnect(roomData);
-    }
-  }, { once: false });
+    window.addEventListener('online', () => {
+      if (_viewerLeftFlag) return;
+      const state = _rtcPc?.connectionState;
+      if (state === 'disconnected' || state === 'failed' || state === 'closed' || !_rtcPc) {
+        _viewerReconnectAttempt = 0;
+        if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
+        _scheduleViewerReconnect(roomData);
+      }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (_viewerLeftFlag || document.hidden) return;
+      const v = D.liveVideo;
+      if (v && v.srcObject && v.paused) {
+        v.play().catch(() => {});
+      }
+      const state = _rtcPc?.connectionState;
+      if (state === 'disconnected' || state === 'failed' || state === 'closed' || !_rtcPc) {
+        _viewerReconnectAttempt = 0;
+        if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
+        _scheduleViewerReconnect(roomData);
+      }
+    });
+  }
 }
 
 async function _viewerLeave() {
@@ -1144,6 +1158,15 @@ async function _viewerLeave() {
 
   // Cancel any pending reconnect
   if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
+
+  // Cancel any stalled-video watchdog
+  if (_stalledTimer) { clearInterval(_stalledTimer); _stalledTimer = null; }
+
+  // Cancel any pending offer-wait listener
+  if (_offerWaitRef && _offerWaitListener) {
+    try { off(_offerWaitRef, _offerWaitListener); } catch(_) {}
+    _offerWaitRef = null; _offerWaitListener = null;
+  }
 
   // Reset join guard so re-entry works correctly
   _guestJoining = false;
@@ -1189,8 +1212,14 @@ async function _viewerLeave() {
   }
   if (_guestStatusUnsub) { try { _guestStatusUnsub(); } catch(_){} _guestStatusUnsub = null; }
 
-  if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
-  if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
+  if (_rtcPc)  {
+    try { _rtcPc.onconnectionstatechange = null; } catch(_) {}
+    try { _rtcPc.onicecandidate          = null; } catch(_) {}
+    try { _rtcPc.ontrack                 = null; } catch(_) {}
+    try { _rtcPc.close(); } catch (_) {}
+    _rtcPc = null;
+  }
+  if (_rtcSignalRef) { try { off(_rtcSignalRef); } catch(_) {} _rtcSignalRef = null; _rtcSignalUnsub = null; }
 
   /* ── Decrement viewer count in LIVE RTDB ── */
   try {
@@ -1322,13 +1351,95 @@ async function _startCreatorWebRTC() {
     _pendingCandidates.length = 0;
   }
 
-  // Watch for viewer answer + ICE
+  // Watch for viewer answer + ICE.
+  // Also watch for viewerReady (viewer reconnecting) — when detected, issue a
+  // fresh offer so the rejoining viewer gets a brand-new negotiation instead of
+  // trying to use a stale/consumed offer+answer pair.
   let _appliedViewerCandKeys = new Set();
+  let _creatorReofferPending = false;
   _rtcSignalRef   = connRef;
   _rtcSignalUnsub = onValue(connRef, async snap => {
-    if (!snap.exists()) return;
+    if (!snap.exists() || !_rtcPc) return;
     const d = snap.val();
 
+    // ── Viewer reconnect: answer was cleared + viewerReady written ──
+    // The viewer sets viewerReady only on reconnect (not on first join), so the
+    // presence of viewerReady + missing offer is sufficient to trigger a reoffer.
+    if (d.viewerReady && !d.offer && !_creatorReofferPending) {
+      _creatorReofferPending = true;
+      try {
+        // Close the old RTCPeerConnection — it cannot be re-used once the
+        // remote description side changes (the viewer's PeerConnection is new).
+        if (_rtcPc) {
+          try { _rtcPc.onconnectionstatechange = null; } catch(_) {}
+          try { _rtcPc.onicecandidate          = null; } catch(_) {}
+          try { _rtcPc.close(); } catch(_) {}
+        }
+        _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
+
+        // Re-attach local stream tracks to the new connection
+        if (_localStream) {
+          _localStream.getTracks().forEach(track => _rtcPc.addTrack(track, _localStream));
+        }
+        _rtcPc.getTransceivers().forEach(tc => {
+          tc.direction = 'sendonly';
+          if (tc.sender?.track?.kind === 'video') {
+            const params = tc.sender.getParameters();
+            if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+            params.encodings[0].maxBitrate           = 3_000_000;
+            params.encodings[0].maxFramerate         = 30;
+            params.encodings[0].scaleResolutionDownBy = 1;
+            tc.sender.setParameters(params).catch(() => {});
+          }
+        });
+
+        _rtcPc.onconnectionstatechange = () => {
+          const state = _rtcPc?.connectionState;
+          console.log(`[CreatorWebRTC] Connection state (reoffer): ${state}`);
+          if (state === 'connected') _startAdaptiveQuality(_rtcPc);
+        };
+        _rtcPc.oniceconnectionstatechange = () => {
+          console.log(`[CreatorWebRTC] ICE state: ${_rtcPc?.iceConnectionState}`);
+        };
+
+        // Collect new ICE candidates for the fresh offer
+        const _reofferPendingCands = [];
+        let   _reofferWritten      = false;
+        _rtcPc.onicecandidate = async (e) => {
+          if (!e.candidate) return;
+          if (!_reofferWritten) { _reofferPendingCands.push(e.candidate.toJSON()); return; }
+          try { await push(ref(_liveDB, `liveConnections/${_roomId}/creatorCandidates`), e.candidate.toJSON()); } catch(_) {}
+        };
+
+        const newOffer = await _rtcPc.createOffer();
+        await _rtcPc.setLocalDescription(newOffer);
+
+        // Reset applied-candidate tracking for the fresh round
+        _appliedViewerCandKeys = new Set();
+
+        // Write the new offer, clearing old candidates
+        await set(connRef, {
+          offer:             { type: newOffer.type, sdp: newOffer.sdp },
+          creatorCandidates: {},
+          viewerCandidates:  {},
+        });
+        _reofferWritten = true;
+
+        // Flush buffered candidates
+        for (const cand of _reofferPendingCands) {
+          try { await push(ref(_liveDB, `liveConnections/${_roomId}/creatorCandidates`), cand); } catch(_) {}
+        }
+        _reofferPendingCands.length = 0;
+        console.log('[CreatorWebRTC] Fresh offer written for reconnecting viewer');
+      } catch (e) {
+        console.warn('[CreatorWebRTC] Re-offer failed:', e.message);
+      } finally {
+        _creatorReofferPending = false;
+      }
+      return;
+    }
+
+    // ── Normal path: apply viewer's answer and ICE ──
     if (d.answer && _rtcPc.remoteDescription === null) {
       try {
         await _rtcPc.setRemoteDescription(new RTCSessionDescription(d.answer));
@@ -1352,33 +1463,20 @@ async function _startCreatorWebRTC() {
    Uses LIVE Realtime Database for signaling.
    ═══════════════════════════════════════════════════ */
 async function _startViewerWebRTC(roomData) {
-  _showConnBanner('Waiting for stream…', '');
+  // Show "Reconnecting…" immediately if this is a reconnect attempt, otherwise
+  // show "Waiting for stream…" for a fresh join (attempt counter > 0 means reconnect).
+  _showConnBanner(_viewerReconnectAttempt > 0 ? 'Reconnecting…' : 'Waiting for stream…', '');
 
-  const connRef = ref(_liveDB, `liveConnections/${_roomId}`);
+  // ── Tear down stalled-video watchdog from any prior call ──
+  if (_stalledTimer) { clearInterval(_stalledTimer); _stalledTimer = null; }
 
-  /* ── Read offer from LIVE RTDB ── */
-  let connSnap;
-  try {
-    connSnap = await get(connRef);
-  } catch (e) {
-    _showConnBanner('Waiting for stream…', '');
-    return;
+  // ── Tear down any lingering offer-wait listener ──
+  if (_offerWaitRef && _offerWaitListener) {
+    try { off(_offerWaitRef, _offerWaitListener); } catch(_) {}
+    _offerWaitRef = null; _offerWaitListener = null;
   }
 
-  if (!connSnap.exists() || !connSnap.val().offer) {
-    _showConnBanner('Waiting for stream…', '');
-    const offerWaitRef = ref(_liveDB, `liveConnections/${_roomId}`);
-    let _offerWaitListener;
-    _offerWaitListener = onValue(offerWaitRef, async snap => {
-      if (!snap.exists() || !snap.val().offer) return;
-      off(offerWaitRef, _offerWaitListener);
-      _startViewerWebRTC(roomData);
-    });
-    return;
-  }
-
-  // Fully nuke any previous peer connection — clears all event handlers and
-  // prevents stale ICE/state callbacks firing on the new connection.
+  // ── Fully nuke previous peer connection before any async work ──
   if (_rtcPc) {
     try { _rtcPc.onconnectionstatechange = null; } catch(_) {}
     try { _rtcPc.onicecandidate          = null; } catch(_) {}
@@ -1390,6 +1488,52 @@ async function _startViewerWebRTC(roomData) {
     try { off(_rtcSignalRef); } catch(_) {}
     _rtcSignalRef = null; _rtcSignalUnsub = null;
   }
+
+  const connRef = ref(_liveDB, `liveConnections/${_roomId}`);
+
+  /* ── Signal the host that a viewer is ready for a fresh offer.
+     On reconnect, clear the old offer/answer/ICE so the host's onValue
+     listener detects viewerReady + missing answer and writes a brand-new
+     offer. On first join (_viewerReconnectAttempt == 0), skip this step
+     so we use the host's original offer immediately. ── */
+  if (_viewerReconnectAttempt > 0) {
+    try {
+      await update(connRef, {
+        offer:           null,
+        answer:          null,
+        viewerCandidates: {},
+        viewerReady:     Date.now(),
+      });
+    } catch (_) {}
+  }
+
+  /* ── Read offer from LIVE RTDB ── */
+  let connSnap;
+  try {
+    connSnap = await get(connRef);
+  } catch (e) {
+    _showConnBanner('Reconnecting…', '');
+    if (!_viewerLeftFlag) _scheduleViewerReconnect(roomData);
+    return;
+  }
+
+  if (!connSnap.exists() || !connSnap.val().offer) {
+    // No offer yet — wait for the host to write one.
+    // Store the listener handle so _viewerLeave() can tear it down cleanly.
+    _offerWaitRef = connRef;
+    _offerWaitListener = onValue(_offerWaitRef, async snap => {
+      if (_viewerLeftFlag) { off(_offerWaitRef, _offerWaitListener); _offerWaitRef = null; _offerWaitListener = null; return; }
+      if (!snap.exists() || !snap.val().offer) return;
+      off(_offerWaitRef, _offerWaitListener);
+      _offerWaitRef = null; _offerWaitListener = null;
+      _startViewerWebRTC(roomData);
+    });
+    return;
+  }
+
+  // Guard: bail if the viewer left while we were awaiting the offer read
+  if (_viewerLeftFlag) return;
+
   _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
 
   _rtcPc.ontrack = (e) => {
@@ -1400,16 +1544,13 @@ async function _startViewerWebRTC(roomData) {
     // Buffer / mobile optimisation: low-latency mode where supported
     if ('playsInline' in D.liveVideo) D.liveVideo.playsInline = true;
     if (typeof D.liveVideo.disableRemotePlayback !== 'undefined') D.liveVideo.disableRemotePlayback = true;
-    // Prefer low-latency (Chrome hint)
     try { D.liveVideo.setPreferredQuality && D.liveVideo.setPreferredQuality('auto'); } catch(_) {}
     D.liveVideo.play().catch(() => {});
     _showUnmutePrompt();
     _hideConnBanner();
     // Safety: hide banner once video actually starts playing
     D.liveVideo.addEventListener('playing', _hideConnBanner, { once: true });
-    // ── Refresh all host cells in the guest grid with the new stream ──
-    // This handles both the initial attach and stream replacement (e.g. host
-    // camera flip mid-stream). Without this, host cells go black after a flip.
+    // Refresh all host cells in the guest grid with the new stream
     _refreshHostCellsWithStream();
   };
 
@@ -1447,9 +1588,14 @@ async function _startViewerWebRTC(roomData) {
   try {
     await _rtcPc.setRemoteDescription(new RTCSessionDescription(offer));
   } catch (e) {
-    _showConnBanner('Waiting for stream…', '');
+    console.warn('[ViewerWebRTC] setRemoteDescription failed — retrying:', e.message);
+    _showConnBanner('Reconnecting…', '');
+    if (!_viewerLeftFlag) _scheduleViewerReconnect(roomData);
     return;
   }
+
+  // Guard: bail if the viewer left during async setRemoteDescription
+  if (_viewerLeftFlag) { try { _rtcPc.close(); } catch(_){} _rtcPc = null; return; }
 
   /* ── Wire ICE handler BEFORE createAnswer so viewer candidates aren't lost ── */
   const _viewerPendingCands = [];
@@ -1476,7 +1622,8 @@ async function _startViewerWebRTC(roomData) {
     });
     _viewerAnswerWritten = true;
   } catch (e) {
-    _showConnBanner('Waiting for stream…', '');
+    _showConnBanner('Reconnecting…', '');
+    if (!_viewerLeftFlag) _scheduleViewerReconnect(roomData);
     return;
   }
 
@@ -1510,8 +1657,6 @@ async function _startViewerWebRTC(roomData) {
     }
   });
 
-  _showConnBanner('Waiting for stream…', '');
-
   // ── 3-second safety timeout: if video is already playing, remove banner ──
   setTimeout(() => {
     const v = D.liveVideo;
@@ -1522,15 +1667,14 @@ async function _startViewerWebRTC(roomData) {
 
   // ── Stalled / frozen video watchdog ──────────────────────────────────────
   // Checks every 6 s if the video element is stuck (paused, readyState < 3,
-  // or the currentTime has not advanced).  If so, re-plays the element.
-  // This handles "black screen after reconnect" and "frozen frame" cases
-  // without a full WebRTC teardown.
+  // or currentTime has not advanced). Uses module-level _stalledTimer so
+  // only one watchdog runs at a time (cleared on reconnect and leave).
   let _lastVideoTime = -1;
-  const _stalledTimer = setInterval(() => {
+  _stalledTimer = setInterval(() => {
     const v = D.liveVideo;
-    if (!v || !v.srcObject || _viewerLeftFlag) { clearInterval(_stalledTimer); return; }
+    if (!v || !v.srcObject || _viewerLeftFlag) { clearInterval(_stalledTimer); _stalledTimer = null; return; }
     // If peer is gone this watchdog is no longer needed
-    if (!_rtcPc || _rtcPc.connectionState === 'closed') { clearInterval(_stalledTimer); return; }
+    if (!_rtcPc || _rtcPc.connectionState === 'closed') { clearInterval(_stalledTimer); _stalledTimer = null; return; }
     if (v.paused) {
       v.play().catch(() => {});
       return;
@@ -1672,34 +1816,22 @@ function _stopAdaptiveQuality() {
 function _scheduleViewerReconnect(roomData) {
   if (_viewerLeftFlag) return;  // viewer already left
 
-  // Beyond 10 attempts show a softer banner but keep retrying (slower cadence)
-  if (_viewerReconnectAttempt >= 10) {
-    _showConnBanner('Reconnecting…', 'Poor signal — retrying…');
-  }
+  // Show "Reconnecting…" immediately so the viewer never sits on "Waiting for stream…"
+  _showConnBanner(
+    'Reconnecting…',
+    _viewerReconnectAttempt >= 10 ? 'Poor signal — retrying…' : ''
+  );
 
   if (_viewerReconnectTimer) clearTimeout(_viewerReconnectTimer);
 
   // Cap delay at 12 s; beyond attempt 10 use a fixed 12 s cadence
   const delay = Math.min(2000 * Math.pow(1.5, Math.min(_viewerReconnectAttempt, 8)), 12000);
   _viewerReconnectAttempt++;
-  console.log(`[WebRTC] Reconnect attempt ${_viewerReconnectAttempt} in ${delay}ms`);
+  console.log(`[WebRTC] Reconnect attempt ${_viewerReconnectAttempt} in ${Math.round(delay)}ms`);
 
   _viewerReconnectTimer = setTimeout(async () => {
     _viewerReconnectTimer = null;
     if (_viewerLeftFlag) return;
-
-    // Fully tear down old peer connection + signal listener before creating new one
-    if (_rtcPc) {
-      try { _rtcPc.onconnectionstatechange = null; } catch(_) {}
-      try { _rtcPc.onicecandidate          = null; } catch(_) {}
-      try { _rtcPc.ontrack                 = null; } catch(_) {}
-      try { _rtcPc.close(); } catch(_) {}
-      _rtcPc = null;
-    }
-    if (_rtcSignalRef) {
-      try { off(_rtcSignalRef); } catch(_) {}
-      _rtcSignalRef = null; _rtcSignalUnsub = null;
-    }
 
     // Verify stream is still live before attempting
     try {
@@ -1714,7 +1846,8 @@ function _scheduleViewerReconnect(roomData) {
       return;
     }
 
-    // Re-run WebRTC viewer setup — chat/counts listeners are still alive
+    // Re-run WebRTC viewer setup — _startViewerWebRTC handles peer teardown.
+    // Chat/counts listeners are kept alive across reconnects.
     await _startViewerWebRTC(roomData);
 
     // Re-ensure chat is subscribed (may have been torn down on prior leave)

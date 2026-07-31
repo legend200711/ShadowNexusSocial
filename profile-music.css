@@ -1,0 +1,351 @@
+/*
+ * Shadow Nexus Social — profile-music.css
+ * Profile Music Player — per-user profile song widget
+ * Additive only — does not modify any existing styles
+ */
+
+/* ═══════════════════════════════════════════════
+   PROFILE MUSIC PLAYER WIDGET
+   Displayed below the profile header / spotlight
+   ═══════════════════════════════════════════════ */
+#snxProfileMusicPlayer {
+  display: none;
+  background: rgba(8, 22, 50, 0.92);
+  border: 1px solid rgba(0, 174, 239, 0.32);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.25s;
+}
+#snxProfileMusicPlayer.pmp-visible {
+  display: block;
+}
+#snxProfileMusicPlayer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0,174,239,0.05) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* Playing state glow */
+#snxProfileMusicPlayer.pmp-playing {
+  border-color: rgba(0, 174, 239, 0.60);
+  box-shadow: 0 0 22px rgba(0, 174, 239, 0.18);
+}
+
+/* ── Top row: artwork + info + controls ── */
+.pmp-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pmp-artwork {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  background: rgba(0, 40, 90, 0.7);
+  border: 1px solid rgba(0, 174, 239, 0.30);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  overflow: hidden;
+  position: relative;
+}
+.pmp-artwork img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 9px;
+}
+/* spinning vinyl ring when playing */
+.pmp-artwork-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,174,239,0.5);
+  border-top-color: transparent;
+  display: none;
+}
+.pmp-playing .pmp-artwork-ring {
+  display: block;
+  animation: pmpVinylSpin 2s linear infinite;
+}
+@keyframes pmpVinylSpin {
+  to { transform: rotate(360deg); }
+}
+
+.pmp-info {
+  flex: 1;
+  min-width: 0;
+}
+.pmp-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e8f4ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.pmp-artist {
+  font-size: 11px;
+  color: #6a90b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmp-label {
+  font-size: 10px;
+  color: rgba(0,174,239,0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 4px;
+}
+
+.pmp-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.pmp-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,174,239,0.30);
+  background: rgba(0, 30, 70, 0.7);
+  color: #00AEEF;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.18s, box-shadow 0.18s, transform 0.1s;
+  flex-shrink: 0;
+  padding: 0;
+  touch-action: manipulation;
+}
+.pmp-btn:hover {
+  background: rgba(0, 100, 200, 0.25);
+  box-shadow: 0 0 10px rgba(0,174,239,0.35);
+}
+.pmp-btn:active { transform: scale(0.92); }
+.pmp-btn.pmp-btn-play {
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+  background: linear-gradient(135deg, rgba(0,80,180,0.55), rgba(0,140,255,0.35));
+  border-color: rgba(0,174,239,0.65);
+}
+.pmp-btn.pmp-btn-play:hover {
+  box-shadow: 0 0 16px rgba(0,174,239,0.5);
+}
+.pmp-btn.pmp-active {
+  color: #39FF14;
+  border-color: rgba(57,255,20,0.5);
+  background: rgba(57,255,20,0.08);
+}
+
+/* ── Progress row ── */
+.pmp-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.pmp-time {
+  font-size: 10px;
+  color: #4a6a8a;
+  white-space: nowrap;
+  min-width: 32px;
+}
+.pmp-time.pmp-time-total { text-align: right; }
+
+.pmp-progress-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(0,174,239,0.15);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.pmp-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00AEEF, #39FF14);
+  border-radius: 2px;
+  width: 0%;
+  pointer-events: none;
+  transition: width 0.25s linear;
+}
+
+/* ── Volume row ── */
+.pmp-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.pmp-vol-icon {
+  font-size: 13px;
+  color: #4a6a8a;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.pmp-volume-slider {
+  flex: 1;
+  height: 3px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(0,174,239,0.20);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+.pmp-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #00AEEF;
+  cursor: pointer;
+  border: none;
+}
+.pmp-volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #00AEEF;
+  cursor: pointer;
+  border: none;
+}
+
+/* ═══════════════════════════════════════════════
+   PROFILE MUSIC — EDIT MODAL TAB (Music)
+   ═══════════════════════════════════════════════ */
+.pmp-upload-area {
+  border: 2px dashed rgba(0,174,239,0.35);
+  border-radius: 12px;
+  padding: 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 14px;
+  background: rgba(0,30,70,0.3);
+}
+.pmp-upload-area:hover {
+  border-color: rgba(0,174,239,0.65);
+  background: rgba(0,50,110,0.25);
+}
+.pmp-upload-area-icon { font-size: 28px; margin-bottom: 6px; }
+.pmp-upload-area-text {
+  font-size: 12px;
+  color: #6a90b8;
+  line-height: 1.5;
+}
+
+.pmp-track-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+.pmp-track-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  margin-bottom: 4px;
+}
+.pmp-track-item:hover {
+  background: rgba(0,174,239,0.08);
+  border-color: rgba(0,174,239,0.20);
+}
+.pmp-track-item.pmp-track-selected {
+  background: rgba(0,174,239,0.12);
+  border-color: rgba(0,174,239,0.45);
+}
+.pmp-track-art {
+  width: 38px;
+  height: 38px;
+  border-radius: 7px;
+  background: rgba(0,40,90,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.pmp-track-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.pmp-track-info { flex: 1; min-width: 0; }
+.pmp-track-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c8e8ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmp-track-artist {
+  font-size: 11px;
+  color: #4a6a8a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmp-track-dur {
+  font-size: 10px;
+  color: #3a5a7a;
+  flex-shrink: 0;
+}
+.pmp-track-del {
+  font-size: 12px;
+  color: #ff6680;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 3px 6px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,51,102,0.20);
+  background: rgba(255,51,102,0.06);
+  transition: background 0.15s;
+}
+.pmp-track-del:hover { background: rgba(255,51,102,0.15); }
+
+.pmp-upload-progress-wrap {
+  height: 3px;
+  background: rgba(0,174,239,0.12);
+  border-radius: 2px;
+  margin: 6px 0;
+  overflow: hidden;
+  display: none;
+}
+.pmp-upload-progress-wrap.visible { display: block; }
+.pmp-upload-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #00AEEF, #39FF14);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.2s;
+}
+
+/* ── Admin: Profile Music feature kill-switch label ── */
+.settings-label small { display: block; font-size: 10px; color: #4a7a9a; margin-top: 1px; }

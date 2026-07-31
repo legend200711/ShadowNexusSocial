@@ -10,7 +10,7 @@
  * GitHub Pages (/ShadowNexusSocial/) and any local dev server (/).
  */
 
-const CACHE_VERSION = 'v14';
+const CACHE_VERSION = 'v15';
 const CACHE_NAME    = `shadow-nexus-${CACHE_VERSION}`;
 const MEDIA_CACHE   = `shadow-nexus-media-${CACHE_VERSION}`;
 
@@ -26,7 +26,11 @@ const SHELL_FILES = [
   'offline.html',
   'style.css',
   'album.css',
+  'profile-music.css',
+  'holiday-themes.css',
   'script.js',
+  'profile-music.js',
+  'holiday-themes.js',
   'snx-net.js',
   'manifest.json',
   'icon-192.png',

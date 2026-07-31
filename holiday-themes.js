@@ -50,6 +50,22 @@
     birthday:     { id:'birthday',     name:'Birthday',            emoji:'🎂', swatch:'#0a0418,#FF44CC',   particles:'confetti',  font:null,     music:'birthday',   cursor:'sparkle', transition:'zoom' },
     anniversary:  { id:'anniversary',  name:'Anniversary',         emoji:'💫', swatch:'#0e0a04,#D4A840',   particles:'sparkles',  font:null,     music:null,         cursor:'sparkle', transition:'fadeSlide' },
     custom:       { id:'custom',       name:'Custom Theme',        emoji:'🎨', swatch:'#0B1F3A,#00AEEF',   particles:'sparkles',  font:null,     music:null,         cursor:null,      transition:'fadeSlide' },
+    // ── Shadow Nexus Exclusive ──
+    'shadow-mode':      { id:'shadow-mode',      name:'Shadow Mode',          emoji:'🌑', swatch:'#050508,#8888ff',   particles:'sparkles',  font:null, music:null, cursor:null,      transition:'fadeSlide', exclusive:true },
+    'eclipse':          { id:'eclipse',          name:'Eclipse',              emoji:'🌘', swatch:'#080508,#cc88ff',   particles:'sparkles',  font:null, music:null, cursor:'sparkle', transition:'fadeSlide', exclusive:true },
+    'blue-flame':       { id:'blue-flame',       name:'Blue Flame',           emoji:'🔵', swatch:'#020814,#00aaff',   particles:'sparkles',  font:null, music:null, cursor:'sparkle', transition:'fadeSlide', exclusive:true },
+    'green-lightning':  { id:'green-lightning',  name:'Green Lightning',      emoji:'⚡', swatch:'#020b04,#39FF14',   particles:'sparkles',  font:null, music:null, cursor:'sparkle', transition:'fadeSlide', exclusive:true },
+    'wolf-moon':        { id:'wolf-moon',        name:'Wolf Moon',            emoji:'🐺', swatch:'#060a14,#e0d8ff',   particles:'stars',     font:null, music:null, cursor:null,      transition:'fadeSlide', exclusive:true },
+    'grim-reaper':      { id:'grim-reaper',      name:'Grim Reaper',          emoji:'💀', swatch:'#030303,#880000',   particles:'bats',      font:null, music:null, cursor:null,      transition:'slideRight',exclusive:true },
+    'black-cat':        { id:'black-cat',        name:'Black Cat',            emoji:'🐱', swatch:'#080408,#ff44aa',   particles:'sparkles',  font:null, music:null, cursor:'sparkle', transition:'fadeSlide', exclusive:true },
+    'midnight-storm':   { id:'midnight-storm',   name:'Midnight Storm',       emoji:'⛈', swatch:'#040810,#4488dd',   particles:'sparkles',  font:null, music:null, cursor:null,      transition:'fadeSlide', exclusive:true },
+    'frozen-shadow':    { id:'frozen-shadow',    name:'Frozen Shadow',        emoji:'❄', swatch:'#040d18,#88ddff',   particles:'snow',      font:null, music:null, cursor:'snowflake',transition:'fadeSlide', exclusive:true },
+    'inferno':          { id:'inferno',          name:'Inferno',              emoji:'🔥', swatch:'#0f0300,#ff4400',   particles:'sparkles',  font:null, music:null, cursor:'sparkle', transition:'fadeSlide', exclusive:true },
+    'galaxy':           { id:'galaxy',           name:'Galaxy',               emoji:'🌌', swatch:'#030408,#cc66ff',   particles:'stars',     font:null, music:null, cursor:'sparkle', transition:'fadeSlide', exclusive:true },
+    'cyber-neon':       { id:'cyber-neon',       name:'Cyber Neon',           emoji:'🤖', swatch:'#02040a,#00ffcc',   particles:'sparkles',  font:null, music:null, cursor:'sparkle', transition:'fadeSlide', exclusive:true },
+    'legend-blue':      { id:'legend-blue',      name:'Legend Blue',          emoji:'⚔️', swatch:'#020b18,#0066ff',  particles:'stars',     font:null, music:null, cursor:null,      transition:'fadeSlide', exclusive:true },
+    'legend-green':     { id:'legend-green',     name:'Legend Green',         emoji:'🏆', swatch:'#020b04,#00cc44',   particles:'sparkles',  font:null, music:null, cursor:null,      transition:'fadeSlide', exclusive:true },
+    'snx-classic':      { id:'snx-classic',      name:'Shadow Nexus Classic', emoji:'🌑', swatch:'#0B1F3A,#00AEEF',   particles:'sparkles',  font:null, music:null, cursor:null,      transition:'fadeSlide', exclusive:true },
   };
 
   /* ── Auto-activation calendar ───────────────────────────────────── */
@@ -1328,6 +1344,458 @@
     const _saved = localStorage.getItem('snx-music-pref');
     if (_saved === '1') _userMusicOn = true;
   } catch(_) {}
+
+  /* ════════════════════════════════════════════════════════════════
+     THEME MANAGER — snxTm* functions for the new adminTab-themes UI
+     Extends the existing theme engine without replacing anything.
+     ════════════════════════════════════════════════════════════════ */
+
+  /* ── Sub-tab switching for the Theme Manager tab ─────────────────── */
+  window.snxTmSwitchTab = function(tab, btn) {
+    document.querySelectorAll('#adminTab-themes .ht-sub-tab').forEach(b => {
+      b.classList.remove('active-sub');
+      b.style.background = 'rgba(0,30,70,0.5)';
+      b.style.borderColor = 'rgba(0,174,239,0.20)';
+      b.style.color = '#6a90b8';
+    });
+    document.querySelectorAll('#adminTab-themes .snx-tm-panel').forEach(p => {
+      p.style.display = 'none';
+    });
+    if (btn) {
+      btn.classList.add('active-sub');
+      btn.style.background = 'rgba(0,174,239,0.15)';
+      btn.style.borderColor = 'rgba(0,174,239,0.55)';
+      btn.style.color = '#00d4ff';
+    }
+    const panel = document.getElementById('snxTmPanel-' + tab);
+    if (panel) panel.style.display = 'block';
+
+    // Lazy render grids on first open
+    if (tab === 'holiday')    _snxTmRenderHolidayGrid();
+    if (tab === 'exclusive')  _snxTmRenderExclusiveGrid();
+    if (tab === 'custom')     { if (typeof window.snxHtRenderAdminTab === 'function') window.snxHtRenderAdminTab(); }
+    if (tab === 'schedule')   _snxTmRenderScheduleTable();
+    if (tab === 'background') _snxTmRenderColorGrid();
+  };
+
+  function _snxTmRenderHolidayGrid() {
+    const grid = document.getElementById('htThemeGrid');
+    if (!grid || grid.dataset.rendered) return;
+    grid.dataset.rendered = '1';
+    const holidayIds = ['none','newyears','valentines','stpatricks','easter','memorialday',
+      'july4','halloween','thanksgiving','christmas','winter','birthday','anniversary','custom'];
+    grid.innerHTML = holidayIds.map(id => {
+      const t = THEMES[id]; if (!t) return '';
+      const [bg, acc] = t.swatch.split(',');
+      return `<div class="snx-holiday-card${_currentTheme === t.id ? ' active-theme':''}"
+                   data-theme-id="${t.id}"
+                   onclick="window._snxHtSelectedPreview='${t.id}';document.querySelectorAll('#htThemeGrid .snx-holiday-card').forEach(c=>c.style.outline='');this.style.outline='2px solid #39FF14';snxHtPreview('${t.id}')">
+        <span class="ht-emoji">${t.emoji}</span>
+        <div class="ht-name">${t.name}</div>
+        <div class="ht-swatch" style="background:linear-gradient(90deg,${bg},${acc})"></div>
+        <span class="ht-active-badge">LIVE</span>
+        <button onclick="event.stopPropagation();snxHtDuplicateTheme('${t.id}')"
+                style="margin-top:6px;font-size:10px;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.12);color:#b8d4f0;width:100%;">📋 Duplicate</button>
+      </div>`;
+    }).join('');
+  }
+
+  function _snxTmRenderExclusiveGrid() {
+    const grid = document.getElementById('htExclusiveGrid');
+    if (!grid || grid.dataset.rendered) return;
+    grid.dataset.rendered = '1';
+    const excl = Object.values(THEMES).filter(t => t.exclusive);
+    grid.innerHTML = excl.map(t => {
+      const [bg, acc] = t.swatch.split(',');
+      return `<div class="snx-excl-card${_currentTheme === t.id ? ' active-theme':''}"
+                   data-theme-id="${t.id}"
+                   onclick="window._snxHtSelectedPreview='${t.id}';document.querySelectorAll('#htExclusiveGrid .snx-excl-card').forEach(c=>c.style.outline='');this.style.outline='2px solid #39FF14';snxHtPreview('${t.id}')">
+        <span class="ht-emoji">${t.emoji}</span>
+        <div class="ht-name">${t.name}</div>
+        <div class="ht-swatch" style="background:linear-gradient(90deg,${bg},${acc})"></div>
+        <span class="ht-active-badge">LIVE</span>
+        <button onclick="event.stopPropagation();snxHtDuplicateTheme('${t.id}')"
+                style="margin-top:6px;font-size:10px;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.12);color:#b8d4f0;width:100%;">📋 Duplicate</button>
+      </div>`;
+    }).join('');
+  }
+
+  function _snxTmRenderScheduleTable() {
+    const el = document.getElementById('snxTmScheduleTable');
+    if (!el) return;
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+        <th style="padding:5px;text-align:left;color:#6a90b8;">Theme</th>
+        <th style="padding:5px;text-align:left;color:#6a90b8;">Dates</th>
+        <th style="padding:5px;text-align:left;color:#6a90b8;">Status</th>
+      </tr></thead><tbody>` +
+      SCHEDULE.map(s => {
+        const t = THEMES[s.themeId] || THEMES.none;
+        const now = _getAutoTheme() === s.themeId;
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:6px;">${t.emoji} ${t.name}</td>
+          <td style="padding:6px;color:#b8d4f0;">${months[s.month-1]} ${s.startDay}–${s.endDay}</td>
+          <td style="padding:6px;"><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;${now?'background:rgba(57,255,20,0.15);color:#39FF14':'background:rgba(255,255,255,0.07);color:#6a90b8'};">${now?'ACTIVE':'UPCOMING'}</span></td>
+        </tr>`;
+      }).join('') + '</tbody></table>';
+
+    // Populate theme schedule selector
+    const sel = document.getElementById('snxTmSchedTheme');
+    if (sel) {
+      sel.innerHTML = Object.values(THEMES).map(t =>
+        `<option value="${t.id}">${t.emoji} ${t.name}</option>`
+      ).join('');
+    }
+
+    // Load saved scheduled overrides
+    _snxTmLoadScheduled();
+  }
+
+  async function _snxTmLoadScheduled() {
+    const el = document.getElementById('snxTmSchedList');
+    if (!el) return;
+    const fs = await _getFs();
+    if (!fs) return;
+    try {
+      const snap = await fs.getDoc(fs.doc(fs.db,'siteSettings','holidayTheme'));
+      const overrides = (snap.exists() ? snap.data().scheduledOverrides : null) || [];
+      if (!overrides.length) { el.innerHTML = '<p style="font-size:12px;color:#3a5a7a;margin:0;">No overrides set.</p>'; return; }
+      el.innerHTML = overrides.map((o, i) =>
+        `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+          <span style="font-size:18px;">${(THEMES[o.themeId]||THEMES.none).emoji}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:700;color:#c8e8ff;">${(THEMES[o.themeId]||THEMES.none).name}</div>
+            <div style="font-size:10px;color:#6a90b8;">Activates: ${o.date}</div>
+          </div>
+          <button onclick="snxTmRemoveScheduled(${i})" style="font-size:11px;padding:3px 8px;border-radius:6px;color:#ff6680;border-color:rgba(255,51,80,0.3);background:rgba(255,51,80,0.07);">✕</button>
+        </div>`
+      ).join('');
+    } catch(e) {}
+  }
+
+  window.snxTmAddScheduled = async function() {
+    if (!_founderCheck()) return;
+    const themeId = (document.getElementById('snxTmSchedTheme') || {}).value;
+    const date    = (document.getElementById('snxTmSchedDate')  || {}).value;
+    if (!themeId || !date) { if (typeof toastNotification === 'function') toastNotification('⚠️ Pick a theme and date'); return; }
+    const fs = await _getFs();
+    if (!fs) return;
+    try {
+      const snap = await fs.getDoc(fs.doc(fs.db,'siteSettings','holidayTheme'));
+      const cur  = snap.exists() ? snap.data() : {};
+      const overrides = cur.scheduledOverrides || [];
+      overrides.push({ themeId, date });
+      overrides.sort((a,b) => a.date.localeCompare(b.date));
+      await fs.setDoc(fs.doc(fs.db,'siteSettings','holidayTheme'), { scheduledOverrides: overrides, updatedAt: Date.now() }, { merge:true });
+      if (typeof toastNotification === 'function') toastNotification(`📅 Scheduled ${(THEMES[themeId]||{}).name||themeId} for ${date}`);
+      _snxTmLoadScheduled();
+    } catch(e) { if (typeof toastNotification === 'function') toastNotification('❌ ' + e.message); }
+  };
+
+  window.snxTmRemoveScheduled = async function(idx) {
+    if (!_founderCheck()) return;
+    const fs = await _getFs();
+    if (!fs) return;
+    try {
+      const snap = await fs.getDoc(fs.doc(fs.db,'siteSettings','holidayTheme'));
+      const cur  = snap.exists() ? snap.data() : {};
+      const overrides = (cur.scheduledOverrides || []).filter((_, i) => i !== idx);
+      await fs.setDoc(fs.doc(fs.db,'siteSettings','holidayTheme'), { scheduledOverrides: overrides, updatedAt: Date.now() }, { merge:true });
+      _snxTmLoadScheduled();
+    } catch(e) {}
+  };
+
+  function _snxTmRenderColorGrid() {
+    const grid = document.getElementById('snxColorGrid');
+    if (!grid || grid.dataset.rendered) return;
+    grid.dataset.rendered = '1';
+    const COLS = [
+      ['--bg-main',        'Background',    '#0B1F3A'],
+      ['--bg-card',        'Card',          '#0d2444'],
+      ['--bg-input',       'Input',         '#0a1c35'],
+      ['--neon-blue',      'Accent 1',      '#00AEEF'],
+      ['--neon-green',     'Accent 2',      '#39FF14'],
+      ['--text-primary',   'Text Primary',  '#ffffff'],
+      ['--text-secondary', 'Text Secondary','#b8d4f0'],
+      ['--text-muted',     'Text Muted',    '#6a90b8'],
+      ['--border-color',   'Border',        '#1a3a5c'],
+    ];
+    grid.innerHTML = COLS.map(([varName, label, def]) => {
+      const safeId = varName.replace(/[^a-zA-Z0-9]/g, '_');
+      return `<div class="snx-tm-color-row">
+        <label>${label}</label>
+        <input type="color" id="snxTmCol${safeId}" value="${def}"
+               oninput="document.getElementById('snxTmColHex${safeId}').value=this.value;snxTmMarkColorDirty()">
+        <input type="text"  id="snxTmColHex${safeId}" value="${def}"
+               oninput="document.getElementById('snxTmCol${safeId}').value=this.value;snxTmMarkColorDirty()" placeholder="${def}">
+      </div>`;
+    }).join('');
+
+    // Render background effect grid
+    const bgGrid = document.getElementById('snxBgGrid');
+    if (bgGrid && !bgGrid.dataset.rendered) {
+      bgGrid.dataset.rendered = '1';
+      const BG_EFFECTS = [
+        { id:'none',       name:'Default',          emoji:'🌑' },
+        { id:'rain',       name:'Rain',             emoji:'🌧' },
+        { id:'snow',       name:'Snow',             emoji:'❄️' },
+        { id:'stars',      name:'Stars',            emoji:'⭐' },
+        { id:'particles',  name:'Particles',        emoji:'✨' },
+        { id:'aurora',     name:'Aurora',           emoji:'🌌' },
+        { id:'fire',       name:'Fire',             emoji:'🔥' },
+        { id:'fog',        name:'Fog',              emoji:'🌫' },
+        { id:'hearts',     name:'Hearts',           emoji:'❤️' },
+        { id:'lightning',  name:'Lightning',        emoji:'⚡' },
+        { id:'leaves',     name:'Leaves',           emoji:'🍂' },
+        { id:'bubbles',    name:'Bubbles',          emoji:'🫧' },
+        { id:'galaxy',     name:'Galaxy',           emoji:'🌌' },
+        { id:'smoke',      name:'Smoke',            emoji:'💨' },
+        { id:'fireworks',  name:'Fireworks',        emoji:'🎆' },
+        { id:'confetti',   name:'Confetti',         emoji:'🎊' },
+        { id:'bats',       name:'Bats',             emoji:'🦇' },
+        { id:'custom-image', name:'Custom Image',   emoji:'🖼' },
+        { id:'video',       name:'Video BG',        emoji:'🎬' },
+      ];
+      bgGrid.innerHTML = BG_EFFECTS.map(e =>
+        `<div class="snx-holiday-card" onclick="snxTmSetBackground('${e.id}','');document.querySelectorAll('#snxBgGrid .snx-holiday-card').forEach(c=>c.classList.remove('active-theme'));this.classList.add('active-theme');">
+          <span class="ht-emoji">${e.emoji}</span>
+          <div class="ht-name">${e.name}</div>
+        </div>`
+      ).join('');
+    }
+  }
+
+  window.snxTmMarkColorDirty = function() {};
+
+  window.snxTmPreviewColors = function() {
+    if (!_founderCheck()) return;
+    const vars = _snxTmReadColorVars();
+    _applyTheme('custom', vars);
+    if (typeof toastNotification === 'function') toastNotification('👁 Color preview applied');
+  };
+
+  window.snxTmPublishColors = async function() {
+    if (!_founderCheck()) return;
+    const fs = await _getFs();
+    if (!fs) return;
+    const vars = _snxTmReadColorVars();
+    try {
+      await fs.setDoc(fs.doc(fs.db,'siteSettings','holidayTheme'),
+        { manualTheme:'custom', customVars: vars, updatedAt: Date.now() }, { merge:true });
+      if (typeof toastNotification === 'function') toastNotification('🎨 Colors published site-wide!');
+    } catch(e) { if (typeof toastNotification === 'function') toastNotification('❌ ' + e.message); }
+  };
+
+  function _snxTmReadColorVars() {
+    const COLS = ['--bg-main','--bg-card','--bg-input','--neon-blue','--neon-green',
+                  '--text-primary','--text-secondary','--text-muted','--border-color'];
+    const vars = {};
+    COLS.forEach(v => {
+      const safeId = v.replace(/[^a-zA-Z0-9]/g, '_');
+      const hexEl = document.getElementById('snxTmColHex' + safeId);
+      if (hexEl && hexEl.value) vars[v] = hexEl.value;
+    });
+    // Also pick up font/size/radius settings
+    const fontBody = (document.getElementById('snxFontBody') || {}).value;
+    const fontSize = (document.getElementById('snxFontSize') || {}).value;
+    const radius   = (document.getElementById('snxBorderRadius') || {}).value;
+    const animSpeed= (document.getElementById('snxAnimSpeed') || {}).value;
+    if (fontBody)  vars['--ht-font-body']       = fontBody;
+    if (fontSize)  vars['--ht-font-size-base']  = fontSize;
+    if (radius)    vars['--ht-radius-card']      = radius;
+    if (animSpeed) vars['--ht-transition-dur']   = animSpeed;
+    return vars;
+  }
+
+  /* ── Background effect setter ──────────────────────────────────── */
+  window.snxTmSetBackground = async function(effectId, url) {
+    if (!_founderCheck()) return;
+    const fs = await _getFs();
+    if (!fs) return;
+    try {
+      await fs.setDoc(fs.doc(fs.db,'siteSettings','backgroundEffect'),
+        { effectId, url: url || '', updatedAt: Date.now() }, { merge:true });
+      _snxApplyBackgroundEffect(effectId, url);
+      if (typeof toastNotification === 'function') toastNotification(`🌌 Background: ${effectId}`);
+    } catch(e) { if (typeof toastNotification === 'function') toastNotification('❌ ' + e.message); }
+  };
+
+  function _snxApplyBackgroundEffect(effectId, url) {
+    // Custom image
+    const imgEl = document.getElementById('snxBgImage');
+    if (imgEl) {
+      if (effectId === 'custom-image' && url) {
+        imgEl.style.backgroundImage = `url('${url}')`;
+        imgEl.classList.add('visible');
+      } else {
+        imgEl.classList.remove('visible');
+        imgEl.style.backgroundImage = '';
+      }
+    }
+    // Video background
+    const vidEl = document.getElementById('snxBgVideo');
+    if (vidEl) {
+      if (effectId === 'video' && url) {
+        vidEl.src = url;
+        vidEl.classList.add('visible');
+        vidEl.play().catch(() => {});
+      } else {
+        vidEl.classList.remove('visible');
+        vidEl.pause();
+        vidEl.src = '';
+      }
+    }
+    // Canvas-based effects — delegate to existing particle system
+    const CANVAS_EFFECTS = ['rain','snow','stars','particles','aurora','fire','fog',
+      'hearts','lightning','leaves','bubbles','galaxy','smoke','fireworks','confetti','bats'];
+    if (CANVAS_EFFECTS.includes(effectId)) {
+      // Map bg effectId to particle type and trigger _startParticles on a temp theme
+      const _pMap = {
+        rain:'snow', snow:'snow', stars:'stars', particles:'sparkles',
+        aurora:'sparkles', fire:'sparkles', hearts:'hearts', lightning:'sparkles',
+        leaves:'leaves', bubbles:'sparkles', galaxy:'stars', smoke:'sparkles',
+        fireworks:'fireworks', confetti:'confetti', bats:'bats',
+        fog:'sparkles',
+      };
+      // Inject a synthetic theme with the mapped particle type
+      const synthTheme = { particles: _pMap[effectId] || 'sparkles' };
+      const origTheme  = THEMES[_currentTheme];
+      THEMES['__bg_effect__'] = { ...synthTheme, id:'__bg_effect__', name:'BG Effect', emoji:'🌌', swatch:'#0B1F3A,#00AEEF', font:null, music:null, cursor:null, transition:'fadeSlide' };
+      _startParticles('__bg_effect__');
+    } else if (effectId === 'none') {
+      _startParticles('none');
+    }
+  }
+
+  /* ── Lock theme ─────────────────────────────────────────────────── */
+  window.snxTmSetLock = async function(locked) {
+    if (!_founderCheck()) return;
+    const fs = await _getFs();
+    if (!fs) return;
+    try {
+      await fs.setDoc(fs.doc(fs.db,'siteSettings','holidayTheme'),
+        { themeLocked: locked, updatedAt: Date.now() }, { merge:true });
+      if (typeof toastNotification === 'function')
+        toastNotification(`🔒 Theme lock: ${locked ? 'ON' : 'OFF'}`);
+    } catch(e) { if (typeof toastNotification === 'function') toastNotification('❌ ' + e.message); }
+  };
+
+  /* ── Animations toggle ──────────────────────────────────────────── */
+  window.snxTmSetAnimations = async function(enabled) {
+    if (!_founderCheck()) return;
+    const fs = await _getFs();
+    if (!fs) return;
+    try {
+      await fs.setDoc(fs.doc(fs.db,'siteSettings','holidayTheme'),
+        { animationsEnabled: enabled, updatedAt: Date.now() }, { merge:true });
+      // Immediately apply: pause/resume particles
+      if (!enabled) {
+        if (_particleAnim) { cancelAnimationFrame(_particleAnim); _particleAnim = null; }
+        const canvas = document.getElementById('snxHolidayParticles');
+        if (canvas) canvas.classList.remove('visible');
+      } else {
+        _startParticles(_currentTheme);
+      }
+      if (typeof toastNotification === 'function')
+        toastNotification(`✨ Animations: ${enabled ? 'ON' : 'OFF'}`);
+    } catch(e) { if (typeof toastNotification === 'function') toastNotification('❌ ' + e.message); }
+  };
+
+  /* ── Export theme as JSON ───────────────────────────────────────── */
+  window.snxTmExportTheme = async function() {
+    const fs = await _getFs();
+    if (!fs) return;
+    try {
+      const snap = await fs.getDoc(fs.doc(fs.db,'siteSettings','holidayTheme'));
+      const data = snap.exists() ? snap.data() : {};
+      const blob = new Blob([JSON.stringify({
+        _snxThemeExport: true,
+        exportedAt: new Date().toISOString(),
+        manualTheme: data.manualTheme || 'none',
+        customVars: data.customVars || {},
+        presets: data.presets || [],
+      }, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `snx-theme-${Date.now()}.json`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+      if (typeof toastNotification === 'function') toastNotification('📤 Theme exported!');
+    } catch(e) { if (typeof toastNotification === 'function') toastNotification('❌ ' + e.message); }
+  };
+
+  /* ── Import theme from JSON ─────────────────────────────────────── */
+  window.snxTmImportTheme = async function(input) {
+    if (!_founderCheck()) return;
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data._snxThemeExport) { if (typeof toastNotification === 'function') toastNotification('❌ Not a valid SNX theme file'); return; }
+      const fs = await _getFs();
+      if (!fs) return;
+      const update = {};
+      if (data.manualTheme) update.manualTheme = data.manualTheme;
+      if (data.customVars && Object.keys(data.customVars).length) update.customVars = data.customVars;
+      if (data.presets && data.presets.length) update.presets = data.presets;
+      update.updatedAt = Date.now();
+      await fs.setDoc(fs.doc(fs.db,'siteSettings','holidayTheme'), update, { merge:true });
+      if (typeof toastNotification === 'function') toastNotification('📥 Theme imported!');
+    } catch(e) { if (typeof toastNotification === 'function') toastNotification('❌ Import failed: ' + e.message); }
+  };
+
+  /* ── Sync Theme Manager "Active theme" label ─────────────────────── */
+  const _origSyncAdminUI = _syncAdminUI;
+  // Patch to also update the new Theme Manager active name label
+  function _syncAdminUIExtended() {
+    _syncAdminUI();
+    const tmName = document.getElementById('htTMActiveName');
+    if (tmName) {
+      const t = THEMES[_currentTheme] || THEMES.none;
+      tmName.textContent = `${t.emoji} ${t.name}`;
+    }
+  }
+
+  /* ── Hook switchAdminTab to initialize Theme Manager on open ──────── */
+  (function() {
+    const _orig = window.switchAdminTab;
+    window.switchAdminTab = function(tab) {
+      if (typeof _orig === 'function') _orig(tab);
+      if (tab === 'themes') {
+        // Open to holiday tab by default
+        const firstBtn = document.querySelector('#adminTab-themes .ht-sub-tab[data-tab="holiday"]');
+        if (firstBtn && !document.getElementById('htThemeGrid')?.dataset.rendered) {
+          window.snxTmSwitchTab('holiday', firstBtn);
+        }
+        // Sync active theme name
+        const tmName = document.getElementById('htTMActiveName');
+        if (tmName) {
+          const t = THEMES[_currentTheme] || THEMES.none;
+          tmName.textContent = `${t.emoji} ${t.name}`;
+        }
+        // Sync feature toggle states from Firestore
+        _getFs().then(fs => {
+          if (!fs) return;
+          fs.getDoc(fs.doc(fs.db,'siteSettings','features')).then(snap => {
+            const d = snap.exists() ? snap.data() : {};
+            const pmCb = document.getElementById('htTMProfileMusic');
+            if (pmCb) pmCb.checked = d.profileMusicEnabled !== false;
+          }).catch(() => {});
+          fs.getDoc(fs.doc(fs.db,'siteSettings','holidayTheme')).then(snap => {
+            const d = snap.exists() ? snap.data() : {};
+            const lockCb  = document.getElementById('htTMLockTheme');
+            const animCb  = document.getElementById('htTMAnimations');
+            if (lockCb) lockCb.checked = d.themeLocked === true;
+            if (animCb) animCb.checked = d.animationsEnabled !== false;
+          }).catch(() => {});
+        });
+      }
+    };
+  })();
 
   /* ── Boot ────────────────────────────────────────────────────────── */
   if (document.readyState === 'loading') {
