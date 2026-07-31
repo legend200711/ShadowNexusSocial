@@ -687,9 +687,14 @@ async function startLive() {
 
 function _attachLocalVideoToStage() {
   if (!D.liveVideo || !_localStream) return;
+  // Creator self-preview: mute to prevent echo feedback.
+  D.liveVideo.muted    = true;
+  D.liveVideo.playsInline = true;
   D.liveVideo.srcObject = _localStream;
-  D.liveVideo.play().catch(() => {});
+  const _p = D.liveVideo.play();
+  if (_p && typeof _p.catch === 'function') _p.catch(() => {});
   D.camOffOverlay && D.camOffOverlay.classList.toggle('visible', !_camOn);
+  console.log('[CreatorStage] Host self-view attached — tracks:', _localStream.getTracks().map(t => `${t.kind}(enabled=${t.enabled} state=${t.readyState})`).join(', '));
 }
 
 /* ── Share bar: big visible URL strip shown on the live stage ──
@@ -1463,7 +1468,28 @@ async function _startCreatorWebRTC() {
     }
     _rtcPc = new RTCPeerConnection(_ICE_SERVERS);
 
-    // Re-attach local stream tracks — verify they are still alive first
+    // Re-attach local stream tracks — verify they are still alive first.
+    // If all tracks have ended (e.g. iOS silently killed the camera after a
+    // backgrounding event), attempt to re-acquire the stream so the reoffer
+    // can still deliver video to the reconnecting viewer.
+    if (!_localStream || !_localStream.getTracks().filter(t => t.readyState === 'live').length) {
+      console.warn('[CreatorWebRTC] Reoffer: stream missing or all tracks dead — attempting re-acquire');
+      try {
+        const refreshed = await navigator.mediaDevices.getUserMedia({
+          video: _camOn ? { facingMode: _facingMode, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } } : false,
+          audio: _micOn ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
+        });
+        if (_localStream) _localStream.getTracks().forEach(t => t.stop());
+        _localStream = refreshed;
+        // Update self-view video so host can confirm camera is live again
+        if (D.liveVideo) { D.liveVideo.srcObject = refreshed; D.liveVideo.play().catch(() => {}); }
+        console.log('[CreatorWebRTC] Reoffer: stream re-acquired — tracks:', refreshed.getTracks().map(t => `${t.kind}(${t.readyState})`));
+      } catch (reacquireErr) {
+        console.error('[CreatorWebRTC] Reoffer aborted — could not re-acquire stream:', reacquireErr.message);
+        return false;
+      }
+    }
+
     if (_localStream) {
       const liveTracks = _localStream.getTracks().filter(t => t.readyState === 'live');
       const deadTracks = _localStream.getTracks().filter(t => t.readyState !== 'live');
@@ -1475,11 +1501,11 @@ async function _startCreatorWebRTC() {
         _rtcPc.addTrack(track, _localStream);
       });
       if (!liveTracks.length) {
-        console.error('[CreatorWebRTC] Reoffer aborted — no live tracks available');
+        console.error('[CreatorWebRTC] Reoffer aborted — no live tracks after re-acquire');
         return false;
       }
     } else {
-      console.error('[CreatorWebRTC] Reoffer aborted — _localStream is null');
+      console.error('[CreatorWebRTC] Reoffer aborted — _localStream is null after re-acquire');
       return false;
     }
 
@@ -1718,7 +1744,7 @@ async function _startViewerWebRTC(roomData) {
   _rtcPc.ontrack = (e) => {
     if (!D.liveVideo) return;
     _trackReceived = true;
-    console.log(`[ViewerWebRTC] ontrack fired — kind=${e.track.kind} streams=${e.streams.length}`);
+    console.log(`[ViewerWebRTC] ontrack fired — kind=${e.track.kind} readyState=${e.track.readyState} streams=${e.streams.length}`);
     // Cancel the no-track watchdog — we have media
     if (_noTrackWatchdogTimer) { clearTimeout(_noTrackWatchdogTimer); _noTrackWatchdogTimer = null; }
 
@@ -1726,46 +1752,54 @@ async function _startViewerWebRTC(roomData) {
     // Prefer e.streams[0] — it contains ALL tracks (video + audio) for this connection.
     const stream = (e.streams && e.streams[0]) ? e.streams[0] : new MediaStream([e.track]);
 
-    // Set muted BEFORE assigning srcObject — prevents the "play() interrupted"
-    // DOMException on Chrome that fires if muted is changed mid-play.
-    D.liveVideo.muted = true;
+    // Low-latency / mobile optimisations — set before srcObject assignment.
+    if ('playsInline'           in D.liveVideo) D.liveVideo.playsInline           = true;
+    if ('disableRemotePlayback' in D.liveVideo) D.liveVideo.disableRemotePlayback = true;
 
-    // Low-latency / mobile optimisations
-    if ('playsInline'             in D.liveVideo) D.liveVideo.playsInline             = true;
-    if ('disableRemotePlayback'   in D.liveVideo) D.liveVideo.disableRemotePlayback   = true;
-
+    // Viewer receives the host stream — must NOT be muted so audio plays.
+    // We start muted only as a workaround for browsers that block unmuted autoplay,
+    // then immediately try to unmute after play() resolves.
+    D.liveVideo.muted    = true;   // needed for autoplay policy compliance
     D.liveVideo.srcObject = stream;
-    console.log(`[ViewerWebRTC] srcObject set — tracks in stream: ${stream.getTracks().map(t => `${t.kind}(${t.readyState})`).join(', ')}`);
+    console.log(`[ViewerWebRTC] srcObject set — tracks in stream: ${stream.getTracks().map(t => `${t.kind}(enabled=${t.enabled} state=${t.readyState})`).join(', ')}`);
 
     // play() must be called after srcObject is set.
     // It returns a promise; swallowing it entirely hides the black-screen root cause.
     const _playPromise = D.liveVideo.play();
     if (_playPromise && typeof _playPromise.then === 'function') {
       _playPromise.then(() => {
-        console.log('[ViewerWebRTC] Video playback started successfully');
+        console.log('[ViewerWebRTC] Video playback started — unmuting for viewer audio');
         _hideConnBanner();
+        // Autoplay succeeded — unmute immediately so viewer hears audio.
+        D.liveVideo.muted = false;
+        // Hide any lingering unmute prompt since audio is now live.
+        if (D.unmutePrompt) D.unmutePrompt.style.display = 'none';
       }).catch(err => {
-        // NotAllowedError → autoplay blocked; show unmute prompt so user taps to unblock.
-        // Any other error → log and attempt muted re-play as a fallback.
+        // NotAllowedError → autoplay policy blocked play().
+        // Show unmute prompt so user can tap to unblock audio + start video.
         console.warn('[ViewerWebRTC] video.play() rejected:', err.name, err.message);
         if (err.name === 'NotAllowedError') {
           _showUnmutePrompt();
         } else {
-          // Force muted replay — last-ditch attempt to get any video visible
+          // Other error (e.g. AbortError on rapid srcObject changes) —
+          // retry once with muted, then show prompt to let user unmute.
           D.liveVideo.muted = true;
           D.liveVideo.play().then(() => {
-            console.log('[ViewerWebRTC] Muted fallback play succeeded');
+            console.log('[ViewerWebRTC] Muted fallback play succeeded — showing unmute prompt');
             _hideConnBanner();
+            _showUnmutePrompt();
           }).catch(e2 => console.error('[ViewerWebRTC] Muted fallback play also failed:', e2.message));
         }
       });
+    } else {
+      // Synchronous play (older browsers) — attempt immediate unmute.
+      D.liveVideo.muted = false;
     }
 
-    _showUnmutePrompt();
     _hideConnBanner();
     // Safety: hide banner once video actually starts playing
     D.liveVideo.addEventListener('playing', () => {
-      console.log('[ViewerWebRTC] Video element fired "playing" event');
+      console.log('[ViewerWebRTC] Video element fired "playing" event — readyState:', D.liveVideo.readyState);
       _hideConnBanner();
     }, { once: true });
     // Mark that this viewer has successfully received video in this session
@@ -1783,7 +1817,10 @@ async function _startViewerWebRTC(roomData) {
       // Mark this viewer as having successfully connected so that any future
       // rejoin (same page session) triggers a viewerReady → fresh offer cycle.
       _viewerHasJoinedBefore = true;
-      console.log('[ViewerWebRTC] Connection established — waiting for tracks');
+      // Fix 6: log what receivers/tracks the peer already knows about at connect time
+      const _rcvrs = _rtcPc.getReceivers ? _rtcPc.getReceivers() : [];
+      console.log(`[ViewerWebRTC] Connection established — receivers: ${_rcvrs.length}, trackReceived so far: ${_trackReceived}`,
+        _rcvrs.map(r => r.track ? `${r.track.kind}(${r.track.readyState})` : 'no-track').join(', '));
       // Reattach stream to video element in case it went black after reconnect
       if (D.liveVideo && D.liveVideo.srcObject) {
         if (D.liveVideo.paused) D.liveVideo.play().catch(() => {});
@@ -1833,6 +1870,12 @@ async function _startViewerWebRTC(roomData) {
     } else if (state === 'closed') {
       console.warn('[ViewerWebRTC] Connection closed');
     }
+  };
+
+  // Fix 6: ICE connection state logging for diagnostics
+  _rtcPc.oniceconnectionstatechange = () => {
+    const iceState = _rtcPc?.iceConnectionState;
+    console.log(`[ViewerWebRTC] ICE connection state: ${iceState}`);
   };
 
   /* ── Set remote description (offer) ── */
@@ -2399,7 +2442,14 @@ function _showUnmutePrompt() {
   if (!p) return;
   p.style.display = 'block';
   const _unmute = () => {
-    if (D.liveVideo) D.liveVideo.muted = false;
+    const v = D.liveVideo;
+    if (v) {
+      v.muted = false;
+      // If autoplay was blocked, the video may not be playing yet — start it now.
+      if (v.paused && v.srcObject) {
+        v.play().catch(() => {});
+      }
+    }
     p.style.display = 'none';
     p.removeEventListener('click', _unmute);
     if (D.stage) D.stage.removeEventListener('click', _unmute);
