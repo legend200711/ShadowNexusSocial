@@ -717,14 +717,19 @@ function _populateCreatorInfo(data) {
       Also mirrors viewer count to Firestore liveRooms doc so the Live Hub
       stays in real-time sync without an extra Firestore write on every tick. ── */
 function _subscribeViewerCount() {
-  _viewerCountRef = ref(_liveDB, `liveRooms/${_roomId}`);
+  // Listen on viewerPresence — count of child nodes = active viewers.
+  // This is accurate even when tabs crash (Firebase onDisconnect removes their node).
+  _viewerCountRef = ref(_liveDB, `liveRooms/${_roomId}/viewerPresence`);
   let _lastMirroredViewers = -1;
   _viewerCountUnsub = onValue(_viewerCountRef, snap => {
-    const d = snap.val() || {};
-    if (D.viewerCount) D.viewerCount.textContent = '👁 ' + (d.viewers || 0);
-    if (D.likeCount)   D.likeCount.textContent   = '❤️ ' + (d.likes   || 0);
-    // Mirror viewer count to Firestore (uid-keyed doc) so Live Hub cards update in real time
-    const v = d.viewers || 0;
+    const v = snap.exists() ? Object.keys(snap.val() || {}).length : 0;
+    if (D.viewerCount) D.viewerCount.textContent = '👁 ' + v;
+    // Write integer back to liveRooms/{roomId}/viewers so Live Hub cards and
+    // the viewer-side _roomWatchRef listener both see the accurate number.
+    if (_roomId) {
+      set(ref(_liveDB, `liveRooms/${_roomId}/viewers`), v).catch(() => {});
+    }
+    // Mirror to Firestore (uid-keyed doc) so Live Hub cards update in real time
     if (v !== _lastMirroredViewers && _roomId && _user) {
       _lastMirroredViewers = v;
       updateDoc(doc(_db, 'liveRooms', _user.uid), { viewers: v }).catch(() => {});
@@ -1077,14 +1082,19 @@ async function _startViewer() {
   /* ── Attach resize observer so guest grid re-layouts on any screen change ── */
   _attachGuestGridResizeObserver();
 
-  /* ── Increment viewer count in LIVE RTDB (fire-and-forget, non-blocking) ── */
-  (async () => {
-    try {
-      const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
-      const currentSnap = await get(viewersRef);
-      await set(viewersRef, (currentSnap.val() || 0) + 1);
-    } catch (_) {}
-  })();
+  /* ── Register viewer presence in LIVE RTDB ──
+     Per-user presence node with onDisconnect so the count self-heals
+     when the viewer's tab crashes or loses connection. ── */
+  if (_user && _roomId) {
+    (async () => {
+      try {
+        const presRef = ref(_liveDB, `liveRooms/${_roomId}/viewerPresence/${_user.uid}`);
+        await set(presRef, { joinedAt: Date.now() });
+        // Auto-remove on disconnect (crash, close tab, network drop)
+        await onDisconnect(presRef).remove();
+      } catch (_) {}
+    })();
+  }
 
   /* ── Watch for stream ending + viewer/like counts via LIVE RTDB ──
      _startLayoutSync() already subscribes to liveRooms/{roomId}; we
@@ -1128,14 +1138,16 @@ async function _startViewer() {
     _viewerLeftFlag = false;
     _viewerReconnectAttempt = 0;
     if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
-    // Re-increment viewer count (was decremented on leave)
-    (async () => {
-      try {
-        const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
-        const snap = await get(viewersRef);
-        await set(viewersRef, (snap.val() || 0) + 1);
-      } catch(_) {}
-    })();
+    // Re-register viewer presence (was removed on leave)
+    if (_user && _roomId) {
+      (async () => {
+        try {
+          const presRef = ref(_liveDB, `liveRooms/${_roomId}/viewerPresence/${_user.uid}`);
+          await set(presRef, { joinedAt: Date.now() });
+          await onDisconnect(presRef).remove();
+        } catch(_) {}
+      })();
+    }
     // Reconnect WebRTC immediately
     _scheduleViewerReconnect(roomData);
   });
@@ -1217,13 +1229,13 @@ async function _viewerLeave() {
   if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
   if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
 
-  /* ── Decrement viewer count in LIVE RTDB ── */
-  try {
-    const viewersRef = ref(_liveDB, `liveRooms/${_roomId}/viewers`);
-    const snap = await get(viewersRef);
-    const cur = snap.val() || 0;
-    await set(viewersRef, Math.max(0, cur - 1));
-  } catch (_) {}
+  /* ── Remove viewer presence from LIVE RTDB ── */
+  if (_user && _roomId) {
+    try {
+      await onDisconnect(ref(_liveDB, `liveRooms/${_roomId}/viewerPresence/${_user.uid}`)).cancel();
+      await remove(ref(_liveDB, `liveRooms/${_roomId}/viewerPresence/${_user.uid}`));
+    } catch (_) {}
+  }
 }
 
 function _setupViewerControls(roomData) {
@@ -1641,9 +1653,13 @@ async function _startViewerWebRTC(roomData, _reuseSessionId) {
   }, 3000);
 
   // ── Black-screen watchdog: if video has no active tracks after 8 s, reconnect ──
-  // This catches cases where signaling succeeded but media never flowed.
+  // Capture the PC reference at setup time so a later reconnect attempt that
+  // replaces _rtcPc does not cause this watchdog to fire for the new session.
+  const _watchdogPc = _rtcPc;
   setTimeout(() => {
     if (_viewerLeftFlag) return;
+    // If a newer PC has already replaced this one, this watchdog is stale — skip.
+    if (_rtcPc !== _watchdogPc) return;
     const v = D.liveVideo;
     const hasVideo = v && v.srcObject && v.srcObject.getVideoTracks().some(t => t.readyState === 'live');
     if (!hasVideo) {
@@ -1808,13 +1824,9 @@ function _scheduleViewerReconnect(roomData) {
       _rtcSignalRef = null; _rtcSignalUnsub = null;
     }
 
-    // Clear stale video so the black frame is not visible while reconnecting
+    // Clear stale video so the black frame is not visible while reconnecting.
+    // Do NOT call .stop() on remote WebRTC tracks — just detach srcObject.
     if (D.liveVideo) {
-      try {
-        if (D.liveVideo.srcObject) {
-          D.liveVideo.srcObject.getTracks().forEach(t => t.stop());
-        }
-      } catch(_) {}
       D.liveVideo.srcObject = null;
     }
 
