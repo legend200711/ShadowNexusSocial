@@ -12630,6 +12630,9 @@ body.arcade-fs-ios body::after { display:none !important; }
       document.getElementById("btnEditProfile").style.display  = isSelf ? "" : "none";
       document.getElementById("btnAvatarEdit").style.display   = isSelf ? "flex" : "none";
       document.getElementById("btnCoverEdit").style.display    = isSelf ? "" : "none";
+      // Theme tab is private to the profile owner — hide it immediately for visitors
+      const _themeTabBtn = document.getElementById("tabThemesLink");
+      if (_themeTabBtn) _themeTabBtn.style.display = isSelf ? "" : "none";
 
       if(isSelf) {
           // Pre-fill edit form — basic fields
