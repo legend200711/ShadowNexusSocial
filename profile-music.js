@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════
-   SHADOW NEXUS SOCIAL — PROFILE MUSIC  v2.0
+   SHADOW NEXUS SOCIAL — PROFILE MUSIC  v2.1
    ─────────────────────────────────────────────────────────────────
    • Users upload a song from their device (mp3/ogg/wav/flac/m4a)
    • Up to 10 songs stored in Firebase Storage under
@@ -10,10 +10,6 @@
    • Autoplay is DISABLED by default
    • Founder can enable / disable the entire feature via
        siteSettings/features.profileMusicEnabled
-   • v2 fixes: no infinite loading, timeout guard, retry button,
-     "No profile music" empty state, auth-gated loading, upload
-     progress, success/error toasts, duplicate-request guard,
-     auto-create document, URL verification, cache last song.
    ══════════════════════════════════════════════════════════════════ */
 (function _snxProfileMusic() {
   'use strict';
@@ -41,7 +37,7 @@
   /* ── State ──────────────────────────────────────────────────────── */
   let _db       = null, _storage = null;
   let _fsApi    = null, _stApi   = null;
-  let _apisReady = false;
+  let _apisReady   = false;
   let _apisLoading = false;
 
   let _featureEnabled = true;
@@ -70,6 +66,11 @@
 
   function _writeCache(uid, data) {
     try { sessionStorage.setItem(_cacheKey(uid), JSON.stringify(data)); } catch (_) {}
+  }
+
+  /* ── Sync current user uid from window ─────────────────────────── */
+  function _syncCurrentUid() {
+    _currentUid = (window._snxCurrentUser && window._snxCurrentUser.uid) || null;
   }
 
   /* ── Bootstrap Firebase APIs ────────────────────────────────────── */
@@ -107,41 +108,56 @@
     }
   }
 
-  /* ── Helper: show player loading state ─────────────────────────── */
-  function _setPlayerLoading(isLoading) {
-    const player = document.getElementById('snxProfileMusicPlayer');
-    if (!player) return;
-    const statusEl = player.querySelector('.pmp-load-status');
-    if (!statusEl) return;
-    statusEl.style.display = isLoading ? 'block' : 'none';
-    // Hide content rows while loading
-    const contentRows = player.querySelectorAll('.pmp-top,.pmp-progress-row,.pmp-volume-row');
-    contentRows.forEach(el => { el.style.opacity = isLoading ? '0.3' : '1'; });
-  }
-
-  /* ── Helper: show empty / error state ──────────────────────────── */
+  /* ── State machine: loading | empty | error | ready ─────────────
+     Only one state is shown at a time.
+     - 'loading' → spinner + "Loading music…"
+     - 'empty'   → "No profile music configured" (owner only)
+     - 'error'   → error message + Retry button
+     - 'ready'   → hide all overlays, show player rows
+     ─────────────────────────────────────────────────────────────── */
   function _setPlayerState(state, msg) {
-    // state: 'loading' | 'empty' | 'error' | 'ready'
     const player = document.getElementById('snxProfileMusicPlayer');
     if (!player) return;
 
     const loadEl  = player.querySelector('.pmp-load-status');
     const emptyEl = player.querySelector('.pmp-empty-state');
     const errorEl = player.querySelector('.pmp-error-state');
+    const rows    = player.querySelectorAll('.pmp-top, .pmp-progress-row, .pmp-volume-row');
 
-    if (loadEl)  loadEl.style.display  = state === 'loading' ? 'flex' : 'none';
-    if (emptyEl) emptyEl.style.display = state === 'empty'   ? 'block' : 'none';
-    if (errorEl) {
-      errorEl.style.display = state === 'error' ? 'block' : 'none';
-      if (state === 'error' && msg) {
-        const msgEl = errorEl.querySelector('.pmp-error-msg');
-        if (msgEl) msgEl.textContent = msg;
-      }
+    // Reset all overlay elements
+    if (loadEl)  loadEl.style.display  = 'none';
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (errorEl) errorEl.style.display = 'none';
+
+    switch (state) {
+      case 'loading':
+        if (loadEl) loadEl.style.display = 'flex';
+        rows.forEach(el => { el.style.display = 'none'; });
+        break;
+
+      case 'empty':
+        if (emptyEl) emptyEl.style.display = 'block';
+        rows.forEach(el => { el.style.display = 'none'; });
+        break;
+
+      case 'error':
+        if (errorEl) {
+          errorEl.style.display = 'block';
+          if (msg) {
+            const msgEl = errorEl.querySelector('.pmp-error-msg');
+            if (msgEl) msgEl.textContent = msg;
+          }
+        }
+        rows.forEach(el => { el.style.display = 'none'; });
+        break;
+
+      case 'ready':
+        rows.forEach(el => { el.style.display = ''; });
+        break;
+
+      default:
+        break;
     }
-
-    const contentRows = player.querySelectorAll('.pmp-top,.pmp-progress-row,.pmp-volume-row');
-    const showContent = state === 'ready';
-    contentRows.forEach(el => { el.style.display = showContent ? '' : 'none'; });
   }
 
   /* ── Feature flag listener ──────────────────────────────────────── */
@@ -186,9 +202,10 @@
     const ok = await _getApis();
     if (!ok) {
       _loadingUid = null;
-      _setPlayerState('error', 'Firebase unavailable — check your connection.');
-      _showPlayer(true);
       console.error('[ProfileMusic] Cannot connect to Firebase for uid:', uid);
+      _setPlayerState('error', 'Cannot connect to Firebase. Check your connection.');
+      const player = document.getElementById('snxProfileMusicPlayer');
+      if (player) player.classList.add('pmp-visible');
       return;
     }
 
@@ -196,30 +213,32 @@
     if (_unsubTracks) { try { _unsubTracks(); } catch (_) {} _unsubTracks = null; }
     _viewingUid = uid;
 
-    // Show loading state
+    // Show loading state and make widget visible
     _setPlayerState('loading');
-    _showPlayer(true);
+    const player = document.getElementById('snxProfileMusicPlayer');
+    if (player) player.classList.add('pmp-visible');
 
     // Safety timeout — if Firebase doesn't respond within 10 s, show error
     _clearLoadTimeout();
     _loadTimeout = setTimeout(() => {
-      if (_loadingUid === uid) {
-        _loadingUid = null;
-        console.warn('[ProfileMusic] Load timed out for uid:', uid);
-        // Try to serve from cache
-        const cached = _readCache(uid);
-        if (cached) {
-          _tracks    = cached.tracks    || [];
-          _selectedId = cached.selected || (_tracks.length ? _tracks[0].id : null);
-          _renderPlayer();
-        } else {
-          _setPlayerState('error', 'Music took too long to load. Tap Retry to try again.');
-          _showPlayer(true);
-        }
+      if (_loadingUid !== uid) return; // already resolved
+      _loadingUid = null;
+      console.warn('[ProfileMusic] Load timed out for uid:', uid);
+      // Try to serve from cache
+      const cached = _readCache(uid);
+      if (cached && cached.tracks) {
+        _tracks     = cached.tracks;
+        _selectedId = cached.selected || (_tracks.length ? _tracks[0].id : null);
+        _renderPlayer();
+      } else {
+        _setPlayerState('error', 'Music took too long to load. Tap Retry to try again.');
+        const p = document.getElementById('snxProfileMusicPlayer');
+        if (p) p.classList.add('pmp-visible');
       }
     }, 10000);
 
     try {
+      // Firestore path: profileMusic/{uid}
       _unsubTracks = _fsApi.onSnapshot(
         _fsApi.doc(_db, 'profileMusic', uid),
         (snap) => {
@@ -228,14 +247,17 @@
 
           let d = snap.exists() ? snap.data() : null;
 
-          // Auto-create document if viewing own profile and doc is missing
-          if (!d && uid === _currentUid) {
-            d = { tracks: [], selected: null, updatedAt: Date.now() };
-            _fsApi.setDoc(_fsApi.doc(_db, 'profileMusic', uid), d, { merge: true })
-              .catch(e => console.warn('[ProfileMusic] auto-create doc failed:', e));
+          if (!d) {
+            // Document missing — auto-create only for own profile
+            if (uid === _currentUid) {
+              d = { tracks: [], selected: null, updatedAt: Date.now() };
+              _fsApi.setDoc(_fsApi.doc(_db, 'profileMusic', uid), d, { merge: true })
+                .catch(e => console.warn('[ProfileMusic] auto-create doc failed:', e));
+            }
+            // For visitors: treat as no music — hide the widget
           }
 
-          _tracks    = (d && d.tracks) ? d.tracks : [];
+          _tracks     = (d && Array.isArray(d.tracks)) ? d.tracks : [];
           _selectedId = (d && d.selected) ? d.selected
             : (_tracks.length ? _tracks[0].id : null);
 
@@ -245,39 +267,33 @@
           _renderPlayer();
 
           // Sync edit panel if open and this is the current user
+          _syncCurrentUid();
           if (uid === _currentUid) _renderEditPanel();
         },
         (e) => {
           _clearLoadTimeout();
           _loadingUid = null;
-          console.error('[ProfileMusic] track snapshot error:', e);
+          console.error('[ProfileMusic] Firestore snapshot error for uid', uid, ':', e);
           // Try cache fallback
           const cached = _readCache(uid);
-          if (cached) {
-            _tracks    = cached.tracks    || [];
+          if (cached && cached.tracks) {
+            _tracks     = cached.tracks;
             _selectedId = cached.selected || (_tracks.length ? _tracks[0].id : null);
             _renderPlayer();
           } else {
-            _setPlayerState('error', 'Failed to load music: ' + e.message);
-            _showPlayer(true);
+            _setPlayerState('error', 'Failed to load music: ' + (e.message || 'Unknown error'));
+            const p = document.getElementById('snxProfileMusicPlayer');
+            if (p) p.classList.add('pmp-visible');
           }
         }
       );
     } catch (e) {
       _clearLoadTimeout();
       _loadingUid = null;
-      console.error('[ProfileMusic] _watchProfileTracks error:', e);
-      _setPlayerState('error', 'Failed to load music: ' + e.message);
-      _showPlayer(true);
-    }
-  }
-
-  /* ── Show / hide the player widget ─────────────────────────────── */
-  function _showPlayer(force) {
-    const player = document.getElementById('snxProfileMusicPlayer');
-    if (!player) return;
-    if (force || _featureEnabled) {
-      player.classList.add('pmp-visible');
+      console.error('[ProfileMusic] _watchProfileTracks threw for uid', uid, ':', e);
+      _setPlayerState('error', 'Failed to load music: ' + (e.message || 'Unknown error'));
+      const p = document.getElementById('snxProfileMusicPlayer');
+      if (p) p.classList.add('pmp-visible');
     }
   }
 
@@ -286,54 +302,58 @@
     const player = document.getElementById('snxProfileMusicPlayer');
     if (!player) return;
 
-    const track = _tracks.find(t => t.id === _selectedId) || _tracks[0] || null;
+    _syncCurrentUid();
 
+    // Feature disabled — always hide
     if (!_featureEnabled) {
       player.classList.remove('pmp-visible');
       player.dataset.hasTrack = '0';
       return;
     }
 
+    const track = _tracks.find(t => t.id === _selectedId) || _tracks[0] || null;
+
     if (!track) {
       player.dataset.hasTrack = '0';
-      // Only show "no music" state for the profile owner's own profile
-      // Visitors see nothing if there's no track
       if (_viewingUid && _viewingUid === _currentUid) {
+        // Own profile with no music → show "No profile music configured"
         _setPlayerState('empty');
         player.classList.add('pmp-visible');
       } else {
+        // Visitor viewing a profile with no music → hide widget entirely
         player.classList.remove('pmp-visible');
+        _setPlayerState('ready'); // clear any previous overlay
       }
       return;
     }
 
+    // Has a valid track — show player
     player.dataset.hasTrack = '1';
     player.classList.add('pmp-visible');
     _setPlayerState('ready');
 
-    // Verify URL before loading
+    // Validate URL
     if (!track.url || !/^https?:\/\//.test(track.url)) {
       console.warn('[ProfileMusic] Invalid audio URL for track:', track.id, track.url);
     }
 
     // Artwork
-    const artEl = player.querySelector('.pmp-artwork-img');
+    const artEl  = player.querySelector('.pmp-artwork-img');
+    const iconEl = player.querySelector('.pmp-artwork-icon');
     if (artEl) {
       if (track.artUrl && /^https?:\/\//.test(track.artUrl)) {
         artEl.src = track.artUrl;
         artEl.style.display = 'block';
-        const iconEl = player.querySelector('.pmp-artwork-icon');
         if (iconEl) iconEl.style.display = 'none';
       } else {
         artEl.style.display = 'none';
-        const iconEl = player.querySelector('.pmp-artwork-icon');
         if (iconEl) iconEl.style.display = 'block';
       }
     }
 
     // Info
-    const titleEl = player.querySelector('.pmp-title');
-    if (titleEl) titleEl.textContent = track.title || track.filename || 'Unknown Track';
+    const titleEl  = player.querySelector('.pmp-title');
+    if (titleEl)  titleEl.textContent  = track.title || track.filename || 'Unknown Track';
     const artistEl = player.querySelector('.pmp-artist');
     if (artistEl) artistEl.textContent = track.artist || '—';
 
@@ -350,20 +370,20 @@
     _audio = new Audio(url);
     _audio.dataset.trackId = trackId;
     _audio.preload = 'metadata';
-    _audio.addEventListener('ended',         _onAudioEnded);
-    _audio.addEventListener('timeupdate',    _onTimeUpdate);
+    _audio.addEventListener('ended',          _onAudioEnded);
+    _audio.addEventListener('timeupdate',     _onTimeUpdate);
     _audio.addEventListener('loadedmetadata', _onMetadata);
-    _audio.addEventListener('error',         _onAudioError);
+    _audio.addEventListener('error',          _onAudioError);
     return _audio;
   }
 
   function _stopAudio() {
     if (_audio) {
       _audio.pause();
-      try { _audio.removeEventListener('ended',         _onAudioEnded);  } catch (_) {}
-      try { _audio.removeEventListener('timeupdate',    _onTimeUpdate);  } catch (_) {}
-      try { _audio.removeEventListener('loadedmetadata', _onMetadata);   } catch (_) {}
-      try { _audio.removeEventListener('error',         _onAudioError);  } catch (_) {}
+      try { _audio.removeEventListener('ended',          _onAudioEnded);  } catch (_) {}
+      try { _audio.removeEventListener('timeupdate',     _onTimeUpdate);  } catch (_) {}
+      try { _audio.removeEventListener('loadedmetadata', _onMetadata);    } catch (_) {}
+      try { _audio.removeEventListener('error',          _onAudioError);  } catch (_) {}
       _audio = null;
     }
     _isPlaying = false;
@@ -373,7 +393,7 @@
   }
 
   function _onAudioError(e) {
-    console.error('[ProfileMusic] Audio error:', e);
+    console.error('[ProfileMusic] Audio playback error:', e);
     _isPlaying = false;
     _updatePlayBtn();
     const player = document.getElementById('snxProfileMusicPlayer');
@@ -527,7 +547,7 @@
   window.snxPmpRetry = function () {
     const uid = _viewingUid;
     if (!uid) return;
-    _loadingUid = null; // reset guard
+    _loadingUid = null; // reset duplicate-request guard
     if (_unsubTracks) { try { _unsubTracks(); } catch (_) {} _unsubTracks = null; }
     _watchProfileTracks(uid);
   };
@@ -683,7 +703,8 @@
     }
 
     // Verify signed-in user
-    const uid = window._snxCurrentUser && window._snxCurrentUser.uid;
+    _syncCurrentUid();
+    const uid = _currentUid;
     if (!uid) {
       _pmpStatus('❌ You must be signed in to upload music.');
       console.warn('[ProfileMusic] Upload attempted without auth');
@@ -704,9 +725,10 @@
     const ok = await _getApis();
     if (!ok) { _pmpStatus('❌ Firebase not ready. Check your connection.'); return; }
 
-    const trackId = 'trk_' + Date.now();
+    const trackId  = 'trk_' + Date.now();
     const safeName = file.name.replace(/[^a-zA-Z0-9._\-]/g, '_');
-    const path = `profileMusic/${uid}/${trackId}_${safeName}`;
+    // Storage path: profileMusic/{uid}/{trackId}_{filename}
+    const path     = `profileMusic/${uid}/${trackId}_${safeName}`;
 
     // Show progress
     const prog = document.getElementById('pmpUploadProgressWrap');
@@ -734,16 +756,18 @@
         _pmpStatus(`⬆️ Uploading… ${pct}%`);
       },
       (err) => {
+        // Upload error handler
         if (prog) prog.classList.remove('visible');
         _pmpStatus('❌ Upload failed: ' + err.message);
         console.error('[ProfileMusic] Upload error:', err);
       },
       async () => {
+        // Upload success handler
         if (prog) prog.classList.remove('visible');
         try {
           const url = await _stApi.getDownloadURL(storageRef);
 
-          // Verify the URL is reachable
+          // Verify the URL is a valid https URL
           if (!url || !/^https?:\/\//.test(url)) {
             throw new Error('Invalid download URL returned from Storage');
           }
@@ -766,7 +790,7 @@
           setTimeout(() => _pmpStatus(''), 3000);
 
           // Refresh player immediately
-          _tracks    = newTracks;
+          _tracks     = newTracks;
           _selectedId = track.id;
           _renderPlayer();
           _renderEditPanel();
@@ -783,7 +807,9 @@
       const url = URL.createObjectURL(file);
       const a   = new Audio(url);
       a.addEventListener('loadedmetadata', () => { resolve(a.duration || 0); URL.revokeObjectURL(url); });
-      a.addEventListener('error',         () => { resolve(0);               URL.revokeObjectURL(url); });
+      a.addEventListener('error',          () => { resolve(0);               URL.revokeObjectURL(url); });
+      // Resolve after 5 s regardless, to avoid hanging
+      setTimeout(() => resolve(0), 5000);
     });
   }
 
@@ -795,7 +821,8 @@
   /* ── Select track as profile song ───────────────────────────────── */
   window.snxPmpSelectTrack = async function (id) {
     if (!id) return;
-    const uid = window._snxCurrentUser && window._snxCurrentUser.uid;
+    _syncCurrentUid();
+    const uid = _currentUid;
     if (!uid) { console.warn('[ProfileMusic] Select attempted without auth'); return; }
     if (uid !== _viewingUid) { console.warn('[ProfileMusic] Cannot select — not own profile'); return; }
 
@@ -804,7 +831,6 @@
       await _saveTracks(uid, _tracks, id);
       _renderTrackList();
       _renderPlayer();
-      // Refresh music player immediately after saving
       _writeCache(uid, { tracks: _tracks, selected: id });
       if (typeof toastNotification === 'function') toastNotification('🎵 Profile song updated!');
     } catch (e) {
@@ -816,7 +842,8 @@
   /* ── Delete a track ─────────────────────────────────────────────── */
   window.snxPmpDeleteTrack = async function (id) {
     if (!id) return;
-    const uid = window._snxCurrentUser && window._snxCurrentUser.uid;
+    _syncCurrentUid();
+    const uid = _currentUid;
     if (!uid) { console.warn('[ProfileMusic] Delete attempted without auth'); return; }
     if (uid !== _viewingUid) { console.warn('[ProfileMusic] Cannot delete — not own profile'); return; }
     if (!confirm('Delete this track? This cannot be undone.')) return;
@@ -827,8 +854,10 @@
     const track = _tracks.find(t => t.id === id);
     if (track && track.path) {
       try {
+        // Storage path stored on track.path
         await _stApi.deleteObject(_stApi.ref(_storage, track.path));
       } catch (e) {
+        // File may already be gone — log and continue
         console.warn('[ProfileMusic] Storage delete failed (file may already be gone):', e);
       }
     }
@@ -841,7 +870,7 @@
     try {
       await _saveTracks(uid, newTracks, newSelected);
       if (id === _selectedId) _stopAudio();
-      _tracks    = newTracks;
+      _tracks     = newTracks;
       _selectedId = newSelected;
       _writeCache(uid, { tracks: _tracks, selected: _selectedId });
       _renderPlayer();
@@ -855,9 +884,10 @@
 
   /* ── Save meta (title / artist / art URL) ───────────────────────── */
   window.snxPmpSaveMeta = async function () {
-    const uid = window._snxCurrentUser && window._snxCurrentUser.uid;
+    _syncCurrentUid();
+    const uid = _currentUid;
     if (!uid) { console.warn('[ProfileMusic] SaveMeta attempted without auth'); return; }
-    if (!_selectedId)  { console.warn('[ProfileMusic] No track selected'); return; }
+    if (!_selectedId) { console.warn('[ProfileMusic] No track selected'); return; }
     if (uid !== _viewingUid) { console.warn('[ProfileMusic] Cannot save meta — not own profile'); return; }
 
     const title  = (document.getElementById('pmpEditTitle')  || {}).value || '';
@@ -875,7 +905,6 @@
       await _saveTracks(uid, newTracks, _selectedId);
       _tracks = newTracks;
       _writeCache(uid, { tracks: _tracks, selected: _selectedId });
-      // Refresh player immediately after saving
       _renderPlayer();
       if (btn) { btn.disabled = false; btn.textContent = '💾 Save Music'; btn.style.borderColor = ''; }
       if (typeof toastNotification === 'function') toastNotification('✅ Music info saved!');
@@ -898,6 +927,7 @@
   async function _saveTracks(uid, tracks, selected) {
     const ok = await _getApis();
     if (!ok) throw new Error('Firebase not ready');
+    // Firestore path: profileMusic/{uid}
     await _fsApi.setDoc(
       _fsApi.doc(_db, 'profileMusic', uid),
       { tracks, selected: selected || null, updatedAt: Date.now() },
@@ -908,49 +938,45 @@
   /* ═══════════════════════════════════════════════
      PUBLIC: load player for a given profile uid
      Called by viewProfile() in the main app.
-     Only runs when user auth has completed.
+     Safe to call before or after auth resolves.
      ═══════════════════════════════════════════════ */
   window.snxProfileMusicLoad = async function (uid) {
     if (!uid) return;
 
-    // Verify Firebase connection before requesting music
-    const ok = await _getApis();
-    if (!ok) {
-      console.error('[ProfileMusic] Cannot load — Firebase unavailable');
-      const player = document.getElementById('snxProfileMusicPlayer');
-      if (player) {
-        _setPlayerState('error', 'Cannot connect to Firebase. The page will remain usable.');
-        player.classList.add('pmp-visible');
-      }
-      return;
-    }
+    // Always sync current user before doing anything
+    _syncCurrentUid();
 
-    // Stop any playing audio from previous profile
+    // Stop any playing audio from a previous profile
     _stopAudio();
     _tracks     = [];
     _selectedId = null;
     _viewingUid = uid;
 
-    // Update current user uid (set by auth completion)
-    _currentUid = (window._snxCurrentUser && window._snxCurrentUser.uid) || null;
-
-    // Verify UID before requesting
-    if (!_currentUid) {
-      console.warn('[ProfileMusic] No authenticated user — will load read-only');
-    }
+    // Reset duplicate-request guard so a second call for the same UID is honoured
+    _loadingUid = null;
 
     const player = document.getElementById('snxProfileMusicPlayer');
     if (player) player.classList.remove('pmp-visible');
 
-    // Serve cached data instantly while fetching fresh data
+    // Verify Firebase is reachable before issuing any Firestore request
+    const ok = await _getApis();
+    if (!ok) {
+      console.error('[ProfileMusic] Cannot load — Firebase unavailable for uid:', uid);
+      if (player) {
+        _setPlayerState('error', 'Cannot connect to Firebase. Check your connection.');
+        player.classList.add('pmp-visible');
+      }
+      return;
+    }
+
+    // Serve cached data instantly while the live listener catches up
     const cached = _readCache(uid);
     if (cached && cached.tracks && cached.tracks.length) {
-      _tracks    = cached.tracks;
+      _tracks     = cached.tracks;
       _selectedId = cached.selected || _tracks[0].id;
       _renderPlayer();
     }
 
-    // Only load music when profile page is open (guard: called here)
     await _watchProfileTracks(uid);
   };
 
@@ -979,20 +1005,43 @@
 
   /* ── Init ───────────────────────────────────────────────────────── */
   function _init() {
+    // Start watching the feature-flag
     _watchFeatureFlag();
 
-    // Listen for auth-ready event dispatched by the main app
-    document.addEventListener('snx-auth-ready', (e) => {
-      _currentUid = (e.detail && e.detail.uid) || null;
-      // If there's a viewing uid waiting for auth, load now
-      if (_viewingUid && _loadingUid !== _viewingUid) {
-        _watchProfileTracks(_viewingUid);
-      }
-    });
+    // Sync current user if auth has already resolved
+    _syncCurrentUid();
 
-    // Also sync current user from window if already set
-    if (window._snxCurrentUser && window._snxCurrentUser.uid) {
-      _currentUid = window._snxCurrentUser.uid;
+    // Register with the main app's auth-ready queue.
+    // If auth has already resolved (_snxAuthResolved is set) the queue
+    // callback fires immediately; otherwise it fires once auth completes.
+    // This replaces the defunct 'snx-auth-ready' custom-event approach.
+    if (typeof window._snxOnAuthReady === 'function') {
+      window._snxOnAuthReady(() => {
+        _syncCurrentUid();
+        // If a profile is already being viewed and is still waiting, load it now
+        if (_viewingUid && _loadingUid !== _viewingUid) {
+          _watchProfileTracks(_viewingUid);
+        }
+      });
+    } else {
+      // Fallback: poll until _snxOnAuthReady is available (module load race)
+      const _poll = setInterval(() => {
+        if (typeof window._snxOnAuthReady === 'function') {
+          clearInterval(_poll);
+          window._snxOnAuthReady(() => {
+            _syncCurrentUid();
+            if (_viewingUid && _loadingUid !== _viewingUid) {
+              _watchProfileTracks(_viewingUid);
+            }
+          });
+        } else if (window._snxCurrentUser) {
+          // Auth already set directly on window — sync and stop polling
+          clearInterval(_poll);
+          _syncCurrentUid();
+        }
+      }, 200);
+      // Stop polling after 15 s regardless
+      setTimeout(() => clearInterval(_poll), 15000);
     }
   }
 
