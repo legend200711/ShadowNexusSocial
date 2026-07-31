@@ -32,14 +32,14 @@
 <meta property="og:title"       content="Shadow Nexus Social">
 <meta property="og:description" content="Connect, post, message, and share. No judgment. Stay legendary. 🌑🔥">
 <meta property="og:type"        content="website">
-<meta property="og:url"         content="https://legend200711.github.io/TEST/">
-<meta property="og:image"       content="https://legend200711.github.io/TEST/icon-512.png">
+<meta property="og:url"         content="https://shadownexussocial.online/">
+<meta property="og:image"       content="https://shadownexussocial.online/icon-512.png">
 
 <!-- ── Twitter Card ── -->
 <meta name="twitter:card"        content="summary">
 <meta name="twitter:title"       content="Shadow Nexus Social">
 <meta name="twitter:description" content="Connect, post, message, and share. No judgment. Stay legendary.">
-<meta name="twitter:image"       content="https://legend200711.github.io/TEST/icon-512.png">
+<meta name="twitter:image"       content="https://shadownexussocial.online/icon-512.png">
 
 <!-- ── Shared stylesheet ── -->
 <link rel="stylesheet" href="style.css">
@@ -8878,9 +8878,8 @@ body.arcade-fs-ios body::after { display:none !important; }
 
     // ── Step 1: Derive the correct scope from the page URL ──
     // The FCM SW must be registered under the same scope as the app.
-    // Using '/' when the app lives at /TEST/ causes a SecurityError.
-    const isGH    = location.pathname.startsWith('/TEST');
-    const swScope = isGH ? '/TEST/' : './';
+    // App is served from the root of shadownexussocial.online — scope is always './'.
+    const swScope = './';
     const swPath  = swScope + 'firebase-messaging-sw.js';
 
     let swReg = null;
@@ -9816,7 +9815,7 @@ body.arcade-fs-ios body::after { display:none !important; }
               _queue.forEach(n => _seenPushIds.add(n.id));
 
               // Resolve absolute icon paths once (SW context needs full path, not relative)
-              const _snxBase   = location.pathname.startsWith('/TEST') ? '/TEST/' : '/';
+              const _snxBase   = '/';
               const _iconPath  = _snxBase + 'icon-192.png';
               const _badgePath = _snxBase + 'favicon-32x32.png';
 

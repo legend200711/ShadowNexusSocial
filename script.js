@@ -15,14 +15,12 @@
 
 /* ═══════════════════════════════════════════════════════════
    1 & 2. SERVICE WORKER REGISTRATION
-   Detects whether we're on GitHub Pages (/TEST/)
-   or running locally (file:// or localhost) and adjusts paths.
+   App is served from the root of shadownexussocial.online.
    ═══════════════════════════════════════════════════════════ */
 (function registerSW() {
   if (!('serviceWorker' in navigator)) return;
 
-  const isGH    = location.pathname.startsWith('/TEST');
-  const base    = isGH ? '/TEST/' : './';
+  const base    = './';
   const swPath  = base + 'sw.js';
   const fcmPath = base + 'firebase-messaging-sw.js';
 

@@ -135,9 +135,10 @@ let _guestMicOn        = true;     // viewer's guest mic state
 let _shownReqUids      = new Set(); // host: tracks UIDs already shown in request queue
 let _viewerGuestUnsub  = null;     // viewer: RTDB listener for liveGuests presence
 let _layoutSyncUnsub   = null;     // viewer/guest: RTDB listener for layout sync
-let _guestPc           = null;     // viewer-in-box: their own guest RTCPeerConnection (for disconnect cleanup)
-let _guestSigUnsub     = null;     // viewer-in-box: unsubscribe for host-ICE signaling onValue listener
-let _hostSigUnsubs     = {};       // host: uid → onValue unsubscribe for per-guest signaling listener
+let _guestPc              = null;  // viewer-in-box: their own guest RTCPeerConnection (for disconnect cleanup)
+let _guestSigUnsub        = null;  // viewer-in-box: unsubscribe for host-ICE signaling onValue listener
+let _guestRemovedUnsub    = null;  // viewer-in-box: unsubscribe for removedByHost onValue listener
+let _hostSigUnsubs        = {};    // host: uid → onValue unsubscribe for per-guest signaling listener
 
 /* ── Disconnect / heartbeat state ── */
 let _guestHeartbeatInterval = null;  // guest: periodic presence keep-alive writer
@@ -2754,17 +2755,30 @@ function _guestDoLeave() {
     _guestHeartbeatInterval = null;
   }
 
-  // Tear down the host-ICE signaling listener first
+  // Tear down the removedByHost listener so it cannot fire again on rejoin
+  if (_guestRemovedUnsub) {
+    try { _guestRemovedUnsub(); } catch(_) {}
+    _guestRemovedUnsub = null;
+  }
+
+  // Tear down the host-ICE signaling listener
   if (_guestSigUnsub) {
     try { _guestSigUnsub(); } catch(_) {}
     _guestSigUnsub = null;
   }
 
-  // Close peer connection — triggers onconnectionstatechange cleanup below,
-  // but also handle directly here for immediate UI response
-  if (_guestPc) {
-    try { _guestPc.close(); } catch(_) {}
-    _guestPc = null;
+  // Cancel the box-request status listener so it doesn't race on rejoin
+  if (_guestStatusUnsub) {
+    try { _guestStatusUnsub(); } catch(_) {}
+    _guestStatusUnsub = null;
+  }
+
+  // Close peer connection — null it out BEFORE closing so any pending
+  // onconnectionstatechange callbacks cannot trigger a second _guestDoLeave
+  const pc = _guestPc;
+  _guestPc = null;
+  if (pc) {
+    try { pc.close(); } catch(_) {}
   }
 
   // Remove own presence from RTDB so grid updates for everyone instantly.
@@ -2787,10 +2801,26 @@ function _guestDoLeave() {
     _guestStream = null;
   }
 
+  // Reset cam/mic state so controls start clean on next join
+  _guestCamOn = true;
+  _guestMicOn = true;
+
   // Hide guest controls, restore Request a Box button
-  if (D.btnGuestCam)  D.btnGuestCam.style.display  = 'none';
-  if (D.btnGuestMic)  D.btnGuestMic.style.display  = 'none';
-  if (D.btnLeaveBox)  D.btnLeaveBox.style.display   = 'none';
+  if (D.btnGuestCam) {
+    D.btnGuestCam.style.display = 'none';
+    D.btnGuestCam.classList.remove('off');
+    const icon = D.btnGuestCam.querySelector('span:first-child');
+    if (icon) icon.textContent = '📷';
+  }
+  if (D.btnGuestMic) {
+    D.btnGuestMic.style.display = 'none';
+    D.btnGuestMic.classList.remove('off');
+    const icon = D.btnGuestMic.querySelector('span:first-child');
+    if (icon) icon.textContent = '🎤';
+  }
+  if (D.btnGuestCamLabel) D.btnGuestCamLabel.textContent = 'Cam';
+  if (D.btnGuestMicLabel) D.btnGuestMicLabel.textContent = 'Mic';
+  if (D.btnLeaveBox)  D.btnLeaveBox.style.display = 'none';
   if (D.btnRequestBox) {
     D.btnRequestBox.style.display = '';
     D.btnRequestBox.classList.remove('pending');
@@ -2955,24 +2985,72 @@ async function _guestJoinAsViewer() {
   // ── Listen for host-remove signal on own signaling node ──
   // Host sets removedByHost:true when it removes this guest.
   // Guest client responds by cleaning up immediately.
-  let _removedListened = false;
+  // Store the unsub in the module-level _guestRemovedUnsub so _guestDoLeave
+  // can tear it down and prevent it from firing again on a future rejoin.
+  if (_guestRemovedUnsub) { try { _guestRemovedUnsub(); } catch(_) {} _guestRemovedUnsub = null; }
   const _removedRef = ref(_liveDB, `guestSignaling/${_roomId}/${_user.uid}/removedByHost`);
-  onValue(_removedRef, snap => {
+  _guestRemovedUnsub = onValue(_removedRef, snap => {
     if (!snap.exists() || !snap.val()) return;
-    if (_removedListened) return;
-    _removedListened = true;
-    off(_removedRef);
+    // Unsubscribe immediately so it only fires once
+    if (_guestRemovedUnsub) { try { _guestRemovedUnsub(); } catch(_) {} _guestRemovedUnsub = null; }
     toast('The host removed you from the guest box.');
     _guestDoLeave();
   });
 
-  // Handle peer disconnect: delegate to _guestDoLeave for consistent cleanup
+  // Handle peer disconnect: delegate to _guestDoLeave for consistent cleanup.
+  // Use the local `guestPc` reference (not the module-level `_guestPc`) so the
+  // callback still fires even after _guestDoLeave has nulled _guestPc.
+  // Guard with the local reference: if _guestPc was already nulled by a prior
+  // _guestDoLeave call (triggered from a different path), skip to avoid double-cleanup.
+  let _guestReconnectTimer = null;
   guestPc.onconnectionstatechange = () => {
-    if (guestPc.connectionState === 'disconnected' || guestPc.connectionState === 'failed' || guestPc.connectionState === 'closed') {
-      // Only run if _guestDoLeave hasn't already cleaned up
-      if (_guestStream || _guestPc) {
-        _guestDoLeave();
-      }
+    const state = guestPc.connectionState;
+    // Only react if this PC is still the active one
+    if (_guestPc !== guestPc) return;
+
+    if (state === 'failed') {
+      // Hard failure — attempt one automatic recovery after a short pause.
+      // Clean up the broken connection first, then trigger a fresh _guestJoinAsViewer.
+      if (_guestReconnectTimer) return; // already scheduled
+      _guestReconnectTimer = setTimeout(async () => {
+        _guestReconnectTimer = null;
+        // Ensure this PC is still the active one (nothing else cleaned up in the meantime)
+        if (_guestPc !== guestPc) return;
+        console.log('[GuestBox] Connection failed — attempting auto-recovery');
+        toast('Connection lost. Reconnecting to guest box…');
+        // Tear down broken session without showing "You left" toast
+        const presRef = _user && _roomId ? ref(_liveDB, `liveGuests/${_roomId}/${_user.uid}`) : null;
+        if (_guestRemovedUnsub) { try { _guestRemovedUnsub(); } catch(_) {} _guestRemovedUnsub = null; }
+        if (_guestSigUnsub)     { try { _guestSigUnsub(); }     catch(_) {} _guestSigUnsub = null; }
+        if (_guestStatusUnsub)  { try { _guestStatusUnsub(); }  catch(_) {} _guestStatusUnsub = null; }
+        if (_guestHeartbeatInterval) { clearInterval(_guestHeartbeatInterval); _guestHeartbeatInterval = null; }
+        _guestPc = null;
+        try { guestPc.close(); } catch(_) {}
+        if (_guestStream) { try { _guestStream.getTracks().forEach(t => t.stop()); } catch(_) {} _guestStream = null; }
+        if (presRef) {
+          try { onDisconnect(presRef).cancel(); } catch(_) {}
+          try { remove(presRef); } catch(_) {}
+          try { remove(ref(_liveDB, `guestSignaling/${_roomId}/${_user.uid}`)); } catch(_) {}
+        }
+        // Re-submit a fresh box request to trigger the full rejoin flow
+        await _viewerRequestBox();
+      }, 1500);
+    } else if (state === 'disconnected') {
+      // Transient disconnect — wait briefly, then clean up if still disconnected
+      if (_guestReconnectTimer) return;
+      _guestReconnectTimer = setTimeout(() => {
+        _guestReconnectTimer = null;
+        if (_guestPc !== guestPc) return;
+        if (guestPc.connectionState !== 'connected') {
+          _guestDoLeave();
+        }
+      }, 4000);
+    } else if (state === 'connected') {
+      // Recovered — cancel any pending cleanup timer
+      if (_guestReconnectTimer) { clearTimeout(_guestReconnectTimer); _guestReconnectTimer = null; }
+    } else if (state === 'closed') {
+      if (_guestReconnectTimer) { clearTimeout(_guestReconnectTimer); _guestReconnectTimer = null; }
+      if (_guestPc === guestPc) _guestDoLeave();
     }
   };
 }
@@ -3040,6 +3118,12 @@ function _hostListenForGuestRequests() {
       if (change.type === 'added') {
         const d = change.doc.data();
         console.log('[BoxRequest] Request received by host from viewer:', d.viewerId, 'name:', d.viewerName);
+        // If this UID was previously shown BUT the guest has no active peer
+        // (they left and are requesting again), clear the seen-tracker so
+        // their new request card is displayed.
+        if (_shownReqUids.has(d.viewerId) && !_guestPeers[d.viewerId]) {
+          _shownReqUids.delete(d.viewerId);
+        }
         if (!_shownReqUids.has(d.viewerId)) {
           _shownReqUids.add(d.viewerId);
           _hostShowRequestCard({
@@ -3064,7 +3148,14 @@ function _hostListenForGuestRequests() {
     if (!snap.exists()) return;
     snap.forEach(child => {
       const req = child.val();
-      if (req.status === 'pending' && !_shownReqUids.has(req.uid)) {
+      if (req.status !== 'pending') return;
+      // If this UID was previously shown BUT the guest no longer has an active
+      // peer (they left and are trying to rejoin), clear the seen-tracker so
+      // their new request card is displayed.
+      if (_shownReqUids.has(req.uid) && !_guestPeers[req.uid]) {
+        _shownReqUids.delete(req.uid);
+      }
+      if (!_shownReqUids.has(req.uid)) {
         _shownReqUids.add(req.uid);
         _hostShowRequestCard(req);
       }
@@ -3271,8 +3362,9 @@ function _hostAddGuestCell(uid, name, avatar, stream, pc) {
     _addHostCellToGrid();
   }
 
-  // Prevent duplicate guest cells
-  if (grid.querySelector(`[data-uid="${uid}"]`)) return;
+  // Remove any stale cell for this UID (e.g. mid-removal animation on rapid rejoin)
+  const staleCell = grid.querySelector(`[data-uid="${uid}"]`);
+  if (staleCell) { try { staleCell.remove(); } catch(_) {} }
 
   grid.classList.add('has-guests');
   grid.dataset.count = (Object.keys(_guestPeers).length).toString();

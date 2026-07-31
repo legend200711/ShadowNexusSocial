@@ -5,7 +5,7 @@
  * This file contains the canonical CSS custom properties (design tokens)
  * and a small set of utility classes shared across all pages.
  * The full component-level styles live inline in index.html / feed.html
- * to keep the single-file app self-contained for GitHub Pages deployment.
+ * to keep the single-file app self-contained.
  *
  * Included by index.html via:  <link rel="stylesheet" href="style.css">
  */

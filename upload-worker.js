@@ -24,7 +24,7 @@
 const MAX_SIZE = 200 * 1024 * 1024; // 200MB
 
 const ALLOWED_ORIGINS = [
-  'https://legend200711.github.io',
+  'https://shadownexussocial.online',
   'http://localhost',
   'http://127.0.0.1'
 ];

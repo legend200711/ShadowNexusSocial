@@ -6,8 +6,8 @@
  *   - Same-origin assets (CSS/JS/icons) → Cache-first, network fallback
  *   - Firebase & external CDN requests  → Network-only (always fresh)
  *
- * Path detection: base is derived from sw.js location so this works on both
- * GitHub Pages (/ShadowNexusSocial/) and any local dev server (/).
+ * Path detection: base is derived from sw.js location so this works on
+ * shadownexussocial.online (/) and any local dev server (/).
  */
 
 const CACHE_VERSION = 'v14';
