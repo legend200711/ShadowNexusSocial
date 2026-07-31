@@ -44,6 +44,8 @@
 <!-- ── Shared stylesheet ── -->
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="album.css">
+<link rel="stylesheet" href="profile-music.css">
+<link rel="stylesheet" href="profile-theme.css">
 
 <!-- ── Preconnect to Firebase + R2 CDN so first load is faster ── -->
 <link rel="preconnect" href="https://www.gstatic.com">
@@ -6523,6 +6525,8 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="tab-btn" id="tabFriendsLink" onclick="switchProfileTab('friends')">👥 Friends</button>
         <button class="tab-btn" id="tabMessagesLink" onclick="switchProfileTab('messages')" style="display:none;">💬 Message</button>
         <button class="tab-btn" id="tabAlbumLink" onclick="switchProfileTab('album')">📸 Photo Album</button>
+        <button class="tab-btn" id="tabMusicLink" onclick="switchProfileTab('music')">🎵 Music</button>
+        <button class="tab-btn" id="tabThemesLink" onclick="switchProfileTab('themes')">🎨 Themes</button>
     </div>
 
     <!-- Wall tab — unified: permanent Profile Wall posts + visitor wall messages -->
@@ -6584,6 +6588,12 @@ body.arcade-fs-ios body::after { display:none !important; }
 
     <!-- Photo Album tab — content injected by album.js -->
     <div id="tabContentAlbum" style="display:none;"></div>
+
+    <!-- Music tab — content injected by profile-music.js -->
+    <div id="tabContentMusic" style="display:none;"></div>
+
+    <!-- Themes tab — content injected by profile-theme.js -->
+    <div id="tabContentThemes" style="display:none;"></div>
 
 </div>
 
@@ -8799,6 +8809,7 @@ body.arcade-fs-ios body::after { display:none !important; }
   import { getFirestore, doc, setDoc, getDoc, getDocFromCache, updateDoc, deleteDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment, serverTimestamp, enableNetwork, disableNetwork } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
   import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
   import { getDatabase as _getRtdb, ref as _rtdbRef, set as _rtdbSet, onDisconnect as _rtdbOnDisconnect, serverTimestamp as _rtdbServerTimestamp, onValue as _rtdbOnValue, off as _rtdbOff } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getStorage, ref as _stRef, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y",
@@ -8842,6 +8853,10 @@ body.arcade-fs-ios body::after { display:none !important; }
       onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment,
       serverTimestamp, enableNetwork, disableNetwork,
   };
+
+  // ── Firebase Storage helpers for profile music / theme modules ──
+  window._snxFirebaseStorage = { ref: _stRef, uploadBytesResumable, getDownloadURL, deleteObject };
+  window._snxStorage = getStorage(app);
 
   // ── Auth-ready queue — lets non-module scripts register callbacks that
   //    run as soon as Firebase auth resolves (avoids the re-login requirement) ──
@@ -12929,6 +12944,27 @@ body.arcade-fs-ios body::after { display:none !important; }
          // ── Friends list section ─────────────────────────────────────
          window.snxLoadFriendsSection(uid, isSelf);
      });
+
+     // ── Profile Theme: apply saved theme to profile immediately ──────
+     // Defer so snapshot listener above can set up first
+     setTimeout(() => {
+         if (typeof window.snxTheme?.applyThemeToProfile === 'function' && window.activeProfileUid === uid) {
+             window.snxTheme.initThemeTab(uid, isSelf).catch(() => {});
+         }
+     }, 300);
+
+     // ── Profile Music: autoplay when visiting another user's profile ──
+     // Only triggers if music tab hasn't been manually opened already.
+     // Music tab will also load on demand when clicked.
+     if (!isSelf) {
+         setTimeout(() => {
+             if (typeof window.snxMusic?.state !== 'undefined' && window.activeProfileUid === uid) {
+                 if (!window.snxMusic.state.profileUid || window.snxMusic.state.profileUid !== uid) {
+                     window.snxMusic.initMusicTab(uid, false).catch(() => {});
+                 }
+             }
+         }, 800);
+     }
  };
 
   document.getElementById("btnSaveProfile").onclick = async () => {
@@ -15935,7 +15971,7 @@ function toastNotification(msg) {
 }
 function switchProfileTab(t) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    ['tabContentWall','tabContentFamily','tabContentFriendsList','tabContentMessages','tabContentAlbum'].forEach(id => {
+    ['tabContentWall','tabContentFamily','tabContentFriendsList','tabContentMessages','tabContentAlbum','tabContentMusic','tabContentThemes'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });
@@ -15976,6 +16012,24 @@ function switchProfileTab(t) {
         if (el) el.style.display = 'block';
         if (window.activeProfileUid && typeof window.snxAlbum?.loadAlbumTab === 'function') {
             window.snxAlbum.loadAlbumTab(window.activeProfileUid);
+        }
+    } else if (t === 'music') {
+        const tl = document.getElementById('tabMusicLink');
+        if (tl) tl.classList.add('active');
+        const el = document.getElementById('tabContentMusic');
+        if (el) el.style.display = 'block';
+        if (window.activeProfileUid && typeof window.snxMusic?.initMusicTab === 'function') {
+            const isSelf = !!(window._snxCurrentUser && window.activeProfileUid === window._snxCurrentUser.uid);
+            window.snxMusic.initMusicTab(window.activeProfileUid, isSelf);
+        }
+    } else if (t === 'themes') {
+        const tl = document.getElementById('tabThemesLink');
+        if (tl) tl.classList.add('active');
+        const el = document.getElementById('tabContentThemes');
+        if (el) el.style.display = 'block';
+        if (window.activeProfileUid && typeof window.snxTheme?.initThemeTab === 'function') {
+            const isSelf = !!(window._snxCurrentUser && window.activeProfileUid === window._snxCurrentUser.uid);
+            window.snxTheme.initThemeTab(window.activeProfileUid, isSelf);
         }
     }
 }
@@ -24372,6 +24426,12 @@ window.switchAdminTab = function(tab) {
 
 <!-- ── Profile Photo Album module (must load after the main IIFE) ── -->
 <script src="album.js"></script>
+
+<!-- ── Profile Music System (loads after Firebase is initialized) ── -->
+<script src="profile-music.js"></script>
+
+<!-- ── Profile Theme System (loads after Firebase is initialized) ── -->
+<script src="profile-theme.js"></script>
 
 </body>
 </html>

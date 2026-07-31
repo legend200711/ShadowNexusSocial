@@ -572,6 +572,41 @@ service cloud.firestore {
         );
     }
 
+    // ── Profile Music ──────────────────────────────────────────────────────────
+    //
+    //   /profileMusic/{songId}
+    //     ownerUid, url, artUrl, title, artist, album, genre, year,
+    //     description, duration, uploadedAt
+    //
+    // Owner only can write; any signed-in user can read (visitor playback).
+
+    match /profileMusic/{songId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid;
+      allow delete: if isSignedIn()
+        && (resource.data.ownerUid == request.auth.uid || isFounder());
+    }
+
+    // ── Profile Playlists ─────────────────────────────────────────────────────
+    //
+    //   /profilePlaylists/{plId}
+    //     ownerUid, name, songIds[], createdAt
+    //
+    // Owner only can write; any signed-in user can read public playlists.
+
+    match /profilePlaylists/{plId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid;
+      allow delete: if isSignedIn()
+        && (resource.data.ownerUid == request.auth.uid || isFounder());
+    }
+
     // ── Wall Post Comments ─────────────────────────────────────────────────────
     //
     //   /wallPostComments/{wallDocId}/comments/{commentId}
