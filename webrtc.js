@@ -351,16 +351,14 @@ export class GuestPeerManager {
 
   _tryReconnect() {
     /* Full teardown + fresh offer with bounded exponential back-off.
-       Guarded so overlapping state events don't spawn multiple reconnects. */
+       Guarded so overlapping state events don't spawn multiple reconnects.
+       No hard retry cap — we keep trying with a slow cadence after 8 attempts
+       so brief network interruptions always recover automatically. */
     if (this._reconnecting) return;
     this._reconnecting = true;
     this._retryCount = (this._retryCount || 0) + 1;
-    if (this._retryCount > 6) {
-      console.warn('[GuestPeer] Giving up after 6 reconnect attempts');
-      this._reconnecting = false;
-      return;
-    }
-    const delay = Math.min(1000 * Math.pow(1.6, this._retryCount - 1), 8000);
+    // After 8 attempts use a fixed 10 s cadence instead of giving up
+    const delay = Math.min(1000 * Math.pow(1.6, Math.min(this._retryCount - 1, 7)), 10000);
     console.warn(`[GuestPeer] Connection failed — retry #${this._retryCount} in ${Math.round(delay)}ms`);
     setTimeout(() => {
       this.close();
