@@ -44,15 +44,10 @@
 <!-- ── Shared stylesheet ── -->
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="album.css">
-<link rel="stylesheet" href="profile-music.css">
-<link rel="stylesheet" href="holiday-themes.css">
 
-<!-- ── Preconnect to Firebase + R2 CDN so first load is faster ── -->
+<!-- ── Preconnect to Firebase so first load is faster ── -->
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="preconnect" href="https://firestore.googleapis.com">
-<link rel="preconnect" href="https://yellow-term-11e6.nthntjrn.workers.dev" crossorigin>
-<link rel="dns-prefetch" href="https://pub-e5efe8c515324a8ab89ca15c5fa731dd.r2.dev">
-<link rel="dns-prefetch" href="https://pub-1cb8318faddb49f0b2c91fbd098c271f.r2.dev">
 
 <style>
 :root {
@@ -6169,68 +6164,6 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="profile-spotlight-text" id="profileSpotlightText"></div>
     </div>
 
-    <!-- ── Profile Music Player ── -->
-    <div id="snxProfileMusicPlayer" data-has-track="0">
-
-        <!-- Loading state — shown while Firebase responds -->
-        <div class="pmp-load-status" style="display:none;">
-            <span class="pmp-spinner"></span>
-            <span class="pmp-load-text">Loading music…</span>
-        </div>
-
-        <!-- Empty state — shown when no profile music exists -->
-        <div class="pmp-empty-state" style="display:none;">
-            <span style="font-size:22px;">🎵</span>
-            <p class="pmp-empty-msg">No profile music selected</p>
-            <p class="pmp-empty-hint">Open the Music tab in Edit Profile to add a song.</p>
-        </div>
-
-        <!-- Error state — shown on Firebase failure -->
-        <div class="pmp-error-state" style="display:none;">
-            <span style="font-size:20px;">⚠️</span>
-            <p class="pmp-error-msg">Music could not be loaded.</p>
-            <button class="pmp-btn pmp-retry-btn" onclick="snxPmpRetry()" title="Retry">↺ Retry</button>
-        </div>
-
-        <!-- Player content — hidden during loading / error / empty -->
-        <div class="pmp-top">
-            <!-- Album artwork -->
-            <div class="pmp-artwork">
-                <div class="pmp-artwork-ring"></div>
-                <img class="pmp-artwork-img" src="" alt="art" style="display:none;">
-                <span class="pmp-artwork-icon">🎵</span>
-            </div>
-            <!-- Track info -->
-            <div class="pmp-info">
-                <div class="pmp-label">🎵 Profile Music</div>
-                <div class="pmp-title">—</div>
-                <div class="pmp-artist">—</div>
-            </div>
-            <!-- Controls -->
-            <div class="pmp-controls">
-                <button class="pmp-btn" id="pmpShuffleBtn" onclick="snxPmpToggleShuffle()" title="Shuffle">🔀</button>
-                <button class="pmp-btn" onclick="snxPmpPrev()" title="Previous">⏮</button>
-                <button class="pmp-btn pmp-btn-play" id="pmpPlayBtn" onclick="snxPmpTogglePlay()" title="Play / Pause">▶</button>
-                <button class="pmp-btn" onclick="snxPmpNext()" title="Next">⏭</button>
-                <button class="pmp-btn" id="pmpRepeatBtn" onclick="snxPmpToggleRepeat()" title="Repeat">🔁</button>
-            </div>
-        </div>
-        <!-- Progress bar -->
-        <div class="pmp-progress-row">
-            <span class="pmp-time pmp-time-current">0:00</span>
-            <div class="pmp-progress-track" onclick="snxPmpClickProgress(event)">
-                <div class="pmp-progress-fill"></div>
-            </div>
-            <span class="pmp-time pmp-time-total">0:00</span>
-        </div>
-        <!-- Volume -->
-        <div class="pmp-volume-row">
-            <span class="pmp-vol-icon">🔉</span>
-            <input type="range" class="pmp-volume-slider" min="0" max="1" step="0.02" value="0.8"
-                   oninput="snxPmpVolume(this)" title="Volume">
-        </div>
-    </div>
-
     <!-- Per-profile custom style injection (scoped to this profile render) -->
     <style id="profileCustomStyle"></style>
 
@@ -6249,7 +6182,6 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <button class="epm-tab" onclick="switchEpmTab('sandbox',this)">🏗 Sandbox</button>
                 <button class="epm-tab" onclick="switchEpmTab('links',this)">🔗 Links</button>
                 <button class="epm-tab" onclick="switchEpmTab('sections',this)">📋 Sections</button>
-                <button class="epm-tab" onclick="switchEpmTab('music',this)">🎵 Music</button>
             </div>
 
             <!-- ── Tab: Basics ── -->
@@ -6555,13 +6487,6 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <div class="epm-section-toggle-row">
                     <span>🕹️ Arcade Stats &amp; Records</span>
                     <label class="notif-toggle-wrap"><input type="checkbox" id="secShowArcade" class="notif-toggle-cb" checked><span class="notif-toggle-slider"></span></label>
-                </div>
-            </div>
-
-            <!-- ── Tab: Music ── -->
-            <div class="epm-panel" id="epmPanel-music">
-                <div id="pmpEditWrap">
-                    <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;line-height:1.5;">Loading…</p>
                 </div>
             </div>
 
@@ -7635,7 +7560,6 @@ body.arcade-fs-ios body::after { display:none !important; }
     <button class="admin-tab" onclick="switchAdminTab('shadowbot')">🤖 Shadow Bot</button>
     <button class="admin-tab" onclick="switchAdminTab('liverooms')">🔴 Live Rooms</button>
     <button class="admin-tab" onclick="switchAdminTab('pages')">👁 Pages &amp; Controls</button>
-    <button class="admin-tab" onclick="switchAdminTab('themes')">🎨 Theme Manager</button>
 </div>
 
 <!-- ══════════════════════════════════
@@ -8482,13 +8406,9 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="settings-label">🤖 AI Moderation<small>AI safety &amp; moderation system</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="esAI" class="notif-toggle-cb" checked onchange="window.founderToggleAIModeration()"><span class="notif-toggle-slider"></span></label>
         </div>
-        <div class="settings-row">
+        <div class="settings-row" style="border-bottom:none;">
             <div class="settings-label">🤖 Shadow Bot<small>Bot posts &amp; welcome messages</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="esBot" class="notif-toggle-cb" checked onchange="emergencyToggle('shadowBotEnabled',this.checked,'Shadow Bot')"><span class="notif-toggle-slider"></span></label>
-        </div>
-        <div class="settings-row" style="border-bottom:none;">
-            <div class="settings-label">🎵 Profile Music<small>Allow users to add a profile song</small></div>
-            <label class="notif-toggle-wrap"><input type="checkbox" id="esProfileMusic" class="notif-toggle-cb" checked onchange="snxPmpFounderToggle(this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
     </div>
 
@@ -8539,200 +8459,6 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 <!-- adminTab-emergency kept as empty alias so any direct JS reference doesn't crash -->
 <div class="admin-tab-content" id="adminTab-emergency" style="display:none;"></div>
-
-<!-- ══════════════════════════════════════════════════════════════
-     TAB: THEME MANAGER (Founder only)
-     Extends holiday-themes.js — all theme engine calls go through
-     snxHt* functions already in holiday-themes.js
-     ══════════════════════════════════════════════════════════════ -->
-<div class="admin-tab-content" id="adminTab-themes">
-
-  <!-- Header + status -->
-  <div class="section-card" style="margin-bottom:16px;border-color:rgba(0,174,239,0.35);background:linear-gradient(135deg,rgba(0,30,80,0.35),rgba(11,31,58,0.92));">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
-      <div>
-        <h3 style="margin:0 0 4px;font-size:14px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎨 Founder Theme Manager</h3>
-        <div style="font-size:12px;color:#6a90b8;">Active theme: <span id="htTMActiveName" style="color:#39FF14;font-weight:700;">—</span></div>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button onclick="snxHtDisable()" style="font-size:12px;padding:6px 14px;border-radius:9px;background:rgba(255,51,80,0.10);border-color:rgba(255,51,80,0.40);color:#ff6680;">🔄 Restore Default</button>
-        <button onclick="snxTmExportTheme()" style="font-size:12px;padding:6px 14px;border-radius:9px;background:rgba(0,174,239,0.10);border-color:rgba(0,174,239,0.35);color:#00d4ff;">📤 Export</button>
-        <button onclick="document.getElementById('snxTmImportInput').click()" style="font-size:12px;padding:6px 14px;border-radius:9px;background:rgba(57,255,20,0.08);border-color:rgba(57,255,20,0.35);color:#39FF14;">📥 Import</button>
-        <input type="file" id="snxTmImportInput" accept=".json" style="display:none;" onchange="snxTmImportTheme(this)">
-      </div>
-    </div>
-
-    <!-- Global toggles -->
-    <div style="display:flex;flex-wrap:wrap;gap:10px;">
-      <div class="settings-row" style="flex:1;min-width:200px;border:none;padding:0;">
-        <div class="settings-label">🗓 Auto Holiday Themes<small>Apply seasonal themes automatically</small></div>
-        <label class="notif-toggle-wrap"><input type="checkbox" id="htToggleAuto" class="notif-toggle-cb" checked onchange="snxHtSetAuto(this.checked)"><span class="notif-toggle-slider"></span></label>
-      </div>
-      <div class="settings-row" style="flex:1;min-width:200px;border:none;padding:0;">
-        <div class="settings-label">🎵 Holiday Theme Music<small>Play ambient music with themes</small></div>
-        <label class="notif-toggle-wrap"><input type="checkbox" id="htToggleMusic" class="notif-toggle-cb" checked onchange="snxHtSetMusic(this.checked)"><span class="notif-toggle-slider"></span></label>
-      </div>
-      <div class="settings-row" style="flex:1;min-width:200px;border:none;padding:0;">
-        <div class="settings-label">🔒 Lock Theme<small>Prevent users from overriding theme</small></div>
-        <label class="notif-toggle-wrap"><input type="checkbox" id="htTMLockTheme" class="notif-toggle-cb" onchange="snxTmSetLock(this.checked)"><span class="notif-toggle-slider"></span></label>
-      </div>
-      <div class="settings-row" style="flex:1;min-width:200px;border:none;padding:0;">
-        <div class="settings-label">✨ Animations<small>Enable particle &amp; cursor animations</small></div>
-        <label class="notif-toggle-wrap"><input type="checkbox" id="htTMAnimations" class="notif-toggle-cb" checked onchange="snxTmSetAnimations(this.checked)"><span class="notif-toggle-slider"></span></label>
-      </div>
-      <div class="settings-row" style="flex:1;min-width:200px;border:none;padding:0;">
-        <div class="settings-label">🎵 Profile Music Feature<small>Allow users to add profile songs</small></div>
-        <label class="notif-toggle-wrap"><input type="checkbox" id="htTMProfileMusic" class="notif-toggle-cb" checked onchange="snxPmpFounderToggle(this.checked)"><span class="notif-toggle-slider"></span></label>
-      </div>
-    </div>
-  </div>
-
-  <!-- Sub-tabs -->
-  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;">
-    <button class="ht-sub-tab active-sub" data-tab="holiday" onclick="snxTmSwitchTab('holiday',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.30);color:#00d4ff;cursor:pointer;transition:all 0.15s;">🗓 Holiday</button>
-    <button class="ht-sub-tab" data-tab="exclusive" onclick="snxTmSwitchTab('exclusive',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,30,70,0.5);border:1px solid rgba(0,174,239,0.20);color:#6a90b8;cursor:pointer;transition:all 0.15s;">🌑 SNX Exclusive</button>
-    <button class="ht-sub-tab" data-tab="custom" onclick="snxTmSwitchTab('custom',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,30,70,0.5);border:1px solid rgba(0,174,239,0.20);color:#6a90b8;cursor:pointer;transition:all 0.15s;">🎨 Custom Builder</button>
-    <button class="ht-sub-tab" data-tab="presets" onclick="snxTmSwitchTab('presets',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,30,70,0.5);border:1px solid rgba(0,174,239,0.20);color:#6a90b8;cursor:pointer;transition:all 0.15s;">📁 Saved Presets</button>
-    <button class="ht-sub-tab" data-tab="schedule" onclick="snxTmSwitchTab('schedule',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,30,70,0.5);border:1px solid rgba(0,174,239,0.20);color:#6a90b8;cursor:pointer;transition:all 0.15s;">📅 Schedule</button>
-    <button class="ht-sub-tab" data-tab="background" onclick="snxTmSwitchTab('background',this)" style="font-size:12px;padding:6px 14px;border-radius:8px;background:rgba(0,30,70,0.5);border:1px solid rgba(0,174,239,0.20);color:#6a90b8;cursor:pointer;transition:all 0.15s;">🌌 Backgrounds</button>
-  </div>
-
-  <!-- Panel: Holiday Themes -->
-  <div class="snx-tm-panel" id="snxTmPanel-holiday">
-    <div id="htThemeGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px;"></div>
-    <button onclick="if(window._snxHtSelectedPreview)snxHtPublish(window._snxHtSelectedPreview)" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#003399,#0055cc);border-color:rgba(0,174,239,0.65);color:#fff;font-size:13px;font-weight:700;">🚀 Apply Selected Theme to Everyone</button>
-  </div>
-
-  <!-- Panel: SNX Exclusive Themes -->
-  <div class="snx-tm-panel" id="snxTmPanel-exclusive" style="display:none;">
-    <div id="htExclusiveGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px;"></div>
-    <button onclick="if(window._snxHtSelectedPreview)snxHtPublish(window._snxHtSelectedPreview)" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#003399,#0055cc);border-color:rgba(0,174,239,0.65);color:#fff;font-size:13px;font-weight:700;">🚀 Apply Selected Theme to Everyone</button>
-  </div>
-
-  <!-- Panel: Custom Builder -->
-  <div class="snx-tm-panel" id="snxTmPanel-custom" style="display:none;">
-    <div id="adminTab-holidaythemes" style="padding:0;background:none;border:none;"></div>
-  </div>
-
-  <!-- Panel: Saved Presets -->
-  <div class="snx-tm-panel" id="snxTmPanel-presets" style="display:none;">
-    <div class="section-card" style="margin-bottom:14px;">
-      <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">💾 Save Current Theme as Preset</h3>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <input id="htPresetNameInput" placeholder="Preset name…" style="flex:1;margin:0;">
-        <button onclick="snxHtSavePreset()" style="padding:8px 16px;border-radius:8px;background:rgba(57,255,20,0.10);border-color:rgba(57,255,20,0.40);color:#39FF14;font-size:12px;font-weight:700;">💾 Save Preset</button>
-      </div>
-    </div>
-    <div id="htPresetsList" style="min-height:40px;"></div>
-  </div>
-
-  <!-- Panel: Schedule -->
-  <div class="snx-tm-panel" id="snxTmPanel-schedule" style="display:none;">
-    <div class="section-card" style="margin-bottom:14px;">
-      <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">📅 Auto Schedule</h3>
-      <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;line-height:1.6;">Themes are applied automatically on the dates below when Auto Holiday Themes is enabled. The Founder can override at any time.</p>
-      <div id="snxTmScheduleTable" style="overflow-x:auto;"></div>
-    </div>
-    <!-- Scheduled theme overrides by date -->
-    <div class="section-card">
-      <h3 style="margin:0 0 10px;font-size:13px;color:#ffe566;text-transform:uppercase;letter-spacing:0.8px;">📅 Scheduled Theme Override</h3>
-      <p style="font-size:12px;color:#6a90b8;margin:0 0 10px;">Set a theme to activate on a specific date (Firestore-synced, real-time).</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
-        <div style="flex:1;min-width:140px;">
-          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Theme</label>
-          <select id="snxTmSchedTheme" style="margin:0;width:100%;font-size:12px;padding:6px 10px;"></select>
-        </div>
-        <div style="flex:1;min-width:140px;">
-          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Activate Date</label>
-          <input type="date" id="snxTmSchedDate" style="margin:0;font-size:12px;padding:7px 10px;">
-        </div>
-        <button onclick="snxTmAddScheduled()" style="padding:8px 16px;border-radius:8px;border-color:rgba(0,174,239,0.5);color:#00d4ff;font-size:12px;font-weight:700;">➕ Add</button>
-      </div>
-      <div id="snxTmSchedList" style="margin-top:12px;min-height:30px;"></div>
-    </div>
-  </div>
-
-  <!-- Panel: Backgrounds -->
-  <div class="snx-tm-panel" id="snxTmPanel-background" style="display:none;">
-    <div class="section-card" style="margin-bottom:14px;">
-      <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🌌 Background Options</h3>
-      <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;line-height:1.6;">Choose a site-wide background effect. Applies instantly to all users.</p>
-      <div id="snxBgGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px;"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:flex-end;">
-        <div style="flex:1;min-width:180px;">
-          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Custom Image URL</label>
-          <input id="snxBgCustomUrl" placeholder="https://…" style="margin:0;font-size:12px;">
-        </div>
-        <button onclick="snxTmSetBackground('custom-image',document.getElementById('snxBgCustomUrl').value)" style="padding:8px 16px;border-radius:8px;border-color:rgba(0,174,239,0.5);color:#00d4ff;font-size:12px;font-weight:700;">Apply Image</button>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:flex-end;">
-        <div style="flex:1;min-width:180px;">
-          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Video Background URL</label>
-          <input id="snxBgVideoUrl" placeholder="https://…/video.mp4" style="margin:0;font-size:12px;">
-        </div>
-        <button onclick="snxTmSetBackground('video',document.getElementById('snxBgVideoUrl').value)" style="padding:8px 16px;border-radius:8px;border-color:rgba(57,255,20,0.5);color:#39FF14;font-size:12px;font-weight:700;">Apply Video</button>
-      </div>
-    </div>
-    <!-- Color controls for bg, nav, cards, etc. -->
-    <div class="section-card">
-      <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🎨 Website Color Controls</h3>
-      <p style="font-size:12px;color:#6a90b8;margin:0 0 12px;">Changes go into the active Custom Theme. Preview first, then Publish.</p>
-      <div id="snxColorGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px;"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
-        <button onclick="snxTmPreviewColors()" style="flex:1;padding:9px;border-radius:10px;border-color:rgba(0,174,239,0.45);color:#00AEEF;font-size:12px;font-weight:700;">👁 Preview Colors</button>
-        <button onclick="snxTmPublishColors()" style="flex:1;padding:9px;border-radius:10px;background:linear-gradient(135deg,#003399,#0055cc);border-color:rgba(0,174,239,0.65);color:#fff;font-size:12px;font-weight:700;">🚀 Publish Colors</button>
-      </div>
-    </div>
-    <!-- Font controls -->
-    <div class="section-card">
-      <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🖋 Typography</h3>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;">
-        <div>
-          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Body Font</label>
-          <select id="snxFontBody" style="margin:0;font-size:12px;padding:6px 10px;width:100%;" onchange="snxTmMarkColorDirty()">
-            <option value="'Segoe UI',Arial,sans-serif">Segoe UI (Default)</option>
-            <option value="'Courier New',monospace">Courier New</option>
-            <option value="Georgia,serif">Georgia</option>
-            <option value="Impact,sans-serif">Impact</option>
-            <option value="'Arial Black',sans-serif">Arial Black</option>
-            <option value="'Trebuchet MS',sans-serif">Trebuchet MS</option>
-            <option value="Verdana,sans-serif">Verdana</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Base Font Size</label>
-          <select id="snxFontSize" style="margin:0;font-size:12px;padding:6px 10px;width:100%;" onchange="snxTmMarkColorDirty()">
-            <option value="13px">Small (13px)</option>
-            <option value="14px" selected>Default (14px)</option>
-            <option value="15px">Medium (15px)</option>
-            <option value="16px">Large (16px)</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Border Radius</label>
-          <select id="snxBorderRadius" style="margin:0;font-size:12px;padding:6px 10px;width:100%;" onchange="snxTmMarkColorDirty()">
-            <option value="4px">Sharp (4px)</option>
-            <option value="8px">Medium (8px)</option>
-            <option value="10px" selected>Default (10px)</option>
-            <option value="16px">Rounded (16px)</option>
-            <option value="24px">Pill (24px)</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:11px;color:#4a7a9a;display:block;margin-bottom:4px;">Animation Speed</label>
-          <select id="snxAnimSpeed" style="margin:0;font-size:12px;padding:6px 10px;width:100%;" onchange="snxTmMarkColorDirty()">
-            <option value="0.15s">Fast</option>
-            <option value="0.25s">Normal</option>
-            <option value="0.45s" selected>Default (0.45s)</option>
-            <option value="0.7s">Slow</option>
-            <option value="0s">None</option>
-          </select>
-        </div>
-      </div>
-    </div>
-  </div>
-
-</div><!-- end adminTab-themes -->
 
 <!-- ── Edit Message Modal ── -->
 <div id="scbEditModal">
@@ -9069,7 +8795,6 @@ body.arcade-fs-ios body::after { display:none !important; }
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, browserLocalPersistence, setPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, getDocFromCache, updateDoc, deleteDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment, serverTimestamp, enableNetwork, disableNetwork } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
   import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
-  import { getDatabase as _getRtdb, ref as _rtdbRef, set as _rtdbSet, onDisconnect as _rtdbOnDisconnect, serverTimestamp as _rtdbServerTimestamp, onValue as _rtdbOnValue, off as _rtdbOff } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y",
@@ -9084,7 +8809,6 @@ body.arcade-fs-ios body::after { display:none !important; }
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
-  const _presenceRtdb = _getRtdb(app);
 
   // ── Ensure auth token is always persisted in localStorage (survives tab/app close) ──
   setPersistence(auth, browserLocalPersistence).catch(() => {});
@@ -9103,9 +8827,6 @@ body.arcade-fs-ios body::after { display:none !important; }
   window._snxGetDoc     = getDoc;
   window._snxUpdateDoc  = updateDoc;
 
-  // ── Expose RTDB helpers for presence (used by _attachFriendRtdbStatus) ──
-  window._snxRtdbApi = { getDatabase: _getRtdb, ref: _rtdbRef, onValue: _rtdbOnValue, off: _rtdbOff };
-
   // ── Full Firestore namespace for feature scripts ──
   window._snxFirestore = {
       db, doc, getDoc, getDocFromCache, setDoc, updateDoc, deleteDoc,
@@ -9123,174 +8844,82 @@ body.arcade-fs-ios body::after { display:none !important; }
   };
 
   // ── VAPID public key for FCM web push ──
+  // Generate your own at: Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
   const FCM_VAPID_KEY = 'BMXbxFVBGH9IOYfoi9UYjrD4_pR1ed0giN6OCKwK1BG-3EbVp8EvNj1DLt4XuHjVpdH5KM-1glFMURHQa2-TR14';
 
-  // Guard: only attach the foreground onMessage listener once, ever.
-  let _fcmFgListenerAttached = false;
-
   /* ── Request push-notification permission & register FCM token ──
-     Called once after the user logs in (2.5 s delay so the app has
-     fully loaded). Saves the FCM token to Firestore so we can push
-     to this device. Works on PC browser + Android PWA + installed PWA.
+     Called once after the user logs in (after a short delay so the app
+     has loaded first). Saves the FCM token to Firestore so we can target
+     this device when sending push messages.
   ─────────────────────────────────────────────────────────────────── */
   async function initPushNotifications() {
-    if (!messaging) {
-      console.warn('[FCM] Messaging not initialised — browser may not support it.');
-      return;
-    }
-    if (!('Notification' in window)) {
-      console.warn('[FCM] This browser does not support the Notification API.');
-      return;
-    }
-    if (!('serviceWorker' in navigator)) {
-      console.warn('[FCM] Service workers not supported — push disabled.');
-      return;
-    }
+    if (!messaging) return;
+    if (!('Notification' in window)) return;
+    if (!('serviceWorker' in navigator)) return;
 
-    // ── Step 1: Derive the correct scope from the page URL ──
-    // The FCM SW must be registered under the same scope as the app.
-    // Using '/' when the app lives at /TEST/ causes a SecurityError.
-    const isGH    = location.pathname.startsWith('/TEST');
-    const swScope = isGH ? '/TEST/' : './';
-    const swPath  = swScope + 'firebase-messaging-sw.js';
+    // Don't nag if user already made a choice
+    if (Notification.permission === 'denied') return;
 
-    let swReg = null;
     try {
-      // Use an existing registration if one already controls the scope to avoid
-      // redundant registrations and the "scope already claimed" error.
-      const existing = await navigator.serviceWorker.getRegistrations();
-      swReg = existing.find(r => r.scope && r.scope.includes(swScope.replace('./', '')));
-      if (!swReg) {
-        swReg = await navigator.serviceWorker.register(swPath, { scope: swScope });
-        console.log('[FCM-SW] Registered, scope:', swReg.scope);
-      } else {
-        console.log('[FCM-SW] Reusing existing registration, scope:', swReg.scope);
-      }
-
-      // ── Step 2: Wait until the SW is active before calling getToken ──
-      // getToken() fails if the SW is still in the "installing" state.
-      if (!swReg.active) {
-        await new Promise((resolve) => {
-          const worker = swReg.installing || swReg.waiting;
-          if (!worker) { resolve(); return; }
-          worker.addEventListener('statechange', function onState() {
-            if (worker.state === 'activated' || worker.state === 'redundant') {
-              worker.removeEventListener('statechange', onState);
-              resolve();
-            }
-          });
-        });
-      }
-    } catch (swErr) {
-      console.error('[FCM] Service worker registration error:', swErr.message);
-      return;
-    }
-
-    // ── Step 3: Request notification permission ──
-    if (Notification.permission === 'denied') {
-      console.warn('[FCM] Notification permission was denied by the user. Push notifications are disabled.');
-      return;
-    }
-
-    let permission = Notification.permission;
-    if (permission !== 'granted') {
-      try {
-        permission = await Notification.requestPermission();
-      } catch (permErr) {
-        console.error('[FCM] requestPermission() threw:', permErr.message);
-        return;
-      }
-    }
-
-    if (permission !== 'granted') {
-      console.warn('[FCM] Notification permission not granted (status:', permission + ').');
-      return;
-    }
-
-    // ── Step 4: Get/refresh the FCM token ──
-    try {
-      fcmToken = await getToken(messaging, {
-        vapidKey:                  FCM_VAPID_KEY,
-        serviceWorkerRegistration: swReg,
+      // Register the FCM service worker explicitly so FCM knows where to deliver
+      const swReg = await navigator.serviceWorker.register('firebase-messaging-sw.js', {
+        scope: '/'
       });
-    } catch (tokenErr) {
-      console.error('[FCM] getToken() failed:', tokenErr.message,
-        '\n  Common causes: VAPID key mismatch, SW scope wrong, Firebase project config wrong.');
-      return;
-    }
 
-    if (!fcmToken) {
-      console.warn('[FCM] getToken() returned null — no push subscription created.');
-      return;
-    }
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
 
-    console.log('[FCM] Token obtained:', fcmToken.substring(0, 20) + '…');
+      // Get the FCM token for this device
+      fcmToken = await getToken(messaging, {
+        vapidKey:            FCM_VAPID_KEY,
+        serviceWorkerRegistration: swReg
+      });
 
-    // ── Step 5: Persist token to Firestore ──
-    if (currentUser) {
-      try {
+      if (fcmToken && currentUser) {
+        // Save/merge token to the user's Firestore doc
         await updateDoc(doc(db, 'users', currentUser.uid), {
-          fcmTokens: arrayUnion(fcmToken),
-          // Stamp the last token registration time for staleness audits
-          fcmTokenUpdatedAt: Date.now(),
+          fcmTokens: arrayUnion(fcmToken)
         });
-        console.log('[FCM] Token saved to Firestore for uid:', currentUser.uid);
-      } catch (saveErr) {
-        console.error('[FCM] Failed to save token to Firestore:', saveErr.message);
+        console.log('[FCM] Token saved:', fcmToken.substring(0, 20) + '…');
       }
-    }
 
-    // ── Step 6: Foreground message handler (attached once only) ──
-    // When the app IS open FCM doesn't show an OS notification automatically —
-    // it fires onMessage instead. We show both a toast AND an OS notification.
-    if (!_fcmFgListenerAttached) {
-      _fcmFgListenerAttached = true;
-      onMessage(messaging, async (payload) => {
+      // ── Foreground message handler ──
+      // When the app IS open FCM doesn't show an OS notification automatically —
+      // instead it fires onMessage, so we surface it as a toast + in-app notif.
+      onMessage(messaging, (payload) => {
         console.log('[FCM] Foreground message:', payload);
-        const data  = payload.data || {};
-        const type  = data.type  || '';
-        const title = payload.notification?.title || data.title || '🔔 Shadow Nexus Social';
-        const body  = payload.notification?.body  || data.body  || 'New notification';
-
-        // Show an OS notification even while the app is open (mobile PWA needs this)
-        if (Notification.permission === 'granted') {
-          try {
-            const _activeReg = await navigator.serviceWorker.ready;
-            await _activeReg.showNotification(title, {
-              body,
-              icon:     swScope + 'icon-192.png',
-              badge:    swScope + 'favicon-32x32.png',
-              tag:      `snx-fg-${type}-${Date.now()}`,
-              renotify: true,
-              vibrate:  type === 'message' ? [120, 60, 120] : [200, 100, 200],
-              data:     { url: swScope, type, fromUid: data.fromUid || '', roomId: data.roomId || '' },
-            });
-          } catch (notifErr) {
-            console.warn('[FCM] Foreground showNotification failed:', notifErr.message);
-          }
-        }
-
-        // In-app toast as well
+        const data = payload.data || {};
+        const body = payload.notification?.body || data.body || 'New notification';
         toastNotification('🔔 ' + body);
       });
+
+    } catch (err) {
+      // Token fetch errors are non-fatal (e.g. user blocks permission mid-flow)
+      console.warn('[FCM] Push setup failed:', err.message);
     }
   }
 
-  /* ── Write a push notification entry to the target user's pushQueue ──
-     The target device's onSnapshot listener picks this up and shows
-     a real OS notification via navigator.serviceWorker.ready.showNotification().
-     Respects the user's per-type notification preferences stored in notifPrefs.
-     Also prunes stale (>30-day-old) FCM token entries from their Firestore doc
-     to keep the token list clean and prevent silent delivery failures.
+  /* ── Send a real FCM push to a target user ──
+     Reads the target's stored FCM tokens from Firestore, then POSTs
+     to the FCM v1 HTTP API via a lightweight fetch.
+
+     NOTE: In production you should do this from a Cloud Function so
+     your service-account key is never in the browser. For this PWA
+     approach we use the FCM Legacy Server Key (read-only send) which
+     is safe to expose. Replace FCM_SERVER_KEY with your own key from
+     Firebase Console → Project Settings → Cloud Messaging.
   ─────────────────────────────────────────────────────────────────── */
-  async function sendPushToUser(targetUid, { title, body, type, fromUid, url, roomId }) {
+  /* ── Send a real OS notification to the current device ──
+     Uses the Web Notifications API directly — works instantly,
+     no server key needed, shows real phone/desktop pop-ups.
+     For cross-device push (other users' phones), FCM token delivery
+     is handled automatically when the app is open on their device.
+  ─────────────────────────────────────────────────────────────────── */
+  async function sendPushToUser(targetUid, { title, body, type, fromUid, url }) {
     try {
       // Check target user's notification preferences
       const userSnap = await getDoc(doc(db, 'users', targetUid));
-      if (!userSnap.exists()) {
-        console.warn('[SNX Push] Target user not found:', targetUid);
-        return;
-      }
+      if (!userSnap.exists()) return;
       const uData = userSnap.data();
 
       const prefs  = uData.notifPrefs || {};
@@ -9300,40 +8929,20 @@ body.arcade-fs-ios body::after { display:none !important; }
         mention: 'mentions', announcement: 'announcements',
         repost: 'likes', wallPost: 'comments',
       };
-      if (prefs[typeMap[type] || type] === false) {
-        console.log('[SNX Push] User has disabled', type, 'notifications — skipping.');
-        return;
-      }
+      if (prefs[typeMap[type] || type] === false) return;
 
-      // ── Prune stale FCM tokens older than 30 days ──
-      // Tokens that haven't been refreshed in 30+ days are likely from uninstalled
-      // browsers/devices and will cause silent failures in FCM delivery.
-      const _tokenUpdatedAt = uData.fcmTokenUpdatedAt || 0;
-      const _tokenAgeDays   = (Date.now() - _tokenUpdatedAt) / (1000 * 60 * 60 * 24);
-      if (_tokenAgeDays > 30 && Array.isArray(uData.fcmTokens) && uData.fcmTokens.length > 0) {
-        console.log('[SNX Push] Pruning stale FCM tokens for uid:', targetUid, '(age:', Math.round(_tokenAgeDays), 'days)');
-        try {
-          await updateDoc(doc(db, 'users', targetUid), { fcmTokens: [] });
-        } catch (_pruneErr) { /* non-fatal */ }
-      }
-
-      // Write to the target user's pushQueue — their device picks it up via onSnapshot
+      // Write to the target user's pushQueue array in their own doc
       await updateDoc(doc(db, 'users', targetUid), {
           pushQueue: arrayUnion({
               id:      `${type}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-              title,
-              body,
-              type,
+              title, body, type,
               fromUid: fromUid || '',
-              roomId:  roomId  || '',
               url:     url || '/',
               sentAt:  Date.now(),
               read:    false
           })
       });
-    } catch(e) {
-      console.error('[SNX Push] sendPushToUser failed for', targetUid, ':', e.message);
-    }
+    } catch(e) { /* best-effort */ }
   }
 
   let currentUser = null;
@@ -9341,13 +8950,10 @@ body.arcade-fs-ios body::after { display:none !important; }
   let _authFirstResolved = false; // prevents login-flash on initial page load
   let activeProfileUid = null;
   let scrollLimit = 8;
-  const BATCH_SIZE = 4;               // posts to add per "load more" trigger
   let totalUnread = 0;
   let feedUnsubscribe      = null;    // timeline feed
   let presenceUnsubscribe  = null;    // all-users presence strip
   let userDataUnsubscribe  = null;    // current user's own doc (settings + notifs + push)
-  // Track post IDs already in the DOM to prevent duplicates
-  const _renderedPostIds = new Set();
 
   /* ACCOUNT MANAGEMENT */
 
@@ -9804,7 +9410,6 @@ body.arcade-fs-ios body::after { display:none !important; }
   window.handleLogout = async () => {
       if (currentUser) {
           try { await updateDoc(doc(db, "users", currentUser.uid), { status: "offline", lastSeen: Date.now() }); } catch(_) {}
-          try { await _rtdbSet(_rtdbRef(_presenceRtdb, 'users/' + currentUser.uid), { online: false, live: false, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
       }
       signOut(auth);
   };
@@ -9976,20 +9581,6 @@ body.arcade-fs-ios body::after { display:none !important; }
 
           try { await updateDoc(doc(db, "users", user.uid), { status: "online", lastSeen: Date.now() }); } catch(_) {}
 
-          // ── RTDB presence: users/{uid} — online/live status for friends list ──
-          try {
-              const _uStatusRef = _rtdbRef(_presenceRtdb, 'users/' + user.uid);
-              await _rtdbSet(_uStatusRef, { online: true, live: false, lastSeen: _rtdbServerTimestamp() });
-              _rtdbOnDisconnect(_uStatusRef).set({ online: false, live: false, lastSeen: _rtdbServerTimestamp() });
-          } catch(_) {}
-
-          // ── Heartbeat: keep RTDB presence alive every 30 s ──
-          setInterval(() => {
-              if (auth.currentUser) {
-                  try { _rtdbSet(_rtdbRef(_presenceRtdb, 'users/' + auth.currentUser.uid), { online: true, live: false, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
-              }
-          }, 30000);
-
           // Save email to Firestore so username login works for existing accounts
           try {
               if (user.email) await updateDoc(doc(db, "users", user.uid), { email: user.email.toLowerCase() });
@@ -10086,11 +9677,6 @@ body.arcade-fs-ios body::after { display:none !important; }
               if (!_queue.length) return;
               _queue.forEach(n => _seenPushIds.add(n.id));
 
-              // Resolve absolute icon paths once (SW context needs full path, not relative)
-              const _snxBase   = location.pathname.startsWith('/TEST') ? '/TEST/' : '/';
-              const _iconPath  = _snxBase + 'icon-192.png';
-              const _badgePath = _snxBase + 'favicon-32x32.png';
-
               for (const n of _queue) {
                   // Play subtle in-app notification sound
                   try {
@@ -10105,25 +9691,22 @@ body.arcade-fs-ios body::after { display:none !important; }
                       _osc.start(_ctx.currentTime); _osc.stop(_ctx.currentTime + 0.22);
                   } catch(_) {}
 
-                  // OS notification (SW-backed or direct Web Notification fallback)
+                  // OS notification (SW-backed or direct)
                   if ('Notification' in window && Notification.permission === 'granted') {
                       try {
                           const _reg = await navigator.serviceWorker.ready;
-                          await _reg.showNotification(n.title || '🔔 Shadow Nexus Social', {
+                          _reg.showNotification(n.title || '🔔 Shadow Nexus Social', {
                               body:     n.body || 'You have a new notification',
-                              icon:     _iconPath,
-                              badge:    _badgePath,
+                              icon:     'icon-192.png',
+                              badge:    'favicon-32x32.png',
                               tag:      `snx-${n.id}`,
                               renotify: true,
-                              vibrate:  n.type === 'message' ? [120, 60, 120, 60, 120]
-                                      : n.type === 'live'    ? [100, 50, 100, 50, 100]
-                                      : [200, 100, 200],
-                              requireInteraction: n.type === 'live' || n.type === 'message',
-                              data:     { url: n.url || _snxBase, type: n.type || '', fromUid: n.fromUid || '', roomId: n.roomId || '' }
+                              vibrate:  n.type === 'live' ? [100, 50, 100, 50, 100] : [200, 100, 200],
+                              requireInteraction: n.type === 'live',
+                              data:     { url: n.url || '/', type: n.type || '', fromUid: n.fromUid || '', roomId: n.roomId || '' }
                           });
-                      } catch(notifErr) {
-                          console.warn('[SNX Push] showNotification failed:', notifErr.message);
-                          try { new Notification(n.title || '🔔 Shadow Nexus', { body: n.body || '', icon: _iconPath }); } catch(_) {}
+                      } catch(_) {
+                          try { new Notification(n.title || '🔔 Shadow Nexus', { body: n.body || '', icon: 'icon-192.png' }); } catch(_) {}
                       }
                   }
                   // In-app toast: for messages, open the Profile Message modal immediately
@@ -10657,9 +10240,6 @@ body.arcade-fs-ios body::after { display:none !important; }
       // Tear down any existing listener before (re)subscribing with a new limit
       if (feedUnsubscribe) { feedUnsubscribe(); feedUnsubscribe = null; }
 
-      // Clear duplicate-prevention set when re-subscribing
-      _renderedPostIds.clear();
-
       // Show a loading skeleton while the first snapshot is in flight
       const _feedContainer = document.getElementById("feedPosts");
       if (_feedContainer && !_feedContainer.querySelector('.postBox')) {
@@ -10695,10 +10275,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Remove DOM nodes for posts no longer in the snapshot (deleted by owner/mod)
           container.querySelectorAll('.postBox[id^="post-"]').forEach(el => {
               const id = el.id.replace('post-', '');
-              if (!incomingIds.has(id)) {
-                  el.remove();
-                  _renderedPostIds.delete(id);
-              }
+              if (!incomingIds.has(id)) el.remove();
           });
 
           // Build an ordered list of post IDs to maintain correct DOM order
@@ -10760,7 +10337,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                             </video>
                         </div>`;
                   } else {
-                      mediaHTML = `<img class="post-media-preview" src="${mu}" alt="photo" loading="lazy" decoding="async"
+                      mediaHTML = `<img class="post-media-preview" src="${mu}" alt="photo"
                           onclick="openMediaViewer('image','${mu}')"
                           onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div style=\\'padding:14px;background:rgba(0,30,70,0.5);border-radius:10px;color:#6a90b8;font-size:13px;margin-top:8px;\\'>🖼 Image unavailable</div>')">`;
                   }
@@ -10771,9 +10348,9 @@ body.arcade-fs-ios body::after { display:none !important; }
                       const ext = mu.split('?')[0].split('.').pop().toLowerCase();
                       const videoExts = ['mp4','webm','mov','avi','mkv'];
                       if (videoExts.some(e => ext === e)) {
-                          return `<video src="${mu}" controls playsinline preload="metadata" onclick="openMediaViewer('video','${mu}')" style="max-height:240px;"></video>`;
+                          return `<video src="${mu}" controls playsinline onclick="openMediaViewer('video','${mu}')" style="max-height:240px;"></video>`;
                       }
-                      return `<img src="${mu}" alt="media" loading="lazy" decoding="async" onclick="openMediaViewer('image','${mu}')" style="max-height:240px;">`;
+                      return `<img src="${mu}" alt="media" onclick="openMediaViewer('image','${mu}')" style="max-height:240px;">`;
                   }).join('');
                   mediaHTML = `<div class="post-media-carousel">${items}</div>`;
               }
@@ -10843,11 +10420,6 @@ body.arcade-fs-ios body::after { display:none !important; }
                       container.insertBefore(existingEl, ref);
                   }
               } else {
-                  // Guard: don't render a post that's already in the DOM (prevents duplicates
-                  // that can appear when the onSnapshot fires before the DOM is settled)
-                  if (_renderedPostIds.has(pDoc.id)) return;
-                  _renderedPostIds.add(pDoc.id);
-
                   // New post — build the full element
                   const div = document.createElement("div");
                   div.className = "postBox";
@@ -11152,25 +10724,21 @@ body.arcade-fs-ios body::after { display:none !important; }
   _cleanExpiredPosts();
   setInterval(_cleanExpiredPosts, 5 * 60 * 1000);
 
-  // Infinite scroll — IntersectionObserver fires only when the sentinel enters the viewport,
-  // which is far more efficient than listening to every scroll event.
-  (function _initFeedInfiniteScroll() {
-      const trigger = document.getElementById("infiniteLoadTrigger");
-      if (!trigger || !('IntersectionObserver' in window)) return;
-
-      const io = new IntersectionObserver((entries) => {
-          if (!entries[0].isIntersecting) return;
-          // Only load more if we are on the feed page and logged in
-          if (!currentUser) return;
-          const feedPage = document.getElementById('feed');
-          if (!feedPage || !feedPage.classList.contains('active')) return;
-          scrollLimit += BATCH_SIZE;
-          trigger.textContent = 'Loading more…';
-          initTimelineStream();
-      }, { rootMargin: '200px' });
-
-      io.observe(trigger);
-  })();
+  // Infinite scroll — rAF-throttled to avoid firing every pixel
+  let _feedScrollPending = false;
+  window.addEventListener("scroll", () => {
+      if (_feedScrollPending) return;
+      _feedScrollPending = true;
+      requestAnimationFrame(() => {
+          _feedScrollPending = false;
+          const trigger = document.getElementById("infiniteLoadTrigger");
+          if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 60) {
+              scrollLimit += 4;
+              if (trigger) trigger.textContent = 'Loading more…';
+              initTimelineStream();
+          }
+      });
+  }, { passive: true });
 
   // ── @mention autocomplete for post composer ──
   (function() {
@@ -11874,69 +11442,40 @@ body.arcade-fs-ios body::after { display:none !important; }
       });
   };
 
-  /* ── Build a single comment DOM node ── */
-  function _buildCommentNode(postId, c) {
-      const canDelete = c.authorUid === currentUser?.uid;
-      const d = document.createElement("div");
-      d.className = "comment-row";
-      // Stable key: prefer authorUid+ts, fall back to ts alone
-      d.dataset.ck = `${c.authorUid || ''}:${c.ts || ''}`;
-      const tsLabel = c.ts ? fmtTimeAgo(c.ts) : '';
-      let badgeHtml = '';
-      if (c.authorBadges && c.authorBadges.length) {
-          badgeHtml = buildBadgeHtml(c.authorBadges, c.authorRole || 'member');
-      } else if (c.isFounder) {
-          badgeHtml = `<span class="badge-inline badge-founder" title="Founder">👑 Founder</span>`;
-      }
-      const commentMoodHtml = buildMoodChipHtml(c.authorMoodType || '', c.authorMoodValue || '');
-      d.innerHTML = `
-        <div class="comment-body">
-            <span style="display:inline-flex;align-items:center;gap:3px;flex-wrap:wrap;">
-                <b class="comment-author">${escFeed(c.author)}</b>${badgeHtml}${commentMoodHtml}
-            </span>
-            <span class="comment-text" style="margin-left:4px;">${escFeed(c.text)}</span>
-            ${tsLabel ? `<span class="comment-ts">${tsLabel}</span>` : ''}
-        </div>
-        ${canDelete
-          ? `<button class="comment-del-btn" title="Delete comment" onclick="deletePostComment('${postId}', ${c.ts}, '${c.authorUid}')">✕</button>`
-          : ''}
-      `;
-      return d;
-  }
-
-  /* ── Incremental comment renderer — only appends/removes, never full re-render ──
-     This avoids wiping the entire comment box (and any in-progress input focus) when
-     a new comment arrives. It also prevents the visual flicker of a full innerHTML reset.
-  */
   function renderCommentsSubtree(postId, list) {
       const box = document.getElementById(`comments-${postId}`);
       if (!box) return;
       if (!list.length) { box.style.display = "none"; return; }
       box.style.display = "block";
-
-      // Build a set of incoming keys
-      const incomingKeys = new Set(list.map(c => `${c.authorUid || ''}:${c.ts || ''}`));
-
-      // Remove DOM nodes that are no longer in the list
-      const existing = [...box.querySelectorAll('.comment-row[data-ck]')];
-      existing.forEach(el => {
-          if (!incomingKeys.has(el.dataset.ck)) el.remove();
-      });
-
-      // Build a map of keys already in DOM
-      const renderedKeys = new Set(
-          [...box.querySelectorAll('.comment-row[data-ck]')].map(el => el.dataset.ck)
-      );
-
-      // Append only new comments (in order)
-      const frag = document.createDocumentFragment();
-      list.forEach(c => {
-          const key = `${c.authorUid || ''}:${c.ts || ''}`;
-          if (!renderedKeys.has(key)) {
-              frag.appendChild(_buildCommentNode(postId, c));
+      box.innerHTML = "";
+      list.forEach((c) => {
+          const canDelete = c.authorUid === currentUser.uid;
+          const d = document.createElement("div");
+          d.className = "comment-row";
+          const tsLabel = c.ts ? fmtTimeAgo(c.ts) : '';
+          // Support new authorBadges/authorRole fields; fall back to legacy isFounder flag
+          let badgeHtml = '';
+          if (c.authorBadges && c.authorBadges.length) {
+              badgeHtml = buildBadgeHtml(c.authorBadges, c.authorRole || 'member');
+          } else if (c.isFounder) {
+              // Legacy comments written before badge system — render Founder badge directly
+              badgeHtml = `<span class="badge-inline badge-founder" title="Founder">👑 Founder</span>`;
           }
+          const commentMoodHtml = buildMoodChipHtml(c.authorMoodType || '', c.authorMoodValue || '');
+          d.innerHTML = `
+            <div class="comment-body">
+                <span style="display:inline-flex;align-items:center;gap:3px;flex-wrap:wrap;">
+                    <b class="comment-author">${escFeed(c.author)}</b>${badgeHtml}${commentMoodHtml}
+                </span>
+                <span class="comment-text" style="margin-left:4px;">${escFeed(c.text)}</span>
+                ${tsLabel ? `<span class="comment-ts">${tsLabel}</span>` : ''}
+            </div>
+            ${canDelete
+              ? `<button class="comment-del-btn" title="Delete comment" onclick="deletePostComment('${postId}', ${c.ts}, '${c.authorUid}')">✕</button>`
+              : ''}
+          `;
+          box.appendChild(d);
       });
-      if (frag.childElementCount) box.appendChild(frag);
   }
 
   /* ── toggleCommentBox — show/hide the comment box + input for a post ── */
@@ -12303,14 +11842,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       renderFriendsPage();
   };
 
-  // ── Track per-friend RTDB presence unsubscribers so we can cancel on re-render ──
-  let _friendPresenceUnsubs = [];
-
   async function renderFriendsPage() {
-      // Cancel previous RTDB presence listeners before re-rendering
-      _friendPresenceUnsubs.forEach(fn => { try { fn(); } catch(_) {} });
-      _friendPresenceUnsubs = [];
-
       const myS = await getDoc(doc(db,"users",currentUser.uid));
       const md = myS.data();
       const friends = md.friends||[], family = md.family||[], received = md.friendRequestsReceived||[];
@@ -12325,13 +11857,11 @@ body.arcade-fs-ios body::after { display:none !important; }
       fDocs.forEach((d,i) => {
           const u = d.exists()?d.data():{displayName:friends[i].substring(0,8),username:'',avatar:'',uid:friends[i]};
           const isF2 = family.includes(u.uid);
-          const row = document.createElement('div'); row.className='friend-card'; row.dataset.uid = u.uid;
+          const row = document.createElement('div'); row.className='friend-card';
           row.innerHTML=`<div class="friend-avatar" style="background-image:url('${u.avatar||''}');${!u.avatar?'display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#00AEEF;background:#0B1F3A;':''}" onclick="viewProfile('${u.uid}')" data-uid="${u.uid}">${!u.avatar?escFeed((u.displayName||'?')[0].toUpperCase()):''}</div>
-            <div class="friend-meta"><div class="friend-name" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;" onclick="viewProfile('${u.uid}')">${escFeed(u.displayName)}${buildBadgeHtml(u.badges||[],u.role||'member')}${isF2?'<span class="friend-tag-family">❤️ Family</span>':''}</div><div class="friend-handle">@${escFeed(u.username||'')} <span class="friend-rtdb-status" data-uid="${u.uid}"></span></div></div>
+            <div class="friend-meta"><div class="friend-name" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;" onclick="viewProfile('${u.uid}')">${escFeed(u.displayName)}${buildBadgeHtml(u.badges||[],u.role||'member')}${isF2?'<span class="friend-tag-family">❤️ Family</span>':''}</div><div class="friend-handle">@${escFeed(u.username||'')}</div></div>
             <div class="friend-actions"><button class="${isF2?'btn-family-on':'btn-family-off'}" onclick="toggleFamily('${u.uid}')">${isF2?'❤️':'🤍'}</button><button onclick="if(typeof window.ipcOpen==='function')window.ipcOpen('${u.uid}');else establishDirectMessageChannel('${u.uid}')">💬</button><button class="btn-decline" onclick="unfriend('${u.uid}')">✕</button></div>`;
           fb.appendChild(row);
-          // ── Live RTDB status listener for this friend ──
-          _friendPresenceUnsubs.push(_attachFriendRtdbStatus(u.uid));
       });
       // Requests tab
       const rb = document.getElementById("reqCountBadge");
@@ -12392,28 +11922,6 @@ body.arcade-fs-ios body::after { display:none !important; }
           fbox.innerHTML='<div class="empty-state">No family members yet.<br><span style="font-size:12px;color:#3a5a7a;">Tap ❤️ Add Family on someone\'s profile to send a request.</span></div>';
       }
       updateFriendBadges(received.length);
-  }
-
-  // ── Helper: subscribe to RTDB users/{uid} and update the status span in the friend card ──
-  function _attachFriendRtdbStatus(uid) {
-      const { getDatabase: _gdb, ref: _r, onValue: _ov, off: _off } = window._snxRtdbApi || {};
-      if (!_gdb) return () => {};  // RTDB not yet available
-      const rtdb    = _gdb(window._snxApp);
-      const nodeRef = _r(rtdb, 'users/' + uid);
-      const handler = snap => {
-          const s   = snap.val();
-          const el  = document.querySelector(`.friend-rtdb-status[data-uid="${uid}"]`);
-          if (!el) return;
-          if (s && s.live) {
-              el.innerHTML = '<span style="color:#ff3344;font-weight:800;font-size:10px;letter-spacing:0.5px;animation:snxLiveDot 1s ease-in-out infinite;">🔴 LIVE</span>';
-          } else if (s && s.online) {
-              el.innerHTML = '<span style="color:#39FF14;font-size:10px;font-weight:600;">🟢 Online</span>';
-          } else {
-              el.innerHTML = '<span style="color:#6a90b8;font-size:10px;">⚫ Offline</span>';
-          }
-      };
-      _ov(nodeRef, handler);
-      return () => _off(nodeRef, handler);
   }
 
   function updateFriendBadges(count) {
@@ -12932,11 +12440,6 @@ body.arcade-fs-ios body::after { display:none !important; }
 
           // Refresh the live preview
           epmPreviewUpdate();
-      }
-
-      // Load profile music player for this profile
-      if (typeof window.snxProfileMusicLoad === 'function') {
-          window.snxProfileMusicLoad(uid);
       }
 
       // Tear down previous snapshot listener
@@ -16137,16 +15640,6 @@ function navTo(pageId) {
         const _allTab = document.querySelector('.notif-filter-tab[data-filter="all"]');
         if (_allTab && typeof setNotifFilter === 'function') setNotifFilter('all', _allTab);
     }
-    // ── Presence strip: only run while the feed page is visible ──
-    // Unsubscribe when leaving feed, re-subscribe when returning to it.
-    if (pageId !== 'feed' && typeof presenceUnsubscribe !== 'undefined' && presenceUnsubscribe) {
-        presenceUnsubscribe(); presenceUnsubscribe = null;
-    }
-    if (pageId === 'feed' && typeof presenceUnsubscribe !== 'undefined' && !presenceUnsubscribe
-        && typeof currentUser !== 'undefined' && currentUser
-        && typeof initPresenceStrip === 'function') {
-        presenceUnsubscribe = initPresenceStrip();
-    }
     // Auto-close sidebar on mobile after navigation
     closeSidebar();
 }
@@ -16811,11 +16304,6 @@ function switchEpmTab(name, btn) {
     if (btn) btn.classList.add('active');
     const panel = document.getElementById('epmPanel-' + name);
     if (panel) panel.classList.add('active');
-    // Lazy-init the Music tab edit panel
-    if (name === 'music' && typeof window.snxProfileMusicLoad === 'function') {
-        const uid = window._snxCurrentUser && window._snxCurrentUser.uid;
-        if (uid) window.snxProfileMusicLoad(uid);
-    }
 }
 
 /* ── Live preview update ── */
@@ -17614,13 +17102,10 @@ document.addEventListener("visibilitychange", () => {
    We keep total count very low (max 14) to avoid performance issues.
 */
 (function spawnDomAsh() {
-    // Mobile gets fewer DOM particles to save battery/CPU
-    const MAX_DOM_ASH = _isMobileDevice ? 7 : 14;
+    const MAX_DOM_ASH = 14;
     let domAshCount = 0;
 
     function spawnOne() {
-        // Don't spawn new particles while the tab is hidden
-        if (document.hidden) { domAshCount = Math.max(0, domAshCount - 1); return; }
         if (domAshCount >= MAX_DOM_ASH) return;
         domAshCount++;
         const el = document.createElement('div');
@@ -17789,69 +17274,8 @@ const R2_UPLOAD_URL = 'https://yellow-term-11e6.nthntjrn.workers.dev';
  * @param {string}   progressWrapId - Element ID of the progress wrapper div
  * @returns {Promise<string>}  The public URL of the uploaded file
  */
-/**
- * Compress an image File to JPEG/WebP before upload.
- * - Skips non-image files (video, audio) untouched.
- * - Skips SVG (cannot be drawn to canvas) and GIF (would lose animation).
- * - Constrains the longest edge to maxEdgePx (default 1920) to reduce file size.
- * - Quality 0.82 preserves visual quality while cutting file sizes ~50–70%.
- *
- * Returns the compressed Blob wrapped in a new File, or the original File if
- * compression is not applicable / the result would be larger than the original.
- */
-async function _compressImageFile(file, maxEdgePx = 1920, quality = 0.82) {
-    if (!file.type.startsWith('image/')) return file;
-    // Skip SVG (no rasterisation) and GIF (would lose animation)
-    if (file.type === 'image/svg+xml' || file.type === 'image/gif') return file;
-
-    return new Promise((resolve) => {
-        const img = new Image();
-        const objUrl = URL.createObjectURL(file);
-        img.onload = () => {
-            URL.revokeObjectURL(objUrl);
-            let { width, height } = img;
-            if (width > maxEdgePx || height > maxEdgePx) {
-                if (width >= height) {
-                    height = Math.round(height * maxEdgePx / width);
-                    width  = maxEdgePx;
-                } else {
-                    width  = Math.round(width * maxEdgePx / height);
-                    height = maxEdgePx;
-                }
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width  = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-
-            // Prefer WebP for better compression; fall back to JPEG
-            const outputType = (typeof ImageData !== 'undefined' && canvas.toDataURL('image/webp').startsWith('data:image/webp'))
-                ? 'image/webp'
-                : 'image/jpeg';
-
-            canvas.toBlob((blob) => {
-                if (!blob || blob.size >= file.size) {
-                    // Compressed result is not smaller — keep original
-                    resolve(file);
-                    return;
-                }
-                const ext = outputType === 'image/webp' ? 'webp' : 'jpg';
-                const newName = file.name.replace(/\.[^.]+$/, '') + '.' + ext;
-                resolve(new File([blob], newName, { type: outputType, lastModified: Date.now() }));
-            }, outputType, quality);
-        };
-        img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(file); };
-        img.src = objUrl;
-    });
-}
-
 async function uploadToR2(file, progressBarId, progressWrapId, _attempt) {
     _attempt = _attempt || 1;
-    // Compress images before upload (skips video/audio/svg/gif automatically)
-    if (file.type.startsWith('image/') && file.type !== 'image/svg+xml' && file.type !== 'image/gif') {
-        try { file = await _compressImageFile(file); } catch(_) { /* compression failed — use original */ }
-    }
     const MAX_RETRIES = 3;
     const uid = window._snxCurrentUser ? window._snxCurrentUser.uid : 'guest';
 
@@ -19334,9 +18758,6 @@ function _supportStopCanvas() {
      Shared JavaScript utilities (SW registration, PWA install,
      online/offline detection, helper functions)
      ═══════════════════════════════════════════════════════════ -->
-
-<!-- ── Global Background Internet Manager (must load before script.js) ── -->
-<script src="snx-net.js"></script>
 
 <script src="script.js"></script>
 
@@ -24654,30 +24075,6 @@ window.switchAdminTab = function(tab) {
 
 <!-- ── Profile Photo Album module (must load after the main IIFE) ── -->
 <script src="album.js"></script>
-
-<!-- ── Profile Music player (must load after the main IIFE) ── -->
-<script src="profile-music.js"></script>
-
-<!-- ── Holiday / Founder Theme Engine ── -->
-<script src="holiday-themes.js"></script>
-
-<!-- ── Background effect DOM elements (used by snxTmSetBackground) ── -->
-<video id="snxBgVideo" autoplay muted loop playsinline></video>
-<div id="snxBgImage"></div>
-
-<!-- ── Theme Engine required DOM elements ── -->
-<div id="snxHolidayBanner"></div>
-<canvas id="snxHolidayParticles"></canvas>
-<div id="snxThemePreviewBadge"></div>
-<div id="snxMusicPlayerWrap">
-  <button id="snxMusicToggleBtn" onclick="snxHtUserMusicToggle()">🔇 Music OFF</button>
-</div>
-<div id="snxHolidayLoadingSplash">
-  <div class="ht-splash-emoji">🌑</div>
-  <div class="ht-splash-name">Shadow Nexus</div>
-</div>
-<div id="snxThemeWallpaper"></div>
-<div id="snxCursorEffect"></div>
 
 </body>
 </html>
