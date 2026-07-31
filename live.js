@@ -561,7 +561,10 @@ async function startLive() {
   /* ── Guard: prevent accidental cleanup if page unloads during live ── */
   _creatorEndedFlag = false;
   window.addEventListener('beforeunload', _creatorBeforeUnload);
-  window.addEventListener('pagehide',     _creatorBeforeUnload);
+  // pagehide with persisted=true means the page entered bfcache (mobile tab-switch).
+  // Do NOT stop camera tracks in that case — the host is just backgrounding the app.
+  // Only clean up on a true navigation-away (persisted=false).
+  window.addEventListener('pagehide', (e) => { if (!e.persisted) _creatorBeforeUnload(); });
 
   if (D.setup) D.setup.style.display = 'none';
   _showStage();
@@ -757,12 +760,28 @@ async function flipLiveCamera() {
       video: { facingMode: _facingMode, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
       audio: _micOn ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
     });
-    if (oldStream) oldStream.getTracks().forEach(t => t.stop());
+
+    // ── Stop old tracks AFTER new stream is ready to prevent any black-frame gap ──
     _localStream = newStream;
+
     if (D.liveVideo) {
       D.liveVideo.srcObject = newStream;
       D.liveVideo.play().catch(() => {});
     }
+
+    // ── Update the host's own cell in the guest grid so it never goes dark ──
+    if (D.guestGrid) {
+      const hostCell = D.guestGrid.querySelector('.host-cell');
+      if (hostCell) {
+        const hostVid = hostCell.querySelector('video');
+        if (hostVid) {
+          hostVid.srcObject = newStream;
+          hostVid.play().catch(() => {});
+        }
+      }
+    }
+
+    // ── Replace video track in the main viewer WebRTC connection ──
     if (_rtcPc && newStream.getVideoTracks()[0]) {
       const newVideoTrack = newStream.getVideoTracks()[0];
       const sender = _rtcPc.getSenders().find(s => s.track && s.track.kind === 'video');
@@ -770,6 +789,22 @@ async function flipLiveCamera() {
         await sender.replaceTrack(newVideoTrack).catch(() => {});
       }
     }
+
+    // ── Replace video track in all active guest peer connections ──
+    const newVideoTrack = newStream.getVideoTracks()[0];
+    if (newVideoTrack) {
+      for (const uid of Object.keys(_guestPeers)) {
+        const peer = _guestPeers[uid];
+        if (peer && peer.pc) {
+          const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
+          if (sender) sender.replaceTrack(newVideoTrack).catch(() => {});
+        }
+      }
+    }
+
+    // ── Now stop old tracks (after all replacements are done) ──
+    if (oldStream) oldStream.getTracks().forEach(t => t.stop());
+
   } catch (e) {
     toast('Could not flip camera.');
   }
@@ -1077,7 +1112,10 @@ async function _startViewer() {
   await _startViewerWebRTC(roomData);
 
   window.addEventListener('beforeunload', _viewerLeave);
-  window.addEventListener('pagehide',     _viewerLeave);
+  // pagehide with persisted=true = mobile bfcache (user backgrounded the tab).
+  // Do NOT run _viewerLeave in that case — the visibilitychange handler will
+  // reset _viewerLeftFlag and trigger a reconnect when the tab comes back.
+  window.addEventListener('pagehide', (e) => { if (!e.persisted) _viewerLeave(); });
 
   // ── Auto-reconnect on network restore ──
   // If the device was offline briefly and comes back, try reconnecting immediately
@@ -1085,13 +1123,31 @@ async function _startViewer() {
   window.addEventListener('online', () => {
     if (_viewerLeftFlag) return;
     const state = _rtcPc?.connectionState;
-    if (state === 'disconnected' || state === 'failed' || !_rtcPc) {
+    if (state === 'disconnected' || state === 'failed' || state === 'closed' || !_rtcPc) {
       // Reset attempt counter so we get a fresh fast reconnect
       _viewerReconnectAttempt = 0;
       if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
       _scheduleViewerReconnect(roomData);
     }
   }, { once: false });
+
+  // ── Visibility change: resume WebRTC when tab/app returns to foreground ──
+  // Mobile browsers may fire pagehide/visibilitychange when the user backgrounds
+  // the app. We reset _viewerLeftFlag on restore so reconnect logic can run.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    // If the flag was set by a mobile background-tab pagehide event,
+    // clear it now so reconnect is allowed.
+    if (_viewerLeftFlag) {
+      _viewerLeftFlag = false;
+    }
+    const state = _rtcPc?.connectionState;
+    if (state === 'disconnected' || state === 'failed' || state === 'closed' || !_rtcPc) {
+      _viewerReconnectAttempt = 0;
+      if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
+      _scheduleViewerReconnect(roomData);
+    }
+  });
 }
 
 async function _viewerLeave() {
@@ -1193,6 +1249,16 @@ async function _startCreatorWebRTC() {
     if (_rtcPc.connectionState === 'connected') {
       // Start adaptive quality monitoring (adjust bitrate based on network conditions)
       _startAdaptiveQuality(_rtcPc);
+    }
+  };
+
+  // ── Monitor iceConnectionState on the creator side ──
+  // If ICE fails, attempt an ICE restart so the stream recovers without ending the live.
+  _rtcPc.oniceconnectionstatechange = () => {
+    const ice = _rtcPc?.iceConnectionState;
+    if (ice === 'failed') {
+      console.warn('[WebRTC-Host] ICE failed — attempting ICE restart');
+      try { _rtcPc.restartIce(); } catch(_) {}
     }
   };
 
@@ -1339,13 +1405,30 @@ async function _startViewerWebRTC(roomData) {
   };
 
   _rtcPc.onconnectionstatechange = () => {
-    const state = _rtcPc.connectionState;
+    const state = _rtcPc?.connectionState;
     if (state === 'connected') {
       _hideConnBanner();
       _viewerReconnectAttempt = 0; // reset on successful connection
-    } else if (state === 'disconnected' || state === 'failed') {
+    } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
       _showConnBanner('Reconnecting…', '');
       _scheduleViewerReconnect(roomData);
+    }
+  };
+
+  // ── Also monitor iceConnectionState for deeper transport failures ──
+  _rtcPc.oniceconnectionstatechange = () => {
+    const ice = _rtcPc?.iceConnectionState;
+    if (ice === 'failed') {
+      // ICE hard failure — restart immediately
+      _showConnBanner('Reconnecting…', '');
+      _scheduleViewerReconnect(roomData);
+    } else if (ice === 'disconnected') {
+      // ICE soft disconnect — give connectionState handler 3 s to recover first
+      setTimeout(() => {
+        if (_rtcPc && (_rtcPc.iceConnectionState === 'disconnected' || _rtcPc.iceConnectionState === 'failed')) {
+          _scheduleViewerReconnect(roomData);
+        }
+      }, 3000);
     }
   };
 
@@ -1568,11 +1651,29 @@ function _scheduleViewerReconnect(roomData) {
     _viewerReconnectTimer = null;
     if (_viewerLeftFlag) return;
 
-    // Tear down old peer connection + signal listener
-    if (_rtcPc) { try { _rtcPc.close(); } catch(_){} _rtcPc = null; }
+    // Tear down old peer connection + signal listener cleanly
+    if (_rtcPc) {
+      // Detach all event handlers before closing so stale callbacks don't fire
+      _rtcPc.ontrack = null;
+      _rtcPc.onconnectionstatechange = null;
+      _rtcPc.oniceconnectionstatechange = null;
+      _rtcPc.onicecandidate = null;
+      try { _rtcPc.close(); } catch(_) {}
+      _rtcPc = null;
+    }
     if (_rtcSignalRef && _rtcSignalUnsub) {
       try { off(_rtcSignalRef); } catch(_) {}
       _rtcSignalRef = null; _rtcSignalUnsub = null;
+    }
+
+    // Clear stale video so the black frame is not visible while reconnecting
+    if (D.liveVideo) {
+      try {
+        if (D.liveVideo.srcObject) {
+          D.liveVideo.srcObject.getTracks().forEach(t => t.stop());
+        }
+      } catch(_) {}
+      D.liveVideo.srcObject = null;
     }
 
     // Verify stream is still live before attempting
@@ -3087,10 +3188,20 @@ function _hostAddGuestCell(uid, name, avatar, stream, pc) {
       }
     } else if (state === 'failed' || state === 'closed') {
       if (_dcTimer) { clearTimeout(_dcTimer); _dcTimer = null; }
-      _hostDoRemoveGuest(uid);
+      if (_guestPeers[uid]) _hostDoRemoveGuest(uid);
     } else if (state === 'connected') {
       // Recovered — cancel any pending removal
       if (_dcTimer) { clearTimeout(_dcTimer); _dcTimer = null; }
+    }
+  };
+
+  // ── Also monitor iceConnectionState for this guest's transport ──
+  pc.oniceconnectionstatechange = () => {
+    const ice = pc.iceConnectionState;
+    if (ice === 'failed') {
+      // Hard ICE failure — remove guest box immediately
+      if (_dcTimer) { clearTimeout(_dcTimer); _dcTimer = null; }
+      if (_guestPeers[uid]) _hostDoRemoveGuest(uid);
     }
   };
 }
