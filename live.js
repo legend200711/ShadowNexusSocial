@@ -1510,9 +1510,19 @@ async function _startViewerWebRTC(roomData, _reuseSessionId) {
     // Safety: hide banner once video actually starts playing
     D.liveVideo.addEventListener('playing', _hideConnBanner, { once: true });
     // ── If the guest grid is already showing a host cell, attach the stream now ──
+    // Always refresh the host cell video — the stream object may have changed
+    // (e.g. after ICE restart / reconnect), which would leave the existing
+    // <video> element pointing at a stale / dead stream (black screen).
     const hostCell = D.guestGrid?.querySelector('.vgc-cell.host-cell');
-    if (hostCell && !hostCell.querySelector('video')) {
-      _attachHostVideoToCell(hostCell);
+    if (hostCell) {
+      const existingVid = hostCell.querySelector('video');
+      if (existingVid) {
+        // Update srcObject in-place so the host cell never goes black
+        existingVid.srcObject = stream;
+        existingVid.play().catch(() => {});
+      } else {
+        _attachHostVideoToCell(hostCell);
+      }
     }
   };
 
@@ -2520,8 +2530,16 @@ function _attachHostVideoToCell(cell) {
       if (attempts > 0) setTimeout(() => _tryAttach(attempts - 1), 100);
       return;
     }
-    // Don't add a second video if one already exists
-    if (cell.querySelector('video')) return;
+    // If a video element already exists, just refresh its srcObject in case
+    // the stream changed (e.g. after reconnect) — avoids a black host cell.
+    const existing = cell.querySelector('video');
+    if (existing) {
+      if (existing.srcObject !== stream) {
+        existing.srcObject = stream;
+        existing.play().catch(() => {});
+      }
+      return;
+    }
     const vid = document.createElement('video');
     vid.autoplay   = true;
     vid.muted      = false;   // viewers should hear the host
