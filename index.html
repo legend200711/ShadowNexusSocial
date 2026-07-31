@@ -6171,6 +6171,28 @@ body.arcade-fs-ios body::after { display:none !important; }
 
     <!-- ── Profile Music Player ── -->
     <div id="snxProfileMusicPlayer" data-has-track="0">
+
+        <!-- Loading state — shown while Firebase responds -->
+        <div class="pmp-load-status" style="display:none;">
+            <span class="pmp-spinner"></span>
+            <span class="pmp-load-text">Loading music…</span>
+        </div>
+
+        <!-- Empty state — shown when no profile music exists -->
+        <div class="pmp-empty-state" style="display:none;">
+            <span style="font-size:22px;">🎵</span>
+            <p class="pmp-empty-msg">No profile music selected</p>
+            <p class="pmp-empty-hint">Open the Music tab in Edit Profile to add a song.</p>
+        </div>
+
+        <!-- Error state — shown on Firebase failure -->
+        <div class="pmp-error-state" style="display:none;">
+            <span style="font-size:20px;">⚠️</span>
+            <p class="pmp-error-msg">Music could not be loaded.</p>
+            <button class="pmp-btn pmp-retry-btn" onclick="snxPmpRetry()" title="Retry">↺ Retry</button>
+        </div>
+
+        <!-- Player content — hidden during loading / error / empty -->
         <div class="pmp-top">
             <!-- Album artwork -->
             <div class="pmp-artwork">
