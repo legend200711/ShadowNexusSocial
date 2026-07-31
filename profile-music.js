@@ -7,9 +7,10 @@
   'use strict';
 
   // ── Constants ────────────────────────────────────────────────
-  const ALLOWED_AUDIO = ['audio/mpeg','audio/mp3','audio/wav','audio/ogg','audio/aac','audio/flac','audio/x-flac'];
-  const ALLOWED_AUDIO_EXT = /\.(mp3|wav|ogg|aac|flac|m4a|opus)$/i;
-  const MAX_AUDIO_MB = 50;
+  const ALLOWED_AUDIO = ['audio/mpeg','audio/mp3','audio/wav','audio/ogg','audio/aac','audio/flac','audio/x-flac','audio/mp4','audio/x-m4a'];
+  const ALLOWED_AUDIO_EXT = /\.(mp3|wav|ogg|aac|flac|m4a)$/i;
+  const MAX_AUDIO_MB = 200;
+  const R2_WORKER_URL = 'https://yellow-term-11e6.nthntjrn.workers.dev';
   const COLL_SONGS     = 'profileMusic';       // /profileMusic/{songId}
   const COLL_PLAYLISTS = 'profilePlaylists';   // /profilePlaylists/{plId}
   // musicSettings stored as a field inside users/{uid}
@@ -59,38 +60,41 @@
     return window._snxStorage;
   }
 
-  // ── Storage upload ─────────────────────────────────────────────
-  async function uploadFile(path, file, onProgress) {
-    const sdk = window._snxFirebaseStorage;
-    if (!sdk || !sdk.ref) throw new Error('Firebase Storage SDK not loaded. Cannot upload file.');
-    const { ref, uploadBytesResumable, getDownloadURL } = sdk;
-    const storageRef = ref(storage(), path);
+  // ── R2 upload via Cloudflare Worker ──────────────────────────────
+  async function uploadToR2(r2Key, file, uid, onProgress) {
+    const formData = new FormData();
+    // We pass the key as 'path' so the worker stores it at that exact key.
+    // The worker uses uid for security scoping — match the prefix we set.
+    formData.append('file', file, file.name);
+    formData.append('uid', uid);
+    formData.append('path', r2Key);
+
     return new Promise((resolve, reject) => {
-      const task = uploadBytesResumable(storageRef, file);
-      task.on(
-        'state_changed',
-        snap => { if (onProgress) onProgress(snap.bytesTransferred / snap.totalBytes * 100); },
-        err => reject(err),
-        async () => {
-          try {
-            const url = await getDownloadURL(task.snapshot.ref);
-            resolve(url);
-          } catch (e) {
-            reject(e);
-          }
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', R2_WORKER_URL + '/upload-music');
+      xhr.upload.onprogress = e => { if (onProgress && e.lengthComputable) onProgress((e.loaded / e.total) * 100); };
+      xhr.onload = () => {
+        let resp;
+        try { resp = JSON.parse(xhr.responseText); } catch { resp = {}; }
+        if (xhr.status >= 200 && xhr.status < 300 && resp.url && resp.key) {
+          resolve({ url: resp.url, key: resp.key });
+        } else {
+          reject(new Error(resp.error || `R2 upload failed (HTTP ${xhr.status})`));
         }
-      );
+      };
+      xhr.onerror = () => reject(new Error('Network error during R2 upload'));
+      xhr.send(formData);
     });
   }
 
-  async function deleteStorageFile(url) {
+  // ── R2 delete via Cloudflare Worker ──────────────────────────────
+  async function deleteR2File(r2Key) {
+    if (!r2Key) return;
     try {
-      const sdk = window._snxFirebaseStorage;
-      if (!sdk || !sdk.ref) return;
-      const { ref, deleteObject } = sdk;
-      const fileRef = ref(storage(), decodeURIComponent(url.split('/o/')[1].split('?')[0]));
-      await deleteObject(fileRef);
-    } catch (e) { /* best effort */ }
+      // Encode each path segment individually so slashes are preserved in the URL
+      const encodedKey = r2Key.split('/').map(encodeURIComponent).join('/');
+      await fetch(`${R2_WORKER_URL}/${encodedKey}`, { method: 'DELETE' });
+    } catch (e) { console.warn('[SNX Music] R2 delete best-effort failed:', e); }
   }
 
   // ── Firestore ops ─────────────────────────────────────────────
@@ -213,8 +217,17 @@
     state.currentIdx = idx;
     const a = getAudio();
     const prev = a.src;
-    a.src = s.url;
-    if (state.resumeTime && prev === s.url) { a.currentTime = state.resumeTime; state.resumeTime = 0; }
+    // Prefer the R2 downloadURL; fall back to legacy `url` field for old records
+    const streamUrl = s.downloadURL || s.url || '';
+    if (!streamUrl) {
+      updatePlayerUI(s);
+      const titleEl = document.getElementById('snxPlayerTitle');
+      if (titleEl) titleEl.textContent = 'File unavailable';
+      document.querySelectorAll('.snx-song-item').forEach((el, i) => el.classList.toggle('playing', i === idx));
+      return;
+    }
+    a.src = streamUrl;
+    if (state.resumeTime && prev === streamUrl) { a.currentTime = state.resumeTime; state.resumeTime = 0; }
     updatePlayerUI(s);
     if (autoPlay) {
       a.play().then(() => { state.autoplayUnlocked = true; hidePrompt(); }).catch(() => {
@@ -713,49 +726,64 @@
       }
 
       try {
-        // 1. Upload audio file to Cloud Storage
-        const audioPath = `profileMusic/${uid}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        setUploadStatus(`Uploading audio ${i + 1}/${total}…`);
-        const audioUrl = await uploadFile(audioPath, f, pct => {
-          // Progress covers this file's share of total progress
+        // 1. Build the R2 key using the required path structure
+        const safeFileName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const timestamp = Date.now();
+        const r2Key = `profiles/${uid}/music/${timestamp}_${safeFileName}`;
+        setUploadStatus(`Uploading audio ${i + 1}/${total} to R2…`);
+
+        // 2. Upload audio to Cloudflare R2 via Worker
+        const { url: audioUrl, key: audioR2Key } = await uploadToR2(r2Key, f, uid, pct => {
           const overall = ((i / total) + (pct / 100 / total)) * 100;
           if (progressBar) progressBar.style.width = Math.round(overall) + '%';
         });
 
-        // 2. Upload artwork if provided
+        // 3. Upload artwork to R2 if provided
         let artUrl = '';
+        let artR2Key = '';
         if (fields.artFile instanceof File) {
           setUploadStatus(`Uploading artwork for track ${i + 1}…`);
-          artUrl = await uploadFile(
-            `profileMusicArt/${uid}/${Date.now()}_art_${i}`,
-            fields.artFile,
-            () => {}
-          ).catch(e => { console.warn('[SNX Music] Artwork upload failed:', e); return ''; });
+          const artSafeFile = fields.artFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const artKey = `profiles/${uid}/music/art_${timestamp}_${artSafeFile}`;
+          await uploadToR2(artKey, fields.artFile, uid, () => {})
+            .then(r => { artUrl = r.url; artR2Key = r.key; })
+            .catch(e => { console.warn('[SNX Music] Artwork upload failed:', e); });
         }
 
-        // 3. Read audio duration locally (with 10s timeout so it never hangs)
+        // 4. Read audio duration locally (with 10s timeout so it never hangs)
         setUploadStatus(`Reading metadata for track ${i + 1}…`);
         const dur = await Promise.race([
           getAudioDuration(f),
           new Promise(res => setTimeout(() => res(0), 10000)),
         ]).catch(() => 0);
 
-        // 4. Save all metadata to Firestore
+        // 5. Save full metadata record to Firestore (only after R2 succeeds)
         setUploadStatus(`Saving track ${i + 1} to library…`);
+        const now = new Date().toISOString();
         const songRef = await addSong({
-          ownerUid:    uid,
-          url:         audioUrl,
-          artUrl:      artUrl,
+          userId:      uid,
+          ownerUid:    uid,           // keep for backward compat queries
           title:       fields.title  || f.name,
           artist:      fields.artist || '',
           album:       fields.album  || '',
           genre:       fields.genre  || '',
           year:        fields.year   || '',
           description: fields.desc   || '',
+          fileName:    f.name,
+          fileSize:    f.size,
           duration:    dur,
+          r2Key:       audioR2Key,
+          downloadURL: audioUrl,
+          url:         audioUrl,      // keep for backward compat playback
+          artR2Key:    artR2Key,
+          artworkURL:  artUrl,
+          artUrl:      artUrl,        // keep for backward compat display
+          visibility:  'public',
+          createdAt:   now,
+          updatedAt:   now,
         });
 
-        console.log('[SNX Music] Saved song:', songRef.id, { url: audioUrl });
+        console.log('[SNX Music] Saved song to R2 + Firebase:', songRef.id, { r2Key: audioR2Key, url: audioUrl });
         results.push({ ok: true, id: songRef.id });
 
       } catch (err) {
@@ -804,8 +832,9 @@
     if (!confirm('Delete this track? This cannot be undone.')) return;
     const song = state.songs.find(s => s.id === songId);
     if (song) {
-      if (song.url) await deleteStorageFile(song.url);
-      if (song.artUrl) await deleteStorageFile(song.artUrl);
+      // Delete R2 files using stored keys (best-effort — don't block on failure)
+      if (song.r2Key)   await deleteR2File(song.r2Key);
+      if (song.artR2Key) await deleteR2File(song.artR2Key);
     }
     try {
       await deleteSong(songId);

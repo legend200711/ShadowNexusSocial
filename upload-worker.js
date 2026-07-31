@@ -47,7 +47,7 @@ function corsHeaders(origin) {
     ? origin : ALLOWED_ORIGINS[0];
   return {
     'Access-Control-Allow-Origin':  allowed,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-User-UID',
     'Access-Control-Max-Age':       '86400',
   };
@@ -268,6 +268,101 @@ export default {
     if (url.pathname === '/livekit-room')  return handleLiveKitRoom(request, env, cors, sec);
     if (url.pathname === '/livekit-token') return handleLiveKitToken(request, env, cors, sec);
 
+    // ── POST /upload-music: upload a profile music file to R2 at a caller-supplied key ──
+    // The client sends: file, uid, path (the full R2 key)
+    // Path must start with profiles/{uid}/music/ — enforced server-side.
+    if (request.method === 'POST' && url.pathname === '/upload-music') {
+      let formData;
+      try { formData = await request.formData(); }
+      catch (e) {
+        return new Response(JSON.stringify({ error: 'Invalid form data: ' + e.message }), {
+          status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+
+      const file    = formData.get('file');
+      const userUid = (formData.get('uid') || '').replace(/[^a-zA-Z0-9_-]/g, '');
+      const reqPath = (formData.get('path') || '').replace(/\.\./g, '');  // strip traversal
+
+      if (!file || typeof file === 'string') {
+        return new Response(JSON.stringify({ error: 'No file received' }), {
+          status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+      if (!userUid) {
+        return new Response(JSON.stringify({ error: 'uid is required' }), {
+          status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+
+      // Enforce: path must be scoped to this user under profiles/{uid}/music/
+      const expectedPrefix = `profiles/${userUid}/music/`;
+      if (!reqPath.startsWith(expectedPrefix)) {
+        return new Response(JSON.stringify({ error: 'Invalid path: must start with ' + expectedPrefix }), {
+          status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+
+      // MIME validation — audio only for music uploads
+      let mime = file.type || '';
+      const extMime = mimeFromExt(file.name);
+      if (!mime || mime === 'application/octet-stream') mime = extMime || mime;
+      else if (extMime && mime.startsWith('video/') && extMime.startsWith('audio/')) mime = extMime;
+
+      if (!mime.startsWith('audio/') && mime !== 'application/octet-stream') {
+        return new Response(JSON.stringify({ error: `Only audio files are allowed for music uploads. Got: ${file.type}` }), {
+          status: 415, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+
+      const buffer = await file.arrayBuffer();
+      if (buffer.byteLength > MAX_SIZE) {
+        return new Response(JSON.stringify({ error: 'File too large (max 200MB)' }), {
+          status: 413, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+
+      const cleanMime = (mime || 'audio/mpeg').split(';')[0].trim();
+      try {
+        await env.BUCKET.put(reqPath, buffer, {
+          httpMetadata:   { contentType: cleanMime },
+          customMetadata: { uploaderUid: userUid, originalName: file.name }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: 'R2 upload failed: ' + e.message }), {
+          status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+
+      const publicUrl = `https://yellow-term-11e6.nthntjrn.workers.dev/${reqPath}`;
+      return new Response(JSON.stringify({ url: publicUrl, key: reqPath }), {
+        status: 200,
+        headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+      });
+    }
+
+    // ── DELETE /{key}: delete a file from R2 (called when user deletes a song) ──
+    if (request.method === 'DELETE') {
+      // url.pathname is already decoded by the URL constructor; slice off the leading '/'
+      const key = url.pathname.slice(1);
+      if (!key) {
+        return new Response(JSON.stringify({ error: 'key is required' }), {
+          status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+      try {
+        await env.BUCKET.delete(key);
+        return new Response(JSON.stringify({ deleted: true, key }), {
+          status: 200,
+          headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: 'R2 delete failed: ' + e.message }), {
+          status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+    }
+
     // ── GET: serve a file from R2 (CDN delivery) ──────────────────────────────
     if (request.method === 'GET') {
       const key = url.pathname.slice(1);
@@ -305,7 +400,7 @@ export default {
       }
     }
 
-    // ── POST: upload a file to R2 ─────────────────────────────────────────────
+    // ── POST /: generic upload (profile pics, posts, messages, etc.) ─────────
     if (request.method !== 'POST') {
       return new Response('Method not allowed', {
         status: 405,
