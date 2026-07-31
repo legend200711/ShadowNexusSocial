@@ -851,9 +851,9 @@ async function endLive() {
   if (_guestReqUnsub) { try { _guestReqUnsub(); } catch(_){} _guestReqUnsub = null; }
 
   if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
-  if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
+  if (_rtcSignalUnsub) { try { _rtcSignalUnsub(); } catch(_) {} _rtcSignalRef = null; _rtcSignalUnsub = null; }
   if (_chatUnsub)        { _chatUnsub();         _chatUnsub        = null; }
-  if (_viewerCountRef && _viewerCountUnsub) { off(_viewerCountRef); _viewerCountRef = null; _viewerCountUnsub = null; }
+  if (_viewerCountUnsub) { try { _viewerCountUnsub(); } catch(_) {} _viewerCountRef = null; _viewerCountUnsub = null; }
 
   /* ── Remove WebRTC signaling from LIVE RTDB ── */
   if (_roomId) {
@@ -1227,7 +1227,7 @@ async function _viewerLeave() {
   if (_guestStatusUnsub) { try { _guestStatusUnsub(); } catch(_){} _guestStatusUnsub = null; }
 
   if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
-  if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
+  if (_rtcSignalUnsub) { try { _rtcSignalUnsub(); } catch(_) {} _rtcSignalRef = null; _rtcSignalUnsub = null; }
 
   /* ── Remove viewer presence from LIVE RTDB ── */
   if (_user && _roomId) {
@@ -1482,10 +1482,10 @@ async function _startViewerWebRTC(roomData, _reuseSessionId) {
   if (!connSnap.exists() || !connSnap.val().offer) {
     _showConnBanner('Waiting for stream…', '');
     const offerWaitRef = ref(_liveDB, `liveConnections/${_roomId}`);
-    let _offerWaitListener;
-    _offerWaitListener = onValue(offerWaitRef, async snap => {
+    let _offerWaitUnsub;
+    _offerWaitUnsub = onValue(offerWaitRef, async snap => {
       if (!snap.exists() || !snap.val().offer) return;
-      off(offerWaitRef, _offerWaitListener);
+      if (_offerWaitUnsub) { try { _offerWaitUnsub(); } catch(_) {} _offerWaitUnsub = null; }
       _startViewerWebRTC(roomData);
     });
     return;
@@ -1628,7 +1628,7 @@ async function _startViewerWebRTC(roomData, _reuseSessionId) {
       // Restart viewer WebRTC using the fresh offer the host just created.
       // Pass _viewerSessionId so we reuse the same token — prevents the host
       // from seeing it as yet another new session and looping.
-      if (_rtcSignalRef) { try { off(_rtcSignalRef); } catch(_) {} _rtcSignalRef = null; _rtcSignalUnsub = null; }
+      if (_rtcSignalUnsub) { try { _rtcSignalUnsub(); } catch(_) {} _rtcSignalRef = null; _rtcSignalUnsub = null; }
       _startViewerWebRTC(roomData, _viewerSessionId);
       return;
     }
@@ -1819,8 +1819,8 @@ function _scheduleViewerReconnect(roomData) {
       try { _rtcPc.close(); } catch(_) {}
       _rtcPc = null;
     }
-    if (_rtcSignalRef && _rtcSignalUnsub) {
-      try { off(_rtcSignalRef); } catch(_) {}
+    if (_rtcSignalUnsub) {
+      try { _rtcSignalUnsub(); } catch(_) {}
       _rtcSignalRef = null; _rtcSignalUnsub = null;
     }
 
@@ -2095,7 +2095,7 @@ function _showEndedOverlay(wasCreator, title, sub) {
   // Cancel pending reconnect so we don't try to reconnect to an ended stream
   if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
   if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
-  if (_rtcSignalRef && _rtcSignalUnsub) { off(_rtcSignalRef); _rtcSignalRef = null; _rtcSignalUnsub = null; }
+  if (_rtcSignalUnsub) { try { _rtcSignalUnsub(); } catch(_) {} _rtcSignalRef = null; _rtcSignalUnsub = null; }
   if (_chatUnsub) { _chatUnsub(); _chatUnsub = null; }
 }
 
@@ -2877,10 +2877,10 @@ async function _guestJoinAsViewer() {
   const _waitForOffer = () => new Promise((resolve, reject) => {
     const unsub = onValue(sigRef, snap => {
       if (!snap.exists() || !snap.val().offer) return;
-      off(sigRef, unsub);
+      try { unsub(); } catch(_) {}
       resolve(snap.val());
     });
-    setTimeout(() => { off(sigRef, unsub); reject(new Error('offer timeout')); }, MAX_WAIT);
+    setTimeout(() => { try { unsub(); } catch(_) {} reject(new Error('offer timeout')); }, MAX_WAIT);
   });
 
   let sigData;
@@ -2928,7 +2928,7 @@ async function _guestJoinAsViewer() {
   }
 
   // Listen for more host candidates — store unsub so _guestDoLeave can clean up
-  if (_guestSigUnsub) { try { off(sigRef); } catch(_) {} _guestSigUnsub = null; }
+  if (_guestSigUnsub) { try { _guestSigUnsub(); } catch(_) {} _guestSigUnsub = null; }
   _guestSigUnsub = onValue(sigRef, async snap => {
     if (!snap.exists()) return;
     const d = snap.val();
