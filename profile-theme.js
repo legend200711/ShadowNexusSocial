@@ -114,7 +114,9 @@
   }
 
   async function saveThemeData() {
-    if (!state.isSelf) return;
+    // Security: only the profile owner can save theme changes
+    const currentUser = window._snxCurrentUser;
+    if (!state.isSelf || !currentUser || currentUser.uid !== state.profileUid) return;
     const { doc, updateDoc } = fs();
     await updateDoc(doc(db(), 'users', state.profileUid), {
       profileTheme: state.theme,
@@ -818,15 +820,20 @@
     state.profileUid = uid;
     state.isSelf = isSelf;
 
+    // Hide the Theme tab button entirely for visitors — only the profile owner sees it
+    const themeTabBtn = document.getElementById('tabThemesLink');
+    if (themeTabBtn) themeTabBtn.style.display = isSelf ? '' : 'none';
+
     const saved = await loadThemeData(uid).catch(() => ({ theme: {}, savedThemes: [], activeThemeId: null }));
     state.theme = { ...DEFAULT_THEME, ...saved.theme };
     state.savedThemes = Array.isArray(saved.savedThemes) ? saved.savedThemes : [];
     state.activeThemeId = saved.activeThemeId || null;
 
-    // Apply theme to the profile immediately
+    // Apply theme to the profile immediately (visible to everyone)
     applyThemeToProfile(uid, state.theme);
 
-    renderThemeTab();
+    // Only render the editable theme tab if this is the owner
+    if (isSelf) renderThemeTab();
   }
 
   function cleanupThemeTab() {

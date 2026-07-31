@@ -16023,12 +16023,14 @@ function switchProfileTab(t) {
             window.snxMusic.initMusicTab(window.activeProfileUid, isSelf);
         }
     } else if (t === 'themes') {
+        const isSelf = !!(window._snxCurrentUser && window.activeProfileUid === window._snxCurrentUser.uid);
+        // Only the profile owner can open the theme editor tab
+        if (!isSelf) return;
         const tl = document.getElementById('tabThemesLink');
         if (tl) tl.classList.add('active');
         const el = document.getElementById('tabContentThemes');
         if (el) el.style.display = 'block';
         if (window.activeProfileUid && typeof window.snxTheme?.initThemeTab === 'function') {
-            const isSelf = !!(window._snxCurrentUser && window.activeProfileUid === window._snxCurrentUser.uid);
             window.snxTheme.initThemeTab(window.activeProfileUid, isSelf);
         }
     }

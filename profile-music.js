@@ -71,18 +71,49 @@
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
+      // Timeout: 5 minutes for large files — prevents infinite hang
+      xhr.timeout = 5 * 60 * 1000;
+      let lastLoaded = 0;
+      let lastTime = Date.now();
+
       xhr.open('POST', R2_WORKER_URL + '/upload-music');
-      xhr.upload.onprogress = e => { if (onProgress && e.lengthComputable) onProgress((e.loaded / e.total) * 100); };
+
+      xhr.upload.onprogress = e => {
+        if (!e.lengthComputable) return;
+        const pct = (e.loaded / e.total) * 100;
+        // Calculate upload speed (bytes/sec)
+        const now = Date.now();
+        const elapsed = (now - lastTime) / 1000;
+        if (elapsed > 0.5) {
+          const bytesPerSec = (e.loaded - lastLoaded) / elapsed;
+          lastLoaded = e.loaded;
+          lastTime = now;
+          if (onProgress) onProgress(pct, bytesPerSec, e.loaded, e.total);
+        } else {
+          if (onProgress) onProgress(pct, null, e.loaded, e.total);
+        }
+      };
+
       xhr.onload = () => {
         let resp;
         try { resp = JSON.parse(xhr.responseText); } catch { resp = {}; }
         if (xhr.status >= 200 && xhr.status < 300 && resp.url && resp.key) {
           resolve({ url: resp.url, key: resp.key });
+        } else if (xhr.status === 403) {
+          reject(new Error('Permission denied — upload not authorized.'));
+        } else if (xhr.status === 415) {
+          reject(new Error('File format not supported by the server.'));
+        } else if (xhr.status === 413) {
+          reject(new Error('File too large (max 200 MB).'));
         } else {
-          reject(new Error(resp.error || `R2 upload failed (HTTP ${xhr.status})`));
+          reject(new Error(resp.error || `Storage upload failed (HTTP ${xhr.status})`));
         }
       };
-      xhr.onerror = () => reject(new Error('Network error during R2 upload'));
+
+      xhr.onerror  = () => reject(new Error('Network error — check your connection and try again.'));
+      xhr.ontimeout = () => reject(new Error('Upload timed out — the file may be too large or the connection is too slow.'));
+      xhr.onabort  = () => reject(new Error('Upload cancelled.'));
+
       xhr.send(formData);
     });
   }
@@ -680,65 +711,92 @@
     });
   }
 
-  function setUploadStatus(msg) {
+  function setUploadStatus(msg, speed) {
     const el = document.getElementById('snxMusicUploadStatus');
-    if (el) el.textContent = msg;
+    if (!el) return;
+    if (speed != null && speed > 0) {
+      let speedStr;
+      if (speed >= 1024 * 1024) speedStr = (speed / (1024 * 1024)).toFixed(1) + ' MB/s';
+      else if (speed >= 1024) speedStr = (speed / 1024).toFixed(0) + ' KB/s';
+      else speedStr = speed.toFixed(0) + ' B/s';
+      el.textContent = msg + '  (' + speedStr + ')';
+    } else {
+      el.textContent = msg;
+    }
   }
 
   async function submitUploads() {
     if (!state.profileUid) { toast('Not logged in.', 'error'); return; }
+    if (!_pendingFiles.length) { toast('No files selected.', 'error'); return; }
+
+    // Validate all files before starting
+    for (const f of _pendingFiles) {
+      if (!ALLOWED_AUDIO.includes(f.type) && !ALLOWED_AUDIO_EXT.test(f.name)) {
+        toast(`File format not supported: ${f.name}`, 'error');
+        return;
+      }
+      if (f.size > MAX_AUDIO_MB * 1024 * 1024) {
+        toast(`File too large (max ${MAX_AUDIO_MB} MB): ${f.name}`, 'error');
+        return;
+      }
+    }
 
     // Verify Firebase is ready before doing anything
     try { fs(); db(); } catch (e) {
-      toast(e.message, 'error');
+      toast('Database not ready. Please wait a moment and try again.', 'error');
       console.error('[SNX Music] Firebase not ready:', e);
       return;
     }
 
     const btn = document.getElementById('snxMusicUploadBtn');
+    const cancelBtn = document.getElementById('snxMusicCancelBtn');
     const progressWrap = document.getElementById('snxMusicProgress');
     const progressBar = document.getElementById('snxMusicProgressBar');
-    if (btn) btn.disabled = true;
+
+    // Lock UI — prevent double-submit and cancel during upload
+    if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
+    if (cancelBtn) cancelBtn.disabled = true;
     if (progressWrap) progressWrap.style.display = 'block';
     if (progressBar) progressBar.style.width = '0%';
-    setUploadStatus('');
+    setUploadStatus('Starting upload…');
 
     const formEl = document.getElementById('snxMusicFormFields');
     const uid = state.profileUid;
     const results = [];
     const total = _pendingFiles.length;
+    let firstSuccessId = null;
 
     for (let i = 0; i < total; i++) {
       const f = _pendingFiles[i];
-      setUploadStatus(`Uploading ${i + 1} of ${total}: ${f.name}…`);
 
       // Collect text fields — skip file inputs (type="file")
       const fields = {};
       if (formEl) {
         formEl.querySelectorAll(`[data-fi="${i}"][data-field]`).forEach(el => {
-          if (el.type !== 'file') {
-            fields[el.dataset.field] = el.value || '';
-          }
+          if (el.type !== 'file') fields[el.dataset.field] = el.value || '';
         });
-        // Artwork file input is identified by dedicated id, not data-field
         const artInput = document.getElementById(`snxArtFile_${i}`);
         if (artInput && artInput.files[0]) fields.artFile = artInput.files[0];
       }
 
       try {
-        // 1. Build the R2 key using the required path structure
+        // Step 1: Build R2 key
         const safeFileName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const timestamp = Date.now();
         const r2Key = `profiles/${uid}/music/${timestamp}_${safeFileName}`;
-        setUploadStatus(`Uploading audio ${i + 1}/${total} to R2…`);
 
-        // 2. Upload audio to Cloudflare R2 via Worker
-        const { url: audioUrl, key: audioR2Key } = await uploadToR2(r2Key, f, uid, pct => {
+        // Step 2: Upload audio to Cloudflare R2
+        setUploadStatus(`Uploading track ${i + 1} of ${total}: ${f.name}…`);
+        const { url: audioUrl, key: audioR2Key } = await uploadToR2(r2Key, f, uid, (pct, speed) => {
           const overall = ((i / total) + (pct / 100 / total)) * 100;
           if (progressBar) progressBar.style.width = Math.round(overall) + '%';
+          setUploadStatus(
+            `Uploading track ${i + 1} of ${total} — ${Math.round(pct)}%`,
+            speed
+          );
         });
 
-        // 3. Upload artwork to R2 if provided
+        // Step 3: Upload artwork to R2 if provided
         let artUrl = '';
         let artR2Key = '';
         if (fields.artFile instanceof File) {
@@ -750,19 +808,19 @@
             .catch(e => { console.warn('[SNX Music] Artwork upload failed:', e); });
         }
 
-        // 4. Read audio duration locally (with 10s timeout so it never hangs)
-        setUploadStatus(`Reading metadata for track ${i + 1}…`);
+        // Step 4: Read audio duration (10s timeout so it never hangs)
+        setUploadStatus(`Reading track ${i + 1} metadata…`);
         const dur = await Promise.race([
           getAudioDuration(f),
           new Promise(res => setTimeout(() => res(0), 10000)),
         ]).catch(() => 0);
 
-        // 5. Save full metadata record to Firestore (only after R2 succeeds)
-        setUploadStatus(`Saving track ${i + 1} to library…`);
+        // Step 5: Save to Firestore (only after R2 upload confirmed)
+        setUploadStatus(`Saving track ${i + 1} to your library…`);
         const now = new Date().toISOString();
         const songRef = await addSong({
           userId:      uid,
-          ownerUid:    uid,           // keep for backward compat queries
+          ownerUid:    uid,
           title:       fields.title  || f.name,
           artist:      fields.artist || '',
           album:       fields.album  || '',
@@ -774,48 +832,66 @@
           duration:    dur,
           r2Key:       audioR2Key,
           downloadURL: audioUrl,
-          url:         audioUrl,      // keep for backward compat playback
+          url:         audioUrl,
           artR2Key:    artR2Key,
           artworkURL:  artUrl,
-          artUrl:      artUrl,        // keep for backward compat display
+          artUrl:      artUrl,
           visibility:  'public',
           createdAt:   now,
           updatedAt:   now,
         });
 
         console.log('[SNX Music] Saved song to R2 + Firebase:', songRef.id, { r2Key: audioR2Key, url: audioUrl });
-        results.push({ ok: true, id: songRef.id });
+        if (!firstSuccessId) firstSuccessId = songRef.id;
+        results.push({ ok: true, id: songRef.id, url: audioUrl, title: fields.title || f.name, artist: fields.artist || '', artUrl });
 
       } catch (err) {
-        console.error(`[SNX Music] Failed to upload "${f.name}":`, err);
-        results.push({ ok: false, name: f.name, err: err.message || String(err) });
+        console.error(`[SNX Music] Upload step failed for "${f.name}":`, err);
+        // Identify the failed step from the error message
+        let errMsg = err.message || String(err);
+        if (errMsg.includes('Permission denied') || errMsg.includes('permission')) errMsg = 'Permission denied — check your account.';
+        else if (errMsg.includes('Network error') || errMsg.includes('network')) errMsg = 'Network error — check your connection.';
+        else if (errMsg.includes('Database save') || errMsg.includes('Firestore') || errMsg.includes('PERMISSION_DENIED')) errMsg = 'Database save failed — ' + errMsg;
+        results.push({ ok: false, name: f.name, err: errMsg });
       }
     }
 
-    // Reset UI state
-    if (btn) btn.disabled = false;
-    if (progressBar) progressBar.style.width = '0%';
-    if (progressWrap) progressWrap.style.display = 'none';
+    // ── Reset UI state (always runs, even if upload failed) ──
+    if (btn) { btn.disabled = false; btn.textContent = 'Upload All'; }
+    if (cancelBtn) cancelBtn.disabled = false;
+    if (progressBar) progressBar.style.width = '100%';
+    setTimeout(() => {
+      if (progressWrap) progressWrap.style.display = 'none';
+      if (progressBar) progressBar.style.width = '0%';
+    }, 600);
     setUploadStatus('');
-    document.getElementById('snxMusicForm').classList.remove('open');
+
+    const form = document.getElementById('snxMusicForm');
+    if (form) form.classList.remove('open');
     _pendingFiles = [];
 
-    // Reset file input so the same file can be selected again
     const fileInp = document.getElementById('snxMusicFileInput');
     if (fileInp) fileInp.value = '';
 
+    // ── Show result toast ──
     const failed = results.filter(r => !r.ok);
-    if (failed.length && results.length === failed.length) {
-      // All failed — show first error
+    if (!results.length) {
+      toast('No files were uploaded.', 'error');
+    } else if (failed.length && results.length === failed.length) {
       toast(`Upload failed: ${failed[0].err}`, 'error');
     } else if (failed.length) {
-      toast(`${results.length - failed.length} uploaded, ${failed.length} failed. Check console for details.`, 'error');
+      toast(`${results.length - failed.length} track${results.length - failed.length > 1 ? 's' : ''} uploaded. ${failed.length} failed: ${failed[0].err}`, 'error');
     } else {
       toast(`🎵 ${results.length} track${results.length > 1 ? 's' : ''} uploaded successfully!`);
     }
 
-    // Refresh the music library immediately — no page reload needed
+    // ── Refresh music library and auto-load first new track ──
     await reload();
+    if (firstSuccessId) {
+      // Find the newly uploaded song in the refreshed list and load it
+      const newIdx = state.songs.findIndex(s => s.id === firstSuccessId);
+      if (newIdx >= 0) loadTrack(newIdx, false);
+    }
   }
 
   function getAudioDuration(file) {
