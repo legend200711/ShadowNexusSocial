@@ -52,10 +52,12 @@
 }
 
 /* ── Tail pointing toward the Grim Reaper ───────────────── */
+/* Default: bubble is to the LEFT of a right-side character — tail points RIGHT */
 #grim-speech-bubble::after {
   content: '';
   position: absolute;
-  bottom: 28px;
+  top: 20px;
+  bottom: auto;
   right: -11px;
   width: 0; height: 0;
   border-top: 10px solid transparent;
@@ -65,7 +67,8 @@
 #grim-speech-bubble::before {
   content: '';
   position: absolute;
-  bottom: 29px;
+  top: 21px;
+  bottom: auto;
   right: -9px;
   width: 0; height: 0;
   border-top: 9px solid transparent;
@@ -74,7 +77,12 @@
   z-index: 1;
 }
 
-/* Flip tail for right-side character */
+/* When character is at top the bubble drops down → use top-right transform-origin */
+#grim-speech-root.gsb-right #grim-speech-bubble {
+  transform-origin: top left;
+}
+
+/* Tail on the LEFT side when character is to the RIGHT of bubble */
 #grim-speech-root.gsb-right #grim-speech-bubble::after {
   right: auto;
   left: -11px;
@@ -86,9 +94,6 @@
   left: -9px;
   border-left: none;
   border-right: 9px solid rgba(18,11,4,.97);
-}
-#grim-speech-root.gsb-right #grim-speech-bubble {
-  transform-origin: bottom left;
 }
 
 /* ── Header row ─────────────────────────────────────────── */
@@ -564,12 +569,19 @@
 /* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 480px) {
   #grim-speech-root {
-    max-width: calc(100vw - 20px);
+    /* On very small phones keep bubble from going off-screen */
+    max-width: calc(100vw - 16px);
+    /* Override JS-set right/left to clamp within viewport */
+    right: 8px !important;
+    left: auto !important;
   }
   #grim-speech-bubble {
     font-size: 12px;
     padding: 10px 11px 10px;
+    /* Hide lateral tail on phones — there's no space for it */
   }
+  #grim-speech-bubble::after,
+  #grim-speech-bubble::before { display: none; }
   .gsb-slider { width: 46px; }
   #gsb-nav-row { gap: 3px; }
   .gsb-nav-btn { font-size: 9.5px; padding: 2px 7px; }

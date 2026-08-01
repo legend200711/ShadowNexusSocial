@@ -24,8 +24,8 @@
 
   /* ── Default configuration ─────────────────────────────────── */
   var CFG = Object.assign({
-    position : 'bottom-right',
-    size     : 'medium',
+    position : 'top-right',
+    size     : 'auto',   /* 'auto' = responsive; or 'small'|'medium'|'large' */
     offsetX  : 0,
     offsetY  : 0
   }, global.GrimCharConfig || {});
@@ -33,10 +33,20 @@
   /* Size presets: [stageW, stageH] in px at 1× scale.
      The stage itself is then CSS-scaled to fit the screen. */
   var SIZES = {
-    small  : [160, 190],
-    medium : [240, 286],
-    large  : [320, 381]
+    small  : [130, 155],   /* small phone  ≤ 480 px  */
+    medium : [185, 220],   /* large phone  ≤ 768 px  */
+    large  : [250, 298],   /* tablet       ≤ 1024 px */
+    xlarge : [320, 381]    /* desktop      > 1024 px */
   };
+
+  /* Responsive size: auto-select preset based on viewport width */
+  function gcwResponsiveSize() {
+    var w = window.innerWidth;
+    if (w <= 480)  return 'small';
+    if (w <= 768)  return 'medium';
+    if (w <= 1024) return 'large';
+    return 'xlarge';
+  }
 
   /* Logical canvas dimensions — character is drawn in these units */
   var CW = 420, CH = 500;
@@ -50,10 +60,21 @@
     style.textContent = [
       '#grim-char-widget{',
         'position:fixed;',
-        'pointer-events:none;',   /* transparent to page — click goes to overlay */
+        'pointer-events:none;',
         'z-index:999990;',
         'line-height:0;',
-        'transition:bottom .35s ease,top .35s ease,left .35s ease,right .35s ease;',
+        /* smooth corner transitions AND idle-fade transition */
+        'transition:bottom .35s ease,top .35s ease,left .35s ease,right .35s ease,opacity .8s ease;',
+        'opacity:1;',
+      '}',
+      /* Idle-faded state — character becomes translucent when idle */
+      '#grim-char-widget.gcw-idle{',
+        'opacity:0.28;',
+      '}',
+      /* Wake back instantly on hover */
+      '#grim-char-widget:hover{',
+        'opacity:1 !important;',
+        'transition-duration:.18s,0s,0s,0s,0s !important;',
       '}',
       '#grim-char-stage{',
         'position:relative;',
@@ -66,14 +87,13 @@
       '}',
       '#grim-scene-cv{z-index:1;}',
       '#grim-char-cv {z-index:2;}',
-      /* Click overlay sits above the canvases — intercepts taps/clicks */
       '#grim-char-clickzone{',
         'position:absolute;',
         'inset:0;',
         'z-index:3;',
         'cursor:pointer;',
         'pointer-events:all;',
-        'border-radius:50% 50% 40% 40%;', /* roughly follow the robe shape */
+        'border-radius:50% 50% 40% 40%;',
         '-webkit-tap-highlight-color:transparent;',
         'touch-action:manipulation;',
       '}',
@@ -150,7 +170,8 @@
   }
 
   function applySize(sz) {
-    var preset = SIZES[sz] || SIZES.medium;
+    var effective = (sz === 'auto') ? gcwResponsiveSize() : sz;
+    var preset = SIZES[effective] || SIZES.large;
     var targetW = preset[0];
     var targetH = preset[1];
 
@@ -596,17 +617,43 @@
   }
 
   /* ── Lazy init via IntersectionObserver / requestIdleCallback ── */
+  /* ── Idle-fade system ────────────────────────────────────────── */
+  var idleTimer = null;
+  var idleDelay = 6000; /* ms before fading */
+
+  function gcwWake() {
+    if (!root) return;
+    root.classList.remove('gcw-idle');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(gcwGoIdle, idleDelay);
+  }
+
+  function gcwGoIdle() {
+    if (!root) return;
+    root.classList.add('gcw-idle');
+  }
+
+  function gcwInitIdleFade() {
+    /* Wake on any pointer interaction with the character */
+    root.addEventListener('mouseenter', gcwWake);
+    root.addEventListener('touchstart', gcwWake, { passive: true });
+    /* Wake when speech bubble opens — GrimSpeech dispatches a custom event */
+    document.addEventListener('grimBubbleShow', gcwWake);
+    /* Start idle countdown */
+    gcwWake();
+  }
+
   var ready = false;
   function start() {
     buildDOM();
     applyPosition(CFG.position, CFG.offsetX, CFG.offsetY);
     applySize(CFG.size);
+    gcwInitIdleFade();
     ready = true;
     /* Responsive resize + orientation change (some Android only fires orientationchange) */
     function onViewportChange() { applySize(CFG.size); }
     window.addEventListener('resize', onViewportChange);
     window.addEventListener('orientationchange', function() {
-      /* Brief delay so new dimensions are available */
       setTimeout(onViewportChange, 150);
     });
     loop();
@@ -646,7 +693,9 @@
       CFG.offsetX = offX;
       CFG.offsetY = offY;
       if (ready) applyPosition(CFG.position, CFG.offsetX, CFG.offsetY);
-    }
+    },
+    /** Wake from idle immediately (call when opening conversation) */
+    wake: gcwWake
   };
 
 }(window));

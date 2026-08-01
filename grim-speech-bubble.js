@@ -1232,20 +1232,31 @@
     var cr = charRoot.getBoundingClientRect();
     var vw = window.innerWidth;
     var vh = window.innerHeight;
-    var charOnRight = (cr.left + cr.width / 2) > vw / 2;
+    var charOnRight  = (cr.left + cr.width  / 2) > vw / 2;
+    var charOnTop    = (cr.top  + cr.height / 2) < vh / 2;
 
+    /* Determine horizontal placement — bubble always on the opposite side
+       to the character when space allows, else same side */
     if (charOnRight) {
+      /* Character is on the right → bubble appears to its LEFT */
       rootEl.classList.add('gsb-right');
       var leftEdge = cr.left - 8;
-      rootEl.style.right  = (vw - leftEdge) + 'px';
-      rootEl.style.left   = '';
-      rootEl.style.bottom = Math.max(8, vh - cr.bottom + cr.height * 0.25) + 'px';
-      rootEl.style.top    = '';
+      rootEl.style.right = (vw - leftEdge) + 'px';
+      rootEl.style.left  = '';
     } else {
+      /* Character is on the left → bubble appears to its RIGHT */
       rootEl.classList.remove('gsb-right');
-      var rightEdge = cr.right + 8;
-      rootEl.style.left   = rightEdge + 'px';
-      rootEl.style.right  = '';
+      rootEl.style.left  = (cr.right + 8) + 'px';
+      rootEl.style.right = '';
+    }
+
+    /* Determine vertical placement */
+    if (charOnTop) {
+      /* Character is in the top half → bubble drops down from character top */
+      rootEl.style.top    = Math.max(8, cr.top) + 'px';
+      rootEl.style.bottom = '';
+    } else {
+      /* Character is in the bottom half → bubble floats up */
       rootEl.style.bottom = Math.max(8, vh - cr.bottom + cr.height * 0.25) + 'px';
       rootEl.style.top    = '';
     }
@@ -1262,6 +1273,11 @@
     visible = true;
     bubbleEl.classList.remove('gsb-hide');
     requestAnimationFrame(function () { bubbleEl.classList.add('gsb-show'); });
+    /* Wake the character from idle fade */
+    try { document.dispatchEvent(new CustomEvent('grimBubbleShow')); } catch(e) {}
+    if (typeof global.GrimChar !== 'undefined' && typeof global.GrimChar.wake === 'function') {
+      global.GrimChar.wake();
+    }
     /* Track opens */
     try {
       var s = JSON.parse(localStorage.getItem('grimStats')) || { opens:0, msgs:0 };
