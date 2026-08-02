@@ -531,6 +531,12 @@ canvas{
 
 <div id="grim-ai-root">
 
+  <!-- Status bar (top — mood + connection indicator) -->
+  <div id="status-bar">
+    <div class="indicator" id="ai-indicator"></div>
+    <span class="mood" id="mood-label">Calm and Present</span>
+    <span id="connection-status" style="margin-left:auto;font-size:.65rem;color:rgba(180,140,60,.4);">◆ Ready</span>
+  </div>
 
   <!-- Settings button (top right) -->
   <div id="settings-btn" role="button" aria-label="Settings" tabindex="0"></div>
@@ -553,12 +559,14 @@ canvas{
 
     <!-- Quick topic chips -->
     <div id="topic-chips">
-      <span class="topic-chip" data-topic="I need to talk about how I'm feeling">' Feelings</span>
-      <span class="topic-chip" data-topic="I feel anxious"> Anxiety</span>
-      <span class="topic-chip" data-topic="I'm struggling with motivation"> Motivation</span>
-      <span class="topic-chip" data-topic="Tell me about philosophy">"- Philosophy</span>
-      <span class="topic-chip" data-topic="Let's talk about music"> Music</span>
-      <span class="topic-chip" data-topic="Tell me a story">" Stories</span>
+      <span class="topic-chip" data-topic="I need to talk about how I'm feeling">🫀 Feelings</span>
+      <span class="topic-chip" data-topic="I feel anxious">😤 Anxiety</span>
+      <span class="topic-chip" data-topic="I'm struggling with motivation">🔥 Motivation</span>
+      <span class="topic-chip" data-topic="Tell me about philosophy and the meaning of life">📖 Philosophy</span>
+      <span class="topic-chip" data-topic="Let's talk about music I love">🎵 Music</span>
+      <span class="topic-chip" data-topic="Tell me a story or let's build one together">📜 Stories</span>
+      <span class="topic-chip" data-topic="I need support or someone to talk to">🫂 Support</span>
+      <span class="topic-chip" data-topic="I need help with something or have a question">💬 Help</span>
     </div>
 
     <!-- Input row -->
@@ -574,7 +582,7 @@ canvas{
 
 <!-- Settings panel (slide-in from right) -->
 <div id="settings-panel">
-  <h2> Settings</h2>
+  <h2>⚙️ Settings</h2>
   
   <div class="setting-row">
     <label for="toggle-voice">Voice (Text-to-Speech)</label>
@@ -614,7 +622,7 @@ canvas{
     </p>
   </div>
 
-  <button class="btn-secondary" id="clear-memory-btn">-' Clear Conversation</button>
+  <button class="btn-secondary" id="clear-memory-btn">🗑 Clear Conversation</button>
   
   <div style="margin-top:auto;padding-top:20px;border-top:1px solid rgba(180,130,40,.1);font-size:.65rem;color:rgba(160,120,50,.3);text-align:center;letter-spacing:.06em;">
     Shadow Reaper AI Companion<br>
@@ -1470,14 +1478,14 @@ async function callAI(userText) {
     const text = data.choices?.[0]?.message?.content?.trim() || '';
 
     if (text && text.length > 8) {
-      updateConnectionStatus('- AI Active', 'rgba(100,200,120,.7)');
+      updateConnectionStatus('◆ AI Active', 'rgba(100,200,120,.7)');
       return { text, source: 'ai' };
     } else {
       throw new Error('Empty response');
     }
   } catch (error) {
     console.error('AI API error:', error);
-    updateConnectionStatus('- Offline', 'rgba(140,100,30,.5)');
+    updateConnectionStatus('◆ Offline', 'rgba(140,100,30,.5)');
     return { text: getFallbackResponse(userText), source: 'fallback' };
   }
 }
@@ -1493,13 +1501,27 @@ function updateConnectionStatus(text, color) {
 // -- Message display --
 const messageDisplay = document.getElementById('message-display');
 
+function formatTime() {
+  const d = new Date();
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 function appendMessage(role, text) {
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:' + (role === 'user' ? 'flex-end' : 'flex-start') + ';gap:3px;margin-bottom:2px;';
+
   const msg = document.createElement('div');
   msg.className = `msg ${role}`;
 
+  const ts = document.createElement('span');
+  ts.style.cssText = 'font-size:.6rem;color:rgba(160,130,60,.35);letter-spacing:.04em;padding:0 4px;';
+  ts.textContent = formatTime();
+
   if (role === 'grim') {
     msg.textContent = '';
-    messageDisplay.appendChild(msg);
+    wrapper.appendChild(msg);
+    wrapper.appendChild(ts);
+    messageDisplay.appendChild(wrapper);
     messageDisplay.scrollTop = messageDisplay.scrollHeight;
 
     // Typewriter effect
@@ -1518,7 +1540,9 @@ function appendMessage(role, text) {
     type();
   } else {
     msg.textContent = text;
-    messageDisplay.appendChild(msg);
+    wrapper.appendChild(msg);
+    wrapper.appendChild(ts);
+    messageDisplay.appendChild(wrapper);
     messageDisplay.scrollTop = messageDisplay.scrollHeight;
   }
 }
@@ -1667,6 +1691,9 @@ async function sendMessage() {
   const text = input.value.trim();
   if (!text) return;
 
+  // Interrupt any ongoing TTS so the user can send without waiting
+  if (synth) synth.cancel();
+
   input.value = '';
 
   appendMessage('user', text);
@@ -1740,10 +1767,12 @@ document.getElementById('toggle-memory').addEventListener('change', (e) => {
 
 document.getElementById('api-key-input').addEventListener('input', (e) => {
   State.apiKey = e.target.value.trim();
+  // Persist key so it survives page refresh
+  try { localStorage.setItem('grimAIKey', State.apiKey); } catch(_) {}
   if (State.apiKey.length > 8) {
-    updateConnectionStatus('- Key Set', 'rgba(180,160,80,.7)');
+    updateConnectionStatus('◆ Key Set', 'rgba(180,160,80,.7)');
   } else {
-    updateConnectionStatus('- Offline', 'rgba(140,100,30,.5)');
+    updateConnectionStatus('◆ Offline', 'rgba(140,100,30,.5)');
   }
 });
 
@@ -1801,6 +1830,17 @@ function showGreeting() {
 
 // -- Initialize --
 function initialize() {
+  // Restore saved API key
+  try {
+    const saved = localStorage.getItem('grimAIKey');
+    if (saved && saved.length > 8) {
+      State.apiKey = saved;
+      const keyInput = document.getElementById('api-key-input');
+      if (keyInput) keyInput.value = saved;
+      updateConnectionStatus('◆ Key Loaded', 'rgba(100,200,120,.7)');
+    }
+  } catch(_) {}
+
   // Start animation loop
   animationLoop();
 

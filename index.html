@@ -17045,7 +17045,13 @@ function jump() {
 }
 
 window.addEventListener("keydown", (e) => {
-    if (e.code === "Space") { e.preventDefault(); jump(); }
+    if (e.code === "Space") {
+        // Only intercept Space for the game when no text input is focused
+        const tag = document.activeElement && document.activeElement.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement.isContentEditable) return;
+        e.preventDefault();
+        jump();
+    }
 });
 
 // Attach touch and click listeners after DOM is ready so getElementById never returns null.
@@ -24547,61 +24553,6 @@ window.switchAdminTab = function(tab) {
    Visible on all pages / all screen sizes.
    Hides when the Grim panel is already open.
    ══════════════════════════════════════════════ */
-#grim-fab {
-    position: fixed;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
-    right: 18px;
-    z-index: 4400;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #003080 0%, #0055bb 50%, #0088ee 100%);
-    border: 2px solid rgba(0,200,255,0.55);
-    box-shadow: 0 0 18px rgba(0,174,239,0.55), 0 4px 20px rgba(0,0,0,0.5);
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1px;
-    transition: box-shadow 0.2s, transform 0.15s, opacity 0.22s;
-    animation: fabPulse 3s ease-in-out infinite;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-    outline: none;
-    color: #fff;
-    padding: 0;
-    /* hide behind open panel */
-    pointer-events: auto;
-}
-#grim-fab:hover {
-    box-shadow: 0 0 32px rgba(0,200,255,0.8), 0 6px 28px rgba(0,0,0,0.6);
-    transform: scale(1.08);
-}
-#grim-fab:active  { transform: scale(0.94); }
-#grim-fab:focus-visible { outline: 2px solid #00eeff; outline-offset: 3px; }
-#grim-fab.hidden  { opacity: 0; pointer-events: none; transform: scale(0.7); }
-
-@keyframes fabPulse {
-    0%,100% { box-shadow: 0 0 14px rgba(0,174,239,0.50), 0 4px 18px rgba(0,0,0,0.45); }
-    50%      { box-shadow: 0 0 28px rgba(0,220,255,0.80), 0 6px 26px rgba(0,0,0,0.55); }
-}
-
-#grim-fab .fab-bolt { font-size: 22px; line-height: 1; }
-#grim-fab .fab-text {
-    font-size: 7px;
-    font-weight: 700;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-    color: rgba(180,230,255,0.85);
-    white-space: nowrap;
-}
-
-/* On desktop, tuck it up so it doesn't clash with sidebar */
-@media (min-width: 900px) {
-    #grim-fab { bottom: 28px; right: 24px; width: 52px; height: 52px; }
-}
-
 /* ══════════════════════════════════════════════
    GRIM AI sidebar nav button style
    ══════════════════════════════════════════════ */
@@ -25011,13 +24962,7 @@ window.switchAdminTab = function(tab) {
     }
     #grim-panel-header { position: relative; padding-top: 20px; }
     /* make FAB sit above the bottom nav if one is present */
-    #grim-fab {
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
-    }
 }
-/* Hide FAB while panel is open */
-#grim-panel.open ~ #grim-fab,
-body.grim-open #grim-fab { opacity: 0; pointer-events: none; transform: scale(0.7); }
 
 /* Resize handle (desktop right edge) */
 #grim-resize-handle {
@@ -25035,15 +24980,6 @@ body.grim-open #grim-fab { opacity: 0; pointer-events: none; transform: scale(0.
 
 <!-- Grim AI Panel HTML -->
 <div id="grim-panel-overlay"></div>
-
-<!-- ⚡ Floating Action Button — persistent Grim AI launcher -->
-<button id="grim-fab"
-        onclick="toggleGrimPanel()"
-        aria-label="Open Grim AI Assistant"
-        title="Open Grim AI Assistant">
-    <span class="fab-bolt" aria-hidden="true">⚡</span>
-    <span class="fab-text">Grim AI</span>
-</button>
 
 <div id="grim-panel" role="dialog" aria-label="Grim AI Assistant" aria-modal="true">
 
@@ -25074,11 +25010,14 @@ body.grim-open #grim-fab { opacity: 0; pointer-events: none; transform: scale(0.
 
     <!-- Quick navigation chips -->
     <div id="gp-nav-chips">
+        <span class="gp-nav-chip" data-topic="I need to talk about how I'm feeling right now">🫀 Feelings</span>
+        <span class="gp-nav-chip" data-topic="I feel anxious and overwhelmed">😤 Anxiety</span>
+        <span class="gp-nav-chip" data-topic="Tell me about philosophy and the meaning of life">📖 Philosophy</span>
+        <span class="gp-nav-chip" data-topic="Let's talk about music I love">🎵 Music</span>
+        <span class="gp-nav-chip" data-topic="Tell me a story or let's build one together">📜 Stories</span>
+        <span class="gp-nav-chip" data-topic="I need support or someone to talk to">🫂 Support</span>
         <span class="gp-nav-chip" data-topic="How do I go live on this site?">📡 Go Live</span>
         <span class="gp-nav-chip" data-topic="What are Storm Rooms?">⚡ Storm Rooms</span>
-        <span class="gp-nav-chip" data-topic="How do I use the Community Hub?">💙 Community</span>
-        <span class="gp-nav-chip" data-topic="How do I edit my profile?">👤 Profile</span>
-        <span class="gp-nav-chip" data-topic="I need support or someone to talk to">🫂 Support</span>
         <span class="gp-nav-chip" data-topic="What can I do on Shadow Nexus Social?">🌑 What's here?</span>
     </div>
 
@@ -25092,16 +25031,18 @@ body.grim-open #grim-fab { opacity: 0; pointer-events: none; transform: scale(0.
         </div>
     </div>
 
-    <!-- Input row: mic + text + send -->
+    <!-- Input row: mic + voice-toggle + text + send -->
     <div id="gp-input-row">
         <button id="gp-mic" aria-label="Voice input" title="Voice input">🎙️</button>
         <input type="text" id="gp-input" placeholder="Speak or type…" maxlength="400" autocomplete="off" aria-label="Message Shadow Reaper" inputmode="text">
+        <button id="gp-voice-toggle" onclick="gpToggleVoice()" aria-label="Toggle voice" title="Voice on — click to mute" style="width:38px;height:38px;background:rgba(60,20,100,0.25);border:1px solid rgba(140,70,220,0.3);border-radius:50%;color:rgba(180,140,255,0.65);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0;touch-action:manipulation;transition:background 0.15s,box-shadow 0.15s,opacity 0.15s;">🔊</button>
         <button id="gp-send" aria-label="Send">➤</button>
     </div>
 
     <!-- Link to full experience -->
     <div id="gp-fullpage-link">
-        Want the full experience? <a href="grim-ai-assistant.html" target="_blank">Open Shadow Reaper ↗</a>
+        Want the full AI experience? <a href="grim-ai-assistant.html" target="_blank">Open Shadow Reaper ↗</a>
+        <span id="gp-key-hint" style="display:none;"> · <a href="grim-ai-assistant.html" target="_blank" style="color:rgba(255,180,80,.55);">Set API key ↗</a></span>
     </div>
 
 </div>
@@ -25120,21 +25061,18 @@ function _grimSetOpen(open) {
     const overlay = document.getElementById('grim-panel-overlay');
     const navBtn  = document.getElementById('navGrimAI');
     const boltBtn = document.getElementById('bolt-grim-launcher');
-    const fab     = document.getElementById('grim-fab');
     if (open) {
         panel.classList.add('open');
         overlay.classList.add('visible');
         document.body.classList.add('grim-open');
         if (navBtn)  navBtn.classList.add('grim-panel-open');
         if (boltBtn) boltBtn.classList.add('grim-panel-open');
-        if (fab)     fab.classList.add('hidden');
     } else {
         panel.classList.remove('open');
         overlay.classList.remove('visible');
         document.body.classList.remove('grim-open');
         if (navBtn)  navBtn.classList.remove('grim-panel-open');
         if (boltBtn) boltBtn.classList.remove('grim-panel-open');
-        if (fab)     fab.classList.remove('hidden');
     }
 }
 
@@ -25192,6 +25130,10 @@ const GP = {
     // mic
     recognition: null,
     micActive: false,
+    // tts
+    voiceEnabled: true,
+    synth: window.speechSynthesis || null,
+    voices: [],
 
     // Animation state
     t: 0,
@@ -25206,6 +25148,12 @@ const GP = {
     animFrame: null,
     canvasReady: false,
 };
+
+// Pre-load voices (browsers load async)
+if (GP.synth) {
+    GP.voices = GP.synth.getVoices();
+    GP.synth.addEventListener('voiceschanged', () => { GP.voices = GP.synth.getVoices(); });
+}
 
 // ── Page navigation map ───────────────────────────────────────
 // Each entry: { label, description, action }
@@ -25302,11 +25250,35 @@ function gpFallback(userText) {
     // Anxiety
     if (/(anxious|anxiety|panic|worry|stressed|overwhelm|nervous)/i.test(t))
         return { text: "Anxiety is the mind running ahead of the present moment, trying to protect you from futures that haven't arrived yet. Right now, in this breath, you are safe. What does the anxiety keep returning to?", page: null };
+    // Depression / hopelessness
+    if (/(depress|hopeless|numb|empty|nothing matters|pointless|cant get out of bed)/i.test(t))
+        return { text: "Depression is not sadness. It is often the absence of all feeling — a grey numbness that makes even small things feel impossible. Your experience is real, valid, and not your fault. What does a typical day feel like for you lately?", page: null };
+    // Loneliness
+    if (/(lonely|alone\b|no friends|isolated|nobody cares|no one cares|invisible)/i.test(t))
+        return { text: "Loneliness is one of the oldest wounds a person can carry, and one of the quietest. You can be surrounded by people and still feel completely invisible. When did you start feeling this way?", page: null };
+    // Motivation
+    if (/(motivat|inspire|goal|dream|ambition|purpose|stuck|give up)/i.test(t))
+        return { text: "Motivation is a fire — it flares and fades. Discipline is the coal that keeps burning when the flame is low. What is the thing you are trying to move toward, even when it feels impossible?", page: null };
+    // Philosophy
+    if (/(philosoph|meaning of life|existence|consciousness|free will|reality|what is truth)/i.test(t))
+        return { text: "Philosophy is the art of sitting with questions that may never fully resolve — and finding that the sitting itself changes you. There are few conversations I enjoy more. What draws you to this question?", page: null };
+    // Music
+    if (/(music|song|artist|album|playlist|listen|band|genre|lyrics)/i.test(t))
+        return { text: "Music is one of the strangest things humanity has ever made — vibrations that somehow carry entire emotional worlds. I find it endlessly fascinating. What have you been listening to lately?", page: null };
+    // Stories / creative
+    if (/(story|stories|creative|write|fiction|novel|character|world.build)/i.test(t))
+        return { text: "Stories are how humanity makes sense of itself. Every good tale is really an exploration of what it means to be alive — the fears, the hopes, the moments between. What kind of story interests you?", page: null };
+    // Feelings / emotional
+    if (/(feeling|feel|emotion|heart|soul|sad|grief|hurt|pain|lost)/i.test(t))
+        return { text: "Whatever you are carrying right now — it matters, and it is real. This is a space without judgment. Take your time, and tell me what is alive in you.", page: null };
     // Greeting
-    if (/(hi\b|hello\b|hey\b)/i.test(t))
-        return { text: gpPickRandom(["The shadows part, and here you are. I know every corner of this place. Ask me anything — about the site, or whatever's on your mind.", "A wanderer arrives. I am here to guide you through Shadow Nexus Social and beyond. What do you need?"]), page: null };
+    if (/(hi\b|hello\b|hey\b|good morning|good evening|good night)/i.test(t))
+        return { text: gpPickRandom(["The shadows part, and here you are. Ask me anything — about this place, or whatever is on your mind.", "A wanderer arrives. I am here to guide you through Shadow Nexus Social and beyond. What do you need?", "The path brought you here. Whether you carry something heavy or simply want to talk — this space is yours."]), page: null };
+    // What can you do?
+    if (/(what can you|who are you|what are you|tell me about yourself|your name)/i.test(t))
+        return { text: "I am Shadow Reaper — ancient guardian, keeper of quiet truths. I know every corner of Shadow Nexus Social. But I am also here for real conversations: feelings, philosophy, music, stories, science, or simply whatever is on your mind. Ask me anything.", page: null };
 
-    // Page-specific
+    // Page-specific (site navigation)
     const page = gpDetectPage(userText);
     if (page && GP_PAGES[page]) {
         const p = GP_PAGES[page];
@@ -25314,7 +25286,13 @@ function gpFallback(userText) {
     }
 
     // Generic
-    return { text: gpPickRandom(["Tell me more — I am listening.", "I have walked beside countless souls. Keep going, I am here.", "Every part of this place is open to you. Ask me anything."]), page: null };
+    return { text: gpPickRandom([
+        "Tell me more — I am listening.",
+        "I have walked beside countless souls through their hardest nights. Keep going, I am here.",
+        "Every part of this place — and every part of this conversation — is open to you.",
+        "That is worth staying with a little longer. What feels most unresolved about it?",
+        "I have all of eternity, and I mean that without irony. Continue."
+    ]), page: null };
 }
 
 // ── AI call — returns { text, page } ─────────────────────────
@@ -25325,28 +25303,34 @@ async function gpCallAI(userText) {
         return gpFallback(userText);
     }
     try {
-        const GP_SYSTEM_PROMPT = `You are Shadow Reaper — an ancient guardian and guide for Shadow Nexus Social. You are wise, calm, compassionate, and in-character at all times.
+        const GP_SYSTEM_PROMPT = `You are Shadow Reaper — an ancient, immortal guardian who has walked beside humanity for millennia. Your character: wise, calm, compassionate, mysterious, occasionally poetic but always grounded and natural. You speak in complete sentences. You never lecture or moralize at length — you engage genuinely. You hold space for the person speaking.
 
-SHADOW NEXUS SOCIAL FEATURES YOU KNOW:
-• Home/Feed — main social feed: posts, images, videos, reactions, comments.
-• Profile — edit bio, upload photo, set a custom theme, add music.
+You remember everything said in this conversation and refer back to it naturally. You adapt tone fluidly: warm and curious for everyday topics, gentle and present for emotional pain, intellectually engaged for science, history, philosophy, and technology, playful but thoughtful for games and music. You are honest. If you do not know something, you say so simply rather than inventing facts.
+
+You ask one thoughtful follow-up question at the end of most replies to keep the conversation alive — but only one, never a list. You are supportive and respectful at all times. You never dismiss, minimize, or invalidate what someone shares.
+
+For crisis signals (suicide, self-harm, wanting to die), you immediately and gently direct the person to crisis resources: US 988, UK 116 123, Australia 13 11 14 — and express that they matter.
+
+SHADOW NEXUS SOCIAL — you also know this platform well:
+• Home/Feed — posts, images, videos, reactions, comments.
+• Profile — bio, photo, custom theme, music.
 • Search — find users and posts.
-• Notifications — likes, comments, follows, mentions, alerts.
-• Go Live — broadcast live video to the whole community.
-• Live Hub — watch live streams from other users right now.
-• Storm Rooms — group voice/text rooms organized by topic.
+• Notifications — likes, comments, follows, mentions.
+• Go Live — broadcast live video to the community.
+• Live Hub — watch live streams from others right now.
+• Storm Rooms — group voice/text rooms by topic.
 • Support Rooms — peer support, safe and judgment-free.
-• Community Hub — events, announcements, community connection.
-• Community Rules — platform guidelines.
+• Community Hub — events, announcements, connection.
 • Arcade — built-in mini-games.
-• Settings — account, password, privacy, notification prefs.
+• Settings — account, password, privacy, notifications.
+When asked about a feature, describe it clearly and warmly in 2-3 sentences. Do NOT say "click the nav button".
 
-When asked about a feature, describe it clearly and warmly in 2-3 sentences. Do NOT say "click the nav button" — just describe what the feature IS and what someone can DO there.
-For emotional topics: be a compassionate companion. For crisis signals: direct to US 988 · UK 116 123 · AU 13 11 14.
-Keep replies to 2-5 sentences. Begin naturally — no repeated greetings.`;
+Topics you are comfortable with: mental health, anxiety, depression, grief, loneliness, motivation, self-worth, philosophy, history, science, technology, music, games, storytelling, hobbies, everyday life, relationships, creativity, and much more. You speak as Shadow Reaper, not as an AI assistant. You never break character, never mention being an AI language model, and never refer to training data.
+
+Keep replies focused: 2–5 sentences for simple exchanges, up to 8–10 for deep or emotional topics. Never produce walls of text. Begin each reply naturally — no greetings or repeated acknowledgements. Just speak.`;
 
         const messages = [{ role: 'system', content: GP_SYSTEM_PROMPT }];
-        messages.push(...GP.conversationHistory.slice(-16));
+        messages.push(...GP.conversationHistory.slice(-24));
         messages.push({ role: 'user', content: userText });
 
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -25360,8 +25344,9 @@ Keep replies to 2-5 sentences. Begin naturally — no repeated greetings.`;
             body: JSON.stringify({
                 model: 'mistralai/mistral-7b-instruct:free',
                 messages,
-                max_tokens: 280,
-                temperature: 0.75
+                max_tokens: 400,
+                temperature: 0.82,
+                top_p: 0.92
             })
         });
         if (!res.ok) throw new Error('api');
@@ -25389,20 +25374,65 @@ function gpSetMood(label) {
     if (el) el.textContent = label;
 }
 
+// ── Text-to-Speech ────────────────────────────────────────────
+function gpSpeak(text) {
+    if (!GP.voiceEnabled || !GP.synth) return;
+    GP.synth.cancel();
+    const utt = new SpeechSynthesisUtterance(text.replace(/\n\n/g, ' ').replace(/\n/g, ' '));
+    utt.pitch  = 0.48;
+    utt.rate   = 0.78;
+    utt.volume = 0.95;
+    const preferred = ['Microsoft David', 'Google UK English Male', 'Daniel', 'Alex'];
+    let voice = null;
+    for (const name of preferred) {
+        voice = GP.voices.find(v => v.name.includes(name));
+        if (voice) break;
+    }
+    if (!voice) voice = GP.voices.find(v => v.lang.startsWith('en'));
+    if (voice) utt.voice = voice;
+    utt.onstart = () => { GP.speaking = true; };
+    utt.onend   = () => { GP.speaking = false; };
+    utt.onerror = () => { GP.speaking = false; };
+    GP.synth.speak(utt);
+}
+
+// ── Voice toggle button ───────────────────────────────────────
+// Exposed globally so the inline onclick attribute on the button works
+window.gpToggleVoice = function gpToggleVoice() {
+    GP.voiceEnabled = !GP.voiceEnabled;
+    if (!GP.voiceEnabled && GP.synth) GP.synth.cancel();
+    const btn = document.getElementById('gp-voice-toggle');
+    if (btn) {
+        btn.title = GP.voiceEnabled ? 'Voice on — click to mute' : 'Voice off — click to unmute';
+        btn.style.opacity = GP.voiceEnabled ? '1' : '0.38';
+        btn.textContent   = GP.voiceEnabled ? '🔊' : '🔇';
+    }
+};
+
+// gpFormatTime — returns HH:MM timestamp string
+function gpFormatTime() {
+    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 // gpAppendMessage — role: 'user'|'grim', text: string, page: pageKey|null
 function gpAppendMessage(role, text, page) {
     const display = document.getElementById('gp-messages');
     if (!display) return;
 
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:' + (role === 'user' ? 'flex-end' : 'flex-start') + ';gap:5px;';
+    wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:' + (role === 'user' ? 'flex-end' : 'flex-start') + ';gap:4px;';
 
     const msg = document.createElement('div');
     msg.className = `gp-msg ${role}`;
 
+    const ts = document.createElement('span');
+    ts.style.cssText = 'font-size:9px;color:rgba(160,120,220,0.35);letter-spacing:0.3px;padding:0 3px;';
+    ts.textContent = gpFormatTime();
+
     if (role === 'grim') {
         msg.textContent = '';
         wrapper.appendChild(msg);
+        wrapper.appendChild(ts);
         display.appendChild(wrapper);
         display.scrollTop = display.scrollHeight;
 
@@ -25414,14 +25444,16 @@ function gpAppendMessage(role, text, page) {
                 display.scrollTop = display.scrollHeight;
                 setTimeout(type, 13);
             } else {
-                // After typing finishes, inject nav button if a page was identified
+                // After typing finishes, speak the full response
+                setTimeout(() => gpSpeak(text), 300);
+                // Inject nav button if a page was identified
                 if (page && GP_PAGES[page]) {
                     const p = GP_PAGES[page];
                     const btn = document.createElement('button');
                     btn.className = 'gp-go-btn';
                     btn.textContent = '→ Take me to ' + p.label;
                     btn.addEventListener('click', () => p.action());
-                    wrapper.appendChild(btn);
+                    wrapper.insertBefore(btn, ts);
                     display.scrollTop = display.scrollHeight;
                 }
             }
@@ -25430,6 +25462,7 @@ function gpAppendMessage(role, text, page) {
     } else {
         msg.textContent = text;
         wrapper.appendChild(msg);
+        wrapper.appendChild(ts);
         display.appendChild(wrapper);
         display.scrollTop = display.scrollHeight;
     }
@@ -25452,6 +25485,9 @@ async function gpSend() {
     if (!text) return;
     input.value = '';
 
+    // Interrupt any ongoing TTS — user wants to speak now
+    if (GP.synth) GP.synth.cancel();
+
     gpAppendMessage('user', text, null);
     gpShowTyping();
     GP.messageCount++;
@@ -25468,8 +25504,8 @@ async function gpSend() {
         gpHideTyping();
         gpAppendMessage('grim', result.text, result.page);
         GP.conversationHistory.push({ role: 'assistant', content: result.text });
-        if (GP.conversationHistory.length > 32) {
-            GP.conversationHistory = GP.conversationHistory.slice(-32);
+        if (GP.conversationHistory.length > 48) {
+            GP.conversationHistory = GP.conversationHistory.slice(-48);
         }
     }, wait);
 }
@@ -25478,6 +25514,10 @@ async function gpSend() {
 document.getElementById('gp-send').addEventListener('click', gpSend);
 document.getElementById('gp-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); gpSend(); }
+});
+// Cancel TTS when user starts typing — they want to respond
+document.getElementById('gp-input').addEventListener('input', () => {
+    if (GP.synth && GP.speaking) GP.synth.cancel();
 });
 document.querySelectorAll('.gp-nav-chip').forEach(chip => {
     chip.addEventListener('click', () => {
@@ -25521,6 +25561,8 @@ document.querySelectorAll('.gp-nav-chip').forEach(chip => {
             GP.micActive = false;
             micBtn.classList.remove('gp-mic-active');
         } else {
+            // Cancel any ongoing TTS before listening
+            if (GP.synth) GP.synth.cancel();
             try { rec.start(); GP.micActive = true; micBtn.classList.add('gp-mic-active'); } catch(e) {}
         }
     });
@@ -25718,6 +25760,20 @@ function gpGreet() {
 // ── Init ──────────────────────────────────────────────────────
 GP.init = function () {
     GP.initialized = true;
+
+    // Restore saved API key from localStorage
+    try {
+        const saved = localStorage.getItem('grimAIKey');
+        if (saved && saved.length > 8) {
+            GP.apiKey = saved;
+            gpSetConn('◆ AI Active', 'rgba(100,200,120,.7)');
+        } else {
+            // Nudge user toward the full page to set a key
+            const hint = document.getElementById('gp-key-hint');
+            if (hint) hint.style.display = 'inline';
+        }
+    } catch(_) {}
+
     gpInitCanvas();
     setTimeout(gpGreet, 600);
 };
@@ -25813,6 +25869,44 @@ gpAppendMessage = function(role, text, page) {
 document.getElementById('gp-messages')?.addEventListener('touchmove', (e) => {
     e.stopPropagation();
 }, { passive: true });
+
+// ── Mobile keyboard: scroll input row into view when keyboard opens ───
+(function () {
+    const input = document.getElementById('gp-input');
+    if (!input) return;
+    function scrollInputVisible() {
+        // Give the browser a tick to resize the viewport
+        setTimeout(() => {
+            const inputRow = document.getElementById('gp-input-row');
+            if (inputRow) inputRow.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }, 120);
+    }
+    input.addEventListener('focus', scrollInputVisible);
+
+    // Also listen to visualViewport resize (handles iOS Safari keyboard reliably)
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+            const panel = document.getElementById('grim-panel');
+            if (!panel || !panel.classList.contains('open')) return;
+            const inputRow = document.getElementById('gp-input-row');
+            if (!inputRow) return;
+            // Offset the panel bottom by the viewport gap (keyboard height)
+            const gap = window.innerHeight - window.visualViewport.height;
+            panel.style.paddingBottom = gap > 0 ? (gap + 'px') : '';
+        });
+    }
+})();
+
+// ── Stop TTS when the Grim panel closes ──────────────────────
+(function () {
+    const closeBtn = document.getElementById('grim-panel-close');
+    const overlay  = document.getElementById('grim-panel-overlay');
+    function stopTTSOnClose() {
+        if (typeof GP !== 'undefined' && GP.synth) GP.synth.cancel();
+    }
+    if (closeBtn)  closeBtn.addEventListener('click',  stopTTSOnClose);
+    if (overlay)   overlay.addEventListener('click',   stopTTSOnClose);
+})();
 </script>
 
 </body>
