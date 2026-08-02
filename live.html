@@ -131,8 +131,8 @@
     <!-- ── Top overlay bar ── -->
     <div id="liveTopBar" class="live-top-bar">
 
-      <!-- LIVE badge — double-tap opens debug panel for founders -->
-      <div class="live-badge" id="liveBadge" title="Double-tap for debug (founders only)">
+      <!-- LIVE badge -->
+      <div class="live-badge" id="liveBadge">
         <span class="live-badge-dot"></span>
         LIVE
       </div>
@@ -211,11 +211,7 @@
     <div class="live-bottom-bar">
 
       <button id="btnToggleCam" class="live-ctrl-btn" aria-label="Toggle camera" title="Camera">📷</button>
-      <!-- Mic button wrapped in badge container so the status dot can overlay it -->
-      <span class="snx-mic-badge">
-        <button id="btnToggleMic" class="live-ctrl-btn" aria-label="Toggle microphone" title="Mic">🎤</button>
-        <span id="snxMicStatusDot" aria-label="Microphone status"></span>
-      </span>
+      <button id="btnToggleMic" class="live-ctrl-btn" aria-label="Toggle microphone" title="Mic">🎤</button>
       <button id="btnFlipCam"   class="live-ctrl-btn" aria-label="Flip camera" title="Flip">🔄</button>
       <button id="btnFullscreen" class="live-ctrl-btn" aria-label="Fullscreen" title="Fullscreen">⛶</button>
       <button id="btnShareLiveCreator" class="live-ctrl-btn" aria-label="Share live stream" title="Share">📤</button>
@@ -335,15 +331,18 @@
       </div>
     </div>
 
-    <!-- Tap-to-like overlay — covers the live video area -->
-    <div id="tapLikeOverlay" aria-label="Tap anywhere to like" aria-hidden="true"></div>
-
     <!-- ═══════════════════════════════════
          VIEWER ACTIONS — right side column
          TikTok-style circular buttons
          Hidden for creator via CSS
          ═══════════════════════════════════ -->
     <div class="live-viewer-actions">
+
+      <!-- Like ❤️ -->
+      <button id="btnLike" class="live-like-btn" aria-label="Like stream">
+        <span class="live-like-icon">❤️</span>
+        <span id="likeBtnCount" style="display:none;">Like</span>
+      </button>
 
       <!-- Request a Box 📺 -->
       <button id="btnRequestBox" class="live-request-box-btn" aria-label="Request a guest box">

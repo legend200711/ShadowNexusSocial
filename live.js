@@ -86,14 +86,12 @@ let _user         = null;   // Firebase Auth user
 let _userData     = null;   // Firestore user doc data
 let _mode         = null;   // 'creator' | 'viewer'
 let _roomId       = null;
+let _roomHostId   = null;   // real uid of the host (populated on viewer join and creator start)
 let _feedPostId   = null;   // ID of the live post created in 'posts' collection
 let _localStream  = null;
 let _camOn        = true;
 let _micOn        = true;
 let _facingMode   = 'user';
-
-/* ── Wake Lock (mobile: prevent screen sleep during live) ── */
-let _wakeLock     = null;
 
 /* ── Performance: send-lock prevents double-send on rapid taps ── */
 let _chatSending  = false;
@@ -110,11 +108,7 @@ let _rtcSignalRef    = null;   // RTDB ref being listened to
 // Auto-reconnect for viewers
 let _viewerReconnectTimer   = null;
 let _viewerReconnectAttempt = 0;
-const _MAX_RECONNECT_ATTEMPTS = 8;   // increased from 5 → more resilient on mobile
-
-/* ── Mic status indicator (viewer / guest in-box) ── */
-// 'live' | 'muted' | 'reconnecting'
-let _micStatusState = 'live';
+const _MAX_RECONNECT_ATTEMPTS = 5;
 
 let _chatUnsub        = null;
 let _viewerCountRef   = null;   // RTDB ref for viewer count listener
@@ -197,7 +191,8 @@ document.addEventListener('DOMContentLoaded', () => {
     btnShareCreator: document.getElementById('btnShareLiveCreator'),
 
     // Viewer controls
-    tapLikeOverlay:  document.getElementById('tapLikeOverlay'),
+    likeBtn:         document.getElementById('btnLike'),
+    likeBtnCount:    document.getElementById('likeBtnCount'),
     profileBtn:      document.getElementById('btnCreatorProfile'),
     btnShare:        document.getElementById('btnShareLive'),
 
@@ -223,10 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btnLeaveBox:         document.getElementById('btnLeaveBox'),
     btnLayoutSettings:   document.getElementById('btnLayoutSettings'),
     layoutSettingsPanel: document.getElementById('layoutSettingsPanel'),
-
-    // Debug panel (founder only)
-    debugPanel:          document.getElementById('snxDebugPanel'),
-    micStatusDot:        document.getElementById('snxMicStatusDot'),
   };
 
   // Disable Go Live until Firebase auth resolves
@@ -244,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
   D.btnFS   && D.btnFS.addEventListener('click',    toggleFullscreen);
   D.btnEnd  && D.btnEnd.addEventListener('click',   endLive);
 
+  D.likeBtn          && D.likeBtn.addEventListener('click',          sendLike);
   D.btnShare         && D.btnShare.addEventListener('click',         shareLive);
   D.btnShareCreator  && D.btnShareCreator.addEventListener('click',  shareLive);
   D.chatSend  && D.chatSend.addEventListener('click',  sendChat);
@@ -257,29 +249,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('liveCloseBtn') &&
     document.getElementById('liveCloseBtn').addEventListener('click', onCloseBtn);
-
-  // ── LIVE badge: double-tap → open debug panel (founders only) ──
-  {
-    let _badgeTapTimer = null;
-    const _liveBadge = document.getElementById('liveBadge');
-    if (_liveBadge) {
-      _liveBadge.addEventListener('click', () => {
-        if (_badgeTapTimer) {
-          clearTimeout(_badgeTapTimer);
-          _badgeTapTimer = null;
-          // Double-tap detected
-          const isFounder = _user && (_SNX_FOUNDER_IDS?.has(_user.uid) || _userData?.role === 'founder');
-          if (!isFounder) return;
-          _buildDebugPanel();
-          const panel2 = document.getElementById('snxDebugPanel');
-          if (panel2) panel2.style.display = panel2.style.display === 'none' ? 'block' : 'none';
-          if (!_debugInterval && _rtcPc) _debugStart(_rtcPc, _mode === 'creator');
-        } else {
-          _badgeTapTimer = setTimeout(() => { _badgeTapTimer = null; }, 400);
-        }
-      });
-    }
-  }
 
   // Guest box button wiring
   D.btnRequestBox     && D.btnRequestBox.addEventListener('click', _viewerRequestBox);
@@ -354,9 +323,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sp && sp.style.display !== 'none') { sp.style.display = 'none'; return; }
     D.stage.classList.toggle('live-controls-hidden');
   });
-
-  /* ── Tap-to-like overlay: attach after DOMContentLoaded ── */
-  _attachTapLikeOverlay();
 
   onAuthStateChanged(_auth, user => {
     if (!user) {
@@ -560,6 +526,8 @@ async function startLive() {
   const _safeUid = _user.uid.replace(/[.#$/\[\]]/g, '_');
   _roomId = `${_safeUid}_${Date.now().toString(36)}`;
 
+  _roomHostId = _user.uid;   // creator is always their own host
+
   const creatorData = {
     roomId:       _roomId,
     hostId:       _user.uid,
@@ -635,18 +603,6 @@ async function startLive() {
     // If the host's page crashes / network drops, remove the whole liveGuests room node
     try { onDisconnect(ref(_liveDB, `liveGuests/${_roomId}`)).remove(); } catch(_) {}
   } catch (_) {}
-
-  // ── Write extended room state so viewers can check real-time stream status ──
-  try {
-    await update(ref(_liveDB, `liveRooms/${_roomId}`), {
-      cameraActive:    _camOn,
-      micActive:       _micOn,
-      streamConnected: false,   // set to true once WebRTC connects
-    });
-  } catch (_) {}
-
-  // ── Acquire Screen Wake Lock so mobile screen doesn't sleep during broadcast ──
-  _acquireWakeLock();
 
   toast('🔴 You are LIVE!');
 
@@ -792,11 +748,8 @@ function toggleLiveCam() {
   if (_localStream) _localStream.getVideoTracks().forEach(t => t.enabled = _camOn);
   if (D.btnCam) { D.btnCam.textContent = _camOn ? '📷' : '🚫'; D.btnCam.classList.toggle('off', !_camOn); }
   if (D.camOffOverlay) D.camOffOverlay.classList.toggle('visible', !_camOn);
-  // Broadcast host cam state to viewers + room state
-  if (_roomId) {
-    try { update(ref(_liveDB, `liveGuests/${_roomId}/_host_`), { camOn: _camOn }); } catch(_) {}
-    try { update(ref(_liveDB, `liveRooms/${_roomId}`), { cameraActive: _camOn }); } catch(_) {}
-  }
+  // Broadcast host cam state to viewers
+  if (_roomId) try { update(ref(_liveDB, `liveGuests/${_roomId}/_host_`), { camOn: _camOn }); } catch(_) {}
 }
 
 function toggleLiveMic() {
@@ -804,12 +757,8 @@ function toggleLiveMic() {
   if (_localStream) _localStream.getAudioTracks().forEach(t => t.enabled = _micOn);
   if (D.btnMic) { D.btnMic.textContent = _micOn ? '🎤' : '🔇'; D.btnMic.classList.toggle('off', !_micOn); }
   toast(_micOn ? 'Mic on' : 'Mic muted');
-  _setMicStatus(_micOn ? 'live' : 'muted');
-  // Broadcast host mic state to viewers + room state
-  if (_roomId) {
-    try { update(ref(_liveDB, `liveGuests/${_roomId}/_host_`), { micOn: _micOn }); } catch(_) {}
-    try { update(ref(_liveDB, `liveRooms/${_roomId}`), { micActive: _micOn }); } catch(_) {}
-  }
+  // Broadcast host mic state to viewers
+  if (_roomId) try { update(ref(_liveDB, `liveGuests/${_roomId}/_host_`), { micOn: _micOn }); } catch(_) {}
 }
 
 async function flipLiveCamera() {
@@ -899,12 +848,6 @@ async function endLive() {
 
   // Stop adaptive quality monitor
   _stopAdaptiveQuality();
-
-  // Stop debug panel monitor
-  _debugStop();
-
-  // Release screen wake lock
-  _releaseWakeLock();
 
   // Close all guest peer connections
   _teardownAllGuestPeers();
@@ -1109,7 +1052,7 @@ async function _startViewer() {
     if (attempt === 0) {
       _hideLoading();
       _showStage();
-      _showConnBanner('Connecting…', 'Looking for stream');
+      _showConnBanner('Waiting for stream…', '');
     }
     await new Promise(r => setTimeout(r, _RETRY_MS));
   }
@@ -1118,6 +1061,8 @@ async function _startViewer() {
     _showEndedOverlay(false, 'Stream ended', 'This live stream has ended or does not exist.');
     return;
   }
+
+  _roomHostId = roomData.hostId || null;   // store real host uid for chat badge
 
   _hideLoading();
   _showStage();
@@ -1141,9 +1086,6 @@ async function _startViewer() {
 
   /* ── Attach resize observer so guest grid re-layouts on any screen change ── */
   _attachGuestGridResizeObserver();
-
-  /* ── Acquire Screen Wake Lock so viewer screen doesn't sleep during stream ── */
-  _acquireWakeLock();
 
   /* ── Register viewer presence in LIVE RTDB ──
      Per-user presence node with onDisconnect so the count self-heals
@@ -1255,9 +1197,6 @@ async function _viewerLeave() {
   // Cancel any pending reconnect
   if (_viewerReconnectTimer) { clearTimeout(_viewerReconnectTimer); _viewerReconnectTimer = null; }
 
-  // Release screen wake lock
-  _releaseWakeLock();
-
   // If viewer was in a guest box, clean up that state first
   if (_guestStream || _guestPc) {
     // Direct cleanup without confirmation (page is unloading)
@@ -1347,16 +1286,9 @@ async function _startCreatorWebRTC() {
   });
 
   _rtcPc.onconnectionstatechange = () => {
-    const st = _rtcPc?.connectionState;
-    if (st === 'connected') {
+    if (_rtcPc.connectionState === 'connected') {
       // Start adaptive quality monitoring (adjust bitrate based on network conditions)
       _startAdaptiveQuality(_rtcPc);
-      // Mark stream as connected in RTDB so viewers can verify
-      if (_roomId) try { update(ref(_liveDB, `liveRooms/${_roomId}`), { streamConnected: true }); } catch(_) {}
-      // Start debug panel if active
-      _debugStart(_rtcPc, true);
-    } else if (st === 'disconnected' || st === 'failed') {
-      if (_roomId) try { update(ref(_liveDB, `liveRooms/${_roomId}`), { streamConnected: false }); } catch(_) {}
     }
   };
 
@@ -1539,7 +1471,7 @@ async function _startCreatorWebRTC() {
    Uses LIVE Realtime Database for signaling.
    ═══════════════════════════════════════════════════ */
 async function _startViewerWebRTC(roomData, _reuseSessionId) {
-  _showConnBanner('Connecting…', 'Loading stream');
+  _showConnBanner('Waiting for stream…', '');
 
   const connRef = ref(_liveDB, `liveConnections/${_roomId}`);
 
@@ -1548,12 +1480,12 @@ async function _startViewerWebRTC(roomData, _reuseSessionId) {
   try {
     connSnap = await get(connRef);
   } catch (e) {
-    _showConnBanner('Connecting…', 'Network error — retrying');
+    _showConnBanner('Waiting for stream…', '');
     return;
   }
 
   if (!connSnap.exists() || !connSnap.val().offer) {
-    _showConnBanner('Connecting…', 'Waiting for host');
+    _showConnBanner('Waiting for stream…', '');
     const offerWaitRef = ref(_liveDB, `liveConnections/${_roomId}`);
     let _offerWaitUnsub;
     _offerWaitUnsub = onValue(offerWaitRef, async snap => {
@@ -1575,17 +1507,13 @@ async function _startViewerWebRTC(roomData, _reuseSessionId) {
     // Buffer / mobile optimisation: low-latency mode where supported
     if ('playsInline' in D.liveVideo) D.liveVideo.playsInline = true;
     if (typeof D.liveVideo.disableRemotePlayback !== 'undefined') D.liveVideo.disableRemotePlayback = true;
-    // Show "Loading video…" while buffering
-    _showConnBanner('Loading video…', '');
+    // Prefer low-latency (Chrome hint)
+    try { D.liveVideo.setPreferredQuality && D.liveVideo.setPreferredQuality('auto'); } catch(_) {}
     D.liveVideo.play().catch(() => {});
-    // Hide banner once video actually starts playing (replaces "Waiting for stream")
-    const _onPlaying = () => {
-      _hideConnBanner();
-      _showUnmutePrompt();
-      // Start debug panel viewer-side
-      _debugStart(_rtcPc, false);
-    };
-    D.liveVideo.addEventListener('playing', _onPlaying, { once: true });
+    _showUnmutePrompt();
+    _hideConnBanner();
+    // Safety: hide banner once video actually starts playing
+    D.liveVideo.addEventListener('playing', _hideConnBanner, { once: true });
     // ── If the guest grid is already showing a host cell, attach the stream now ──
     // Always refresh the host cell video — the stream object may have changed
     // (e.g. after ICE restart / reconnect), which would leave the existing
@@ -1608,10 +1536,8 @@ async function _startViewerWebRTC(roomData, _reuseSessionId) {
     if (state === 'connected') {
       _hideConnBanner();
       _viewerReconnectAttempt = 0; // reset on successful connection
-      _setMicStatus('live');
     } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
-      _setMicStatus('reconnecting');
-      _showConnBanner('Reconnecting…', 'Please wait…');
+      _showConnBanner('Reconnecting…', '');
       _scheduleViewerReconnect(roomData);
     }
   };
@@ -1638,7 +1564,7 @@ async function _startViewerWebRTC(roomData, _reuseSessionId) {
   try {
     await _rtcPc.setRemoteDescription(new RTCSessionDescription(offer));
   } catch (e) {
-    _showConnBanner('Connecting…', 'Retrying…');
+    _showConnBanner('Waiting for stream…', '');
     return;
   }
 
@@ -1657,8 +1583,14 @@ async function _startViewerWebRTC(roomData, _reuseSessionId) {
     } catch (_) {}
   };
 
-  const answer = await _rtcPc.createAnswer();
-  await _rtcPc.setLocalDescription(answer);
+  let answer;
+  try {
+    answer = await _rtcPc.createAnswer();
+    await _rtcPc.setLocalDescription(answer);
+  } catch (e) {
+    _showConnBanner('Waiting for stream…', '');
+    return;
+  }
 
   /* ── Write answer + unique session ID to RTDB ──
      viewerSessionId is a fresh token on every new reconnect attempt.
@@ -1675,7 +1607,7 @@ async function _startViewerWebRTC(roomData, _reuseSessionId) {
     });
     _viewerAnswerWritten = true;
   } catch (e) {
-    _showConnBanner('Connecting…', 'Retrying…');
+    _showConnBanner('Waiting for stream…', '');
     return;
   }
 
@@ -1731,7 +1663,7 @@ async function _startViewerWebRTC(roomData, _reuseSessionId) {
     }
   });
 
-  _showConnBanner('Connecting…', 'Establishing stream');
+  _showConnBanner('Waiting for stream…', '');
 
   // ── 3-second safety timeout: if video is already playing, remove banner ──
   setTimeout(() => {
@@ -1974,8 +1906,8 @@ function _subscribeChat() {
 }
 
 function _buildChatMsgEl(data) {
-  const hostUid  = _roomId ? _roomId.split('_')[0] : null;
-  const isHost   = !!(hostUid && data.userId === hostUid);
+  // Use the real host uid — _roomHostId is set from roomData.hostId (viewer) or _user.uid (creator)
+  const isHost   = !!(data.userId && _roomHostId && data.userId === _roomHostId);
   const isSystem = data.type === 'system';
 
   const el = document.createElement('div');
@@ -2095,104 +2027,44 @@ async function sendChat() {
 /* ═══════════════════════════════════════════════════
    LIKES — LIVE RTDB
    ═══════════════════════════════════════════════════ */
-/* ═══════════════════════════════════════════════════
-   TAP-TO-LIKE SYSTEM
-   ═══════════════════════════════════════════════════ */
+let _hasLiked = false;
 
-// Batching state — collect taps and flush every 500 ms to avoid Firebase overload
-let _tapLikePendingCount = 0;
-let _tapLikeFlushTimer   = null;
-const _TAP_FLUSH_MS      = 500;   // flush interval in ms
+async function sendLike() {
+  if (!_user || !_roomId || _hasLiked) return;
+  _hasLiked = true;
+  if (D.likeBtn)      D.likeBtn.classList.add('liked');
+  if (D.likeBtnCount) D.likeBtnCount.textContent = '❤️';
 
-function _attachTapLikeOverlay() {
-  const overlay = document.getElementById('tapLikeOverlay');
-  if (!overlay) return;
+  _spawnHeartBurst();
 
-  // Touch events (mobile)
-  overlay.addEventListener('touchstart', e => {
-    if (_mode !== 'viewer') return;
-    // Each touch point counts as one like
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const t = e.changedTouches[i];
-      _onTapLike(t.clientX, t.clientY);
-    }
-    // Prevent the touch from also firing a click (avoid double-count)
-    e.preventDefault();
-  }, { passive: false });
-
-  // Mouse / pointer events (desktop)
-  overlay.addEventListener('click', e => {
-    if (_mode !== 'viewer') return;
-    _onTapLike(e.clientX, e.clientY);
-  });
-}
-
-function _onTapLike(clientX, clientY) {
-  if (!_user || !_roomId) return;
-
-  // Spawn animation at exact tap location
-  _spawnTapReaction(clientX, clientY);
-
-  // Accumulate — flush to Firebase at most once per _TAP_FLUSH_MS
-  _tapLikePendingCount++;
-  if (!_tapLikeFlushTimer) {
-    _tapLikeFlushTimer = setTimeout(_flushTapLikes, _TAP_FLUSH_MS);
-  }
-}
-
-function _flushTapLikes() {
-  _tapLikeFlushTimer = null;
-  if (!_tapLikePendingCount || !_roomId) return;
-  const delta = _tapLikePendingCount;
-  _tapLikePendingCount = 0;
-
-  // Atomic increment via RTDB runTransaction-style: read → increment → write
+  // Use RTDB transactions-style increment via set with existing value
+  // For RTDB we still need a get, but fire-and-forget to keep UI instant
   (async () => {
     try {
       const likesRef = ref(_liveDB, `liveRooms/${_roomId}/likes`);
       const snap = await get(likesRef);
-      await set(likesRef, (snap.val() || 0) + delta);
+      await set(likesRef, (snap.val() || 0) + 1);
     } catch (_) {}
   })();
+
+  setTimeout(() => {
+    _hasLiked = false;
+    if (D.likeBtn) D.likeBtn.classList.remove('liked');
+  }, 5000);
 }
 
-/* ─── Reaction animation: neon hearts + energy rings + particles ─── */
-const _REACTION_TYPES = [
-  { cls: 'snx-tap-heart',    chars: ['♥', '❤', '💚', '💙'] },
-  { cls: 'snx-tap-particle', chars: ['✦', '✧', '★', '⬡', '◈'] },
-  { cls: 'snx-tap-energy',   chars: ['◉', '◎', '⊕'] },
-];
-
-function _spawnTapReaction(clientX, clientY) {
+function _spawnHeartBurst() {
   const stage = D.stage;
   if (!stage) return;
+  const el = document.createElement('div');
+  el.className = 'like-burst';
+  el.textContent = '❤️';
   const rect = stage.getBoundingClientRect();
-  const x = clientX - rect.left;
-  const y = clientY - rect.top;
-
-  // Spawn 3–5 individual reaction elements per tap
-  const count = 3 + Math.floor(Math.random() * 3);
-  for (let i = 0; i < count; i++) {
-    const type = _REACTION_TYPES[i % _REACTION_TYPES.length];
-    const chars = type.chars;
-    const ch    = chars[Math.floor(Math.random() * chars.length)];
-
-    const el = document.createElement('div');
-    el.className = `snx-tap-reaction ${type.cls}`;
-    el.textContent = ch;
-
-    // Spread around tap point
-    const ox = (Math.random() - 0.5) * 40;
-    const oy = (Math.random() - 0.5) * 30;
-    el.style.left    = (x + ox) + 'px';
-    el.style.top     = (y + oy) + 'px';
-    // Randomise drift direction
-    el.style.setProperty('--snx-dx', ((Math.random() - 0.5) * 60) + 'px');
-    el.style.setProperty('--snx-dy', -(30 + Math.random() * 80) + 'px');
-
-    stage.appendChild(el);
-    el.addEventListener('animationend', () => el.remove(), { once: true });
-  }
+  el.style.left     = (rect.width  * 0.75 + (Math.random() - 0.5) * 60) + 'px';
+  el.style.bottom   = (80 + Math.random() * 60) + 'px';
+  el.style.position = 'absolute';
+  stage.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
 }
 
 /* ═══════════════════════════════════════════════════
@@ -2208,14 +2080,11 @@ function _showStage() {
 
 function _showConnBanner(title, sub) {
   if (!D.connBanner) return;
-  // Don't show the banner if the video is already playing live
+  // Don't show the banner if the video is already playing
   const v = D.liveVideo;
-  if (v && v.srcObject && !v.paused && v.readyState >= 3) return;
+  if (v && v.srcObject && !v.paused && v.readyState >= 2) return;
   if (D.connTitle) D.connTitle.textContent = title;
-  if (D.connSub) {
-    D.connSub.textContent = sub || '';
-    D.connSub.style.display = sub ? 'block' : 'none';
-  }
+  if (D.connSub)   D.connSub.textContent   = sub;
   D.connBanner.classList.add('visible');
 }
 
@@ -2249,9 +2118,6 @@ function _showEndedOverlay(wasCreator, title, sub) {
   if (_rtcPc)  { try { _rtcPc.close(); } catch (_) {} _rtcPc = null; }
   if (_rtcSignalUnsub) { try { _rtcSignalUnsub(); } catch(_) {} _rtcSignalRef = null; _rtcSignalUnsub = null; }
   if (_chatUnsub) { _chatUnsub(); _chatUnsub = null; }
-  // Clean up systems
-  _debugStop();
-  _releaseWakeLock();
 }
 
 function onCloseBtn() {
@@ -2757,7 +2623,7 @@ async function _viewerRequestBox() {
   const btn = D.btnRequestBox;
 
   // ── Guard: already in a guest box ──
-  if (btn && btn.style.display === 'none') {
+  if (_guestStream || _guestPc) {
     console.log('[BoxRequest] Viewer already in a guest box');
     return;
   }
@@ -2901,7 +2767,6 @@ function _toggleGuestMic() {
   const icon = D.btnGuestMic && D.btnGuestMic.querySelector('span:first-child');
   if (icon) icon.textContent = _guestMicOn ? '🎤' : '🔇';
   toast(_guestMicOn ? 'Mic on' : 'Mic muted');
-  _setMicStatus(_guestMicOn ? 'live' : 'muted');
   // Broadcast mic state so host and other viewers see the change
   if (_user && _roomId) try { update(ref(_liveDB, `liveGuests/${_roomId}/${_user.uid}`), { micOn: _guestMicOn }); } catch(_) {}
 }
@@ -2978,11 +2843,8 @@ function _guestDoLeave() {
   }
 
   // Reset cam/mic state so controls start clean on next join
-  // NOTE: Do NOT reset _guestMicOn here — the user's mic preference is preserved
-  // across reconnects. Only reset to true when the user fully voluntarily leaves.
   _guestCamOn = true;
-  _guestMicOn = true;   // intentional full reset: user explicitly left the box
-  _setMicStatus('live');
+  _guestMicOn = true;
 
   // Hide guest controls, restore Request a Box button
   if (D.btnGuestCam) {
@@ -3032,17 +2894,9 @@ async function _guestJoinAsViewer() {
   }
 
   // Store stream so cam/mic toggles work
-  // Preserve existing mic preference if the user previously set it — this prevents
-  // the random-mute bug where auto-reconnect overrides the user's mic state.
-  const _savedMicOn = _guestMicOn;   // save before assignment
-  const _savedCamOn = _guestCamOn;   // save before assignment
   _guestStream = guestStream;
-  _guestCamOn  = _savedCamOn;
-  _guestMicOn  = _savedMicOn;
-
-  // Apply saved mic/cam state to the new stream tracks immediately
-  guestStream.getAudioTracks().forEach(t => { t.enabled = _guestMicOn; });
-  guestStream.getVideoTracks().forEach(t => { t.enabled = _guestCamOn; });
+  _guestCamOn  = true;
+  _guestMicOn  = true;
 
   const sigRef = ref(_liveDB, `guestSignaling/${_roomId}/${_user.uid}`);
   const MAX_WAIT = 10000;
@@ -3128,8 +2982,8 @@ async function _guestJoinAsViewer() {
       uid:      _user.uid,
       name:     guestName,
       avatar:   guestAvatar,
-      camOn:    _guestCamOn,   // preserve saved cam state across reconnects
-      micOn:    _guestMicOn,   // preserve saved mic state across reconnects
+      camOn:    true,
+      micOn:    true,
       joinedAt: Date.now(),
       hb:       Date.now(),   // initial heartbeat timestamp
     });
@@ -3467,8 +3321,11 @@ async function _hostAcceptGuest(req) {
     try { await push(ref(_liveDB, `guestSignaling/${_roomId}/${guestUid}/hostCandidates`), e.candidate.toJSON()); } catch(_) {}
   };
 
-  const offer = await guestPc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
-  await guestPc.setLocalDescription(offer);
+  let offer;
+  try {
+    offer = await guestPc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
+    await guestPc.setLocalDescription(offer);
+  } catch(e) { toast('Could not connect guest.'); guestPc.close(); return; }
 
   try {
     await set(sigRef, { offer: { type: offer.type, sdp: offer.sdp }, guestCandidates: {}, hostCandidates: {} });
@@ -4871,168 +4728,3 @@ function _iqStop() {
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   if (conn) conn.removeEventListener('change', _iqOnConnectionChange);
 }
-
-/* ══════════════════════════════════════════════════════════════════════
-   SCREEN WAKE LOCK — prevents device screen sleep during live sessions
-   ══════════════════════════════════════════════════════════════════════ */
-
-async function _acquireWakeLock() {
-  if (!('wakeLock' in navigator)) return;   // not supported (Firefox / old iOS)
-  try {
-    if (_wakeLock && !_wakeLock.released) return;   // already held
-    _wakeLock = await navigator.wakeLock.request('screen');
-    _wakeLock.addEventListener('release', () => {
-      // Reacquire automatically when tab becomes visible again (mobile app-switch)
-      document.addEventListener('visibilitychange', _reacquireWakeLockOnVisible, { once: true });
-    });
-  } catch (_) {}
-}
-
-function _reacquireWakeLockOnVisible() {
-  if (document.visibilityState === 'visible') {
-    _acquireWakeLock();
-  }
-}
-
-function _releaseWakeLock() {
-  if (_wakeLock && !_wakeLock.released) {
-    try { _wakeLock.release(); } catch(_) {}
-  }
-  _wakeLock = null;
-}
-
-/* ══════════════════════════════════════════════════════════════════════
-   MIC STATUS DOT — visual indicator: green = live, red = muted, yellow = reconnecting
-   Added next to the mic button in the live-bottom-bar (creator) and
-   as a floating overlay for viewers.
-   ══════════════════════════════════════════════════════════════════════ */
-
-function _setMicStatus(state) {
-  // state: 'live' | 'muted' | 'reconnecting'
-  _micStatusState = state;
-  const dot = D.micStatusDot || document.getElementById('snxMicStatusDot');
-  if (!dot) return;
-  dot.className = 'snx-mic-dot snx-mic-dot--' + state;
-  const labels = { live: 'Mic Live', muted: 'Muted', reconnecting: 'Reconnecting…' };
-  dot.title = labels[state] || '';
-}
-
-/* ══════════════════════════════════════════════════════════════════════
-   LIVE DEBUG PANEL — Founder-only overlay showing connection diagnostics
-   Activated by: double-tapping the LIVE badge, or pressing Alt+D
-   ══════════════════════════════════════════════════════════════════════ */
-
-const _SNX_FOUNDER_IDS = new Set([
-  // Add founder UIDs here — debug panel only visible to these users
-  // e.g. 'abc123uid', 'xyz789uid'
-]);
-
-let _debugInterval  = null;
-let _debugPc        = null;
-let _debugIsHost    = false;
-
-function _debugStart(pc, isHost) {
-  _debugPc     = pc;
-  _debugIsHost = isHost;
-
-  // Only show to founders
-  const isFounder = _user && (_SNX_FOUNDER_IDS.has(_user.uid) || _userData?.role === 'founder');
-  if (!isFounder) return;
-
-  _buildDebugPanel();
-  if (_debugInterval) clearInterval(_debugInterval);
-  _debugInterval = setInterval(_debugTick, 2000);
-}
-
-function _debugStop() {
-  if (_debugInterval) { clearInterval(_debugInterval); _debugInterval = null; }
-  _debugPc = null;
-  const panel = document.getElementById('snxDebugPanel');
-  if (panel) panel.style.display = 'none';
-}
-
-function _buildDebugPanel() {
-  if (document.getElementById('snxDebugPanel')) {
-    document.getElementById('snxDebugPanel').style.display = 'block';
-    return;
-  }
-
-  const panel = document.createElement('div');
-  panel.id = 'snxDebugPanel';
-  panel.innerHTML = `
-    <div class="snx-dbg-title">⚙ Debug</div>
-    <div id="snxDbgConn">Connection: —</div>
-    <div id="snxDbgIce">ICE: —</div>
-    <div id="snxDbgPing">RTT: —</div>
-    <div id="snxDbgBitrate">Bitrate: —</div>
-    <div id="snxDbgFps">FPS: —</div>
-    <div id="snxDbgPkt">Packet Loss: —</div>
-    <div id="snxDbgGuests">Guests: —</div>
-    <button id="snxDbgClose" onclick="document.getElementById('snxDebugPanel').style.display='none'">✕</button>
-  `;
-  document.body.appendChild(panel);
-}
-
-let _dbgPrevBytes = 0, _dbgPrevPkts = 0, _dbgPrevLost = 0, _dbgPrevTs = 0;
-
-async function _debugTick() {
-  const pc = _debugPc;
-  if (!pc || pc.connectionState === 'closed') return;
-
-  const panel = document.getElementById('snxDebugPanel');
-  if (!panel || panel.style.display === 'none') return;
-
-  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-
-  set('snxDbgConn',   'Connection: ' + (pc.connectionState  || '—'));
-  set('snxDbgIce',    'ICE: '        + (pc.iceConnectionState || '—'));
-  set('snxDbgGuests', 'Guests: '     + Object.keys(_guestPeers || {}).length);
-
-  try {
-    const stats = await pc.getStats();
-    let rttMs = null, kbps = null, fps = null, lossRate = null;
-    const now = Date.now();
-
-    stats.forEach(r => {
-      if (r.type === 'candidate-pair' && r.state === 'succeeded') {
-        if (r.currentRoundTripTime !== undefined) rttMs = Math.round(r.currentRoundTripTime * 1000);
-      }
-      if ((r.type === 'outbound-rtp' || r.type === 'inbound-rtp') && r.kind === 'video') {
-        if (_dbgPrevTs > 0 && now > _dbgPrevTs) {
-          const dt = (now - _dbgPrevTs) / 1000;
-          const db = (r.bytesSent || r.bytesReceived || 0) - _dbgPrevBytes;
-          kbps = Math.round((db * 8) / dt / 1000);
-          if (r.framesPerSecond !== undefined) fps = Math.round(r.framesPerSecond);
-          const dp = (r.packetsSent || r.packetsReceived || 0) - _dbgPrevPkts;
-          const dl = (r.packetsLost || 0) - _dbgPrevLost;
-          lossRate = dp > 0 ? Math.round((dl / (dp + dl)) * 100) : 0;
-          _dbgPrevLost = r.packetsLost || 0;
-          _dbgPrevPkts = r.packetsSent || r.packetsReceived || 0;
-          _dbgPrevBytes = r.bytesSent || r.bytesReceived || 0;
-        } else {
-          _dbgPrevBytes = r.bytesSent || r.bytesReceived || 0;
-          _dbgPrevPkts  = r.packetsSent || r.packetsReceived || 0;
-          _dbgPrevLost  = r.packetsLost || 0;
-        }
-      }
-    });
-    _dbgPrevTs = now;
-
-    set('snxDbgPing',    'RTT: '          + (rttMs !== null ? rttMs + ' ms' : '—'));
-    set('snxDbgBitrate', 'Bitrate: '      + (kbps  !== null ? kbps  + ' kbps' : '—'));
-    set('snxDbgFps',     'FPS: '          + (fps   !== null ? fps : '—'));
-    set('snxDbgPkt',     'Packet Loss: '  + (lossRate !== null ? lossRate + '%' : '—'));
-  } catch(_) {}
-}
-
-// ── Alt+D shortcut to open debug panel ──
-document.addEventListener('keydown', e => {
-  if (e.altKey && e.key === 'd') {
-    const isFounder = _user && (_SNX_FOUNDER_IDS.has(_user.uid) || _userData?.role === 'founder');
-    if (!isFounder) return;
-    _buildDebugPanel();
-    const panel = document.getElementById('snxDebugPanel');
-    if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    if (!_debugInterval && _rtcPc) _debugStart(_rtcPc, _mode === 'creator');
-  }
-});
