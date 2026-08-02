@@ -46,6 +46,8 @@
 <link rel="stylesheet" href="album.css">
 <link rel="stylesheet" href="profile-music.css">
 <link rel="stylesheet" href="profile-theme.css">
+<!-- ── Shadow Nexus Realm — full immersive redesign ── -->
+<link rel="stylesheet" href="realm.css">
 
 <!-- ── Preconnect to Firebase + R2 CDN so first load is faster ── -->
 <link rel="preconnect" href="https://www.gstatic.com">
@@ -1776,6 +1778,387 @@ img.post-media-preview::before {
     50%       { box-shadow: 0 0 0 5px rgba(0,255,136,0); }
 }
 /* ════════════════════════════════════════════
+   INBOX PAGE — full split-pane messaging
+   ════════════════════════════════════════════ */
+
+/* ── Strip the .page width/padding constraints ── */
+/* Base (mobile-first): edge-to-edge when on mobile, overridden per breakpoint */
+#inboxPage {
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+#inboxPage.active { display: flex; flex-direction: column; }
+
+/* Title: shown inside list header on mobile, standalone on desktop */
+.inbox-page-title {
+    font-size: 22px; font-weight: 800; color: #fff;
+    animation: nexusGlow 3s infinite alternate;
+    letter-spacing: 1px; margin: 0 0 12px;
+    text-align: center;
+    /* hide on mobile — the list header shows it instead */
+}
+
+/* ── Split container ──
+   Height = full viewport minus the 80px top padding (.page applies this on desktop).
+   We use dvh where supported so mobile keyboards shrink it correctly. */
+.inbox-split {
+    display: flex;
+    flex-direction: row;
+    background: rgba(11,31,58,0.92);
+    border: 1px solid rgba(0,174,239,0.22);
+    border-radius: 14px;
+    overflow: hidden;
+    flex: 1;                       /* fill remaining column height */
+    min-height: 0;                 /* allow flex child to shrink */
+    /* height = viewport - page top-padding (80px) - page bottom gap (8px) - title row (~42px) */
+    height: calc(100vh - 138px);
+    height: calc(100dvh - 138px);  /* dynamic viewport — keyboard-aware */
+    min-height: calc(100vh - 138px);
+    min-height: calc(100dvh - 138px);
+    width: 100%;
+    max-width: none;
+}
+
+/* ── LEFT PANE ── */
+.inbox-list-pane {
+    width: 280px;
+    min-width: 240px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid rgba(0,60,120,0.28);
+    background: rgba(7,20,42,0.6);
+    min-height: 0;
+}
+.inbox-list-header {
+    padding: 12px 12px 10px;
+    border-bottom: 1px solid rgba(0,60,120,0.22);
+    flex-shrink: 0;
+}
+.inbox-list-title {
+    font-size: 14px; font-weight: 800; color: #d8eeff; margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.inbox-list-title span { color: #3a6a9a; font-size: 11px; font-weight: 600; }
+.inbox-search-row { display: flex; }
+.inbox-search-row input {
+    flex: 1; margin: 0; font-size: 13px; padding: 7px 11px;
+    background: rgba(0,10,30,0.8); border-color: rgba(0,100,200,0.3);
+    border-radius: 8px; color: #c8e8ff;
+}
+.inbox-conv-list {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+    scrollbar-width: thin; scrollbar-color: rgba(0,100,220,0.18) transparent;
+    -webkit-overflow-scrolling: touch;
+    min-height: 0;
+}
+.inbox-conv-list::-webkit-scrollbar { width: 3px; }
+.inbox-conv-list::-webkit-scrollbar-thumb { background: rgba(0,100,220,0.18); border-radius: 3px; }
+
+.inbox-conv-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; cursor: pointer;
+    border-bottom: 1px solid rgba(0,60,120,0.15);
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+.inbox-conv-item:last-child { border-bottom: none; }
+.inbox-conv-item:hover  { background: rgba(0,100,220,0.08); }
+.inbox-conv-item.unread { background: rgba(0,80,200,0.07); }
+.inbox-conv-item.active-conv { background: rgba(0,130,255,0.13); border-left: 3px solid #00AEEF; }
+.inbox-conv-avatar {
+    width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+    background: #0B1F3A center/cover no-repeat;
+    border: 2px solid rgba(0,174,239,0.35);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; color: #00AEEF;
+    position: relative;
+}
+.inbox-conv-online-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #333; border: 2px solid #071428;
+    position: absolute; bottom: 1px; right: 1px;
+}
+.inbox-conv-online-dot.online {
+    background: #00ff88; box-shadow: 0 0 6px rgba(0,255,136,0.8);
+    animation: greenPulse 2s infinite;
+}
+.inbox-conv-body { flex: 1; min-width: 0; }
+.inbox-conv-name-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 2px; }
+.inbox-conv-name  { font-size: 13px; font-weight: 700; color: #d8eeff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%; }
+.inbox-conv-ts    { font-size: 10px; color: #3a5a7a; flex-shrink: 0; }
+.inbox-conv-preview { font-size: 11.5px; color: #3a6a8a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inbox-conv-item.unread .inbox-conv-preview { color: #7aaac8; font-weight: 600; }
+.inbox-conv-unread-badge {
+    flex-shrink: 0; background: linear-gradient(135deg,#00cc66,#00ff88);
+    color: #001a0a; font-size: 10px; font-weight: 800;
+    min-width: 17px; height: 17px; border-radius: 9px; padding: 0 4px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 7px rgba(0,255,136,0.55);
+}
+.inbox-empty {
+    text-align: center; padding: 36px 14px; color: #2a4a6a; font-size: 13px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px; flex: 1;
+}
+.inbox-empty-icon { font-size: 36px; }
+
+/* ── RIGHT PANE ── */
+.inbox-chat-pane {
+    flex: 1; min-width: 0; min-height: 0;
+    display: flex; flex-direction: column;
+    background: linear-gradient(180deg,#0B1F3A 0%,#071428 100%);
+}
+.inbox-chat-placeholder {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 12px; color: #2a4a6a; font-size: 14px; text-align: center; padding: 28px;
+}
+.inbox-chat-placeholder-icon { font-size: 48px; }
+
+/* Chat header */
+.inbox-chat-header {
+    display: flex; align-items: center; gap: 11px;
+    padding: 10px 14px;
+    background: rgba(7,20,40,0.98);
+    border-bottom: 1px solid rgba(0,174,239,0.22);
+    flex-shrink: 0;
+}
+.inbox-chat-back {
+    display: none; /* shown only on mobile */
+    background: none; border: none;
+    color: #3a6a9a; font-size: 22px; cursor: pointer;
+    padding: 2px 8px; border-radius: 6px; line-height: 1;
+    transition: color 0.15s; flex-shrink: 0;
+}
+.inbox-chat-back:hover { color: #00AEEF; }
+.inbox-chat-hdr-avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: #0B1F3A center/cover no-repeat;
+    border: 2px solid rgba(0,150,255,0.5);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; color: #00aaff;
+    flex-shrink: 0; cursor: pointer; position: relative;
+    box-shadow: 0 0 10px rgba(0,120,255,0.3);
+}
+.inbox-chat-hdr-status {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #333; border: 2px solid #071428;
+    position: absolute; bottom: 0; right: 0;
+}
+.inbox-chat-hdr-status.online { background: #00ff88; box-shadow: 0 0 6px rgba(0,255,136,0.8); animation: greenPulse 2s infinite; }
+.inbox-chat-hdr-info { flex: 1; min-width: 0; }
+.inbox-chat-hdr-name { font-size: 14px; font-weight: 800; color: #e8f4ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inbox-chat-hdr-sub  { font-size: 11px; color: #3a6a8a; margin-top: 1px; }
+.inbox-chat-hdr-btn  { background: none; border: none; color: #3a6a8a; font-size: 17px; cursor: pointer; padding: 5px 7px; border-radius: 8px; transition: color 0.15s, background 0.15s; }
+.inbox-chat-hdr-btn:hover { color: #00aaff; background: rgba(0,100,255,0.12); }
+
+/* Messages area */
+.inbox-chat-messages {
+    flex: 1; overflow-y: auto; padding: 12px 14px 6px;
+    display: flex; flex-direction: column; gap: 10px;
+    scroll-behavior: smooth; min-height: 0;
+    scrollbar-width: thin; scrollbar-color: rgba(0,120,255,0.2) transparent;
+    -webkit-overflow-scrolling: touch;
+}
+.inbox-chat-messages::-webkit-scrollbar { width: 4px; }
+.inbox-chat-messages::-webkit-scrollbar-thumb { background: rgba(0,120,255,0.2); border-radius: 4px; }
+
+/* Typing indicator */
+.inbox-chat-typing {
+    font-size: 11px; color: #3a6a9a; font-style: italic;
+    padding: 2px 14px 3px; min-height: 18px; flex-shrink: 0;
+}
+
+/* Upload preview strip */
+.inbox-upload-preview-strip {
+    display: none; align-items: center; gap: 8px;
+    padding: 5px 12px; background: rgba(0,40,100,0.35);
+    font-size: 12px; color: #7aaac8; flex-shrink: 0;
+    border-top: 1px solid rgba(0,60,120,0.2);
+}
+.inbox-upload-clear { background: none; border: none; color: #ff5577; cursor: pointer; font-size: 16px; padding: 0 4px; }
+
+/* Upload progress bar */
+.inbox-upload-progress {
+    height: 3px; background: rgba(0,174,239,0.15);
+    overflow: hidden; flex-shrink: 0; display: none;
+}
+.inbox-upload-progress-bar { height: 100%; background: linear-gradient(90deg,#00AEEF,#39FF14); width: 0%; transition: width 0.3s; }
+
+/* Footer */
+.inbox-chat-footer {
+    padding: 8px 10px; border-top: 1px solid rgba(0,174,239,0.18);
+    background: rgba(7,20,40,0.98);
+    display: flex; gap: 7px; align-items: flex-end;
+    flex-shrink: 0;
+}
+/* safe-area padding for iPhone notch */
+@supports (padding: env(safe-area-inset-bottom)) {
+    .inbox-chat-footer { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+}
+.inbox-chat-attach-btn {
+    background: none; border: 1px solid rgba(0,100,200,0.35);
+    color: #3a6a9a; font-size: 17px; cursor: pointer;
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    touch-action: manipulation;
+}
+.inbox-chat-attach-btn:hover { color: #00AEEF; border-color: rgba(0,174,239,0.65); background: rgba(0,100,200,0.1); }
+.inbox-chat-input-wrap {
+    flex: 1; display: flex; align-items: center;
+    background: #fff; border: 1.5px solid rgba(0,90,180,0.4);
+    border-radius: 20px; padding: 3px 8px 3px 12px;
+    transition: border-color 0.15s, box-shadow 0.15s; min-height: 38px;
+}
+.inbox-chat-input-wrap:focus-within { border-color: rgba(0,160,255,0.65); box-shadow: 0 0 10px rgba(0,120,255,0.18); }
+#inboxChatInput {
+    flex: 1; background: transparent; border: none; color: #111;
+    font-size: 14px; padding: 4px 4px; outline: none;
+    resize: none; max-height: 80px; overflow-y: auto;
+    line-height: 1.45; margin: 0; width: 100%; font-family: inherit;
+    box-sizing: border-box; min-height: 22px;
+    -webkit-tap-highlight-color: transparent;
+}
+#inboxChatInput::placeholder { color: rgba(80,80,80,0.5); }
+#inboxChatInput:disabled { opacity: 0.5; }
+.inbox-chat-send {
+    background: linear-gradient(135deg,#004499 0%,#0070dd 100%);
+    border: 1px solid rgba(0,180,255,0.6); color: #fff;
+    width: 38px; height: 38px; min-width: 38px;
+    border-radius: 50%; cursor: pointer; font-size: 15px;
+    flex-shrink: 0; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.18s, transform 0.12s, box-shadow 0.18s;
+    touch-action: manipulation;
+    box-shadow: 0 0 10px rgba(0,130,255,0.4);
+    -webkit-tap-highlight-color: transparent;
+}
+.inbox-chat-send:hover  { background: linear-gradient(135deg,#005522,#00aa55); border-color: rgba(0,255,136,0.7); transform: scale(1.07); box-shadow: 0 0 18px rgba(0,255,136,0.42); }
+.inbox-chat-send:active { transform: scale(0.9); }
+.inbox-chat-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ══ TABLET (769–1024px): sidebar is 220px, .page gets padding-left:240px ══ */
+@media (min-width: 769px) and (max-width: 1024px) {
+    /* height = viewport - page top-padding (80px) - title row (~42px) - bottom gap (8px) */
+    .inbox-split {
+        height: calc(100vh - 138px);
+        height: calc(100dvh - 138px);
+        min-height: calc(100vh - 138px);
+        min-height: calc(100dvh - 138px);
+    }
+    .inbox-list-pane { width: 240px; min-width: 200px; }
+    .inbox-page-title { font-size: 20px; margin-bottom: 10px; }
+}
+
+/* ══ LARGE DESKTOP (≥1025px): sidebar 260px, .page padding-left:290px ══ */
+@media (min-width: 1025px) {
+    /* height = viewport - page top-padding (80px) - title row (~42px) - bottom gap (8px) */
+    .inbox-split {
+        height: calc(100vh - 138px);
+        height: calc(100dvh - 138px);
+        min-height: calc(100vh - 138px);
+        min-height: calc(100dvh - 138px);
+    }
+    .inbox-list-pane { width: 300px; }
+}
+
+/* ══ MOBILE (≤768px): single-pane with back button ══ */
+@media (max-width: 768px) {
+    /* Title is redundant on mobile — list header shows "Messages" */
+    .inbox-page-title { display: none; }
+
+    #inboxPage {
+        /* override .page's padding for a clean edge-to-edge inbox */
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        padding-bottom: 0 !important;
+        padding-top: 0 !important;
+        /* position from just below the hamburger button (fixed at top:14px, height:42px → 70px total) */
+        position: fixed !important;
+        top: 70px !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        z-index: 10;
+    }
+
+    .inbox-split {
+        flex-direction: column;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        /* fill the full fixed container */
+        height: 100%;
+        min-height: 0;
+        width: 100%;
+    }
+
+    /* Full-width list pane — fills everything when no chat is open */
+    .inbox-list-pane {
+        width: 100%;
+        min-width: unset;
+        border-right: none;
+        border-bottom: 1px solid rgba(0,60,120,0.28);
+        max-height: none;
+        flex: 1;
+        min-height: 0;
+    }
+    /* Hide list pane when chat is open */
+    .inbox-split.chat-open .inbox-list-pane { display: none; }
+
+    /* Chat pane fills whole split when open */
+    .inbox-split.chat-open .inbox-chat-pane {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+    }
+    /* Hide chat pane when list is showing on mobile */
+    .inbox-split:not(.chat-open) .inbox-chat-pane { display: none; }
+
+    /* Back button visible on mobile */
+    .inbox-chat-back { display: flex !important; }
+
+    /* Slightly larger tap targets */
+    .inbox-conv-item { padding: 12px 14px; }
+    .inbox-chat-footer {
+        padding: 8px 10px;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+/* ══ Large phones (481–768px): a bit more breathing room ══ */
+@media (min-width: 481px) and (max-width: 768px) {
+    .inbox-conv-avatar { width: 46px; height: 46px; }
+    .inbox-conv-name { font-size: 14px; }
+}
+
+/* ══ Small phones (≤480px) ══ */
+@media (max-width: 480px) {
+    .inbox-chat-hdr-btn { padding: 5px 4px; font-size: 15px; }
+    .inbox-chat-attach-btn { width: 34px; height: 34px; font-size: 15px; }
+    .inbox-chat-send { width: 34px; height: 34px; min-width: 34px; font-size: 13px; }
+}
+
+/* ══ Very small phones (≤380px) ══ */
+@media (max-width: 380px) {
+    .inbox-conv-name  { font-size: 12px; }
+    .inbox-conv-preview { font-size: 11px; }
+    .inbox-conv-avatar { width: 38px; height: 38px; font-size: 13px; }
+    .inbox-chat-hdr-name { font-size: 13px; }
+    #inboxChatInput { font-size: 13px; }
+    .inbox-chat-attach-btn { width: 32px; height: 32px; font-size: 14px; }
+    .inbox-chat-send { width: 32px; height: 32px; min-width: 32px; }
+}
+
+/* ════════════════════════════════════════════
    SEARCH PAGE
    ════════════════════════════════════════════ */
 .search-bar-row { display:flex; gap:8px; margin-bottom:18px; align-items:center; }
@@ -2661,6 +3044,20 @@ img, video { max-width: 100%; height: auto; }
     #sidebarOverlay { display: none !important; }
     .sidebar { transform: translateX(0) !important; box-shadow: none; }
     .page { padding-left: 290px; padding-right: 24px; max-width: 900px; }
+    /* Inbox breaks out of the 900px cap — fills full width from sidebar right edge to viewport edge.
+       sidebar=260px, padding-left keeps content clear of the sidebar, max-width is none so it
+       expands to fill the remaining viewport width. */
+    #inboxPage {
+        max-width: none !important;
+        width: auto !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        /* keep padding-left from .page (290px) so content clears the sidebar */
+        padding-right: 12px !important;
+        padding-bottom: 8px !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+    }
 }
 
 /* ─── Tablet (769–1024px): sidebar visible but tighter layout ─── */
@@ -2675,6 +3072,18 @@ img, video { max-width: 100%; height: auto; }
     /* User card wraps actions under info on tablet */
     .user-card { flex-wrap: wrap; }
     .user-card-actions { margin-left: auto; }
+    /* Inbox fills from sidebar edge to viewport right on tablet */
+    #inboxPage {
+        max-width: none !important;
+        width: auto !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        /* keep padding-left from .page (240px) so content clears the sidebar */
+        padding-right: 10px !important;
+        padding-bottom: 8px !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+    }
 }
 
 /* ─── Mobile / tablet: hamburger reveals slide-in sidebar ─── */
@@ -5856,10 +6265,158 @@ body.arcade-fs-ios body::after { display:none !important; }
     <div class="snx-gate-label">Loading…</div>
 </div>
 
+<!-- ████ SHADOW NEXUS REALM — Entering Animation ████ -->
+<div id="snxEnterOverlay">
+    <div class="snx-enter-logo">SHADOW NEXUS</div>
+    <div class="snx-enter-sub">REALM INITIALIZING</div>
+    <div class="snx-enter-bar"><div class="snx-enter-bar-fill"></div></div>
+</div>
+
+<!-- Stars + Particles Canvas -->
+<canvas id="snxStarsCanvas"></canvas>
 <canvas id="bg-canvas"></canvas>
 
-<!-- Hamburger button -->
-<button class="menuBtn" id="menuButton" aria-label="Open navigation" aria-expanded="false">☰
+<!-- Portal page transition flash -->
+<div id="snxPortalTransition"></div>
+
+<!-- ████ SHADOW CORE — Floating Crystal Navigation ████ -->
+<nav id="shadowCore" aria-label="Shadow Core Navigation">
+
+    <!-- Crystal orb — click to expand/collapse -->
+    <div class="sc-orb" id="scOrbBtn" title="Shadow Core" aria-label="Toggle Shadow Core">🌑</div>
+
+    <div class="sc-nav-panel">
+        <!-- The Nexus (Home) -->
+        <button class="sc-item" id="scNavHome" onclick="realmNavTo('feed')" aria-label="The Nexus — Home">
+            <span class="sc-item-icon">⬡</span>
+            <span class="sc-item-label">The Nexus</span>
+        </button>
+        <!-- Eclipse Feed -->
+        <button class="sc-item" id="scNavFeed" onclick="realmNavTo('feed')" aria-label="Eclipse Feed">
+            <span class="sc-item-icon">✦</span>
+            <span class="sc-item-label">Eclipse Feed</span>
+        </button>
+        <!-- Search -->
+        <button class="sc-item" id="scNavSearch" onclick="realmNavTo('searchPage')" aria-label="Search the Realm">
+            <span class="sc-item-icon">◈</span>
+            <span class="sc-item-label">Search Realm</span>
+        </button>
+        <!-- Shadow Portal (Messages) -->
+        <button class="sc-item" id="scNavInbox" onclick="realmNavTo('inboxPage')" aria-label="Shadow Portal — Messages">
+            <span class="sc-item-icon">◉</span>
+            <span class="sc-item-label">Shadow Portal</span>
+            <span class="sc-item-badge" id="scInboxBadge"></span>
+        </button>
+        <!-- Shadow Signals (Notifications) -->
+        <button class="sc-item" id="scNavNotifs" onclick="realmNavTo('notificationsPage')" aria-label="Shadow Signals — Notifications">
+            <span class="sc-item-icon">⚡</span>
+            <span class="sc-item-label">Shadow Signals</span>
+            <span class="sc-item-badge" id="scNotifBadge"></span>
+        </button>
+        <!-- Shadow Identity (Profile) -->
+        <button class="sc-item" id="scNavProfile" onclick="realmViewMyProfile()" aria-label="Shadow Identity — Profile">
+            <span class="sc-item-icon">◎</span>
+            <span class="sc-item-label">Shadow Identity</span>
+        </button>
+        <!-- Shadow Music Realm -->
+        <button class="sc-item" id="scNavCommunity" onclick="realmNavTo('communityPage')" aria-label="Community Hub">
+            <span class="sc-item-icon">♦</span>
+            <span class="sc-item-label">Community Hub</span>
+        </button>
+
+        <div class="sc-divider"></div>
+
+        <!-- Storm Rooms -->
+        <button class="sc-item" id="scNavStorm" onclick="realmNavTo('stormRoomsPage')" aria-label="Storm Rooms">
+            <span class="sc-item-icon">⛈</span>
+            <span class="sc-item-label">Storm Rooms</span>
+        </button>
+        <!-- Support Rooms -->
+        <button class="sc-item" id="scNavSupport" onclick="realmNavTo('supportRoomsPage')" aria-label="Support Rooms">
+            <span class="sc-item-icon">🫂</span>
+            <span class="sc-item-label">Support Rooms</span>
+        </button>
+        <!-- Live Hub -->
+        <button class="sc-item sc-item-live" id="scNavLive" onclick="realmNavTo('liveHubPage')" aria-label="Live Hub">
+            <span class="sc-item-icon">🔴</span>
+            <span class="sc-item-label">Live Hub</span>
+        </button>
+        <!-- Go Live -->
+        <button class="sc-item sc-item-live" id="scNavGoLive" onclick="goLiveOrWatch()" aria-label="Go Live">
+            <span class="sc-item-icon">📡</span>
+            <span class="sc-item-label">Go Live</span>
+        </button>
+
+        <div class="sc-divider"></div>
+
+        <!-- Settings -->
+        <button class="sc-item" id="scNavSettings" onclick="realmNavTo('settingsPage')" aria-label="Settings">
+            <span class="sc-item-icon">⚙</span>
+            <span class="sc-item-label">Settings</span>
+        </button>
+        <!-- Role panels — hidden by default, shown by JS -->
+        <button class="sc-item" id="scNavMod" onclick="realmNavTo('moderatorPage')" aria-label="Moderator Panel" style="display:none; color:#cc88ff !important;">
+            <span class="sc-item-icon">🛡</span>
+            <span class="sc-item-label">Mod Panel</span>
+        </button>
+        <button class="sc-item" id="scNavAdm" onclick="realmNavTo('administratorPage')" aria-label="Admin Panel" style="display:none; color:#66ccff !important;">
+            <span class="sc-item-icon">⚙</span>
+            <span class="sc-item-label">Admin Panel</span>
+        </button>
+        <button class="sc-item" id="scNavFounder" onclick="realmNavTo('adminPage')" aria-label="Founder Control" style="display:none; color:#00ffee !important;">
+            <span class="sc-item-icon">🛸</span>
+            <span class="sc-item-label">Founder Ctrl</span>
+        </button>
+
+        <div class="sc-divider"></div>
+
+        <!-- Logout -->
+        <button class="sc-item" onclick="handleLogout()" aria-label="Log Out" style="color:#ff5566 !important;">
+            <span class="sc-item-icon" style="filter:drop-shadow(0 0 4px rgba(255,60,80,0.5))">⬡</span>
+            <span class="sc-item-label">Exit Nexus</span>
+        </button>
+    </div>
+</nav>
+
+<!-- ████ NEXUS CORE — Mobile Floating Button ████ -->
+<button id="nexusCoreBtn" aria-label="Open Nexus Core Navigation">🌑</button>
+
+<!-- ████ NEXUS CORE MENU — Mobile Radial Menu ████ -->
+<div id="nexusCoreMenu" role="navigation" aria-label="Nexus Core Menu">
+    <div class="ncm-inner">
+        <div class="ncm-item" id="ncmHome" onclick="mobileNavTo('feed')">
+            <div class="ncm-icon-wrap">⬡</div>
+            <div class="ncm-label">Nexus</div>
+        </div>
+        <div class="ncm-item" id="ncmFeed" onclick="mobileNavTo('feed')">
+            <div class="ncm-icon-wrap">✦</div>
+            <div class="ncm-label">Eclipse Feed</div>
+        </div>
+        <div class="ncm-item" id="ncmInbox" onclick="mobileNavTo('inboxPage')">
+            <div class="ncm-icon-wrap">◉</div>
+            <div class="ncm-label">Shadow Portal</div>
+        </div>
+        <div class="ncm-item" id="ncmNotifs" onclick="mobileNavTo('notificationsPage')">
+            <div class="ncm-icon-wrap">⚡</div>
+            <div class="ncm-label">Signals</div>
+        </div>
+        <div class="ncm-item" id="ncmProfile" onclick="mobileNavTo('_profile')">
+            <div class="ncm-icon-wrap">◎</div>
+            <div class="ncm-label">Identity</div>
+        </div>
+        <div class="ncm-item" id="ncmSettings" onclick="mobileNavTo('settingsPage')">
+            <div class="ncm-icon-wrap">⚙</div>
+            <div class="ncm-label">Settings</div>
+        </div>
+        <div class="ncm-item" onclick="mobileNavTo('_close')" style="color:rgba(255,80,100,0.7);">
+            <div class="ncm-icon-wrap" style="border-color:rgba(255,60,80,0.3);">✕</div>
+            <div class="ncm-label">Close</div>
+        </div>
+    </div>
+</div>
+
+<!-- Hamburger button (hidden — kept for JS compat) -->
+<button class="menuBtn" id="menuButton" aria-label="Open navigation" aria-expanded="false" style="display:none!important;">☰
     <span id="menuBtnNotifBadge" style="display:none;position:absolute;top:4px;right:4px;min-width:16px;height:16px;background:#ff3355;color:#fff;font-size:9px;font-weight:700;border-radius:8px;align-items:center;justify-content:center;padding:0 3px;line-height:16px;pointer-events:none;"></span>
 </button>
 
@@ -5891,6 +6448,10 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="nav-item" id="navNotifs" onclick="navTo('notificationsPage')" title="Notification Center — messages, likes, followers, system alerts">
             <span class="nav-icon">🔔</span> Notifications
             <span class="nav-badge" id="sidebarNotifBadge"></span>
+        </button>
+        <button class="nav-item" id="navInbox" onclick="navTo('inboxPage')">
+            <span class="nav-icon">💬</span> Inbox
+            <span class="nav-badge" id="sidebarInboxBadge"></span>
         </button>
         <button class="nav-item" id="navProfile" onclick="viewMyProfile()">
             <span class="nav-icon">👤</span> Profile
@@ -6807,6 +7368,92 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div id="ftabContentRequests" style="display:none;"></div>
         <div id="ftabContentFamily" style="display:none;"></div>
     </div>
+</div>
+
+<!-- ═══════════ INBOX PAGE (DM Conversations) ═══════════ -->
+<div class="page" id="inboxPage">
+    <h2 class="inbox-page-title">💬 Inbox</h2>
+
+    <!-- Split shell -->
+    <div class="inbox-split" id="inboxSplit">
+
+        <!-- ── LEFT: conversation list ── -->
+        <div class="inbox-list-pane" id="inboxListPane">
+            <div class="inbox-list-header">
+                <div class="inbox-list-title">
+                    Messages
+                    <span id="inboxConvCount"></span>
+                </div>
+                <div class="inbox-search-row">
+                    <input id="inboxSearchInput" placeholder="🔍 Search…" autocomplete="off" oninput="inboxFilter(this.value)">
+                </div>
+            </div>
+            <div class="inbox-conv-list" id="inboxConvList">
+                <div class="inbox-empty">
+                    <div class="inbox-empty-icon">💬</div>
+                    <div>Loading…</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── RIGHT: chat pane ── -->
+        <div class="inbox-chat-pane" id="inboxChatPane">
+
+            <!-- Placeholder (no conversation selected) -->
+            <div class="inbox-chat-placeholder" id="inboxChatPlaceholder">
+                <div class="inbox-chat-placeholder-icon">💬</div>
+                <div style="font-size:16px;font-weight:700;color:#3a6a9a;">Select a conversation</div>
+                <div style="font-size:13px;color:#2a4060;max-width:260px;line-height:1.6;">Pick someone from the list to open your chat history, or go to their profile and tap Message to start a new conversation.</div>
+            </div>
+
+            <!-- Header (hidden until a conv is selected) -->
+            <div class="inbox-chat-header" id="inboxChatHeader" style="display:none;">
+                <button class="inbox-chat-back" id="inboxChatBack" onclick="inboxBackToList()" title="Back">‹</button>
+                <div class="inbox-chat-hdr-avatar" id="inboxChatHdrAvatar" onclick="inboxOpenPartnerProfile()">
+                    <div class="inbox-chat-hdr-status" id="inboxChatHdrStatus"></div>
+                </div>
+                <div class="inbox-chat-hdr-info">
+                    <div class="inbox-chat-hdr-name" id="inboxChatHdrName">—</div>
+                    <div class="inbox-chat-hdr-sub"  id="inboxChatHdrSub">—</div>
+                </div>
+                <button class="inbox-chat-hdr-btn" title="View profile" onclick="inboxOpenPartnerProfile()">👤</button>
+            </div>
+
+            <!-- Messages area -->
+            <div class="inbox-chat-messages" id="inboxChatMessages" style="display:none;">
+                <div class="ipc-modal-loading">
+                    <div class="ipc-ldot"></div><div class="ipc-ldot"></div><div class="ipc-ldot"></div>
+                    <span>Loading…</span>
+                </div>
+            </div>
+
+            <!-- Typing indicator -->
+            <div class="inbox-chat-typing" id="inboxChatTyping" style="display:none;"></div>
+
+            <!-- Upload preview strip -->
+            <div class="inbox-upload-preview-strip" id="inboxUploadStrip" style="display:none;">
+                <span style="font-size:18px;" id="inboxUploadIcon">📎</span>
+                <span id="inboxUploadFilename" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                <button class="inbox-upload-clear" onclick="inboxClearMedia()" title="Remove">✕</button>
+            </div>
+
+            <!-- Upload progress -->
+            <div class="inbox-upload-progress" id="inboxUploadProgress" style="display:none;">
+                <div class="inbox-upload-progress-bar" id="inboxUploadProgressBar"></div>
+            </div>
+
+            <!-- Footer -->
+            <div class="inbox-chat-footer" id="inboxChatFooter" style="display:none;">
+                <input type="file" id="inboxMediaFile" accept="image/*,video/*,audio/*" style="display:none;" onchange="inboxHandleMediaPick(this)">
+                <button class="inbox-chat-attach-btn" title="Attach file" onclick="document.getElementById('inboxMediaFile').click()">📎</button>
+                <div class="inbox-chat-input-wrap">
+                    <textarea id="inboxChatInput" placeholder="Type a message…" rows="1" autocomplete="off" autocorrect="on" spellcheck="true" enterkeyhint="send" aria-label="Type a message"></textarea>
+                </div>
+                <button class="inbox-chat-send" id="inboxChatSendBtn" aria-label="Send message" title="Send (Enter)">➤</button>
+            </div>
+
+        </div><!-- end chat pane -->
+    </div><!-- end inbox-split -->
 </div>
 
 <!-- ═══════════ NOTIFICATIONS PAGE (Notification Center 🔔) ═══════════ -->
@@ -9762,6 +10409,10 @@ body.arcade-fs-ios body::after { display:none !important; }
           setTimeout(() => {
             if (typeof window._snxArcadeSubscribeInvites === 'function') window._snxArcadeSubscribeInvites();
           }, 800);
+          // Start inbox unread listener (deferred so inbox IIFE has loaded)
+          setTimeout(() => {
+            if (typeof window._startInboxListener === 'function') window._startInboxListener();
+          }, 900);
 
           // ── Single unified live listener for own user doc ──
           // Handles: settings sync, notification bell + badge, friend badges,
@@ -10013,7 +10664,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (typeof activeProfileUnsubscribe !== 'undefined' && activeProfileUnsubscribe) {
               activeProfileUnsubscribe(); activeProfileUnsubscribe = null;
           }
-          if (typeof window._teardownActiveChat === 'function') window._teardownActiveChat();
+          if (typeof window._teardownActiveChat    === 'function') window._teardownActiveChat();
+          if (typeof window._teardownInboxListener === 'function') window._teardownInboxListener();
           if (typeof window.closeProfileChat    === 'function') window.closeProfileChat();
           document.getElementById("menuButton").style.display = "none";
           // Hide all role-gated nav buttons on logout
@@ -13312,10 +13964,651 @@ body.arcade-fs-ios body::after { display:none !important; }
       _mClose();
   };
 
-  // ── ipcModalExpandToInbox removed (inbox page deleted) ──
-  // Legacy alias kept so any stale callers degrade gracefully
-  window.ipcModalExpandToInbox = function() { /* no-op: inbox removed */ };
-  window.ipcExpandToInbox      = window.ipcModalExpandToInbox;
+  // ── ipcModalExpandToInbox — now opens the real inbox page ──
+  window.ipcModalExpandToInbox = function() {
+      window.ipcModalClose();
+      if (typeof navTo === 'function') navTo('inboxPage');
+  };
+  window.ipcExpandToInbox = window.ipcModalExpandToInbox;
+
+  /* ═══════════════════════════════════════════════════════════
+     INBOX — full split-pane messaging engine
+     Left: conversation list  |  Right: live embedded chat thread
+     ═══════════════════════════════════════════════════════════ */
+  (function() {
+    'use strict';
+
+    // ── Module state ──────────────────────────────────────────
+    let _ibListUnsub  = null;  // onSnapshot for conversation list
+    let _ibChatUnsub  = null;  // onSnapshot for open chat thread
+    let _ibStUnsub    = null;  // onSnapshot for partner online status
+    let _ibTypTimer   = null;  // debounce for typing indicator write
+    let _ibInpHandler = null;  // textarea input handler ref
+
+    let _ibAllConvs   = [];    // sorted conversation data
+    let _ibQuery      = '';    // current filter text
+    let _ibActiveUid  = null;  // currently open conversation partner UID
+    let _ibActiveChId = null;  // currently open Firestore chat doc ID
+    let _ibActiveData = null;  // cached partner user doc data
+    let _ibReady      = false; // true once channel is initialised
+    let _ibFirstSnap  = true;  // for scroll-to-bottom on first load
+
+    // uploaded media for current message
+    let _ibMediaUrl   = '';
+    let _ibMediaType  = '';    // 'image' | 'video' | 'audio'
+
+    // ── Utility helpers ───────────────────────────────────────
+    function _ibEsc(s) {
+        return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function _ibFmt(ts) {
+        if (!ts) return '';
+        const d = new Date(ts), now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        if (msgDay === today) return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+        if (msgDay === today - 86400000) return 'Yesterday';
+        return d.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+    }
+    function _ibFmtTime(ts) {
+        if (!ts) return '';
+        const d = new Date(ts);
+        return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+    }
+    function _ibFmtDate(ts) {
+        if (!ts) return '';
+        const d = new Date(ts), now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        if (msgDay === today) return 'Today';
+        if (msgDay === today - 86400000) return 'Yesterday';
+        return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+    }
+    function _ibGrow(el) {
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 90) + 'px';
+    }
+
+    // ── Update sidebar unread badge ────────────────────────────
+    function _ibUpdateBadge(total) {
+        const b = document.getElementById('sidebarInboxBadge');
+        if (!b) return;
+        if (total > 0) { b.textContent = total > 99 ? '99+' : total; b.classList.add('visible'); }
+        else b.classList.remove('visible');
+    }
+
+    // ── Render a single conversation row in the list ──────────
+    function _ibRow(conv) {
+        const { otherUid, otherName, otherAvatar, otherOnline, lastText, lastTs, unread } = conv;
+        const esc = _ibEsc;
+        const avatarStyle = otherAvatar ? `background-image:url('${esc(otherAvatar)}');background-size:cover;` : '';
+        const initial = (otherName||'?')[0].toUpperCase();
+        const onlineCls = otherOnline ? ' online' : '';
+        const unreadCls = unread > 0 ? ' unread' : '';
+        const activeCls = _ibActiveUid === otherUid ? ' active-conv' : '';
+        const badge = unread > 0 ? `<div class="inbox-conv-unread-badge">${unread > 99 ? '99+' : unread}</div>` : '';
+        const preview = lastText ? esc(lastText.substring(0,68)) : '<em style="color:#2a4060">No messages yet</em>';
+        return `<div class="inbox-conv-item${unreadCls}${activeCls}" onclick="inboxOpenConv('${esc(otherUid)}')" data-uid="${esc(otherUid)}">
+            <div class="inbox-conv-avatar" style="${avatarStyle}">${otherAvatar ? '' : esc(initial)}<div class="inbox-conv-online-dot${onlineCls}"></div></div>
+            <div class="inbox-conv-body">
+                <div class="inbox-conv-name-row">
+                    <span class="inbox-conv-name">${esc(otherName||'Unknown')}</span>
+                    <span class="inbox-conv-ts">${_ibFmt(lastTs)}</span>
+                </div>
+                <div class="inbox-conv-preview">${preview}</div>
+            </div>
+            ${badge}
+        </div>`;
+    }
+
+    // ── Paint the conversation list ───────────────────────────
+    function _ibPaint() {
+        const el = document.getElementById('inboxConvList');
+        if (!el) return;
+        const q = _ibQuery.toLowerCase().trim();
+        const rows = q ? _ibAllConvs.filter(c => (c.otherName||'').toLowerCase().includes(q)) : _ibAllConvs;
+
+        const countEl = document.getElementById('inboxConvCount');
+        if (countEl) countEl.textContent = _ibAllConvs.length ? _ibAllConvs.length + ' chats' : '';
+
+        if (!rows.length) {
+            el.innerHTML = `<div class="inbox-empty"><div class="inbox-empty-icon">💬</div>
+                <div>${q ? 'No conversations match.' : 'No conversations yet.<br><span style="font-size:12px;color:#2a4060;">Open a profile and tap Message.</span>'}</div></div>`;
+            return;
+        }
+        el.innerHTML = rows.map(_ibRow).join('');
+    }
+
+    // ── Subscribe to all chats (conversation list) ────────────
+    async function _ibSubscribeList() {
+        if (!currentUser) return;
+        if (_ibListUnsub) { _ibListUnsub(); _ibListUnsub = null; }
+
+        const q = query(collection(db, 'chats'), where('participants', 'array-contains', currentUser.uid));
+
+        _ibListUnsub = onSnapshot(q, async (snap) => {
+            const docs = snap.docs;
+            if (!docs.length) {
+                _ibAllConvs = []; _ibPaint(); _ibUpdateBadge(0); return;
+            }
+
+            const otherUids = [...new Set(docs.map(d => {
+                const parts = d.data().participants || [];
+                return parts.find(uid => uid !== currentUser.uid);
+            }).filter(Boolean))];
+
+            const userMap = {};
+            for (let i = 0; i < otherUids.length; i += 30) {
+                const chunk = otherUids.slice(i, i + 30);
+                try {
+                    const us = await getDocs(query(collection(db, 'users'), where('uid', 'in', chunk)));
+                    us.forEach(u => { userMap[u.id] = u.data(); });
+                } catch(_) {}
+            }
+
+            let totalUnread = 0;
+            const convRows = docs.map(d => {
+                const data = d.data(), parts = data.participants || [];
+                const othUid = parts.find(uid => uid !== currentUser.uid) || '';
+                const uInfo = userMap[othUid] || {};
+                const msgs = data.messages || [];
+                const lastMsg = msgs[msgs.length - 1];
+                const lastText = lastMsg ? (lastMsg.deleted ? '(deleted)' : (lastMsg.text || (lastMsg.type === 'image' ? '📷 Image' : lastMsg.type === 'video' ? '🎥 Video' : lastMsg.type === 'audio' ? '🎵 Audio' : '[message]'))) : '';
+                const unread = data[`unread_${currentUser.uid}`] || 0;
+                totalUnread += unread;
+                return { chatId:d.id, otherUid:othUid, otherName:uInfo.displayName||othUid.substring(0,8), otherAvatar:uInfo.avatar||'', otherOnline:uInfo.status==='online', lastText, lastTs:data.lastMsgTs||0, unread };
+            }).filter(c => c.otherUid).sort((a, b) => b.lastTs - a.lastTs);
+
+            _ibAllConvs = convRows;
+            _ibUpdateBadge(totalUnread);
+            _ibPaint();
+
+            // If partner data changed (avatar, name), update header
+            if (_ibActiveUid) _ibRefreshHeader();
+        }, err => { console.warn('[Inbox List]', err.code||err.message); });
+    }
+
+    // ── Refresh header from current conversation data ─────────
+    function _ibRefreshHeader() {
+        const conv = _ibAllConvs.find(c => c.otherUid === _ibActiveUid);
+        if (!conv) return;
+        const nameEl = document.getElementById('inboxChatHdrName');
+        if (nameEl) nameEl.textContent = conv.otherName;
+        const av = document.getElementById('inboxChatHdrAvatar');
+        if (av) {
+            if (conv.otherAvatar) { av.style.backgroundImage = `url('${conv.otherAvatar}')`; av.style.backgroundSize = 'cover'; }
+            else { av.style.backgroundImage = 'none'; }
+            const dot = av.querySelector('.inbox-chat-hdr-status');
+            if (dot) dot.className = 'inbox-chat-hdr-status' + (conv.otherOnline ? ' online' : '');
+        }
+    }
+
+    // ── Open a conversation in the right pane ─────────────────
+    window.inboxOpenConv = async function(targetUid) {
+        if (!currentUser || targetUid === currentUser.uid) return;
+        if (_ibActiveUid === targetUid && _ibReady) {
+            // Already open — just re-focus input
+            const inp = document.getElementById('inboxChatInput');
+            if (inp) inp.focus();
+            return;
+        }
+
+        // Tear down previous chat session
+        _ibTeardownChat();
+
+        _ibActiveUid  = targetUid;
+        _ibActiveChId = [currentUser.uid, targetUid].sort().join('_');
+        _ibReady      = false;
+        _ibFirstSnap  = true;
+
+        // Highlight active row in list
+        document.querySelectorAll('.inbox-conv-item').forEach(el =>
+            el.classList.toggle('active-conv', el.dataset.uid === targetUid)
+        );
+
+        // Show chat pane, hide placeholder
+        _ibShowChatUI(true);
+
+        // Mobile: switch to chat pane
+        const split = document.getElementById('inboxSplit');
+        if (split) split.classList.add('chat-open');
+
+        // Show loading state
+        const msgBox = document.getElementById('inboxChatMessages');
+        if (msgBox) msgBox.innerHTML = `<div class="ipc-modal-loading"><div class="ipc-ldot"></div><div class="ipc-ldot"></div><div class="ipc-ldot"></div><span>Loading…</span></div>`;
+
+        const inp = document.getElementById('inboxChatInput');
+        if (inp) { inp.value = ''; inp.placeholder = 'Connecting…'; inp.disabled = true; }
+
+        const capturedChId  = _ibActiveChId;
+        const capturedTgtUid = targetUid;
+
+        // Mark notifications from this user as read
+        try {
+            if (userData && Array.isArray(userData.notifications)) {
+                let changed = false;
+                const updated = userData.notifications.map(n => {
+                    if (n.type === 'message' && n.fromUid === targetUid && !n.read) { changed = true; return { ...n, read: true }; }
+                    return n;
+                });
+                if (changed) updateDoc(doc(db, 'users', currentUser.uid), { notifications: updated }).catch(()=>{});
+            }
+        } catch(_) {}
+
+        // Ensure Firestore chat doc exists
+        let _initOk = false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                await setDoc(doc(db, 'chats', capturedChId), {
+                    participants: [currentUser.uid, capturedTgtUid],
+                    initialized: true,
+                    [`unread_${currentUser.uid}`]: 0
+                }, { merge: true });
+                _initOk = true; break;
+            } catch(e) {
+                if (_ibActiveChId !== capturedChId) return;
+                if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1000));
+            }
+        }
+        if (!_initOk) {
+            if (msgBox && _ibActiveChId === capturedChId) msgBox.innerHTML = `<div class="ipc-modal-empty"><div class="ipc-modal-empty-icon">📡</div><div class="ipc-modal-empty-text">Connection failed.<br><button onclick="inboxOpenConv('${capturedTgtUid}')" style="margin-top:10px;padding:8px 18px;border-radius:20px;font-size:12px;cursor:pointer;">🔄 Retry</button></div></div>`;
+            if (inp) { inp.placeholder = 'Type a message…'; inp.disabled = false; }
+            return;
+        }
+        if (_ibActiveChId !== capturedChId) return;
+
+        // Load partner profile
+        try {
+            const tSnap = await getDoc(doc(db, 'users', capturedTgtUid));
+            _ibActiveData = tSnap.exists() ? tSnap.data() : { displayName: capturedTgtUid.substring(0,8), avatar:'', status:'offline' };
+        } catch(e) { _ibActiveData = { displayName:'User', avatar:'', status:'offline' }; }
+        if (_ibActiveChId !== capturedChId) return;
+
+        // Populate header
+        _ibSetHeader(_ibActiveData, capturedTgtUid);
+
+        // Live status listener
+        _ibStUnsub = onSnapshot(doc(db, 'users', capturedTgtUid), uSnap => {
+            if (_ibActiveChId !== capturedChId || !uSnap.exists()) return;
+            const u = uSnap.data(); const isOn = u.status === 'online';
+            const dot = document.getElementById('inboxChatHdrStatus');
+            const sub = document.getElementById('inboxChatHdrSub');
+            if (dot) dot.className = 'inbox-chat-hdr-status' + (isOn ? ' online' : '');
+            if (sub) sub.textContent = isOn ? '🟢 Online now' : (u.mood || '⚫ Offline');
+        });
+
+        // Live messages listener
+        _ibChatUnsub = onSnapshot(doc(db, 'chats', capturedChId), cSnap => {
+            if (_ibActiveChId !== capturedChId) return;
+            if (!cSnap.exists()) { _ibFirstSnap = false; return; }
+            _ibRenderMessages(cSnap.data(), _ibFirstSnap);
+            _ibFirstSnap = false;
+        }, err => {
+            console.warn('[Inbox Chat]', err.code||err.message);
+            if (_ibActiveChId === capturedChId && msgBox)
+                msgBox.innerHTML = `<div class="ipc-modal-empty"><div class="ipc-modal-empty-icon">📡</div><div class="ipc-modal-empty-text">Lost connection.<br><button onclick="inboxOpenConv('${capturedTgtUid}')" style="margin-top:10px;padding:8px 18px;border-radius:20px;font-size:12px;cursor:pointer;">🔄 Retry</button></div></div>`;
+        });
+
+        // Wire up textarea
+        if (inp) {
+            inp.disabled = false;
+            inp.placeholder = `Message ${_ibActiveData.displayName||''}…`;
+            if (_ibInpHandler) inp.removeEventListener('input', _ibInpHandler);
+            _ibInpHandler = async e => {
+                if (_ibActiveChId !== capturedChId) return;
+                _ibGrow(e.target);
+                const isTyping = e.target.value.length > 0;
+                clearTimeout(_ibTypTimer);
+                const upd = {}; upd[`typing_${currentUser.uid}`] = isTyping;
+                try { await updateDoc(doc(db, 'chats', capturedChId), upd); } catch(_) {}
+                if (isTyping) {
+                    _ibTypTimer = setTimeout(async () => {
+                        if (_ibActiveChId !== capturedChId) return;
+                        const clr = {}; clr[`typing_${currentUser.uid}`] = false;
+                        try { await updateDoc(doc(db, 'chats', capturedChId), clr); } catch(_) {}
+                    }, 4000);
+                }
+            };
+            inp.addEventListener('input', _ibInpHandler);
+            setTimeout(() => { if (_ibActiveChId === capturedChId && inp) inp.focus(); }, 200);
+        }
+
+        _ibReady = true;
+    };
+
+    // ── Populate chat header ──────────────────────────────────
+    function _ibSetHeader(uData, tgtUid) {
+        const nameEl = document.getElementById('inboxChatHdrName');
+        const subEl  = document.getElementById('inboxChatHdrSub');
+        const avEl   = document.getElementById('inboxChatHdrAvatar');
+        if (nameEl) nameEl.textContent = uData.displayName || tgtUid.substring(0,8);
+        if (subEl)  subEl.textContent  = uData.status === 'online' ? '🟢 Online now' : (uData.mood || '⚫ Offline');
+        if (avEl) {
+            const dot = avEl.querySelector('.inbox-chat-hdr-status');
+            avEl.innerHTML = '';
+            if (dot) avEl.appendChild(dot);
+            if (uData.avatar) { avEl.style.backgroundImage = `url('${uData.avatar}')`; avEl.style.backgroundSize = 'cover'; }
+            else {
+                avEl.style.backgroundImage = 'none';
+                avEl.insertAdjacentText('afterbegin', (uData.displayName||'?')[0].toUpperCase());
+            }
+            const isOn = uData.status === 'online';
+            if (dot) dot.className = 'inbox-chat-hdr-status' + (isOn ? ' online' : '');
+        }
+    }
+
+    // ── Render messages into the chat pane ────────────────────
+    function _ibRenderMessages(cData, forceBottom) {
+        const list    = cData.messages || [];
+        const isSeen  = cData.readReceipt === true;
+        const msgBox  = document.getElementById('inboxChatMessages');
+        const typEl   = document.getElementById('inboxChatTyping');
+        if (!msgBox) return;
+
+        // Typing indicator
+        if (typEl) {
+            typEl.textContent = cData[`typing_${_ibActiveUid}`]
+                ? `${_ibEsc(_ibActiveData?.displayName||'?')} is typing…`
+                : '';
+        }
+
+        const atBot = forceBottom || msgBox.scrollHeight - msgBox.scrollTop <= msgBox.clientHeight + 100;
+        msgBox.innerHTML = '';
+
+        if (!list.length) {
+            msgBox.innerHTML = `<div class="ipc-modal-empty"><div class="ipc-modal-empty-icon">👋</div>
+                <div class="ipc-modal-empty-text">Say hello to <strong style="color:#4db8ff">${_ibEsc(_ibActiveData?.displayName||'?')}</strong>!<br>
+                <span style="font-size:12px;color:#2a4a6a;">Messages are saved and visible to both of you.</span></div></div>`;
+        } else {
+            let lastDate = '';
+            list.forEach((m, idx) => {
+                const isMine = m.sender === currentUser.uid;
+                const isLast = idx === list.length - 1;
+                const dl = _ibFmtDate(m.timestamp);
+
+                // Date separator
+                if (dl !== lastDate) {
+                    lastDate = dl;
+                    const sep = document.createElement('div');
+                    sep.className = 'ipc-modal-date-sep';
+                    sep.textContent = dl;
+                    msgBox.appendChild(sep);
+                }
+
+                // Bubble wrapper
+                const wrap = document.createElement('div');
+                wrap.className = 'ipc-modal-bwrap ' + (isMine ? 'me' : 'them');
+
+                // Sender label for their messages
+                if (!isMine) {
+                    const lbl = document.createElement('div');
+                    lbl.className = 'ipc-modal-sender';
+                    lbl.textContent = _ibActiveData?.displayName || '?';
+                    wrap.appendChild(lbl);
+                }
+
+                // Bubble
+                const bub = document.createElement('div');
+                bub.className = 'ipc-modal-bubble' + (m.deleted ? ' deleted' : '');
+                bub.dataset.msgIdx = idx;
+                bub.dataset.mine = isMine ? '1' : '0';
+
+                // Long-press context menu (re-use existing handler)
+                let _pressTimer = null;
+                const _openCtx = (e) => {
+                    e.preventDefault();
+                    const x = e.touches ? e.touches[0].clientX : e.clientX;
+                    const y = e.touches ? e.touches[0].clientY : e.clientY;
+                    if (typeof openMsgCtxMenu === 'function') openMsgCtxMenu(idx, isMine, m, x, y, _ibActiveChId);
+                };
+                bub.addEventListener('contextmenu', _openCtx);
+                bub.addEventListener('touchstart', e => { _pressTimer = setTimeout(() => _openCtx(e), 500); }, { passive: true });
+                bub.addEventListener('touchend',  () => clearTimeout(_pressTimer));
+                bub.addEventListener('touchmove', () => clearTimeout(_pressTimer));
+
+                if (m.deleted) {
+                    const t = document.createElement('div');
+                    t.style.cssText = 'font-size:13px;font-style:italic;';
+                    t.textContent = 'This message was deleted.';
+                    bub.appendChild(t);
+                } else if (m.type === 'image' && m.imageUrl) {
+                    const img = document.createElement('img');
+                    img.className = 'msg-media-img';
+                    img.src = m.imageUrl; img.alt = 'Image';
+                    img.onclick = () => { if (typeof openMediaViewer === 'function') openMediaViewer('image', m.imageUrl); };
+                    bub.appendChild(img);
+                    if (m.text) { const t = document.createElement('div'); t.style.fontSize='13px'; t.textContent = m.text; bub.appendChild(t); }
+                } else if (m.type === 'video' && m.imageUrl) {
+                    const vid = document.createElement('video');
+                    vid.className = 'msg-media-vid'; vid.src = m.imageUrl; vid.controls = true; vid.setAttribute('playsinline','');
+                    bub.appendChild(vid);
+                    if (m.text) { const t = document.createElement('div'); t.style.fontSize='13px'; t.textContent = m.text; bub.appendChild(t); }
+                } else if (m.type === 'audio' && m.imageUrl) {
+                    const filename = decodeURIComponent(m.imageUrl.split('/').pop().split('?')[0]);
+                    const card = document.createElement('div');
+                    card.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,30,70,0.7);border:1px solid rgba(0,174,239,0.3);border-radius:10px;min-width:180px;';
+                    card.innerHTML = `<span style="font-size:24px;flex-shrink:0">🎵</span><div style="flex:1;min-width:0"><div style="font-size:12px;color:#d8eeff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px">${_ibEsc(filename)}</div><audio src="${m.imageUrl}" controls style="width:100%"></audio></div>`;
+                    bub.appendChild(card);
+                    if (m.text) { const t = document.createElement('div'); t.style.fontSize='13px'; t.textContent = m.text; bub.appendChild(t); }
+                } else {
+                    bub.textContent = m.text || '';
+                }
+
+                // Meta: time + ticks
+                const meta = document.createElement('div');
+                meta.className = 'ipc-modal-meta';
+                const ts = document.createElement('span');
+                ts.className = 'ipc-modal-ts'; ts.textContent = _ibFmtTime(m.timestamp);
+                meta.appendChild(ts);
+                if (isMine) {
+                    const tick = document.createElement('span');
+                    tick.className = 'ipc-modal-tick' + (isLast && isSeen ? ' seen' : '');
+                    tick.textContent = (isLast && isSeen) ? '✓✓' : '✓';
+                    meta.appendChild(tick);
+                }
+                bub.appendChild(meta);
+                wrap.appendChild(bub);
+                msgBox.appendChild(wrap);
+            });
+        }
+
+        if (atBot) msgBox.scrollTop = msgBox.scrollHeight;
+
+        // Mark as read
+        const lastMsg = list[list.length - 1];
+        if (lastMsg && lastMsg.sender === _ibActiveUid) {
+            const upd = { readReceipt: true };
+            upd[`unread_${currentUser.uid}`] = 0;
+            try { updateDoc(doc(db, 'chats', _ibActiveChId), upd); } catch(_) {}
+        }
+    }
+
+    // ── Send a message ─────────────────────────────────────────
+    async function _ibSend() {
+        if (!currentUser || !_ibActiveChId || !_ibReady) return;
+        const inp = document.getElementById('inboxChatInput');
+        const text = inp ? inp.value.trim() : '';
+        const hasMedia = !!_ibMediaUrl;
+        if (!text && !hasMedia) return;
+
+        // AI Safety scan
+        if (text && typeof window.snxAIScan === 'function') {
+            const blocked = await window.snxAIScan(text, 'chat');
+            if (blocked) return;
+        }
+
+        const capturedChId   = _ibActiveChId;
+        const capturedTgtUid = _ibActiveUid;
+
+        clearTimeout(_ibTypTimer);
+        const sendBtn = document.getElementById('inboxChatSendBtn');
+        if (sendBtn) { sendBtn.style.opacity = '0.5'; sendBtn.style.transform = 'scale(0.9)'; }
+
+        try {
+            const msg = { sender: currentUser.uid, type: hasMedia ? _ibMediaType : 'text', text: text || '', timestamp: Date.now() };
+            if (hasMedia) msg.imageUrl = _ibMediaUrl;
+
+            const ref = doc(db, 'chats', capturedChId);
+            const upd = { messages: arrayUnion(msg), readReceipt: false, lastMsgTs: msg.timestamp, [`typing_${currentUser.uid}`]: false };
+            upd[`unread_${capturedTgtUid}`] = increment(1);
+
+            await setDoc(ref, upd, { merge: true });
+
+            if (inp) { inp.value = ''; _ibGrow(inp); }
+            inboxClearMedia();
+
+            const msgBox = document.getElementById('inboxChatMessages');
+            if (msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+
+            // Push notification
+            try {
+                const preview = hasMedia ? (msg.type === 'image' ? '📷 Image' : msg.type === 'video' ? '🎥 Video' : '🎵 Audio') : (text.length > 80 ? text.substring(0,80) + '…' : text);
+                await pushNotification(capturedTgtUid, { type:'message', fromUid:currentUser.uid, fromName:userData.displayName, fromAvatar:userData.avatar||'', preview });
+            } catch(_) {}
+
+        } catch(err) {
+            toastNotification('Message failed — please try again.');
+            console.error('[Inbox Send]', err);
+        } finally {
+            if (sendBtn) { sendBtn.style.opacity=''; sendBtn.style.transform=''; }
+            const inp2 = document.getElementById('inboxChatInput');
+            if (inp2 && !inp2.disabled) inp2.focus();
+        }
+    }
+
+    // ── Show/hide chat UI elements ────────────────────────────
+    function _ibShowChatUI(show) {
+        const ids = ['inboxChatHeader','inboxChatMessages','inboxChatTyping','inboxChatFooter'];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = show ? '' : 'none';
+        });
+        const placeholder = document.getElementById('inboxChatPlaceholder');
+        if (placeholder) placeholder.style.display = show ? 'none' : '';
+    }
+
+    // ── Tear down the open chat session ───────────────────────
+    function _ibTeardownChat() {
+        if (_ibChatUnsub) { _ibChatUnsub(); _ibChatUnsub = null; }
+        if (_ibStUnsub)   { _ibStUnsub();   _ibStUnsub   = null; }
+        clearTimeout(_ibTypTimer);
+
+        if (_ibActiveChId && currentUser) {
+            const clr = {}; clr[`typing_${currentUser.uid}`] = false;
+            try { updateDoc(doc(db, 'chats', _ibActiveChId), clr); } catch(_) {}
+        }
+
+        const inp = document.getElementById('inboxChatInput');
+        if (inp && _ibInpHandler) { inp.removeEventListener('input', _ibInpHandler); _ibInpHandler = null; }
+        if (inp) { inp.value = ''; inp.placeholder = 'Type a message…'; inp.style.height = 'auto'; }
+
+        _ibActiveUid  = null;
+        _ibActiveChId = null;
+        _ibActiveData = null;
+        _ibReady      = false;
+        inboxClearMedia();
+    }
+
+    // ── Media handling ────────────────────────────────────────
+    window.inboxHandleMediaPick = async function(input) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        input.value = '';
+
+        const progWrap = document.getElementById('inboxUploadProgress');
+        const progBar  = document.getElementById('inboxUploadProgressBar');
+        const strip    = document.getElementById('inboxUploadStrip');
+        const nameEl   = document.getElementById('inboxUploadFilename');
+        const iconEl   = document.getElementById('inboxUploadIcon');
+        const sendBtn  = document.getElementById('inboxChatSendBtn');
+
+        if (strip) strip.style.display = 'flex';
+        if (nameEl) nameEl.textContent = 'Uploading…';
+        if (sendBtn) sendBtn.disabled = true;
+
+        // Detect type
+        const rawType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'audio';
+        if (iconEl) iconEl.textContent = rawType === 'image' ? '🖼' : rawType === 'video' ? '🎥' : '🎵';
+
+        try {
+            const url = await uploadToR2(file, 'inboxUploadProgressBar', 'inboxUploadProgress');
+            if (!url) throw new Error('Empty URL');
+            _ibMediaUrl  = url;
+            _ibMediaType = rawType;
+            if (nameEl) nameEl.textContent = file.name;
+            toastNotification(`✅ ${file.name} attached!`);
+        } catch(e) {
+            toastNotification('❌ Upload failed: ' + e.message);
+            inboxClearMedia();
+        } finally {
+            if (sendBtn) sendBtn.disabled = false;
+        }
+    };
+
+    window.inboxClearMedia = function() {
+        _ibMediaUrl = ''; _ibMediaType = '';
+        const strip = document.getElementById('inboxUploadStrip');
+        const prog  = document.getElementById('inboxUploadProgress');
+        if (strip) strip.style.display = 'none';
+        if (prog)  prog.style.display  = 'none';
+        const bar = document.getElementById('inboxUploadProgressBar');
+        if (bar) bar.style.width = '0%';
+        const fi = document.getElementById('inboxMediaFile');
+        if (fi) fi.value = '';
+    };
+
+    // ── Mobile back button ────────────────────────────────────
+    window.inboxBackToList = function() {
+        _ibTeardownChat();
+        _ibShowChatUI(false);
+        document.querySelectorAll('.inbox-conv-item').forEach(el => el.classList.remove('active-conv'));
+        const split = document.getElementById('inboxSplit');
+        if (split) split.classList.remove('chat-open');
+    };
+
+    // ── Open partner's profile ────────────────────────────────
+    window.inboxOpenPartnerProfile = function() {
+        if (!_ibActiveUid) return;
+        if (typeof viewProfile === 'function') viewProfile(_ibActiveUid);
+    };
+
+    // ── Public API ────────────────────────────────────────────
+    window.renderInboxPage = function() {
+        _ibSubscribeList();
+    };
+
+    window.inboxFilter = function(val) {
+        _ibQuery = val || '';
+        _ibPaint();
+    };
+
+    window._startInboxListener = function() {
+        _ibSubscribeList();
+    };
+
+    window._teardownInboxListener = function() {
+        if (_ibListUnsub) { _ibListUnsub(); _ibListUnsub = null; }
+        _ibTeardownChat();
+        _ibAllConvs = [];
+        _ibUpdateBadge(0);
+    };
+
+    // ── Wire send button and Enter key ────────────────────────
+    (function() {
+        const btn = document.getElementById('inboxChatSendBtn');
+        let _busy = false;
+        if (btn) btn.addEventListener('click', () => {
+            if (_busy) return; _busy = true;
+            _ibSend().finally(() => { _busy = false; });
+        });
+        const inp = document.getElementById('inboxChatInput');
+        if (inp) inp.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _ibSend(); }
+        });
+    })();
+
+  })(); // end INBOX module
 
   // ── Render messages into the modal ──
   function _mRender(cData, forceScrollToBottom) {
@@ -15883,10 +17176,12 @@ function navTo(pageId) {
         moderatorPage:'navMod', administratorPage:'navAdminOfficer',
         communityPage:'navCommunity', supportRoomsPage:'navSupport',
         communityRulesPage:'navCommunityRules',
-        liveHubPage:'navLiveHub'
+        liveHubPage:'navLiveHub', inboxPage:'navInbox'
     };
     const navEl = document.getElementById(map[pageId]);
     if (navEl) navEl.classList.add('active-nav');
+    // Render inbox on navigation
+    if (pageId === 'inboxPage' && typeof window.renderInboxPage === 'function') window.renderInboxPage();
     // Render friends page data on navigation
     if (pageId === 'friendsPage' && typeof renderFriendsPage === 'function') renderFriendsPage();
     // Render admin panel on navigation (re-fetches latest data each time)
@@ -25241,6 +26536,12 @@ const GP_PAGES = {
         description: "The Nexus Family & Friends page manages your connections. It has three tabs: Friends (people you are mutually connected with), Requests (pending friend requests you have received), and Family (members you have added to your inner circle with ❤️ Family). You can accept or decline requests from here.",
         detail: "Friends tab shows all current mutual friends. Requests tab shows incoming friend requests with Accept / Decline buttons. Family tab shows your Family connections and any pending Family requests. Privacy for who can send requests and see your lists is controlled in Settings.",
         action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('friendsPage'); }
+    },
+    inboxPage: {
+        label: '💬 Inbox',
+        description: "The Inbox shows all your direct message conversations. Each row shows the other person's name, their online status, a preview of the last message, and an unread count badge. Tap any conversation to open the chat overlay. You can also search conversations by name.",
+        detail: "Conversations are sorted newest first. The 💬 Inbox badge in the sidebar shows your total unread messages across all conversations. To start a new conversation, open someone's profile and tap Message. The chat opens as an overlay and messages are saved in real time.",
+        action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('inboxPage'); }
     }
 };
 
@@ -25257,6 +26558,7 @@ function gpDetectPage(text) {
     if (/(community rule|guideline|what.*allowed|report.*appeal|moderat|appeal.*action|safety system|hate speech|bullying|harassment|spam rule)/i.test(t)) return 'communityRulesPage';
     if (/(profile|bio|avatar|cover photo|display name|custom theme|spotlight|social link|edit.*profile|my page)/i.test(t)) return 'profile';
     if (/(search|find.*user|find.*people|look up|search.*nexus)/i.test(t))        return 'searchPage';
+    if (/(inbox|my.*message|message.*list|all.*chat|chat.*list|conversation.*list|direct message.*list|dm.*list|unread.*message)/i.test(t)) return 'inboxPage';
     if (/(notif|alert|bell|mention|like.*notif|follow.*notif|push notif|notification center)/i.test(t)) return 'notificationsPage';
     if (/(setting|password|privacy|account setting|who can.*me|wall setting|delete.*account|notif.*prefer|push.*enable|game.*invite|tag.*me)/i.test(t)) return 'settingsPage';
     if (/(arcade|mini.game|challenge.*friend|game.*hub|play.*game)/i.test(t))     return 'arcadeHub';
@@ -25962,6 +27264,378 @@ document.getElementById('gp-messages')?.addEventListener('touchmove', (e) => {
     if (closeBtn)  closeBtn.addEventListener('click',  stopTTSOnClose);
     if (overlay)   overlay.addEventListener('click',   stopTTSOnClose);
 })();
+</script>
+
+<!-- ████████████████████████████████████████████████████████████
+     SHADOW NEXUS REALM — realm.js (inlined)
+     ████████████████████████████████████████████████████████████ -->
+<script>
+(function() {
+'use strict';
+
+/* ═══════════════════════════════════════════════════════
+   1. ENTER OVERLAY — auto-dismiss after animation
+   ═══════════════════════════════════════════════════════ */
+(function initEnterOverlay() {
+    // Only show once per session
+    var overlay = document.getElementById('snxEnterOverlay');
+    if (!overlay) return;
+    if (sessionStorage.getItem('snx-realm-entered')) {
+        overlay.style.display = 'none';
+        return;
+    }
+    // Dismiss after animation (3.2s fade + 0.8s) = 4s
+    setTimeout(function() {
+        overlay.classList.add('done');
+        sessionStorage.setItem('snx-realm-entered', '1');
+    }, 4050);
+})();
+
+/* ═══════════════════════════════════════════════════════
+   2. STARS CANVAS — animated starfield
+   ═══════════════════════════════════════════════════════ */
+(function initStars() {
+    var canvas = document.getElementById('snxStarsCanvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var stars = [];
+    var W, H;
+
+    function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Create stars
+    for (var i = 0; i < 200; i++) {
+        stars.push({
+            x: Math.random(),
+            y: Math.random(),
+            r: Math.random() * 1.2 + 0.2,
+            a: Math.random(),
+            da: (Math.random() - 0.5) * 0.006,
+            blue: Math.random() < 0.15
+        });
+    }
+
+    function tick() {
+        ctx.clearRect(0, 0, W, H);
+        stars.forEach(function(s) {
+            s.a += s.da;
+            if (s.a > 1) { s.a = 1; s.da = -Math.abs(s.da); }
+            if (s.a < 0.1) { s.a = 0.1; s.da = Math.abs(s.da); }
+            ctx.beginPath();
+            ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+            if (s.blue) {
+                ctx.fillStyle = 'rgba(0,180,255,' + (s.a * 0.7) + ')';
+            } else {
+                ctx.fillStyle = 'rgba(255,255,255,' + (s.a * 0.55) + ')';
+            }
+            ctx.fill();
+        });
+        requestAnimationFrame(tick);
+    }
+    tick();
+})();
+
+/* ═══════════════════════════════════════════════════════
+   3. BLUE RAIN — particle rain effect
+   ═══════════════════════════════════════════════════════ */
+(function initRain() {
+    var COUNT = window.innerWidth < 768 ? 18 : 35;
+    for (var i = 0; i < COUNT; i++) {
+        (function(idx) {
+            var drop = document.createElement('div');
+            drop.className = 'rain-drop';
+            var left = Math.random() * 100;
+            var height = Math.random() * 60 + 40;
+            var dur = Math.random() * 1.5 + 0.8;
+            var delay = Math.random() * 3;
+            drop.style.cssText = [
+                'left:' + left + 'vw',
+                'height:' + height + 'px',
+                'animation-duration:' + dur + 's',
+                'animation-delay:-' + (delay) + 's',
+                'opacity:' + (Math.random() * 0.25 + 0.1)
+            ].join(';');
+            document.body.appendChild(drop);
+        })(i);
+    }
+})();
+
+/* ═══════════════════════════════════════════════════════
+   4. ENERGY WAVES — periodic pulse from center
+   ═══════════════════════════════════════════════════════ */
+(function initEnergyWaves() {
+    var colors = [
+        'rgba(0,174,239,0.12) 0%, transparent 70%',
+        'rgba(57,255,20,0.07) 0%, transparent 70%',
+        'rgba(0,240,255,0.08) 0%, transparent 70%'
+    ];
+    var idx = 0;
+    function spawnWave() {
+        var wave = document.createElement('div');
+        wave.className = 'realm-energy-wave';
+        var size = Math.random() * 200 + 100;
+        var x = Math.random() * 80 + 10;
+        var y = Math.random() * 80 + 10;
+        wave.style.cssText = [
+            'width:' + size + 'px',
+            'height:' + size + 'px',
+            'left:' + x + 'vw',
+            'top:' + y + 'vh',
+            'background:radial-gradient(' + colors[idx % colors.length] + ')',
+            'animation-duration:' + (Math.random() * 3 + 4) + 's',
+            'animation-delay:0s'
+        ].join(';');
+        idx++;
+        document.body.appendChild(wave);
+        setTimeout(function() { wave.remove(); }, 8000);
+    }
+    spawnWave();
+    setInterval(spawnWave, 3500);
+})();
+
+/* ═══════════════════════════════════════════════════════
+   5. SHADOW CORE — orb expand/collapse
+   ═══════════════════════════════════════════════════════ */
+(function initShadowCore() {
+    var core = document.getElementById('shadowCore');
+    var orb  = document.getElementById('scOrbBtn');
+    if (!core || !orb) return;
+
+    // Auto-collapse after 4s of no interaction
+    var collapseTimer = null;
+    function scheduleCollapse() {
+        clearTimeout(collapseTimer);
+        collapseTimer = setTimeout(function() {
+            core.classList.remove('expanded');
+        }, 3500);
+    }
+
+    orb.addEventListener('click', function() {
+        core.classList.toggle('expanded');
+        clearTimeout(collapseTimer);
+        if (core.classList.contains('expanded')) {
+            scheduleCollapse();
+        }
+    });
+
+    core.addEventListener('mouseenter', function() {
+        core.classList.add('expanded');
+        clearTimeout(collapseTimer);
+    });
+    core.addEventListener('mouseleave', scheduleCollapse);
+})();
+
+/* ═══════════════════════════════════════════════════════
+   6. PORTAL TRANSITION — fires on page change
+   ═══════════════════════════════════════════════════════ */
+function firePortalTransition(cb) {
+    var el = document.getElementById('snxPortalTransition');
+    if (!el) { if (cb) cb(); return; }
+    el.classList.remove('firing');
+    // Force reflow
+    void el.offsetWidth;
+    el.classList.add('firing');
+    setTimeout(function() {
+        el.classList.remove('firing');
+        if (cb) cb();
+    }, 250);
+}
+window.firePortalTransition = firePortalTransition;
+
+/* ═══════════════════════════════════════════════════════
+   7. SHADOW CORE NAV — realm navigation wrappers
+   ═══════════════════════════════════════════════════════ */
+window.realmNavTo = function(pageId) {
+    firePortalTransition(function() {
+        if (typeof navTo === 'function') navTo(pageId);
+    });
+    updateShadowCoreActive(pageId);
+    // Collapse sidebar
+    var core = document.getElementById('shadowCore');
+    if (core) core.classList.remove('expanded');
+};
+
+window.realmViewMyProfile = function() {
+    firePortalTransition(function() {
+        if (typeof viewMyProfile === 'function') viewMyProfile();
+    });
+    updateShadowCoreActive('profile');
+    var core = document.getElementById('shadowCore');
+    if (core) core.classList.remove('expanded');
+};
+
+function updateShadowCoreActive(pageId) {
+    document.querySelectorAll('.sc-item').forEach(function(el) {
+        el.classList.remove('active-nav');
+    });
+    document.querySelectorAll('.ncm-item').forEach(function(el) {
+        el.classList.remove('active-nav');
+    });
+
+    var map = {
+        'feed':              ['scNavHome', 'scNavFeed', 'ncmHome', 'ncmFeed'],
+        'searchPage':        ['scNavSearch'],
+        'inboxPage':         ['scNavInbox', 'ncmInbox'],
+        'notificationsPage': ['scNavNotifs', 'ncmNotifs'],
+        'profile':           ['scNavProfile', 'ncmProfile'],
+        'settingsPage':      ['scNavSettings', 'ncmSettings'],
+        'communityPage':     ['scNavCommunity'],
+        'stormRoomsPage':    ['scNavStorm'],
+        'supportRoomsPage':  ['scNavSupport'],
+        'liveHubPage':       ['scNavLive'],
+        'moderatorPage':     ['scNavMod'],
+        'administratorPage': ['scNavAdm'],
+        'adminPage':         ['scNavFounder']
+    };
+
+    var ids = map[pageId] || [];
+    ids.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.add('active-nav');
+    });
+}
+window._realmUpdateNav = updateShadowCoreActive;
+
+/* ═══════════════════════════════════════════════════════
+   8. MOBILE NEXUS CORE — floating button + radial menu
+   ═══════════════════════════════════════════════════════ */
+(function initMobileNav() {
+    var btn  = document.getElementById('nexusCoreBtn');
+    var menu = document.getElementById('nexusCoreMenu');
+    if (!btn || !menu) return;
+
+    btn.addEventListener('click', function() {
+        if (menu.classList.contains('open')) {
+            menu.classList.remove('open');
+        } else {
+            menu.classList.add('open');
+        }
+    });
+
+    // Close on backdrop tap
+    menu.addEventListener('click', function(e) {
+        if (e.target === menu) menu.classList.remove('open');
+    });
+})();
+
+window.mobileNavTo = function(pageId) {
+    var menu = document.getElementById('nexusCoreMenu');
+    if (menu) menu.classList.remove('open');
+
+    if (pageId === '_close') return;
+    if (pageId === '_profile') {
+        firePortalTransition(function() {
+            if (typeof viewMyProfile === 'function') viewMyProfile();
+        });
+        updateShadowCoreActive('profile');
+        return;
+    }
+    realmNavTo(pageId);
+};
+
+/* ═══════════════════════════════════════════════════════
+   9. BADGE SYNC — mirror sidebar badges to Shadow Core
+   ═══════════════════════════════════════════════════════ */
+(function syncBadges() {
+    function mirrorBadge(srcId, destId) {
+        var src  = document.getElementById(srcId);
+        var dest = document.getElementById(destId);
+        if (!src || !dest) return;
+        var obs = new MutationObserver(function() {
+            var count = src.textContent.trim();
+            var vis   = src.style.display !== 'none' && src.classList.contains('visible') || (src.style.display === 'inline-flex');
+            if (vis && count) {
+                dest.textContent = count;
+                dest.classList.add('visible');
+            } else {
+                dest.classList.remove('visible');
+                dest.textContent = '';
+            }
+        });
+        obs.observe(src, { attributes: true, childList: true, characterData: true });
+    }
+    mirrorBadge('sidebarNotifBadge', 'scNotifBadge');
+    mirrorBadge('sidebarInboxBadge', 'scInboxBadge');
+})();
+
+/* ═══════════════════════════════════════════════════════
+   10. ROLE PANEL VISIBILITY — mirror sidebar show/hide
+   ═══════════════════════════════════════════════════════ */
+(function syncRolePanels() {
+    var pairs = [
+        ['navMod',          'scNavMod'],
+        ['navAdminOfficer', 'scNavAdm'],
+        ['navAdmin',        'scNavFounder']
+    ];
+    pairs.forEach(function(pair) {
+        var src  = document.getElementById(pair[0]);
+        var dest = document.getElementById(pair[1]);
+        if (!src || !dest) return;
+        var obs = new MutationObserver(function() {
+            dest.style.display = src.style.display === 'none' ? 'none' : '';
+        });
+        obs.observe(src, { attributes: true });
+    });
+})();
+
+/* ═══════════════════════════════════════════════════════
+   11. PATCH navTo TO FIRE PORTAL + UPDATE SHADOW CORE
+   ═══════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', function() {
+    // Mirror navTo calls so Shadow Core stays in sync when
+    // other parts of the app call navTo() directly
+    var _origNavTo = window.navTo;
+    if (typeof _origNavTo === 'function') {
+        window.navTo = function(pageId) {
+            _origNavTo.call(this, pageId);
+            updateShadowCoreActive(pageId);
+        };
+    }
+    // Same for viewMyProfile
+    var _origVMP = window.viewMyProfile;
+    if (typeof _origVMP === 'function') {
+        window.viewMyProfile = function() {
+            _origVMP.apply(this, arguments);
+            updateShadowCoreActive('profile');
+        };
+    }
+});
+
+/* ═══════════════════════════════════════════════════════
+   12. REACTION ENERGY PULSE EFFECT
+   ═══════════════════════════════════════════════════════ */
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.react-btn');
+    if (!btn) return;
+    btn.classList.remove('energy-pulse');
+    void btn.offsetWidth; // reflow
+    btn.classList.add('energy-pulse');
+    btn.addEventListener('animationend', function h() {
+        btn.classList.remove('energy-pulse');
+        btn.removeEventListener('animationend', h);
+    });
+});
+
+/* ═══════════════════════════════════════════════════════
+   13. INITIAL NAV STATE — mark active on first load
+   ═══════════════════════════════════════════════════════ */
+(function setInitialNav() {
+    // Find which page is currently active
+    var activePage = document.querySelector('.page.active');
+    if (activePage) {
+        updateShadowCoreActive(activePage.id);
+    } else {
+        // Default to feed
+        updateShadowCoreActive('feed');
+    }
+})();
+
+})(); // end IIFE
 </script>
 
 </body>
