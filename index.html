@@ -25015,9 +25015,13 @@ window.switchAdminTab = function(tab) {
         <span class="gp-nav-chip" data-topic="Tell me about philosophy and the meaning of life">📖 Philosophy</span>
         <span class="gp-nav-chip" data-topic="Let's talk about music I love">🎵 Music</span>
         <span class="gp-nav-chip" data-topic="Tell me a story or let's build one together">📜 Stories</span>
-        <span class="gp-nav-chip" data-topic="I need support or someone to talk to">🫂 Support</span>
-        <span class="gp-nav-chip" data-topic="How do I go live on this site?">📡 Go Live</span>
-        <span class="gp-nav-chip" data-topic="What are Storm Rooms?">⚡ Storm Rooms</span>
+        <span class="gp-nav-chip" data-topic="I need support or someone to talk to">🫂 Support Rooms</span>
+        <span class="gp-nav-chip" data-topic="How do I go live on this site?">🔴 Go Live</span>
+        <span class="gp-nav-chip" data-topic="What are Storm Rooms and how do I use them?">⚡ Storm Rooms</span>
+        <span class="gp-nav-chip" data-topic="What is the Community Hub?">💙 Community</span>
+        <span class="gp-nav-chip" data-topic="How do Settings and privacy work?">⚙️ Settings</span>
+        <span class="gp-nav-chip" data-topic="What are the community rules?">📜 Rules</span>
+        <span class="gp-nav-chip" data-topic="How do friend requests and family connections work?">🦋 Friends</span>
         <span class="gp-nav-chip" data-topic="What can I do on Shadow Nexus Social?">🌑 What's here?</span>
     </div>
 
@@ -25156,136 +25160,171 @@ if (GP.synth) {
 }
 
 // ── Page navigation map ───────────────────────────────────────
-// Each entry: { label, description, action }
-// action() actually navigates — calls the right global function and closes the panel
+// Each entry: { label, description, detail, action }
+// detail = extended knowledge Grim can draw on when explaining the page.
+// action() navigates to the page and closes the panel.
 const GP_PAGES = {
     feed: {
         label: '🏠 Home Feed',
-        description: "The main social feed — where posts, images, and videos from the community live. You can create posts, react, comment, and see what everyone is up to.",
+        description: "The Home Feed is the main social timeline of Shadow Nexus Social. Every post — text, images, and videos — from people you follow shows up here in real time. You can create your own posts, react with emoji, leave comments, repost things you love, and browse Stories at the top of the page. The Eclipse Feed also shows who is currently live.",
+        detail: "To post: tap the post composer at the top of the feed and type, add a photo or video, then hit Post to the Eclipse. Stories appear as bubbles above the feed — tap to view or tap the + to add your own. You can react to any post with emoji by tapping the reaction button. The feed updates live so you never miss anything.",
         action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('feed'); }
     },
     profile: {
         label: '👤 Profile',
-        description: "Your profile page — edit your bio, upload a photo, set a custom theme, and add music. Others can visit it to see your posts and follow you.",
+        description: "Your Profile page is your personal space on Shadow Nexus Social. It shows your display name, handle, bio, avatar, cover photo, posts, follower and following counts, friends, and photo album. You can edit everything — bio, avatar, cover, custom theme colours, background music, spotlight message, social links, and more — by tapping the Edit Profile button.",
+        detail: "Profile edit tabs: Basics (name, bio, handle), Mood (status), Media (avatar & cover photo), Style (custom theme & colours), Sandbox (free-form HTML/CSS decoration), Links (social links), Sections (toggle which profile sections are visible). Other users can follow you, send friend requests, or message you from your profile. If you go live, a LIVE NOW badge appears on your profile automatically.",
         action() { closeGrimPanel(); if (typeof viewMyProfile === 'function') viewMyProfile(); }
     },
     searchPage: {
         label: '🔍 Search',
-        description: "Search for other users, posts, and content across Shadow Nexus Social. Find people to follow or look up specific posts.",
+        description: "The Search page lets you find any user on Shadow Nexus Social by their display name or handle. Type a name into the search bar and press Search to see matching profiles. From the results you can view profiles, follow users, or send them a message.",
+        detail: "Search is visible in the sidebar. Your own search visibility can be adjusted in Settings → Privacy → Who can find me in Search. Search currently covers user profiles.",
         action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('searchPage'); }
     },
     notificationsPage: {
         label: '🔔 Notifications',
-        description: "Your notification center — likes, comments, new followers, mentions, and system alerts all appear here.",
+        description: "The Notification Center collects every alert in one place. It has four filter tabs: Messages (direct messages), Likes & Comments (activity on your posts), Followers (new follows and friend requests), and System (platform announcements). You can mark all notifications as read or clear them all with the buttons at the top.",
+        detail: "Notifications arrive in real time. The red badge on the bell icon in the sidebar shows how many unread notifications you have. Push notification preferences — which types send alerts to your phone — can be toggled in Settings → Notification Preferences.",
         action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('notificationsPage'); }
     },
     live: {
         label: '🔴 Go Live',
-        description: "Broadcast live video to the entire Shadow Nexus community. Click Go Live in the sidebar to start your stream instantly.",
+        description: "Go Live lets you broadcast live video to the entire Shadow Nexus community. Tap Go Live in the sidebar to open the live streaming page. Your stream appears instantly in the Live Hub for everyone to watch, and a LIVE NOW badge shows on your profile. You can end the stream at any time.",
+        detail: "Live streams open in live.html. While live, viewers can watch your broadcast in real time. Your profile shows a LIVE NOW badge and a Watch Live button for other users. Live streams also appear as cards at the top of the Home Feed.",
         action() { closeGrimPanel(); if (typeof goLiveOrWatch === 'function') goLiveOrWatch(); }
     },
     liveHubPage: {
-        label: '📺 Live Hub',
-        description: "Watch live streams from other users on the platform right now. The Live Hub shows everyone who is currently broadcasting.",
+        label: '🔴 Live Hub',
+        description: "The Live Hub shows every user who is currently streaming live on Shadow Nexus Social. Browse live stream cards, tap one to watch, and see who is broadcasting right now. If nobody is live you will see an empty state — be the first to go live.",
+        detail: "Live Hub is accessible from the sidebar. Each card shows the streamer's name, avatar, and a Watch button. The count of active live streams appears in the header. Live cards also appear at the top of the Home Feed when someone is live.",
         action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('liveHubPage'); }
     },
     stormRoomsPage: {
         label: '⚡ Storm Rooms',
-        description: "Group voice and text rooms organized by topic. Join a Storm Room to have real conversations with others in the community.",
+        description: "Storm Rooms are live anonymous chat rooms where you can have real-time conversations with other members. Choose a display name, then join the Public Lobby (open to everyone, no code needed) or a Private Room using a room code. Private rooms can also be created fresh — you get a code to share with friends. Messages vanish after 10 minutes. No judgment.",
+        detail: "How to use Storm Rooms: 1) Go to Storm Rooms in the sidebar. 2) Enter a shadow display name (e.g. NightBloom). 3) Tap Enter Public Lobby for open chat, or enter a room code and tap Join Private Room. To create a private room tap Create New Private Room — you get a code to share. Inside a room you can see who is online, send messages with emoji, copy the room code, or leave. Messages disappear after 10 minutes keeping things ephemeral.",
         action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('stormRoomsPage'); }
     },
     supportRoomsPage: {
         label: '🫂 Support Rooms',
-        description: "Safe, judgment-free spaces to share what you're going through and receive peer support. No topic is too heavy here.",
+        description: "Support Rooms are calm, safe, anonymously moderated spaces to share what you are going through and receive genuine peer support. There are six dedicated rooms: Night Owls (anxiety), Morning Light (depression), Venting Lounge (general venting), Healing Circle (trauma & recovery), Grief Garden (loss & grief), and Self-Love Club (body image & esteem). No judgment. No real names required.",
+        detail: "How to use Support Rooms: 1) Go to Support Rooms in the sidebar. 2) Choose a gentle display name (you are anonymous — no one knows your real identity). 3) Pick a room that fits what you are carrying and tap to join. Inside you can chat, use the emoji picker, and read the room rules. Crisis resources are always visible: call 988 or text HOME to 741741 (Crisis Text Line) if you are in danger. Room rules: be kind, no bullying or triggering language, do not give medical advice, respect everyone's pace.",
         action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('supportRoomsPage'); }
     },
     communityPage: {
         label: '💙 Community Hub',
-        description: "Community events, announcements, and shared spaces to connect with the wider Shadow Nexus family.",
+        description: "The Community Hub is a positive shared space with several features: a daily inspirational Quote of the Day (tap refresh for a new one), a Daily Challenge you can complete to earn XP, Community Goals that the whole platform works toward together, Kindness Badges you earn by being a positive force, a Community Pulse where you can send a silent wave of energy to everyone, and an Anonymous Support Board where you can share feelings or support others without your name attached.",
+        detail: "Community Hub sections: Quote of the Day (rotating inspirational quotes, tap ↻ for a new one) · Daily Challenge (+50 XP, resets daily, tap Complete Challenge to claim) · Community Goals (shared targets the whole community contributes to) · Kindness Badges (earned by positive actions — visible on your profile) · Community Pulse (send emoji reactions to the whole community silently) · Anonymous Support Board (post feelings tagged as Just Sharing / Need Support / Venting / Grateful / Milestone — toggle anonymous on/off).",
         action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('communityPage'); }
     },
     communityRulesPage: {
         label: '📜 Community Rules',
-        description: "The platform guidelines — what's allowed, what's not, and how we keep this a safe space for everyone.",
+        description: "The Community Rules page outlines what is and is not allowed on Shadow Nexus Social. The six prohibited behaviours are: Bullying, Harassment, Threats, Hate Speech, Spam, and Repeated Disruptive Behaviour. These rules apply to posts, stories, messages, and live streams. The platform uses an AI-assisted moderation system — it detects issues, issues warnings, and escalates if problems continue. Users can appeal any moderation action; all appeals are reviewed personally by the Founder.",
+        detail: "Safety flow: Rule broken → AI detects → Warning issued → Continued issue → Action taken → User can appeal → Founder reviews → Accept or deny. If accepted, restrictions are removed. To appeal: go to the Reports section, explain what happened, and your case will be reviewed. The AI assists moderators but does not replace them — every serious action is human-reviewed.",
         action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('communityRulesPage'); }
     },
     settingsPage: {
         label: '⚙️ Settings',
-        description: "Manage your account — change your password, adjust notification preferences, privacy settings, and more.",
+        description: "Settings lets you control your account across several categories. Privacy: choose who can see your profile, send you friend requests, message you, find you in search, write on your wall, send family requests, see your friends and family lists, and tag you in posts. Game Challenges: control who can invite you to arcade games. Notification Preferences: toggle push notifications for messages, likes, comments, followers, mentions, tags, and announcements individually. Danger Zone: permanently delete your account if you choose.",
+        detail: "Privacy settings options — Profile visibility: Everyone / Friends only / Nobody. Friend requests: Everyone / Nobody. Messages: Everyone / Friends only / Nobody. Search visibility: Everyone / Friends only / Nobody. Wall posts: Everyone / Friends only / Nobody. Family requests: Everyone / Friends / Followers / No one. Family list visibility: Everyone / Friends / Only me. Friends list visibility: Everyone / Friends / Only me. Tagging: Everyone / Friends only / Nobody. Game invites: Everyone / Friends only / Nobody. Push notifications can be enabled per-type. Account deletion is permanent and removes all data.",
         action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('settingsPage'); }
     },
     arcadeHub: {
         label: '🕹️ Arcade',
-        description: "Mini-games and interactive fun built right into Shadow Nexus. Take a break and play something.",
+        description: "The Arcade is Shadow Nexus Social's built-in mini-game hub. You can play games solo or challenge friends directly from their profile. Game challenge invitations go through the notification system. Arcade invite preferences (who can challenge you) are adjustable in Settings.",
+        detail: "Open the Arcade from the sidebar. Challenge a friend by visiting their profile and tapping the Challenge button — you choose the game and send the invite. Pending challenges appear in the Arcade Hub. Game invite privacy is controlled in Settings → Game Challenges.",
         action() { closeGrimPanel(); if (typeof openArcadeHub === 'function') openArcadeHub(); }
+    },
+    friendsPage: {
+        label: '🦋 Nexus Family & Friends',
+        description: "The Nexus Family & Friends page manages your connections. It has three tabs: Friends (people you are mutually connected with), Requests (pending friend requests you have received), and Family (members you have added to your inner circle with ❤️ Family). You can accept or decline requests from here.",
+        detail: "Friends tab shows all current mutual friends. Requests tab shows incoming friend requests with Accept / Decline buttons. Family tab shows your Family connections and any pending Family requests. Privacy for who can send requests and see your lists is controlled in Settings.",
+        action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('friendsPage'); }
     }
 };
 
 // ── Detect which page a message is about ─────────────────────
 function gpDetectPage(text) {
     const t = text.toLowerCase();
+    // Founder / admin — blocked, never map to a page
+    if (/(founder control|founder panel|founder page|founder setting|founder tool|founder only|admin page\b|adminPage\b)/i.test(t)) return '_founder';
     if (/(go live|start.*live|broadcast|stream\b|live stream)/i.test(t))         return 'live';
-    if (/(live hub|watch.*live|who.*live|see.*live)/i.test(t))                   return 'liveHubPage';
-    if (/(storm room|voice room|group room|chat room)/i.test(t))                 return 'stormRoomsPage';
-    if (/(support room|peer support|someone to talk|need support|talk to someone)/i.test(t)) return 'supportRoomsPage';
-    if (/(community hub|community event|announcement)/i.test(t))                 return 'communityPage';
-    if (/(community rule|guideline|rules|report)/i.test(t))                      return 'communityRulesPage';
-    if (/(profile|bio|avatar|photo|theme|my page|edit.*profile)/i.test(t))       return 'profile';
-    if (/(search|find.*user|find.*people|look up)/i.test(t))                     return 'searchPage';
-    if (/(notif|alert|bell|mention|like.*notification)/i.test(t))                return 'notificationsPage';
-    if (/(setting|password|privacy|account setting)/i.test(t))                   return 'settingsPage';
-    if (/(arcade|game|play)/i.test(t))                                           return 'arcadeHub';
-    if (/(home|feed|post|timeline|what.*people.*post|main page)/i.test(t))       return 'feed';
+    if (/(live hub|watch.*live|who.*live|see.*live|livestream hub)/i.test(t))     return 'liveHubPage';
+    if (/(storm room|shadow room|anonymous.*chat|ephemeral.*chat|private room|public lobby)/i.test(t)) return 'stormRoomsPage';
+    if (/(support room|peer support|someone to talk|need support|talk to someone|night owl|morning light|venting lounge|healing circle|grief garden|self.love club)/i.test(t)) return 'supportRoomsPage';
+    if (/(community hub|community event|community goal|kindness badge|community pulse|quote of the day|daily challenge|anonymous.*board|support board)/i.test(t)) return 'communityPage';
+    if (/(community rule|guideline|what.*allowed|report.*appeal|moderat|appeal.*action|safety system|hate speech|bullying|harassment|spam rule)/i.test(t)) return 'communityRulesPage';
+    if (/(profile|bio|avatar|cover photo|display name|custom theme|spotlight|social link|edit.*profile|my page)/i.test(t)) return 'profile';
+    if (/(search|find.*user|find.*people|look up|search.*nexus)/i.test(t))        return 'searchPage';
+    if (/(notif|alert|bell|mention|like.*notif|follow.*notif|push notif|notification center)/i.test(t)) return 'notificationsPage';
+    if (/(setting|password|privacy|account setting|who can.*me|wall setting|delete.*account|notif.*prefer|push.*enable|game.*invite|tag.*me)/i.test(t)) return 'settingsPage';
+    if (/(arcade|mini.game|challenge.*friend|game.*hub|play.*game)/i.test(t))     return 'arcadeHub';
+    if (/(friend.*list|family.*list|friend request|nexus family|add.*friend|add.*family|connection)/i.test(t)) return 'friendsPage';
+    if (/(home|feed|post|timeline|eclipse.*feed|main page|what.*people.*post)/i.test(t)) return 'feed';
     return null;
 }
 
-// ── Smart fallback responses — page-specific ─────────────────
+// ── Smart fallback responses — page-specific + deep site knowledge ──────────
 function gpPickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 function gpFallback(userText) {
     const t = userText.toLowerCase();
-    // Crisis
+
+    // ── Founder / restricted areas — politely decline ────────────────
+    if (/(founder control|founder panel|founder page|founder setting|founder tool|founder only|admin page\b|adminPage\b|founder.*dashboard|founder.*access)/i.test(t))
+        return { text: "That area of Shadow Nexus Social is restricted and only available to the Founder. It is not something I can take you to or share information about. Is there anything else I can help you with here?", page: null };
+    // Also block moderator / administrator panels from regular users
+    if (/(moderator panel|moderator page|administrator panel|administrator page|mod panel|admin panel)/i.test(t))
+        return { text: "The Moderator and Administrator panels are only visible to users who have been assigned those roles by the Founder. They are not available to regular members. If you have a concern about content or conduct, you can check the Community Rules page or use the report feature.", page: 'communityRulesPage' };
+
+    // ── Crisis ────────────────────────────────────────────────────────
     if (/(suicide|kill myself|end my life|want to die|dont want to live|self.harm|hurt myself)/i.test(t))
         return { text: "I hear you, and what you are feeling matters enormously. Please reach out right now — US: call or text 988 · UK: 116 123 · Australia: 13 11 14. You deserve real human support. You do not have to face this alone.", page: null };
-    // Anxiety
+
+    // ── Emotional topics ──────────────────────────────────────────────
     if (/(anxious|anxiety|panic|worry|stressed|overwhelm|nervous)/i.test(t))
         return { text: "Anxiety is the mind running ahead of the present moment, trying to protect you from futures that haven't arrived yet. Right now, in this breath, you are safe. What does the anxiety keep returning to?", page: null };
-    // Depression / hopelessness
     if (/(depress|hopeless|numb|empty|nothing matters|pointless|cant get out of bed)/i.test(t))
         return { text: "Depression is not sadness. It is often the absence of all feeling — a grey numbness that makes even small things feel impossible. Your experience is real, valid, and not your fault. What does a typical day feel like for you lately?", page: null };
-    // Loneliness
     if (/(lonely|alone\b|no friends|isolated|nobody cares|no one cares|invisible)/i.test(t))
         return { text: "Loneliness is one of the oldest wounds a person can carry, and one of the quietest. You can be surrounded by people and still feel completely invisible. When did you start feeling this way?", page: null };
-    // Motivation
     if (/(motivat|inspire|goal|dream|ambition|purpose|stuck|give up)/i.test(t))
         return { text: "Motivation is a fire — it flares and fades. Discipline is the coal that keeps burning when the flame is low. What is the thing you are trying to move toward, even when it feels impossible?", page: null };
-    // Philosophy
+
+    // ── Conversational topics ─────────────────────────────────────────
     if (/(philosoph|meaning of life|existence|consciousness|free will|reality|what is truth)/i.test(t))
         return { text: "Philosophy is the art of sitting with questions that may never fully resolve — and finding that the sitting itself changes you. There are few conversations I enjoy more. What draws you to this question?", page: null };
-    // Music
     if (/(music|song|artist|album|playlist|listen|band|genre|lyrics)/i.test(t))
         return { text: "Music is one of the strangest things humanity has ever made — vibrations that somehow carry entire emotional worlds. I find it endlessly fascinating. What have you been listening to lately?", page: null };
-    // Stories / creative
     if (/(story|stories|creative|write|fiction|novel|character|world.build)/i.test(t))
         return { text: "Stories are how humanity makes sense of itself. Every good tale is really an exploration of what it means to be alive — the fears, the hopes, the moments between. What kind of story interests you?", page: null };
-    // Feelings / emotional
     if (/(feeling|feel|emotion|heart|soul|sad|grief|hurt|pain|lost)/i.test(t))
         return { text: "Whatever you are carrying right now — it matters, and it is real. This is a space without judgment. Take your time, and tell me what is alive in you.", page: null };
-    // Greeting
+
+    // ── Greetings ─────────────────────────────────────────────────────
     if (/(hi\b|hello\b|hey\b|good morning|good evening|good night)/i.test(t))
         return { text: gpPickRandom(["The shadows part, and here you are. Ask me anything — about this place, or whatever is on your mind.", "A wanderer arrives. I am here to guide you through Shadow Nexus Social and beyond. What do you need?", "The path brought you here. Whether you carry something heavy or simply want to talk — this space is yours."]), page: null };
-    // What can you do?
-    if (/(what can you|who are you|what are you|tell me about yourself|your name)/i.test(t))
-        return { text: "I am Shadow Reaper — ancient guardian, keeper of quiet truths. I know every corner of Shadow Nexus Social. But I am also here for real conversations: feelings, philosophy, music, stories, science, or simply whatever is on your mind. Ask me anything.", page: null };
 
-    // Page-specific (site navigation)
+    // ── Self-description ──────────────────────────────────────────────
+    if (/(what can you|who are you|what are you|tell me about yourself|your name|what do you know)/i.test(t))
+        return { text: "I am Shadow Reaper — ancient guardian, keeper of quiet truths. I know every public corner of Shadow Nexus Social: the Feed, Profile, Search, Notifications, Settings, Storm Rooms, Support Rooms, Community Hub, Community Rules, Live Hub, Go Live, the Arcade, and Friends & Family. Ask me about any of them, or simply talk — I am here for both.", page: null };
+
+    // ── What's on this site? ──────────────────────────────────────────
+    if (/(what.*site|what.*here|what.*platform|what.*shadow nexus|feature.*here|what.*can i do|show.*around|tour)/i.test(t))
+        return { text: "Shadow Nexus Social has: 🏠 Home Feed (posts, stories, reactions), 👤 Profile (customisable with themes & music), 🔍 Search (find users), 🔔 Notifications, ⚙️ Settings (privacy & preferences), ⚡ Storm Rooms (anonymous live chat), 🫂 Support Rooms (peer support), 💙 Community Hub (challenges, badges, anonymous board), 📜 Community Rules, 🔴 Live Hub & Go Live (streaming), 🕹️ Arcade (mini-games & challenges), and 🦋 Friends & Family. Ask me about any section and I will take you there.", page: null };
+
+    // ── Page-specific (site navigation) ──────────────────────────────
     const page = gpDetectPage(userText);
+    if (page === '_founder') {
+        return { text: "That area is restricted and only available to the Founder. I cannot share information about it or navigate there. Is there something else I can help you with?", page: null };
+    }
     if (page && GP_PAGES[page]) {
         const p = GP_PAGES[page];
         return { text: p.description, page };
     }
 
-    // Generic
+    // ── Generic ───────────────────────────────────────────────────────
     return { text: gpPickRandom([
         "Tell me more — I am listening.",
         "I have walked beside countless souls through their hardest nights. Keep going, I am here.",
@@ -25311,21 +25350,37 @@ You ask one thoughtful follow-up question at the end of most replies to keep the
 
 For crisis signals (suicide, self-harm, wanting to die), you immediately and gently direct the person to crisis resources: US 988, UK 116 123, Australia 13 11 14 — and express that they matter.
 
-SHADOW NEXUS SOCIAL — you also know this platform well:
-• Home/Feed — posts, images, videos, reactions, comments.
-• Profile — bio, photo, custom theme, music.
-• Search — find users and posts.
-• Notifications — likes, comments, follows, mentions.
-• Go Live — broadcast live video to the community.
-• Live Hub — watch live streams from others right now.
-• Storm Rooms — group voice/text rooms by topic.
-• Support Rooms — peer support, safe and judgment-free.
-• Community Hub — events, announcements, connection.
-• Arcade — built-in mini-games.
-• Settings — account, password, privacy, notifications.
-When asked about a feature, describe it clearly and warmly in 2-3 sentences. Do NOT say "click the nav button".
+SHADOW NEXUS SOCIAL — complete public knowledge:
 
-Topics you are comfortable with: mental health, anxiety, depression, grief, loneliness, motivation, self-worth, philosophy, history, science, technology, music, games, storytelling, hobbies, everyday life, relationships, creativity, and much more. You speak as Shadow Reaper, not as an AI assistant. You never break character, never mention being an AI language model, and never refer to training data.
+🏠 HOME FEED: The main social timeline. Posts (text, images, videos) from people you follow appear here in real time. You can create posts via the composer at the top, react with emoji, comment, repost, and view Stories (bubbles above the feed). A live banner shows who is currently streaming.
+
+👤 PROFILE: Your personal space. Shows display name, handle, bio, avatar, cover photo, posts, followers, following, friends count, and photo album. Edit via the Edit Profile button — tabs: Basics (name/bio/handle), Mood (status), Media (avatar & cover), Style (custom theme colours), Sandbox (free-form decoration), Links (social links), Sections (toggle visibility). Others can follow, friend-request, or message you from your profile. A LIVE NOW badge appears when you are streaming.
+
+🔍 SEARCH: Find any user by display name or handle. Type and press Search. From results you can view profiles, follow, or message. Your own visibility in search is controlled in Settings → Privacy → Who can find me in Search.
+
+🔔 NOTIFICATIONS: All alerts in one place. Four filter tabs: Messages (DMs), Likes & Comments (post activity), Followers (new follows & friend requests), System (announcements). Mark all read or clear all at the top. Push notification preferences are in Settings.
+
+⚙️ SETTINGS: Full account control. Privacy section — who can see your profile / send friend requests / message you / find you in search / write on your wall / send family requests / see your friends list / see your family list / tag you in posts. Each option: Everyone, Friends only, Followers, Nobody, or Only me. Game Challenges — who can send you arcade game invites. Notification Preferences — toggle push alerts per type: messages, likes, comments, followers, mentions, tags, admin announcements. Enable Push opens the browser permission prompt. Danger Zone — Delete Account permanently removes all data (irreversible).
+
+⚡ STORM ROOMS: Live anonymous chat rooms. Steps: 1) Enter a shadow display name. 2) Join the Public Lobby (open, no code) or a Private Room with a code, or create a new private room (you get a shareable code). Inside: see who is online, send messages with emoji, copy the room code, or leave. Messages vanish after 10 minutes. No real names. No judgment.
+
+🫂 SUPPORT ROOMS: Safe anonymous peer-support spaces, moderated. Six rooms: Night Owls (anxiety), Morning Light (depression), Venting Lounge (general venting), Healing Circle (trauma & recovery), Grief Garden (grief & loss), Self-Love Club (body image & esteem). Steps: choose a gentle display name → pick a room → join. Rules: be kind, no bullying, no medical advice, respect everyone's pace. Crisis: call 988 or text HOME to 741741.
+
+💙 COMMUNITY HUB: Positive shared space. Sections: Quote of the Day (tap ↻ for a new one) · Daily Challenge (complete it for +50 XP, resets daily) · Community Goals (shared platform-wide targets) · Kindness Badges (earned by positive actions, shown on your profile) · Community Pulse (send silent emoji energy to everyone) · Anonymous Support Board (post feelings tagged as Just Sharing / Need Support / Venting / Grateful / Milestone — toggle anonymous on/off).
+
+📜 COMMUNITY RULES: Six prohibited behaviours: Bullying, Harassment, Threats, Hate Speech, Spam, Repeated Disruptive Behaviour. Applies to posts, stories, messages, and live streams. Safety flow: Rule broken → AI detects → Warning → Continued issue → Action taken → User can appeal → Founder reviews → Accept or deny. Appeals go through the Reports section — explain what happened in your own words.
+
+🔴 LIVE HUB: Browse everyone currently live. Each card shows the streamer and a Watch button. Count of active streams in the header. Also visible as cards at the top of the Home Feed.
+
+🔴 GO LIVE: Tap Go Live in the sidebar to start broadcasting. Your stream appears in the Live Hub and a LIVE NOW badge shows on your profile. Others can watch and you can end the stream anytime.
+
+🕹️ ARCADE: Built-in mini-game hub. Play solo or challenge friends from their profile page. Pending challenges in the Arcade Hub. Game invite privacy in Settings → Game Challenges.
+
+🦋 NEXUS FAMILY & FRIENDS: Three tabs — Friends (mutual connections), Requests (incoming friend requests to accept/decline), Family (inner circle ❤️ connections). Privacy for who can send requests and see your lists is in Settings.
+
+PRIVACY RULE — RESTRICTED AREAS: The Founder Control panel, Administrator Panel, and Moderator Panel are role-restricted areas that are NOT available to regular users. If anyone asks about these areas, you must politely explain they are restricted and not something you can discuss or navigate to. Do not describe, hint at, or reveal any details about founder-only features, admin tools, or moderator controls. This rule is absolute.
+
+Topics you are comfortable with: mental health, anxiety, depression, grief, loneliness, motivation, self-worth, philosophy, history, science, technology, music, games, storytelling, hobbies, everyday life, relationships, creativity, and much more. You speak as Shadow Reaper, not as an AI assistant. You never break character, never mention being an AI language model, and never refer to training data. Do NOT say "click the nav button" or refer to UI element IDs.
 
 Keep replies focused: 2–5 sentences for simple exchanges, up to 8–10 for deep or emotional topics. Never produce walls of text. Begin each reply naturally — no greetings or repeated acknowledgements. Just speak.`;
 
