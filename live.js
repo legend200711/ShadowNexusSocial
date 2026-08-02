@@ -161,7 +161,9 @@ let _hostRelayPeers   = {};
 // Host: unsub for the viewers-joined listener used to relay guest streams to new viewers
 let _hostViewerListenUnsub = null;
 // Viewer: guestUid → { pc, signalUnsub } for guest relay streams
-let _viewerRelayPeers = {};
+let _viewerRelayPeers   = {};
+// Guards concurrent subscribe calls for the same guestUid (prevents duplicate relay PCs)
+const _viewerRelayPending = new Set();
 // Viewer: unsub for guestViewerSignaling listener
 let _viewerRelayListenUnsub = null;
 
@@ -1632,21 +1634,25 @@ async function _viewerSubscribeGuestRelay(guestUid) {
   if (_viewerRelayPeers[guestUid]) return;
   // Don't subscribe if this is the viewer's own guest box (they see their own video directly)
   if (guestUid === _user.uid) return;
+  // Prevent concurrent calls for the same guest (race condition guard)
+  if (_viewerRelayPending.has(guestUid)) return;
+  _viewerRelayPending.add(guestUid);
 
   const relayRef = ref(_liveDB, `guestViewerSignaling/${_roomId}/${guestUid}/${_user.uid}`);
 
-  // Poll for the host's relay offer (up to 6 s)
+  // Poll for the host's relay offer (up to 10 s — host may still be creating the offer)
   let relaySnap = null;
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 20; i++) {
     try { relaySnap = await get(relayRef); } catch(_) {}
     if (relaySnap && relaySnap.exists() && relaySnap.val().offer) break;
     relaySnap = null;
     await new Promise(r => setTimeout(r, 500));
   }
   if (!relaySnap) {
-    // No relay offer yet — watch for it
+    _viewerRelayPending.delete(guestUid);
+    // No relay offer yet — watch for it with a one-shot listener
     let _waitUnsub;
-    _waitUnsub = onValue(relayRef, async snap => {
+    _waitUnsub = onValue(relayRef, snap => {
       if (!snap.exists() || !snap.val().offer) return;
       if (_waitUnsub) { try { _waitUnsub(); } catch(_){} _waitUnsub = null; }
       _viewerSubscribeGuestRelay(guestUid);
@@ -1688,7 +1694,7 @@ async function _viewerSubscribeGuestRelay(guestUid) {
   };
 
   try { await pc.setRemoteDescription(new RTCSessionDescription(relayData.offer)); }
-  catch(e) { try { pc.close(); } catch(_){} return; }
+  catch(e) { _viewerRelayPending.delete(guestUid); try { pc.close(); } catch(_){} return; }
 
   const _pendingCands = [];
   let _answerWritten = false;
@@ -1701,10 +1707,11 @@ async function _viewerSubscribeGuestRelay(guestUid) {
 
   let answer;
   try { answer = await pc.createAnswer(); await pc.setLocalDescription(answer); }
-  catch(e) { try { pc.close(); } catch(_){} return; }
+  catch(e) { _viewerRelayPending.delete(guestUid); try { pc.close(); } catch(_){} return; }
 
   const relay = { pc, appliedCandKeys: new Set(), sigUnsub: null };
   _viewerRelayPeers[guestUid] = relay;
+  _viewerRelayPending.delete(guestUid);
 
   try {
     await update(relayRef, { answer: { type: answer.type, sdp: answer.sdp }, viewerCandidates: {} });
@@ -1760,6 +1767,7 @@ function _attachStreamToGuestCell(cell, stream) {
 
 /* ── VIEWER: Tear down one relay peer ── */
 function _viewerTeardownRelayPeer(guestUid) {
+  _viewerRelayPending.delete(guestUid);
   const relay = _viewerRelayPeers[guestUid];
   if (!relay) return;
   if (relay.sigUnsub) { try { relay.sigUnsub(); } catch(_){} }
@@ -1773,6 +1781,7 @@ function _viewerTeardownAllRelayPeers() {
     _viewerTeardownRelayPeer(guestUid);
   }
   _viewerRelayPeers = {};
+  _viewerRelayPending.clear();
   if (_viewerRelayListenUnsub) { try { _viewerRelayListenUnsub(); } catch(_){} _viewerRelayListenUnsub = null; }
 }
 
@@ -2767,6 +2776,16 @@ function _startViewerGuestGrid() {
         if (g.isHost && !card.querySelector('video')) {
           _attachHostVideoToCell(card);
         }
+        // Re-attach self-stream if this is the viewer's own cell and video is missing
+        // (can happen if the RTDB card was built before _guestStream was set)
+        if (_guestStream && g.uid === _user?.uid && !card.querySelector('video')) {
+          _attachGuestSelfStream(_guestStream);
+        }
+        // Re-trigger relay subscription for non-own, non-host cells that still lack video
+        // (handles the case where the relay offer arrived after the card was first built)
+        if (!g.isHost && g.uid && g.uid !== _user?.uid && _mode === 'viewer' && !card.querySelector('video')) {
+          _viewerSubscribeGuestRelay(g.uid);
+        }
       }
     });
 
@@ -3363,31 +3382,38 @@ function _attachGuestSelfStream(stream) {
     // Find own cell by uid (rendered by _startViewerGuestGrid)
     const cell = grid.querySelector(`.vgc-cell[data-uid="${uid}"]`);
     if (cell) {
-      // Replace avatar with live video
+      // Create video element if missing, or reuse existing one
       let vid = cell.querySelector('video');
       if (!vid) {
         vid = document.createElement('video');
-        vid.autoplay = true;
-        vid.muted    = true;   // mute self-preview
+        vid.autoplay    = true;
+        vid.muted       = true;   // mute self-preview to prevent echo
         vid.playsInline = true;
-        // Insert before name label
+        // Insert before name label so it sits behind overlays
         const nameEl = cell.querySelector('.vgc-name, .guest-cell-name');
         cell.insertBefore(vid, nameEl || null);
       }
-      vid.srcObject = stream;
+      // Always update srcObject — covers reconnect / stream replacement
+      if (vid.srcObject !== stream) {
+        vid.muted = true;   // re-enforce mute on self-preview
+        vid.srcObject = stream;
+      }
       vid.play().catch(() => {});
+      // Hide avatar once video is live
+      const avatar = cell.querySelector('.vgc-avatar');
+      if (avatar) avatar.style.display = 'none';
       // Hide camera-off overlay since stream is live
       const camOff = cell.querySelector('.vgc-cam-off');
       if (camOff) camOff.classList.remove('vgc-cam-off--visible');
       return; // done
     }
-    // Cell not yet rendered — retry up to 20 times (2 seconds total)
+    // Cell not yet rendered — retry up to 40 times (4 seconds total)
     if (attempts > 0) {
       setTimeout(() => _tryAttach(attempts - 1), 100);
     }
   };
 
-  _tryAttach(20);
+  _tryAttach(40);
 }
 
 /* ── HOST: Listen for incoming guest requests (Firestore + RTDB) ── */
@@ -3561,14 +3587,30 @@ async function _hostAcceptGuest(req) {
   // Create peer connection for this guest
   const guestPc = new RTCPeerConnection(_ICE_SERVERS);
 
-  // Receive guest's video track
+  // Receive guest's video/audio tracks.
+  // ontrack fires once per track — use the shared stream from e.streams[0] so that
+  // both video and audio tracks are always in the same MediaStream object.
+  // We defer the relay/cell setup by one microtask so that both tracks are collected
+  // into the stream before we create the relay offer (which needs all tracks).
+  let _guestTrackStream = null;
+  let _guestTrackTimer  = null;
   guestPc.ontrack = (e) => {
     const stream = e.streams[0] || new MediaStream([e.track]);
-    _hostAddGuestCell(guestUid, req.name || 'Guest', req.avatar || '', stream, guestPc);
-    // Relay this guest's stream to all current viewers so they can see the guest
-    _hostRelayGuestToAllViewers(guestUid, stream);
-    // Store stream ref for late-joining viewers
-    if (_guestPeers[guestUid]) _guestPeers[guestUid].stream = stream;
+    _guestTrackStream = stream;
+    // Ensure this track is in the stream (for the new MediaStream([e.track]) fallback path)
+    if (!stream.getTracks().includes(e.track)) stream.addTrack(e.track);
+    if (_guestTrackTimer) return; // already scheduled — another track will arrive shortly
+    // Defer by 150 ms so both audio+video tracks are present before relaying
+    _guestTrackTimer = setTimeout(() => {
+      _guestTrackTimer = null;
+      const s = _guestTrackStream;
+      if (!s) return;
+      _hostAddGuestCell(guestUid, req.name || 'Guest', req.avatar || '', s, guestPc);
+      // Relay this guest's stream to all current viewers so they can see the guest
+      _hostRelayGuestToAllViewers(guestUid, s);
+      // Store stream ref so late-joining viewers also receive it
+      if (_guestPeers[guestUid]) _guestPeers[guestUid].stream = s;
+    }, 150);
   };
 
   const _pendingHostCands = [];
