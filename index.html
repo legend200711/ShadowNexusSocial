@@ -571,6 +571,21 @@ input:focus, textarea:focus, select:focus {
     transform: translateY(-2px);
 }
 .feed-live-card:active { transform: scale(0.97); }
+/* V2 feed card — neon animated border */
+.feed-live-card-v2 {
+    border: 2px solid rgba(0,174,239,0.45);
+    box-shadow: 0 2px 12px rgba(0,174,239,0.12);
+    background: #040c1e;
+    animation: feedCardIn .25s ease-out both, flcV2NeonBorder 3s ease-in-out 0.3s infinite;
+}
+@keyframes flcV2NeonBorder {
+    0%,100% { border-color: rgba(0,174,239,0.5); }
+    50%      { border-color: rgba(57,255,20,0.6); box-shadow: 0 2px 16px rgba(57,255,20,0.25); }
+}
+.feed-live-card-v2:hover {
+    border-color: rgba(57,255,20,0.75) !important;
+    box-shadow: 0 4px 22px rgba(57,255,20,0.3) !important;
+}
 @keyframes feedCardIn {
     from { opacity:0; transform: translateY(6px) scale(0.97); }
     to   { opacity:1; transform: translateY(0)   scale(1);    }
@@ -5961,6 +5976,53 @@ body.arcade-fs-ios body::after { display:none !important; }
     animation: lhcOut .28s ease-in forwards;
     pointer-events: none;
 }
+/* ── V2 live hub card — neon animated border ── */
+.live-hub-card-v2 {
+    border: 2px solid rgba(0,174,239,0.5);
+    box-shadow: 0 2px 16px rgba(0,174,239,0.12);
+    background: #040c1e;
+}
+.live-hub-card-v2.is-live {
+    animation: lhcIn .28s ease-out both, lhcV2NeonBorder 3s ease-in-out 0.3s infinite;
+}
+@keyframes lhcV2NeonBorder {
+    0%,100% { border-color: rgba(0,174,239,0.55); box-shadow: 0 2px 16px rgba(0,174,239,0.2); }
+    50%      { border-color: rgba(57,255,20,0.65); box-shadow: 0 2px 22px rgba(57,255,20,0.35); }
+}
+.live-hub-card-v2:hover {
+    border-color: rgba(57,255,20,0.8) !important;
+    box-shadow: 0 6px 28px rgba(57,255,20,0.3) !important;
+    transform: translateY(-3px) !important;
+}
+/* V2 card creator row */
+.lhc-creator-row { padding: 8px 10px 4px; }
+.lhc-creator-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(0,174,239,0.06); border: 1px solid rgba(0,174,239,0.18);
+    border-radius: 20px; padding: 4px 10px 4px 4px;
+}
+.lhc-creator-avatar {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(0,40,100,0.7) center/cover no-repeat;
+    border: 2px solid rgba(0,174,239,0.65);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; color: #00AEEF;
+    box-shadow: 0 0 8px rgba(0,174,239,0.4);
+}
+.lhc-creator-info { flex: 1; min-width: 0; }
+.lhc-online-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #39FF14; flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(57,255,20,0.8);
+    animation: greenPulse 2s infinite;
+}
+/* V2 live-dot inside pill */
+.lhc-live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #fff; display: inline-block;
+    animation: feedLivePulse 1.2s ease-in-out infinite;
+    flex-shrink: 0;
+}
 @keyframes lhcIn {
     from { opacity:0; transform: translateY(10px) scale(0.96); }
     to   { opacity:1; transform: translateY(0) scale(1); }
@@ -10213,7 +10275,8 @@ body.arcade-fs-ios body::after { display:none !important; }
       const tsRaw    = room.createdAt ? (room.createdAt.toMillis ? room.createdAt.toMillis() : room.createdAt) : '';
 
       const card = document.createElement('a');
-      card.className   = 'live-hub-card';
+      // V2: use neon-border card class + is-live animation
+      card.className   = 'live-hub-card live-hub-card-v2 is-live';
       card.href        = watchUrl;
       card.target      = '_blank';
       card.rel         = 'noopener';
@@ -10226,13 +10289,21 @@ body.arcade-fs-ios body::after { display:none !important; }
       card.innerHTML = `
         <div class="lhc-thumb">
           <div class="lhc-avatar-large" style="${avatarStyle}">${avatar ? '' : initial}</div>
-          <div class="lhc-live-pill">LIVE</div>
+          <div class="lhc-live-pill"><span class="lhc-live-dot"></span>LIVE</div>
           <div class="lhc-viewers" id="lhv-${roomId}">👁 ${viewers}</div>
           <div class="lhc-elapsed" data-createdat="${tsRaw}">${_elapsed(room.createdAt)}</div>
         </div>
         <div class="lhc-body">
-          <div class="lhc-name">${name}</div>
-          ${handle   ? `<div class="lhc-handle">${handle}</div>` : ''}
+          <div class="lhc-creator-row">
+            <div class="lhc-creator-badge">
+              <div class="lhc-creator-avatar" style="${avatarStyle}">${avatar ? '' : initial}</div>
+              <div class="lhc-creator-info">
+                <div class="lhc-name">${name}</div>
+                ${handle ? `<div class="lhc-handle">${handle}</div>` : ''}
+              </div>
+              <span class="lhc-online-dot"></span>
+            </div>
+          </div>
           <div class="lhc-title">${title}</div>
           ${category ? `<div class="lhc-category">🏷 ${category}</div>` : ''}
           <button class="lhc-watch-btn"
@@ -10240,6 +10311,15 @@ body.arcade-fs-ios body::after { display:none !important; }
             ▶ Watch Live
           </button>
         </div>`;
+
+      // Smooth enter transition
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(10px) scale(0.97)';
+      requestAnimationFrame(() => {
+        card.style.transition = 'opacity .28s ease-out, transform .28s ease-out';
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0) scale(1)';
+      });
 
       card.addEventListener('click', e => {
         if (e.target.closest('.lhc-watch-btn')) return;
@@ -10417,7 +10497,8 @@ body.arcade-fs-ios body::after { display:none !important; }
         : `<div class="flc-thumb-initial">${initial}</div>`;
 
       const card = document.createElement('a');
-      card.className       = 'feed-live-card';
+      // V2: neon animated border on feed live cards
+      card.className       = 'feed-live-card feed-live-card-v2';
       card.href            = 'live.html#watch=' + roomId;
       card.dataset.rid     = room.roomId;
       card.setAttribute('aria-label', `Watch ${name} live`);
@@ -10425,8 +10506,8 @@ body.arcade-fs-ios body::after { display:none !important; }
       card.innerHTML = `
         <div class="flc-thumb">
           ${thumbHtml}
-          <div class="flc-live-pill">LIVE</div>
-          <div class="flc-viewers">👁 ${viewers}</div>
+          <div class="flc-live-pill"><span style="width:5px;height:5px;border-radius:50%;background:#fff;display:inline-block;animation:feedLivePulse 1.2s ease-in-out infinite;flex-shrink:0;"></span>LIVE</div>
+          <div class="flc-viewers" id="flcv-${roomId}">👁 ${viewers}</div>
         </div>
         <div class="flc-body">
           <div class="flc-name">${name}</div>
@@ -10435,7 +10516,6 @@ body.arcade-fs-ios body::after { display:none !important; }
         </div>
       `;
 
-      // Clicking anywhere on card navigates — button click does same
       card.querySelector('.flc-join-btn').addEventListener('click', e => {
         e.preventDefault();
         window.location.href = 'live.html#watch=' + roomId;
