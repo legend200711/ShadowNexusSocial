@@ -6420,6 +6420,10 @@ body.arcade-fs-ios body::after { display:none !important; }
     <span id="menuBtnNotifBadge" style="display:none;position:absolute;top:4px;right:4px;min-width:16px;height:16px;background:#ff3355;color:#fff;font-size:9px;font-weight:700;border-radius:8px;align-items:center;justify-content:center;padding:0 3px;line-height:16px;pointer-events:none;"></span>
 </button>
 
+<!-- ████ MOBILE SLIDE-OUT MENU TOGGLE BUTTON ████ -->
+<!-- Visible on mobile/tablet (≤1024px) — opens the full sidebar drawer -->
+<button id="snxMobileMenuBtn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="side" style="display:none;">🌑</button>
+
 <!-- Tap-outside overlay -->
 <div id="sidebarOverlay"></div>
 
@@ -17239,6 +17243,9 @@ function closeSidebar() {
     overlay.classList.remove("visible");
     btn.classList.remove("is-open");
     btn.setAttribute("aria-expanded", "false");
+    // Also close the realm mobile drawer toggle
+    const mobileBtn = document.getElementById("snxMobileMenuBtn");
+    if (mobileBtn) { mobileBtn.classList.remove("menu-open"); mobileBtn.setAttribute("aria-expanded", "false"); }
 }
 
 function toggleMenu() {
@@ -26386,9 +26393,11 @@ window.toggleGrimPanel = function () {
         const side = document.getElementById('side');
         const menuBtn = document.getElementById('menuButton');
         const sideOverlay = document.getElementById('sidebarOverlay');
+        const mobileMenuBtn = document.getElementById('snxMobileMenuBtn');
         if (side) side.classList.remove('active');
         if (menuBtn) { menuBtn.classList.remove('is-open'); menuBtn.setAttribute('aria-expanded','false'); }
         if (sideOverlay) sideOverlay.classList.remove('visible');
+        if (mobileMenuBtn) { mobileMenuBtn.classList.remove('menu-open'); mobileMenuBtn.setAttribute('aria-expanded','false'); }
         // Lazy-init on first open
         if (!GP.initialized) GP.init();
         // Focus input (delay allows animation to complete)
@@ -27455,9 +27464,11 @@ window.realmNavTo = function(pageId) {
         if (typeof navTo === 'function') navTo(pageId);
     });
     updateShadowCoreActive(pageId);
-    // Collapse sidebar
+    // Collapse Shadow Core (desktop)
     var core = document.getElementById('shadowCore');
     if (core) core.classList.remove('expanded');
+    // Close mobile slide-out drawer (mobile/tablet)
+    if (typeof closeMobileDrawer === 'function') closeMobileDrawer();
 };
 
 window.realmViewMyProfile = function() {
@@ -27467,6 +27478,7 @@ window.realmViewMyProfile = function() {
     updateShadowCoreActive('profile');
     var core = document.getElementById('shadowCore');
     if (core) core.classList.remove('expanded');
+    if (typeof closeMobileDrawer === 'function') closeMobileDrawer();
 };
 
 function updateShadowCoreActive(pageId) {
@@ -27502,13 +27514,72 @@ function updateShadowCoreActive(pageId) {
 window._realmUpdateNav = updateShadowCoreActive;
 
 /* ═══════════════════════════════════════════════════════
-   8. MOBILE NEXUS CORE — floating button + radial menu
+   8. MOBILE SLIDE-OUT MENU — full sidebar drawer on ≤1024px
    ═══════════════════════════════════════════════════════ */
+
+/* ── Helper: close the mobile drawer ── */
+function closeMobileDrawer() {
+    var side    = document.getElementById('side');
+    var overlay = document.getElementById('sidebarOverlay');
+    var btn     = document.getElementById('snxMobileMenuBtn');
+    if (side)    { side.classList.remove('active'); }
+    if (overlay) { overlay.classList.remove('visible'); }
+    if (btn)     { btn.classList.remove('menu-open'); btn.setAttribute('aria-expanded', 'false'); }
+}
+window.closeMobileDrawer = closeMobileDrawer;
+
+/* ── Helper: open the mobile drawer ── */
+function openMobileDrawer() {
+    var side    = document.getElementById('side');
+    var overlay = document.getElementById('sidebarOverlay');
+    var btn     = document.getElementById('snxMobileMenuBtn');
+    if (side)    { side.classList.add('active'); }
+    if (overlay) { overlay.classList.add('visible'); }
+    if (btn)     { btn.classList.add('menu-open'); btn.setAttribute('aria-expanded', 'true'); }
+}
+window.openMobileDrawer = openMobileDrawer;
+
+(function initMobileSlideMenu() {
+    var btn     = document.getElementById('snxMobileMenuBtn');
+    var overlay = document.getElementById('sidebarOverlay');
+    var side    = document.getElementById('side');
+    if (!btn) return;
+
+    /* Toggle on button click */
+    btn.addEventListener('click', function() {
+        if (side && side.classList.contains('active')) {
+            closeMobileDrawer();
+        } else {
+            openMobileDrawer();
+        }
+    });
+
+    /* Close when tapping the backdrop overlay */
+    if (overlay) {
+        overlay.addEventListener('click', closeMobileDrawer);
+    }
+
+    /* Close when pressing Escape */
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeMobileDrawer();
+    });
+
+    /* Close drawer on any nav-item click (small delay for portal transition) */
+    if (side) {
+        side.addEventListener('click', function(e) {
+            var navItem = e.target.closest('.nav-item');
+            if (navItem) {
+                setTimeout(closeMobileDrawer, 80);
+            }
+        });
+    }
+})();
+
+/* ── Legacy radial menu (hidden on mobile, kept for compat) ── */
 (function initMobileNav() {
     var btn  = document.getElementById('nexusCoreBtn');
     var menu = document.getElementById('nexusCoreMenu');
     if (!btn || !menu) return;
-
     btn.addEventListener('click', function() {
         if (menu.classList.contains('open')) {
             menu.classList.remove('open');
@@ -27516,8 +27587,6 @@ window._realmUpdateNav = updateShadowCoreActive;
             menu.classList.add('open');
         }
     });
-
-    // Close on backdrop tap
     menu.addEventListener('click', function(e) {
         if (e.target === menu) menu.classList.remove('open');
     });
@@ -27526,6 +27595,7 @@ window._realmUpdateNav = updateShadowCoreActive;
 window.mobileNavTo = function(pageId) {
     var menu = document.getElementById('nexusCoreMenu');
     if (menu) menu.classList.remove('open');
+    closeMobileDrawer();
 
     if (pageId === '_close') return;
     if (pageId === '_profile') {

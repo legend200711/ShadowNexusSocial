@@ -181,10 +181,16 @@ body {
    SHADOW CORE — floating crystal navigation (replaces sidebar)
    ═══════════════════════════════════════════════════════════ */
 
-/* Hide the old sidebar + hamburger */
-.sidebar { display: none !important; }
+/* Hide the old hamburger — replaced by #snxMobileMenuBtn on mobile */
 .menuBtn { display: none !important; }
-#sidebarOverlay { display: none !important; }
+
+/* Old sidebar is hidden on desktop — Shadow Core is the nav instead */
+/* On mobile (≤1024px) it becomes the slide-out drawer — see @media below */
+@media (min-width: 1025px) {
+  .sidebar { display: none !important; }
+  #sidebarOverlay { display: none !important; }
+  #snxMobileMenuBtn { display: none !important; }
+}
 
 /* New floating nav */
 #shadowCore {
@@ -1059,17 +1065,12 @@ button:not(.sc-item):not(.ncm-item):hover {
 /* ═══════════════════════════════════════════════════════════
    DESKTOP RESPONSIVE PATCH — shadow core visible on desktop
    ═══════════════════════════════════════════════════════════ */
-@media (min-width: 769px) {
-  #nexusCoreBtn { display: none !important; }
-  #shadowCore { display: flex !important; }
-
-  .page {
-    padding-left: calc(var(--shadow-core-w) + 36px) !important;
-    max-width: 880px !important;
-  }
-}
-
 @media (min-width: 1025px) {
+  #nexusCoreBtn  { display: none !important; }
+  #nexusCoreMenu { display: none !important; }
+  #snxMobileMenuBtn { display: none !important; }
+  #shadowCore    { display: flex !important; }
+
   .page {
     padding-left: calc(var(--shadow-core-w) + 44px) !important;
     max-width: 960px !important;
@@ -1081,23 +1082,114 @@ button:not(.sc-item):not(.ncm-item):hover {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   MOBILE RESPONSIVE PATCH
-   ═══════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-  #shadowCore { display: none !important; }
-  #nexusCoreBtn { display: flex !important; }
+/* Mobile toggle button pulse — defined globally for Safari compat */
+@keyframes snxMbtnPulse {
+  0%,100% { box-shadow: 0 0 18px var(--realm-blue), 0 0 40px rgba(0,174,239,0.25); }
+  50%     { box-shadow: 0 0 28px var(--realm-cyan), 0 0 60px rgba(0,240,255,0.35); }
+}
 
+/* ═══════════════════════════════════════════════════════════
+   MOBILE / TABLET RESPONSIVE PATCH  (≤1024px)
+   Shadow Core hides; full slide-out sidebar drawer shown instead.
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  /* Hide the floating crystal nav — drawer replaces it */
+  #shadowCore    { display: none !important; }
+  /* Hide old radial menu button / menu */
+  #nexusCoreBtn  { display: none !important; }
+  #nexusCoreMenu { display: none !important; }
+
+  /* ── Mobile menu toggle button ── */
+  #snxMobileMenuBtn {
+    display: flex !important;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 5100;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #003366, #000c1a);
+    border: 2px solid var(--realm-blue);
+    color: #fff;
+    font-size: 20px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 0 18px var(--realm-blue), 0 0 40px rgba(0,174,239,0.25);
+    transition: box-shadow 0.2s, transform 0.15s, background 0.2s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    animation: snxMbtnPulse 3s ease-in-out infinite;
+  }
+  #snxMobileMenuBtn:active { transform: scale(0.92); }
+  #snxMobileMenuBtn.menu-open {
+    background: radial-gradient(circle at 40% 35%, #005599, #001833);
+    box-shadow: 0 0 26px var(--realm-cyan), 0 0 60px rgba(0,240,255,0.35);
+    animation: none;
+  }
+
+  /* ── Slide-out drawer (existing .sidebar element) ── */
+  .sidebar {
+    display: flex !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: min(280px, 88vw) !important;
+    height: 100% !important;
+    background: linear-gradient(180deg, rgba(0,8,20,0.99) 0%, rgba(0,15,35,0.99) 60%, rgba(0,5,15,0.99) 100%) !important;
+    border-right: 1px solid var(--realm-border) !important;
+    box-shadow: 4px 0 40px rgba(0,174,239,0.2), 8px 0 80px rgba(0,0,0,0.8) !important;
+    z-index: 5000 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.30s cubic-bezier(0.4,0,0.2,1) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-direction: column !important;
+    will-change: transform !important;
+    /* Energy top border */
+    border-top: 2px solid transparent !important;
+    background-clip: padding-box !important;
+  }
+  .sidebar::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--realm-blue), var(--realm-cyan), var(--realm-green), transparent);
+    opacity: 0.8;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .sidebar.active {
+    transform: translateX(0) !important;
+  }
+
+  /* Tap-outside overlay */
+  #sidebarOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,3,12,0.70);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    z-index: 4999;
+  }
+  #sidebarOverlay.visible { display: block; }
+
+  /* Page content — full screen, top padding accounts for the toggle button */
   .page {
-    padding: 16px 12px calc(100px + env(safe-area-inset-bottom, 0px)) 12px !important;
+    padding: 70px 12px 24px 12px !important;
     max-width: 100% !important;
     margin: 0 !important;
   }
 
+  /* Inbox — always full screen, never pushed by sidebar */
   #inboxPage {
     padding: 0 !important;
     position: fixed !important;
-    top: 0 !important;
+    top: 70px !important;
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
@@ -1108,26 +1200,29 @@ button:not(.sc-item):not(.ncm-item):hover {
 
   .inbox-split {
     border-radius: 0 !important;
-    height: 100dvh !important;
-    min-height: 100dvh !important;
+    height: 100% !important;
+    min-height: 0 !important;
   }
 
   .postBox { border-radius: 14px !important; }
   .section-card { border-radius: 14px !important; }
 }
 
-@media (max-width: 420px) {
-  .ncm-inner { grid-template-columns: repeat(3, 72px); gap: 12px; }
-  .ncm-icon-wrap { width: 48px; height: 48px; font-size: 20px; }
+/* Bottom padding on pages so content isn't obscured — mobile only */
+@media (max-width: 1024px) {
+  .page:not(#inboxPage) {
+    padding-bottom: 28px !important;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
    SAFE AREA INSETS
    ═══════════════════════════════════════════════════════════ */
 @supports (padding: env(safe-area-inset-bottom)) {
-  .inbox-chat-footer { padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important; }
-  .storm-footer { padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important; }
-  .support-footer { padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important; }
+  .inbox-chat-footer { padding-bottom: calc(8px  + env(safe-area-inset-bottom)) !important; }
+  .storm-footer      { padding-bottom: calc(8px  + env(safe-area-inset-bottom)) !important; }
+  .support-footer    { padding-bottom: calc(8px  + env(safe-area-inset-bottom)) !important; }
+  .sidebar-footer    { padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important; }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1158,13 +1253,4 @@ button:not(.sc-item):not(.ncm-item):hover {
 .mod-section-title,
 .adm-section-title {
   letter-spacing: 1.5px !important;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   BOTTOM PADDING on pages so mobile nav doesn't overlap
-   ═══════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-  .page:not(#inboxPage) {
-    padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)) !important;
-  }
 }
