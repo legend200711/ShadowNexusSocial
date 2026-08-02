@@ -1,5 +1,5 @@
 /**
- * Shadow Nexus Social Live — live.js
+ * Shadow Nexus Live — live.js
  *
  * Firebase split architecture:
  *
@@ -9,7 +9,7 @@
  *    - Live chat messages  (liveRooms/{roomId}/liveMessages)
  *    - Likes counter       (liveRooms/{roomId}.likes)
  *
- *  LIVE Firebase (Shadow Nexus Social Live) — Realtime Database:
+ *  LIVE Firebase (Shadow Nexus Live) — Realtime Database:
  *    - Room status         (liveRooms/{roomId})
  *    - WebRTC offer/answer (liveConnections/{roomId})
  *    - ICE candidates      (liveConnections/{roomId}/creatorCandidates | viewerCandidates)
@@ -531,7 +531,7 @@ async function startLive() {
     hostName:     _userData.displayName || _user.email?.split('@')[0] || 'Creator',
     hostUsername: _userData.username || '',
     hostAvatar:   _userData.avatar || _userData.profilePicture || '',
-    title:        titleVal || 'Shadow Nexus Social LIVE',
+    title:        titleVal || 'Shadow Nexus LIVE',
     status:       'live',
     isLive:       true,
     viewers:      0,
@@ -941,7 +941,7 @@ async function _createLiveFeedPost(creatorData) {
       authorAvatar:  creatorData.hostAvatar   || '',
       liveRoomId:    _roomId,
       isLive:        true,
-      title:         creatorData.title        || 'Shadow Nexus Social LIVE',
+      title:         creatorData.title        || 'Shadow Nexus LIVE',
       text:          (creatorData.hostName || 'Someone') + ' is Live now 🔴',
       timestamp:     Date.now(),
       createdAt:     Date.now(),
@@ -971,7 +971,7 @@ async function _createLiveStory(creatorData) {
       authorAvatar: creatorData.hostAvatar   || '',
       type:         'live',
       liveRoomId:   _roomId,
-      title:        creatorData.title        || 'Shadow Nexus Social LIVE',
+      title:        creatorData.title        || 'Shadow Nexus LIVE',
       createdAt:    now,
       expiresAt,
     });
@@ -1003,9 +1003,9 @@ async function _notifyFollowersLive(creatorData) {
       fromName:   creatorData.hostName    || '',
       fromAvatar: creatorData.hostAvatar  || '',
       roomId:     _roomId,
-      roomTitle:  creatorData.title       || 'Shadow Nexus Social LIVE',
+      roomTitle:  creatorData.title       || 'Shadow Nexus LIVE',
       title:      '🔴 ' + (creatorData.hostName || 'Someone') + ' is Live',
-      body:       `${creatorData.hostName || 'Someone'} is live: ${creatorData.title || 'Shadow Nexus Social LIVE'}`,
+      body:       `${creatorData.hostName || 'Someone'} is live: ${creatorData.title || 'Shadow Nexus LIVE'}`,
       url:        'live.html#watch=' + _roomId,
       ts:         Date.now(),
       read:       false,
@@ -2221,7 +2221,7 @@ function _openShareModal() {
     _closeShareModal();
     if (navigator.share) {
       navigator.share({
-        title: '🔴 Watch me live on Shadow Nexus Social!',
+        title: '🔴 Watch me live on Shadow Nexus!',
         text:  shareMsg,
         url,
       }).catch(() => {});
@@ -4359,11 +4359,11 @@ let _shadowBotHourReset    = null;     // hourly counter reset timer
 let _shadowBotActive       = false;    // true only when live is running
 
 const _SHADOW_BOT_MESSAGES = [
-  'Welcome to Shadow Nexus Social Live! 🌑',
+  'Welcome to Shadow Nexus Live! 🌑',
   'Thanks for being here — keep the chat positive! ✨',
-  'Great to see everyone here on Shadow Nexus Social Live! 🔴',
+  'Great to see everyone here on Shadow Nexus Live! 🔴',
   "You're all amazing — thanks for watching! 🙌",
-  'This live is powered by the Shadow Nexus Social community. Welcome! 💙',
+  'This live is powered by the Shadow Nexus community. Welcome! 💙',
   'Enjoying the stream? Share it with a friend! 📤',
 ];
 
