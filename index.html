@@ -3028,31 +3028,17 @@ img.post-media-preview::before {
 <style id="responsive-patch">
 img, video { max-width: 100%; height: auto; }
 
-/* ─── Desktop large (≥1025px): sidebar visible, generous content width ─── */
+/* ─── Desktop (≥1025px): Shadow Core (realm.css) handles all desktop layout.
+   The old .sidebar HTML is hidden on desktop — #shadowCore is the nav.
+   No sidebar rules here — realm.css owns all desktop nav styles.     ─── */
 @media (min-width: 1025px) {
     .menuBtn { display: none !important; }
-    #sidebarOverlay { display: none !important; }
-    .sidebar { transform: translateX(0) !important; box-shadow: none; }
-    .page { padding-left: 290px; padding-right: 24px; max-width: 900px; }
-    /* Inbox breaks out of the 900px cap — fills full width from sidebar right edge to viewport edge.
-       sidebar=260px, padding-left keeps content clear of the sidebar, max-width is none so it
-       expands to fill the remaining viewport width. */
-    #inboxPage {
-        max-width: none !important;
-        width: auto !important;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        /* keep padding-left from .page (290px) so content clears the sidebar */
-        padding-right: 12px !important;
-        padding-bottom: 8px !important;
-        box-sizing: border-box !important;
-        overflow-x: hidden !important;
-    }
+    /* Do NOT force .sidebar visible here — realm.css hides it correctly.
+       Do NOT set .page layout here — realm.css + mobile.css own that. */
 }
 
 /* ─── Mobile / tablet (≤1024px): hamburger slide-out sidebar for ALL phones & tablets ─── */
-/* NOTE: The 769–1024px "always-visible sidebar" rule was removed.
-   Shadow Core (realm.css) handles desktop ≥1025px with its own fixed nav.
+/* NOTE: realm.css owns the full slide-out drawer definition for mobile.
    All devices ≤1024px — small phones, large phones, and tablets — get the
    identical slide-out drawer triggered by #snxMobileMenuBtn. */
 @media (max-width: 1024px) {
@@ -17295,39 +17281,37 @@ function navTo(pageId) {
     closeSidebar();
 }
 
-/* ── Sidebar open/close ── */
+/* ── Sidebar open/close — unified: delegates to the realm mobile drawer ── */
+/* openMobileDrawer / closeMobileDrawer are defined further down (initMobileSlideMenu).
+   These legacy functions are kept so any existing call-sites continue to work. */
 function openSidebar() {
+    if (typeof openMobileDrawer === 'function') { openMobileDrawer(); return; }
+    // Fallback (should never reach here after initMobileSlideMenu runs)
     const side = document.getElementById("side");
     const overlay = document.getElementById("sidebarOverlay");
-    const btn = document.getElementById("menuButton");
-    side.classList.add("active");
-    overlay.classList.add("visible");
-    btn.classList.add("is-open");
-    btn.setAttribute("aria-expanded", "true");
+    if (side)    side.classList.add("active");
+    if (overlay) overlay.classList.add("visible");
 }
 
 function closeSidebar() {
+    if (typeof closeMobileDrawer === 'function') { closeMobileDrawer(); return; }
+    // Fallback
     const side = document.getElementById("side");
     const overlay = document.getElementById("sidebarOverlay");
-    const btn = document.getElementById("menuButton");
-    side.classList.remove("active");
-    overlay.classList.remove("visible");
-    btn.classList.remove("is-open");
-    btn.setAttribute("aria-expanded", "false");
-    // Also close the realm mobile drawer toggle
-    const mobileBtn = document.getElementById("snxMobileMenuBtn");
-    if (mobileBtn) { mobileBtn.classList.remove("menu-open"); mobileBtn.setAttribute("aria-expanded", "false"); }
+    if (side)    side.classList.remove("active");
+    if (overlay) overlay.classList.remove("visible");
 }
 
 function toggleMenu() {
-    if (document.getElementById("side").classList.contains("active")) {
+    const side = document.getElementById("side");
+    if (side && side.classList.contains("active")) {
         closeSidebar();
     } else {
         openSidebar();
     }
 }
 
-/* Wire up hamburger button and overlay */
+/* Wire up legacy hamburger button (hidden, kept for JS compat) and overlay */
 document.getElementById("menuButton").addEventListener("click", toggleMenu);
 document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
 

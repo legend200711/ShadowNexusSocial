@@ -10,7 +10,7 @@
  * shadownexussocial.online (/) and any local dev server (/).
  */
 
-const CACHE_VERSION = 'v14';
+const CACHE_VERSION = 'v15';
 const CACHE_NAME    = `shadow-nexus-${CACHE_VERSION}`;
 const MEDIA_CACHE   = `shadow-nexus-media-${CACHE_VERSION}`;
 
@@ -26,6 +26,10 @@ const SHELL_FILES = [
   'offline.html',
   'style.css',
   'album.css',
+  'realm.css',
+  'mobile.css',
+  'profile-theme.css',
+  'profile-music.css',
   'script.js',
   'snx-net.js',
   'manifest.json',

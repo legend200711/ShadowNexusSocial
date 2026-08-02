@@ -1,0 +1,778 @@
+/*
+ * Shadow Nexus Social — mobile.css
+ * ============================================================
+ *  GLOBAL RESPONSIVE SYSTEM — One Codebase, Every Screen
+ *
+ *  This file is the single source of truth for all responsive
+ *  behaviour.  No separate Android / iPhone / tablet layouts.
+ *  Rules only SCALE and RESIZE; they never hide or remove
+ *  features.  Stacking order (applied last, highest specificity):
+ *
+ *    style.css  →  realm.css  →  mobile.css
+ *
+ *  Break-point map
+ *  ───────────────────────────────────────────────────────────
+ *  ≥ 1800px  — ultra-wide monitors (wider content cap)
+ *  1440–1799 — large desktop / wide laptop (realm defaults)
+ *  1280–1439 — standard laptop / chromebook  (already works)
+ *  1025–1279 — small chromebook / large landscape tablet
+ *  769–1024  — large tablet portrait / small chromebook
+ *  641–768   — small tablet / large phone landscape
+ *  481–640   — foldable / mid phone
+ *  320–480   — standard phone portrait
+ *  < 320     — very small / compact phone
+ *  ───────────────────────────────────────────────────────────
+ *  All rules use !important only where realm.css already uses
+ *  !important, to guarantee the override chain is correct.
+ * ============================================================
+ */
+
+/* ═══════════════════════════════════════════════════════════
+   UNIVERSAL BASE — applied to every screen size
+   ═══════════════════════════════════════════════════════════ */
+
+/* Prevent horizontal overflow on every device */
+html, body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Every interactive element gets a minimum 44 × 44 px touch
+   target as required by WCAG 2.5.5 / Apple HIG.  We use
+   min-height so desktop buttons are never artificially inflated. */
+button, [role="button"], a[href], input[type="button"],
+input[type="submit"], input[type="reset"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Fluid images — never bleed past their container */
+img, video, canvas, svg, audio {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ULTRA-WIDE MONITORS  (≥ 1800 px)
+   Widen the content cap so pages don't look narrow on 4K /
+   34″ ultra-wide displays.
+   ═══════════════════════════════════════════════════════════ */
+@media (min-width: 1800px) {
+  :root {
+    --shadow-core-w:      240px;
+    --shadow-core-w-open: 240px;
+  }
+
+  .page {
+    max-width: calc(1200px + var(--shadow-core-w)) !important;
+  }
+
+  /* Shadow Core nav — slightly wider text */
+  .sc-item { font-size: 14px !important; padding: 11px 12px !important; }
+  .sc-item-icon { font-size: 22px !important; }
+  .sc-orb-name { font-size: 12px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LARGE DESKTOP / WIDE LAPTOP  (1440 – 1799 px)
+   realm.css defaults are correct here; nothing to override.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════
+   STANDARD LAPTOP / CHROMEBOOK  (1025 – 1439 px)
+   Shadow Core sidebar is always visible.
+   Slightly tighten side padding so content doesn't feel narrow.
+   ═══════════════════════════════════════════════════════════ */
+@media (min-width: 1025px) and (max-width: 1439px) {
+  .page {
+    padding-left: calc(var(--shadow-core-w) + 20px) !important;
+    max-width: calc(860px + var(--shadow-core-w)) !important;
+  }
+
+  #inboxPage {
+    left: var(--shadow-core-w) !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NEXUS CORE FLOATING MENU — fully hidden on all devices
+   (The slide-out .sidebar drawer is the universal navigation.)
+   ═══════════════════════════════════════════════════════════ */
+#nexusCoreBtn  { display: none !important; }
+#nexusCoreMenu { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE / TABLET  (≤ 1024 px)
+   realm.css owns the full slide-out .sidebar definition.
+   This block handles only content/UI scaling — never the nav.
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+
+  /* NOTE: .sidebar styles intentionally omitted here.
+     realm.css @media (max-width:1024px) defines the complete
+     slide-out drawer — position, transform, background, z-index,
+     height, overflow.  Duplicating those rules here causes
+     cascade conflicts on some Android browsers that load
+     mobile.css last and receive an incomplete override.       */
+
+  /* ── Body ── */
+  body { overflow-x: hidden; }
+
+  /* ── Page content area ── */
+  .page:not(#inboxPage) {
+    padding-bottom: 32px !important;
+  }
+  .eclipse-title {
+    font-size: 22px !important;
+    word-break: break-word;
+  }
+  .section-card {
+    padding: 14px !important;
+    margin-bottom: 14px !important;
+  }
+
+  /* ── Touch-friendly buttons ── */
+  button {
+    min-height: 36px;
+  }
+  .react-btn {
+    min-height: 34px !important;
+    padding: 6px 12px !important;
+  }
+  .tab-btn,
+  .friends-tab-btn,
+  .epm-tab {
+    min-height: 38px !important;
+    padding: 8px 14px !important;
+  }
+
+  /* ── Profile action row — wrap gracefully ── */
+  .profile-actions-row {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .profile-actions-row button {
+    min-width: 80px !important;
+  }
+
+  /* ── Mod / Admin panel stat grids ── */
+  .mod-panel-card,
+  .adm-panel-card {
+    padding: 14px !important;
+    border-radius: 14px !important;
+  }
+  #modStatsRow,
+  #admStatsRow {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .adm-stat-card {
+    padding: 12px !important;
+    font-size: 13px !important;
+  }
+
+  /* ── Admin tab bar — horizontal scroll ── */
+  .adm-tab-bar {
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+  }
+  .adm-tab-bar::-webkit-scrollbar { display: none; }
+  .adm-tab { white-space: nowrap; flex-shrink: 0; }
+
+  /* ── Admin user rows ── */
+  .admin-user-row      { flex-wrap: wrap !important; }
+  .admin-badge-controls{ flex-wrap: wrap !important; }
+  .admin-badge-btn     { font-size: 11px !important; padding: 4px 10px !important; }
+
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LARGE TABLET PORTRAIT  (769 – 1024 px)
+   Two-column grids where appropriate; sidebar still slide-out.
+   ═══════════════════════════════════════════════════════════ */
+@media (min-width: 769px) and (max-width: 1024px) {
+
+  .page { font-size: 14px; }
+
+  /* Profile cover + avatar */
+  .cover-banner { height: 180px !important; }
+  .p-avatar     { width: 88px  !important; height: 88px  !important; }
+
+  /* Live strip */
+  .feed-live-card { width: 150px !important; }
+
+  /* Search results — 2 columns */
+  #searchResults {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .user-card { margin-bottom: 0 !important; }
+
+  /* Live hub — 3 columns */
+  .live-hub-grid { grid-template-columns: repeat(3, 1fr) !important; }
+
+  /* Community badges — 3 columns */
+  .comm-badges-grid { grid-template-columns: repeat(3, 1fr) !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SMALL TABLET / LARGE PHONE LANDSCAPE  (641 – 768 px)
+   ═══════════════════════════════════════════════════════════ */
+@media (min-width: 641px) and (max-width: 768px) {
+
+  .page { font-size: 13px; }
+  .cover-banner { height: 160px !important; }
+  .p-avatar     { width: 80px  !important; height: 80px  !important; }
+
+  #searchResults {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .live-hub-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .comm-badges-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .feed-live-card { width: 145px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PHONE PORTRAIT / FOLDABLE CLOSED  (≤ 640 px)
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Profile page ── */
+@media (max-width: 640px) {
+
+  .cover-banner           { height: 140px !important; }
+  .p-avatar               { width: 76px !important; height: 76px !important; font-size: 28px !important; }
+  .profile-avatar-row     {
+    margin-top: -38px !important;
+    padding: 0 14px 12px !important;
+    flex-wrap: nowrap !important;
+  }
+  .profile-info-block     { padding-top: 38px !important; }
+  .profile-display-name   { font-size: 17px !important; }
+  .profile-stats-row      { gap: 14px !important; }
+  .profile-stats-row .stat-num { font-size: 15px !important; }
+  .badge-container        { gap: 4px !important; }
+  .profile-social-links   { gap: 6px !important; }
+  .profile-social-link    { font-size: 11px !important; padding: 3px 10px !important; }
+
+  /* Profile tab bar — horizontal scroll (no remove) */
+  .profile-tabs {
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+  }
+  .profile-tabs::-webkit-scrollbar { display: none; }
+  .tab-btn { min-width: unset !important; white-space: nowrap; }
+
+  /* Media grid — 2 columns on phone */
+  .media-grid       { grid-template-columns: repeat(2, 1fr) !important; }
+  .media-grid-item  { height: 100px !important; }
+}
+
+/* ── Feed / Posts ── */
+@media (max-width: 640px) {
+
+  .postBox { padding: 13px !important; }
+  .post-header-row  { gap: 6px !important; }
+  .post-author-link { max-width: 55% !important; font-size: 13px !important; }
+  .action-row       { gap: 6px !important; }
+  .react-btn        { padding: 6px 10px !important; font-size: 12px !important; }
+  .comment-input-row input  { font-size: 13px !important; padding: 8px 10px !important; }
+  .comment-submit-btn       { padding: 8px 12px !important; }
+  .post-media-carousel img,
+  .post-media-carousel video { max-height: 200px !important; }
+
+  /* Live strip — horizontal scroll, no wrapping */
+  .feed-live-strip {
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+    padding-bottom: 6px !important;
+  }
+  .feed-live-strip::-webkit-scrollbar { display: none; }
+  .feed-live-card { flex-shrink: 0 !important; }
+
+  /* Upload row — wrap on small screens */
+  .snx-upload-row { flex-wrap: wrap !important; }
+}
+
+/* ── Search page ── */
+@media (max-width: 640px) {
+
+  .search-bar-row              { flex-direction: column !important; gap: 8px !important; }
+  .search-bar-row input        { width: 100% !important; }
+  .search-bar-row button       { width: 100% !important; }
+  .user-card                   { flex-wrap: wrap !important; }
+  .user-card-actions {
+    width: 100% !important;
+    margin-top: 8px !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .user-card-actions button { flex: 1 1 auto; }
+}
+
+/* ── Friends page ── */
+@media (max-width: 640px) {
+
+  .friends-tabs {
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+  }
+  .friends-tabs::-webkit-scrollbar { display: none; }
+  .friends-tab-btn { white-space: nowrap; flex-shrink: 0; padding: 8px 14px !important; }
+
+  .friend-card    { flex-wrap: wrap !important; }
+  .friend-actions { width: 100%; margin-top: 6px; flex-wrap: wrap; }
+  .friend-actions button { flex: 1 1 auto; }
+
+  .req-card    { flex-wrap: wrap !important; }
+  .req-actions { width: 100%; margin-top: 6px; }
+  .req-actions button { flex: 1; }
+}
+
+/* ── Notifications page ── */
+@media (max-width: 640px) {
+
+  .notif-item     { padding: 12px 6px !important; }
+  .notif-icon     { font-size: 20px !important; width: 26px !important; }
+  .notif-text     { font-size: 13px !important; }
+  .notif-actions  { flex-wrap: wrap !important; }
+  .notif-actions button { flex: 1 1 auto !important; font-size: 12px !important; }
+
+  /* Notification filter bar — horizontal scroll */
+  .notif-filter-bar {
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+  }
+  .notif-filter-bar::-webkit-scrollbar { display: none; }
+  .notif-filter-tab { white-space: nowrap; flex-shrink: 0; }
+}
+
+/* ── Settings / Edit Profile ── */
+@media (max-width: 640px) {
+
+  .settings-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+  }
+  .settings-row select { width: 100% !important; max-width: 100% !important; }
+  .settings-label { min-width: unset !important; }
+
+  .edit-profile-inner   { padding: 18px 14px !important; }
+  .epm-tabs             { gap: 0 !important; }
+  .epm-tab              { padding: 8px 12px !important; font-size: 11px !important; }
+
+  /* Delete-account modal actions — stack vertically */
+  .delete-modal-actions           { flex-direction: column !important; }
+  .delete-modal-actions button    { width: 100% !important; }
+
+  /* Maintenance buttons — full width */
+  .maint-btn { width: 100% !important; margin-bottom: 6px !important; }
+}
+
+/* ── Community Hub ── */
+@media (max-width: 640px) {
+
+  .comm-challenge-card > div    { flex-direction: column !important; align-items: flex-start !important; }
+  .comm-challenge-claim         { width: 100% !important; }
+  .comm-reactions-row           { flex-wrap: wrap !important; gap: 8px !important; }
+  .comm-react-pill              { flex: 1 1 70px; justify-content: center; }
+  .comm-anon-form-row           { flex-direction: column !important; gap: 8px !important; }
+  .comm-anon-tag-select         { width: 100% !important; }
+  .comm-anon-submit             { width: 100% !important; }
+  .comm-badges-grid             { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+/* ── Storm Rooms (group chat) ── */
+@media (max-width: 640px) {
+
+  .storm-lobby      { padding: 0 4px !important; }
+  .storm-lobby h2   { font-size: 20px !important; }
+  .storm-card       { padding: 14px !important; }
+  .storm-room-wrap  { height: calc(100dvh - 90px) !important; }
+  .storm-room-header{ padding: 10px 12px !important; }
+  .storm-room-title { font-size: 13px !important; }
+  .storm-bubble     { max-width: 88% !important; font-size: 13px !important; }
+
+  /* Hover reaction bar doesn't work reliably on touch; keep it hidden */
+  .storm-bubble:hover .storm-react-bar { display: none !important; }
+
+  .storm-footer            { padding: 6px 8px !important; }
+  .storm-footer-input-wrap { min-height: 42px; }
+
+  /* Emoji picker — stack above keyboard on small screens */
+  .storm-emoji-picker {
+    position: fixed !important;
+    bottom: 60px !important;
+    left: 0 !important;
+    right: 0 !important;
+    max-height: 40vh !important;
+    overflow-y: auto !important;
+    z-index: 9000 !important;
+  }
+
+  .storm-online-badge { font-size: 10px !important; padding: 2px 8px !important; }
+  .storm-leave-btn    { font-size: 11px !important; padding: 3px 10px !important; }
+  .storm-code-pill    { font-size: 10px !important; }
+}
+
+/* ── Support Rooms ── */
+@media (max-width: 640px) {
+
+  .support-lobby      { padding: 0 4px !important; }
+  .support-lobby h2   { font-size: 20px !important; }
+  .support-card       { padding: 14px !important; }
+  .support-room-wrap  { height: calc(100dvh - 90px) !important; }
+}
+
+/* ── Live Hub ── */
+@media (max-width: 640px) {
+
+  .live-hub-grid {
+    grid-template-columns: repeat(1, 1fr) !important;
+    gap: 10px !important;
+  }
+  .live-hub-header { padding: 10px 12px !important; }
+  .live-hub-title  { font-size: 16px !important; }
+  .feed-live-card  { width: 140px !important; }
+  .flc-thumb       { height: 78px !important; }
+}
+
+/* two columns on phones 481–640 */
+@media (min-width: 481px) and (max-width: 640px) {
+  .live-hub-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+/* ── Admin Panel (small phone) ── */
+@media (max-width: 640px) {
+
+  .maint-btn              { min-height: 44px !important; }
+  .admin-badge-controls   { width: 100% !important; }
+  .adm-user-search-row    { flex-direction: column !important; gap: 8px !important; }
+  .adm-user-search-row input  { width: 100% !important; }
+  .adm-user-search-row button { width: 100% !important; }
+}
+
+/* ── Rules page ── */
+@media (max-width: 640px) {
+
+  .rules-section           { padding: 12px 14px !important; margin-bottom: 12px !important; }
+  .rules-section h3        { font-size: 14px !important; }
+  .rules-section p,
+  .rules-section li        { font-size: 13px !important; line-height: 1.7 !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MODALS — bottom-sheet on small screens
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+
+  /* Edit profile — slides up from bottom edge */
+  .edit-profile-modal   { padding: 0 !important; align-items: flex-end !important; }
+  .edit-profile-inner {
+    max-width: 100% !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    max-height: 92dvh !important;
+    border-bottom: none !important;
+  }
+
+  /* Delete account — same treatment */
+  #deleteAccountModal   { padding: 0 !important; align-items: flex-end !important; }
+  .delete-modal-inner {
+    max-width: 100% !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    max-height: 88dvh !important;
+    border-bottom: none !important;
+  }
+
+  /* Badge tooltip */
+  .badge-tooltip-modal  { padding: 12px !important; }
+  .badge-tooltip-inner  { max-width: 100% !important; padding: 20px 16px !important; }
+
+  /* Social list (followers / following) */
+  .social-list-modal    { padding: 0 !important; align-items: flex-end !important; }
+  .social-list-inner {
+    max-width: 100% !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    max-height: 85dvh !important;
+    border-bottom: none !important;
+  }
+
+  /* Family request modal */
+  #familyReqModal       { padding: 0 !important; align-items: flex-end !important; }
+  .fam-req-inner {
+    max-width: 100% !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    max-height: 88dvh !important;
+    border-bottom: none !important;
+  }
+
+  /* Message context menu — ensure it stays on screen */
+  .msg-ctx-menu {
+    max-width: calc(100vw - 24px) !important;
+    left: 12px !important;
+    right: 12px !important;
+    transform: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VERY SMALL PHONES  (≤ 380 px)
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 380px) {
+
+  .eclipse-title        { font-size: 18px !important; }
+  .section-card         { padding: 11px !important; }
+  .react-btn            { padding: 5px 8px !important; font-size: 11px !important; }
+  .post-author-link     { max-width: 48% !important; font-size: 12px !important; }
+  .tab-btn              { padding: 8px 12px !important; font-size: 12px !important; }
+  .profile-display-name { font-size: 15px !important; }
+  .cover-banner         { height: 120px !important; }
+  .p-avatar             { width: 64px !important; height: 64px !important; font-size: 24px !important; }
+  .profile-avatar-row   { margin-top: -32px !important; }
+  .profile-info-block   { padding-top: 32px !important; }
+  .nav-item             { padding: 9px 10px !important; font-size: 13px !important; }
+  .nav-item .nav-icon   { font-size: 16px !important; width: 20px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE MENU BUTTON VISIBILITY  (≤ 1024 px)
+   realm.css defines the full #snxMobileMenuBtn visual style.
+   Here we only reinforce display:flex and positioning so the
+   button is never accidentally hidden by other rules.
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+
+  /* Ensure the toggle button is visible — visual style owned by realm.css */
+  #snxMobileMenuBtn {
+    display: flex  !important;
+    position: fixed !important;
+    top: 14px !important;
+    left: 14px !important;
+    z-index: 5100 !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  /* NOTE: width, height, border-radius, background, border, box-shadow,
+     animation are all intentionally omitted here — realm.css owns those.
+     Overriding them here caused different visual states on Android vs iOS. */
+
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LANDSCAPE PHONES / COMPACT VIEWPORTS
+   (height ≤ 500 px and width ≤ 900 px)
+   e.g. iPhone SE landscape, Galaxy S in landscape
+   ═══════════════════════════════════════════════════════════ */
+@media (max-height: 500px) and (max-width: 900px) {
+
+  /* Skip the enter splash — no height to show it */
+  #snxEnterOverlay { display: none !important; }
+
+  /* Compact hamburger */
+  #snxMobileMenuBtn {
+    width: 38px  !important;
+    height: 38px !important;
+    font-size: 17px !important;
+  }
+
+  /* Sidebar occupies full dynamic viewport height */
+  .sidebar { height: 100dvh !important; overflow-y: auto !important; }
+
+  /* Radial menu inner — limit height */
+  .ncm-inner { max-height: 90dvh !important; }
+
+  /* Reduce top padding so content clears the smaller button */
+  .page:not(#inboxPage) { padding-top: 56px !important; }
+
+  /* Shorter cover banner */
+  .cover-banner { height: 100px !important; }
+
+  /* Inbox starts below the smaller button */
+  #inboxPage { top: 56px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FOLDABLE PHONES — outer display  (≤ 320 px)
+   Tiny secondary screen on flip-style foldables
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 320px) {
+
+  .eclipse-title        { font-size: 15px !important; }
+  .section-card         { padding: 9px !important; }
+  .react-btn            { padding: 4px 7px !important; font-size: 10px !important; }
+  .post-author-link     { max-width: 42% !important; font-size: 11px !important; }
+  .tab-btn              { padding: 7px 10px !important; font-size: 11px !important; }
+  .profile-display-name { font-size: 13px !important; }
+  .cover-banner         { height: 90px !important; }
+  .p-avatar             { width: 54px !important; height: 54px !important; font-size: 20px !important; }
+  .profile-avatar-row   { margin-top: -27px !important; }
+  .profile-info-block   { padding-top: 28px !important; }
+  .nav-item             { padding: 8px 8px !important; font-size: 12px !important; }
+  .nav-item .nav-icon   { font-size: 14px !important; width: 18px !important; }
+  .postBox              { padding: 10px !important; }
+  .section-card         { padding: 9px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SAFE-AREA INSETS — notch / Dynamic Island / home bar
+   ═══════════════════════════════════════════════════════════ */
+@supports (padding: env(safe-area-inset-bottom)) {
+
+  /* Chat footers sit above the home bar */
+  .ipc-modal-footer,
+  .inbox-chat-footer { padding-bottom: calc(8px  + env(safe-area-inset-bottom)) !important; }
+
+  .storm-footer      { padding-bottom: calc(8px  + env(safe-area-inset-bottom)) !important; }
+  .support-footer    { padding-bottom: calc(8px  + env(safe-area-inset-bottom)) !important; }
+
+  /* Sidebar logout row above home bar */
+  .sidebar-footer    { padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important; }
+
+  /* Mobile menu button above status bar / notch */
+  #snxMobileMenuBtn  { top: calc(14px + env(safe-area-inset-top, 0px)) !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INLINE INBOX — responsive split panel  (≤ 1024 px)
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+
+  .inbox-split {
+    border-radius: 0 !important;
+    height: 100%  !important;
+    min-height: 0 !important;
+  }
+
+  /* On phones the list pane is full-width; JS shows/hides panes */
+  .inbox-list-pane,
+  .inbox-chat-pane {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GRIM AI ASSISTANT PANEL — ensure it doesn't overflow
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  #grim-panel {
+    width: calc(100vw - 20px) !important;
+    right: 10px !important;
+    left: 10px !important;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+    max-height: 70dvh !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LIGHTNING BOLT WIDGET
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  #snxLightningWidget,
+  .lightning-widget {
+    /* Keep the widget on screen — don't let it clip off */
+    max-width: calc(100vw - 20px) !important;
+    right: 10px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LIVE PAGE  (live.html)
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  .live-stream-wrap { flex-direction: column !important; }
+  .live-video-pane  { width: 100% !important; }
+  .live-chat-pane   {
+    width: 100% !important;
+    height: 280px !important;
+    border-left: none !important;
+    border-top: 1px solid rgba(0,174,239,0.2) !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PWA INSTALL BANNER  — always on screen, never clipped
+   ═══════════════════════════════════════════════════════════ */
+#pwa-install-banner {
+  /* Already uses min(380px, calc(100vw - 32px)) — just reinforce */
+  max-width: min(380px, calc(100vw - 24px)) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PREVENT HORIZONTAL SCROLL — global safety net
+   ═══════════════════════════════════════════════════════════ */
+
+/* Every .page is constrained to the viewport width */
+.page {
+  box-sizing: border-box;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Section cards never overflow their page */
+.section-card,
+.postBox,
+.storm-card,
+.support-card,
+.user-card,
+.friend-card {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PRINT — hide UI chrome, expand content to full width
+   ═══════════════════════════════════════════════════════════ */
+@media print {
+
+  #shadowCore,
+  #snxMobileMenuBtn,
+  #sidebarOverlay,
+  .sidebar,
+  #nexusCoreBtn,
+  #nexusCoreMenu,
+  #pwa-install-banner,
+  #notification-toast,
+  #grim-panel,
+  #grim-panel-overlay,
+  #snxPortalTransition,
+  #snxEnterOverlay,
+  .rain-drop,
+  .ash-particle,
+  .realm-energy-wave,
+  #snxStarsCanvas,
+  #bg-canvas {
+    display: none !important;
+  }
+
+  body::before,
+  body::after { display: none !important; }
+
+  .page {
+    padding: 10px !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+}

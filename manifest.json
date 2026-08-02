@@ -1,6 +1,7 @@
 {
   "name": "Shadow Nexus Social",
   "short_name": "Shadow Nexus",
+  "version": "1.15.0",
   "description": "Shadow Nexus Social is a social media platform for connecting with friends, posting updates, messaging, and sharing content.",
   "start_url": "/",
   "scope": "/",
