@@ -327,7 +327,7 @@ body::after {
     position: fixed;
     top: 0;
     left: 0;
-    width: min(260px, 85vw);
+    width: min(320px, 85vw);
     height: 100%;
     background: linear-gradient(180deg, #071428 0%, #0B1F3A 50%, #071020 100%);
     transform: translateX(-100%);
@@ -336,6 +336,7 @@ body::after {
     z-index: 2000;
     box-sizing: border-box;
     overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
     will-change: transform;
@@ -6483,7 +6484,11 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 <div id="notification-toast"></div>
 
-<!-- ═══════════════════ NAVIGATION SIDE PANEL ═══════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════
+     UNIVERSAL MOBILE SIDE DRAWER — identical on every device
+     Android phones · Android tablets · iPhone · iPad
+     Only text/spacing scales to fit screen; structure never changes.
+     ═══════════════════════════════════════════════════════════ -->
 <nav class="sidebar" id="side" aria-label="Main navigation">
 
     <!-- Brand -->
@@ -6495,65 +6500,79 @@ body.arcade-fs-ios body::after { display:none !important; }
         </div>
     </div>
 
-    <!-- Main nav -->
+    <!-- ── MAIN ── -->
     <div class="sidebar-nav">
-        <button class="nav-item" id="navSearch" onclick="navTo('searchPage')">
-            <span class="nav-icon">🔍</span> Search
+        <button class="nav-item" id="navFeed" onclick="realmNavTo('feed')">
+            <span class="nav-icon">✦</span> Eclipse Feed
         </button>
-        <button class="nav-item" id="navNotifs" onclick="navTo('notificationsPage')" title="Notification Center — messages, likes, followers, system alerts">
+        <button class="nav-item" id="navSearch" onclick="realmNavTo('searchPage')">
+            <span class="nav-icon">🔍</span> Search Realm
+        </button>
+        <button class="nav-item" id="navNotifs" onclick="realmNavTo('notificationsPage')" title="Notification Center — messages, likes, followers, system alerts">
             <span class="nav-icon">🔔</span> Notifications
             <span class="nav-badge" id="sidebarNotifBadge"></span>
         </button>
-        <button class="nav-item" id="navInbox" onclick="navTo('inboxPage')">
+        <button class="nav-item" id="navInbox" onclick="realmNavTo('inboxPage')">
             <span class="nav-icon">💬</span> Inbox
             <span class="nav-badge" id="sidebarInboxBadge"></span>
         </button>
-        <button class="nav-item" id="navProfile" onclick="viewMyProfile()">
-            <span class="nav-icon">👤</span> Profile
+        <button class="nav-item" id="navProfile" onclick="realmViewMyProfile()">
+            <span class="nav-icon">👤</span> My Profile
         </button>
-        <button class="nav-item" id="navSettings" onclick="navTo('settingsPage')">
-            <span class="nav-icon">⚙️</span> Settings
+        <button class="nav-item" id="navFriends" onclick="realmNavTo('friendsPage')">
+            <span class="nav-icon">👥</span> Friends
+            <span class="nav-badge" id="sidebarFriendBadge"></span>
+        </button>
+
+        <div class="sidebar-divider"></div>
+
+        <!-- ── COMMUNITY ── -->
+        <button class="nav-item" id="navCommunity" onclick="realmNavTo('communityPage')">
+            <span class="nav-icon">💙</span> Community Hub
+        </button>
+        <button class="nav-item" id="navCommunityRules" onclick="realmNavTo('communityRulesPage')">
+            <span class="nav-icon">📜</span> Community Rules
+        </button>
+        <button class="nav-item" id="navStorm" onclick="realmNavTo('stormRoomsPage')">
+            <span class="nav-icon">⛈</span> Storm Rooms
+        </button>
+        <button class="nav-item" id="navSupport" onclick="realmNavTo('supportRoomsPage')">
+            <span class="nav-icon">🫂</span> Support Rooms
+        </button>
+
+        <div class="sidebar-divider"></div>
+
+        <!-- ── CREATOR / LIVE ── -->
+        <button class="nav-item" id="navLiveHub" onclick="realmNavTo('liveHubPage')" style="color:#ff4455;border-left:3px solid rgba(255,50,80,0.55);">
+            <span class="nav-icon">🔴</span> Live Hub
+            <span id="navLiveHubCount" class="nav-badge" style="display:none;background:#ff3344;"></span>
+        </button>
+        <button class="nav-item nav-item-go-live" id="navLive" onclick="goLiveOrWatch()">
+            <span class="nav-icon">📡</span> Go Live
+            <span id="navLiveDot" class="nav-badge" style="display:none;background:#ff3344;"></span>
         </button>
         <button class="nav-item" id="navArcade" onclick="openArcadeHub()">
             <span class="nav-icon">🕹️</span> Arcade
             <span class="nav-badge" id="sidebarArcadeBadge"></span>
         </button>
-        <button class="nav-item" id="navLiveHub" onclick="navTo('liveHubPage')" style="color:#ff4455;border-left:3px solid rgba(255,50,80,0.55);">
-            <span class="nav-icon">🔴</span> Live Hub
-            <span id="navLiveHubCount" class="nav-badge" style="display:none;background:#ff3344;"></span>
-        </button>
-        <button class="nav-item nav-item-go-live" id="navLive" onclick="goLiveOrWatch()">
-            <span class="nav-icon">🔴</span> Go Live
-            <span id="navLiveDot" class="nav-badge" style="display:none;background:#ff3344;"></span>
-        </button>
-        <button class="nav-item" id="navStorm" onclick="navTo('stormRoomsPage')">
-            <span class="nav-icon">⚡</span> Storm Rooms
-        </button>
-        <button class="nav-item" id="navSupport" onclick="navTo('supportRoomsPage')">
-            <span class="nav-icon">🫂</span> Support Rooms
-        </button>
-        <button class="nav-item" id="navCommunity" onclick="navTo('communityPage')">
-            <span class="nav-icon">💙</span> Community Hub
-        </button>
-        <button class="nav-item" id="navCommunityRules" onclick="navTo('communityRulesPage')">
-            <span class="nav-icon">📜</span> Community Rules
-        </button>
+
         <div class="sidebar-divider"></div>
-        <!-- Moderator Panel — only visible to Moderators; toggled in JS after auth -->
-        <button class="nav-item nav-item-mod" id="navMod" onclick="navTo('moderatorPage')" style="display:none;">
+
+        <!-- ── SETTINGS / TOOLS ── -->
+        <button class="nav-item" id="navSettings" onclick="realmNavTo('settingsPage')">
+            <span class="nav-icon">⚙️</span> Settings
+        </button>
+        <!-- Role panels — only visible to users with that role; toggled by JS after auth -->
+        <button class="nav-item nav-item-mod" id="navMod" onclick="realmNavTo('moderatorPage')" style="display:none;">
             <span class="nav-icon">🛡️</span> Moderator Panel
         </button>
-        <!-- Administrator Panel — only visible to Administrators; toggled in JS after auth -->
-        <button class="nav-item nav-item-adm" id="navAdminOfficer" onclick="navTo('administratorPage')" style="display:none;">
+        <button class="nav-item nav-item-adm" id="navAdminOfficer" onclick="realmNavTo('administratorPage')" style="display:none;">
             <span class="nav-icon">⚙️</span> Administrator Panel
         </button>
-        <!-- Founder Control — only visible to the Founder; toggled in JS after auth -->
-        <button class="nav-item nav-item-founder-ctrl" id="navAdmin" onclick="navTo('adminPage')" style="display:none;">
+        <button class="nav-item nav-item-founder-ctrl" id="navAdmin" onclick="realmNavTo('adminPage')" style="display:none;">
             <span class="nav-icon">🛸</span> Founder Control
         </button>
     </div>
-
-    <div class="sidebar-divider"></div>
 
     <!-- Footer / logout -->
     <div class="sidebar-footer">
@@ -17224,6 +17243,7 @@ function navTo(pageId) {
     // Update active nav highlight
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active-nav'));
     const map = {
+        feed:'navFeed',
         profile:'navProfile',
         searchPage:'navSearch', friendsPage:'navFriends',
         notificationsPage:'navNotifs', settingsPage:'navSettings',
@@ -27535,21 +27555,21 @@ function updateShadowCoreActive(pageId) {
     });
 
     var map = {
-        'feed':              ['scNavFeed', 'ncmFeed'],
-        'searchPage':        ['scNavSearch', 'ncmSearch'],
-        'inboxPage':         ['scNavInbox', 'ncmInbox'],
-        'notificationsPage': ['scNavNotifs', 'ncmNotifs'],
-        'profile':           ['scNavProfile', 'ncmProfile'],
-        'settingsPage':      ['scNavSettings', 'ncmSettings'],
-        'communityPage':     ['scNavCommunity', 'ncmCommunity'],
+        'feed':              ['navFeed', 'scNavFeed', 'ncmFeed'],
+        'searchPage':        ['navSearch', 'scNavSearch', 'ncmSearch'],
+        'inboxPage':         ['navInbox', 'scNavInbox', 'ncmInbox'],
+        'notificationsPage': ['navNotifs', 'scNavNotifs', 'ncmNotifs'],
+        'profile':           ['navProfile', 'scNavProfile', 'ncmProfile'],
+        'settingsPage':      ['navSettings', 'scNavSettings', 'ncmSettings'],
+        'communityPage':     ['navCommunity', 'scNavCommunity', 'ncmCommunity'],
         'communityRulesPage':['navCommunityRules', 'scNavCommunityRules', 'ncmRules'],
         'friendsPage':       ['navFriends', 'scNavFriends', 'ncmFriends'],
-        'stormRoomsPage':    ['scNavStorm', 'ncmStorm'],
-        'supportRoomsPage':  ['scNavSupport', 'ncmSupport'],
-        'liveHubPage':       ['scNavLive', 'ncmLiveHub'],
-        'moderatorPage':     ['scNavMod', 'ncmMod'],
-        'administratorPage': ['scNavAdm', 'ncmAdm'],
-        'adminPage':         ['scNavFounder', 'ncmFounder']
+        'stormRoomsPage':    ['navStorm', 'scNavStorm', 'ncmStorm'],
+        'supportRoomsPage':  ['navSupport', 'scNavSupport', 'ncmSupport'],
+        'liveHubPage':       ['navLiveHub', 'scNavLive', 'ncmLiveHub'],
+        'moderatorPage':     ['navMod', 'scNavMod', 'ncmMod'],
+        'administratorPage': ['navAdminOfficer', 'scNavAdm', 'ncmAdm'],
+        'adminPage':         ['navAdmin', 'scNavFounder', 'ncmFounder']
     };
 
     var ids = map[pageId] || [];
