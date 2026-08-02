@@ -1723,7 +1723,7 @@ img.post-media-preview::before {
 .ipc-modal-expand:hover { color: #00aaff; }
 
 /* ── Responsive ── */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     #ipcModal { padding: 0; align-items: flex-end; }
     .ipc-modal-card {
         max-width: 100%;
@@ -1751,7 +1751,7 @@ img.post-media-preview::before {
 /* When the virtual keyboard is open (visualViewport shrinks), keep the
    modal card from growing taller than the visible viewport so the footer
    stays in view without scrolling. */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .ipc-modal-card {
         /* Use dvh (dynamic viewport height) where supported so the card
            automatically shrinks when the keyboard appears. */
@@ -2043,19 +2043,6 @@ img.post-media-preview::before {
 .inbox-chat-send:active { transform: scale(0.9); }
 .inbox-chat-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
-/* ══ TABLET (769–1024px): sidebar is 220px, .page gets padding-left:240px ══ */
-@media (min-width: 769px) and (max-width: 1024px) {
-    /* height = viewport - page top-padding (80px) - title row (~42px) - bottom gap (8px) */
-    .inbox-split {
-        height: calc(100vh - 138px);
-        height: calc(100dvh - 138px);
-        min-height: calc(100vh - 138px);
-        min-height: calc(100dvh - 138px);
-    }
-    .inbox-list-pane { width: 240px; min-width: 200px; }
-    .inbox-page-title { font-size: 20px; margin-bottom: 10px; }
-}
-
 /* ══ LARGE DESKTOP (≥1025px): sidebar 260px, .page padding-left:290px ══ */
 @media (min-width: 1025px) {
     /* height = viewport - page top-padding (80px) - title row (~42px) - bottom gap (8px) */
@@ -2069,7 +2056,7 @@ img.post-media-preview::before {
 }
 
 /* ══ MOBILE (≤768px): single-pane with back button ══ */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     /* Title is redundant on mobile — list header shows "Messages" */
     .inbox-page-title { display: none; }
 
@@ -2079,7 +2066,7 @@ img.post-media-preview::before {
         padding-right: 0 !important;
         padding-bottom: 0 !important;
         padding-top: 0 !important;
-        /* position from just below the hamburger button (fixed at top:14px, height:42px → 70px total) */
+        /* position from just below the menu toggle button (fixed at top:14px, height:44px → 70px total) */
         position: fixed !important;
         top: 70px !important;
         left: 0 !important;
@@ -2136,8 +2123,8 @@ img.post-media-preview::before {
     }
 }
 
-/* ══ Large phones (481–768px): a bit more breathing room ══ */
-@media (min-width: 481px) and (max-width: 768px) {
+/* ══ Larger phones & tablets (481–1024px): a bit more breathing room ══ */
+@media (min-width: 481px) and (max-width: 1024px) {
     .inbox-conv-avatar { width: 46px; height: 46px; }
     .inbox-conv-name { font-size: 14px; }
 }
@@ -2751,7 +2738,7 @@ img.post-media-preview::before {
 .storm-flame { animation: flamePulse 1.6s infinite; display: inline-block; }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .storm-room-wrap { height: calc(100vh - 80px); }
     .storm-bubble { max-width: 84%; }
     .storm-emoji-picker { width: calc(100vw - 32px); left: 0; right: 0; }
@@ -3012,7 +2999,7 @@ img.post-media-preview::before {
 .support-emoji-grid { display: grid; grid-template-columns: repeat(8,1fr); gap: 2px; }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .support-room-wrap { height: calc(100vh - 68px); }
     .support-bubble { max-width: 86%; }
     .support-emoji-picker { width: calc(100vw - 32px); left: 0; right: 0; }
@@ -3062,38 +3049,16 @@ img, video { max-width: 100%; height: auto; }
     }
 }
 
-/* ─── Tablet (769–1024px): sidebar visible but tighter layout ─── */
-@media (min-width: 769px) and (max-width: 1024px) {
+/* ─── Mobile / tablet (≤1024px): hamburger slide-out sidebar for ALL phones & tablets ─── */
+/* NOTE: The 769–1024px "always-visible sidebar" rule was removed.
+   Shadow Core (realm.css) handles desktop ≥1025px with its own fixed nav.
+   All devices ≤1024px — small phones, large phones, and tablets — get the
+   identical slide-out drawer triggered by #snxMobileMenuBtn. */
+@media (max-width: 1024px) {
     .menuBtn { display: none !important; }
-    #sidebarOverlay { display: none !important; }
-    .sidebar { transform: translateX(0) !important; box-shadow: none; width: 220px; }
-    .page { padding-left: 240px; padding-right: 16px; max-width: 100%; }
-    /* Slightly tighter profile on tablet */
-    .cover-banner { height: 150px; }
-    .p-avatar { width: 82px; height: 82px; }
-    /* User card wraps actions under info on tablet */
-    .user-card { flex-wrap: wrap; }
-    .user-card-actions { margin-left: auto; }
-    /* Inbox fills from sidebar edge to viewport right on tablet */
-    #inboxPage {
-        max-width: none !important;
-        width: auto !important;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        /* keep padding-left from .page (240px) so content clears the sidebar */
-        padding-right: 10px !important;
-        padding-bottom: 8px !important;
-        box-sizing: border-box !important;
-        overflow-x: hidden !important;
-    }
-}
-
-/* ─── Mobile / tablet: hamburger reveals slide-in sidebar ─── */
-@media (max-width: 768px) {
-    .menuBtn { display: flex; }
-    .page { padding: 68px 12px 32px; }
+    .page { padding: 70px 12px 28px !important; max-width: 100% !important; margin: 0 !important; }
     .section-card { padding: 14px; }
-    /* Profile header — stack avatar below banner on mobile */
+    /* Profile header — stack avatar below banner */
     .cover-banner { height: 130px; }
     .profile-avatar-row { flex-direction: column; align-items: center; text-align: center; margin-top: -48px; padding: 0 14px 14px; gap: 10px; }
     .profile-info-block { padding-top: 0; width: 100%; text-align: center; }
@@ -3109,7 +3074,7 @@ img, video { max-width: 100%; height: auto; }
     /* Edit modal full-width on mobile */
     .edit-profile-inner { padding: 18px; }
 
-    /* User card: stack actions below info on small screens */
+    /* User card: stack actions below info */
     .user-card { flex-wrap: wrap; gap: 10px; }
     .user-card-actions { width: 100%; justify-content: flex-start; }
 
@@ -5411,16 +5376,16 @@ body.arcade-fs-ios body::after { display:none !important; }
     box-shadow:0 3px 12px rgba(57,255,20,0.3), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 /* Hide on-screen controls on desktop — UNLESS we're in fullscreen on a touch device */
-@media (min-width:769px) {
+@media (min-width:1025px) {
     .arcade-mobile-controls { display:none !important; }
 }
-@media (min-width:769px) and (pointer:coarse) {
-    /* Touch-capable desktop/tablet in fullscreen — show controls */
+@media (min-width:1025px) and (pointer:coarse) {
+    /* Touch-capable desktop in fullscreen — show controls */
     #arcadeGameModal:-webkit-full-screen .arcade-mobile-controls,
     #arcadeGameModal:fullscreen           .arcade-mobile-controls { display:flex !important; }
 }
-/* Always show on mobile */
-@media (max-width:768px) {
+/* Always show on mobile/tablet (≤1024px) */
+@media (max-width:1024px) {
     .arcade-mobile-controls { display:flex !important; }
 }
 .arcade-mobile-controls {
@@ -5668,7 +5633,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 .btn-challenge-banner:hover { background:rgba(57,255,20,0.16)!important; box-shadow:0 0 14px rgba(57,255,20,0.3)!important; }
 
 /* Responsive arcade hub */
-@media (max-width:768px) {
+@media (max-width:1024px) {
     .arcade-hub-card { max-width:100%; max-height:96vh; border-radius:18px 18px 0 0; }
     #arcadeHubModal { align-items:flex-end; padding:0; }
     .arcade-game-grid { grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:8px; }
@@ -6197,7 +6162,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 @supports (padding:env(safe-area-inset-bottom)) {
     .snx-mn-card { padding-bottom:env(safe-area-inset-bottom); }
 }
-@media (min-width:769px) {
+@media (min-width:1025px) {
     #snxMsgNotifModal { align-items:center; padding:16px; }
     .snx-mn-card { border-radius:18px; max-height:80vh; transform:scale(0.95) translateY(20px); transition:transform 0.28s cubic-bezier(0.34,1.56,0.64,1); }
     #snxMsgNotifModal.open .snx-mn-card { transform:scale(1) translateY(0); }
@@ -6511,7 +6476,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 <!-- ████ MOBILE SLIDE-OUT MENU TOGGLE BUTTON ████ -->
 <!-- Visible on mobile/tablet (≤1024px) — opens the full sidebar drawer -->
-<button id="snxMobileMenuBtn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="side" style="display:none;">🌑</button>
+<button id="snxMobileMenuBtn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="side">🌑</button>
 
 <!-- Tap-outside overlay -->
 <div id="sidebarOverlay"></div>
