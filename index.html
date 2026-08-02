@@ -5922,6 +5922,7 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="nav-item" id="navCommunityRules" onclick="navTo('communityRulesPage')">
             <span class="nav-icon">📜</span> Community Rules
         </button>
+        <div class="sidebar-divider"></div>
         <!-- Moderator Panel — only visible to Moderators; toggled in JS after auth -->
         <button class="nav-item nav-item-mod" id="navMod" onclick="navTo('moderatorPage')" style="display:none;">
             <span class="nav-icon">🛡️</span> Moderator Panel
@@ -5998,7 +5999,14 @@ body.arcade-fs-ios body::after { display:none !important; }
 </div>
 
 <div class="page" id="feed">
-    <h2 class="eclipse-title">⚡ Eclipse Feed</h2>
+    <h2 class="eclipse-title"><!-- ⚡ bolt is a Grim AI launcher -->
+        <button id="bolt-grim-launcher"
+                onclick="toggleGrimPanel()"
+                aria-label="Open Grim AI Assistant"
+                title="Open Grim AI Assistant">
+            <span class="bolt-icon" aria-hidden="true">⚡</span>
+            <span class="bolt-label">Click Here</span>
+        </button> Eclipse Feed</h2>
 
     <!-- ── Story Bar ── always visible ── -->
     <div class="section-card" style="padding:12px 14px 8px;">
@@ -24441,6 +24449,1371 @@ window.switchAdminTab = function(tab) {
 
 <!-- ── Profile Theme System (loads after Firebase is initialized) ── -->
 <script src="profile-theme.js"></script>
+
+<!-- ═══════════════════ GRIM AI ASSISTANT PANEL ═══════════════════ -->
+
+<style>
+/* ══════════════════════════════════════════════
+   ⚡ BOLT LAUNCHER — feed title button
+   ══════════════════════════════════════════════ */
+#bolt-grim-launcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 10px 4px 6px;
+    border-radius: 30px;
+    position: relative;
+    outline: none;
+    /* inherit font from h2 */
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+    vertical-align: middle;
+    line-height: 1;
+    /* touch target */
+    min-width: 48px;
+    min-height: 48px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.18s, box-shadow 0.18s;
+}
+#bolt-grim-launcher:focus-visible {
+    outline: 2px solid #00AEEF;
+    outline-offset: 3px;
+}
+#bolt-grim-launcher:hover,
+#bolt-grim-launcher:focus-visible {
+    background: rgba(0,174,239,0.10);
+    box-shadow: 0 0 18px rgba(0,174,239,0.35), 0 0 36px rgba(0,174,239,0.15);
+}
+#bolt-grim-launcher:active {
+    background: rgba(0,174,239,0.18);
+    transform: scale(0.95);
+}
+#bolt-grim-launcher.grim-panel-open .bolt-icon {
+    text-shadow: 0 0 14px #00eeff, 0 0 28px #0088ff, 0 0 48px rgba(0,200,255,0.7);
+}
+
+/* The ⚡ glyph */
+.bolt-icon {
+    display: inline-block;
+    font-size: 1em;
+    filter: drop-shadow(0 0 6px rgba(0,180,255,0.7));
+    animation: boltPulse 2.4s ease-in-out infinite;
+    will-change: filter, transform;
+}
+@keyframes boltPulse {
+    0%,100% { filter: drop-shadow(0 0 5px rgba(0,174,239,0.65)) drop-shadow(0 0 12px rgba(0,100,220,0.4)); transform: scale(1); }
+    50%      { filter: drop-shadow(0 0 12px rgba(0,220,255,0.9)) drop-shadow(0 0 24px rgba(0,160,255,0.6)); transform: scale(1.08); }
+}
+
+/* "Click Here" label */
+.bolt-label {
+    display: inline-block;
+    font-size: 0.38em;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #00eeff;
+    text-shadow: 0 0 8px rgba(0,200,255,0.7), 0 0 14px rgba(0,120,220,0.5);
+    border: 1px solid rgba(0,200,255,0.35);
+    border-radius: 20px;
+    padding: 2px 8px;
+    background: rgba(0,80,160,0.18);
+    white-space: nowrap;
+    vertical-align: middle;
+    animation: labelGlow 2.4s ease-in-out infinite;
+}
+@keyframes labelGlow {
+    0%,100% { box-shadow: 0 0 6px rgba(0,180,255,0.30); border-color: rgba(0,200,255,0.35); }
+    50%      { box-shadow: 0 0 14px rgba(0,220,255,0.65), 0 0 24px rgba(0,140,255,0.35); border-color: rgba(0,240,255,0.70); }
+}
+
+/* Tap flash on mobile */
+@media (hover: none) {
+    #bolt-grim-launcher:active .bolt-icon {
+        filter: drop-shadow(0 0 18px #00ffff) drop-shadow(0 0 32px #0088ff);
+    }
+    #bolt-grim-launcher:active .bolt-label {
+        box-shadow: 0 0 22px rgba(0,220,255,0.9);
+    }
+}
+
+/* ══════════════════════════════════════════════
+   ⚡ FLOATING BOLT FAB — persistent launcher
+   Visible on all pages / all screen sizes.
+   Hides when the Grim panel is already open.
+   ══════════════════════════════════════════════ */
+#grim-fab {
+    position: fixed;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+    right: 18px;
+    z-index: 4400;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #003080 0%, #0055bb 50%, #0088ee 100%);
+    border: 2px solid rgba(0,200,255,0.55);
+    box-shadow: 0 0 18px rgba(0,174,239,0.55), 0 4px 20px rgba(0,0,0,0.5);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    transition: box-shadow 0.2s, transform 0.15s, opacity 0.22s;
+    animation: fabPulse 3s ease-in-out infinite;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+    color: #fff;
+    padding: 0;
+    /* hide behind open panel */
+    pointer-events: auto;
+}
+#grim-fab:hover {
+    box-shadow: 0 0 32px rgba(0,200,255,0.8), 0 6px 28px rgba(0,0,0,0.6);
+    transform: scale(1.08);
+}
+#grim-fab:active  { transform: scale(0.94); }
+#grim-fab:focus-visible { outline: 2px solid #00eeff; outline-offset: 3px; }
+#grim-fab.hidden  { opacity: 0; pointer-events: none; transform: scale(0.7); }
+
+@keyframes fabPulse {
+    0%,100% { box-shadow: 0 0 14px rgba(0,174,239,0.50), 0 4px 18px rgba(0,0,0,0.45); }
+    50%      { box-shadow: 0 0 28px rgba(0,220,255,0.80), 0 6px 26px rgba(0,0,0,0.55); }
+}
+
+#grim-fab .fab-bolt { font-size: 22px; line-height: 1; }
+#grim-fab .fab-text {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: rgba(180,230,255,0.85);
+    white-space: nowrap;
+}
+
+/* On desktop, tuck it up so it doesn't clash with sidebar */
+@media (min-width: 900px) {
+    #grim-fab { bottom: 28px; right: 24px; width: 52px; height: 52px; }
+}
+
+/* ══════════════════════════════════════════════
+   GRIM AI sidebar nav button style
+   ══════════════════════════════════════════════ */
+.nav-item-grim {
+    color: #c8a0ff !important;
+    background: rgba(100,50,180,0.07);
+    border-left: 3px solid rgba(140,70,220,0.45);
+}
+.nav-item-grim:hover {
+    background: rgba(120,60,220,0.15) !important;
+    color: #e0c0ff !important;
+    box-shadow: inset 3px 0 0 rgba(180,100,255,0.7) !important;
+}
+.nav-item-grim.grim-panel-open {
+    background: rgba(120,60,220,0.18) !important;
+    color: #e8d0ff !important;
+    box-shadow: inset 3px 0 0 #c080ff, inset 0 0 14px rgba(160,80,255,0.08) !important;
+}
+
+/* ══════════════════════════════════════════════
+   GRIM AI PANEL OVERLAY
+   ══════════════════════════════════════════════ */
+#grim-panel-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.42);
+    z-index: 4500;
+    backdrop-filter: blur(1px);
+}
+#grim-panel-overlay.visible { display: block; }
+
+/* ══════════════════════════════════════════════
+   GRIM AI PANEL DRAWER
+   Desktop: 400px wide right drawer, draggable
+   Mobile:  full-screen sheet with safe-area
+   ══════════════════════════════════════════════ */
+#grim-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(420px, 100vw);
+    height: 100%;
+    background: linear-gradient(180deg, #0d0a1a 0%, #12091f 40%, #0a0d1a 100%);
+    border-left: 1px solid rgba(140,70,220,0.32);
+    box-shadow: -6px 0 60px rgba(80,20,160,0.30), -2px 0 20px rgba(0,100,255,0.12);
+    transform: translateX(100%);
+    transition: transform 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.32s ease;
+    opacity: 0;
+    z-index: 4600;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* safe area */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+}
+#grim-panel.open {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+/* Panel header — also acts as drag handle on desktop */
+#grim-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid rgba(140,70,220,0.2);
+    flex-shrink: 0;
+    background: rgba(20,10,40,0.8);
+    cursor: grab;
+    user-select: none;
+}
+#grim-panel-header:active { cursor: grabbing; }
+
+#grim-panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #c8a0ff;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    text-shadow: 0 0 14px rgba(180,100,255,0.45);
+}
+#grim-panel-sub {
+    font-size: 10px;
+    color: rgba(180,140,255,0.45);
+    letter-spacing: 0.5px;
+    margin-top: 1px;
+}
+#grim-panel-close {
+    width: 36px; height: 36px;
+    background: rgba(100,50,180,0.15);
+    border: 1px solid rgba(140,70,220,0.3);
+    border-radius: 8px;
+    color: rgba(200,160,255,0.7);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+    padding: 0;
+    touch-action: manipulation;
+    min-width: 36px; min-height: 36px;
+}
+#grim-panel-close:hover { background: rgba(140,60,220,0.3); color: #e0c0ff; }
+
+/* Character canvas area */
+#grim-panel-stage {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 160px;
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 100%, rgba(80,20,140,0.25) 0%, transparent 70%);
+}
+#grim-panel-stage canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+}
+#gp-scene-cv { z-index: 1; }
+#gp-char-cv  { z-index: 2; }
+
+/* Mood/status bar */
+#gp-status {
+    flex-shrink: 0;
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(140,70,220,0.12);
+    font-size: 10px;
+    color: rgba(180,140,255,0.55);
+    letter-spacing: 0.5px;
+}
+#gp-mood-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(180,140,255,0.55);
+    flex-shrink: 0;
+    animation: gpDotPulse 2.5s ease-in-out infinite;
+}
+@keyframes gpDotPulse {
+    0%,100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.3); }
+}
+
+/* Navigation help chips */
+#gp-nav-chips {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid rgba(140,70,220,0.1);
+}
+.gp-nav-chip {
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: rgba(80,30,140,0.25);
+    border: 1px solid rgba(140,70,220,0.3);
+    color: rgba(200,160,255,0.75);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+    touch-action: manipulation;
+    min-height: 28px;
+    display: inline-flex;
+    align-items: center;
+}
+.gp-nav-chip:hover {
+    background: rgba(120,50,200,0.38);
+    color: #e0c8ff;
+    border-color: rgba(180,100,255,0.55);
+}
+
+/* Message display */
+#gp-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120,60,200,0.25) transparent;
+    overscroll-behavior: contain;
+}
+#gp-messages::-webkit-scrollbar { width: 3px; }
+#gp-messages::-webkit-scrollbar-thumb { background: rgba(120,60,200,0.25); border-radius: 3px; }
+
+.gp-msg {
+    padding: 9px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.58;
+    animation: gpMsgIn 0.22s ease-out both;
+    max-width: 92%;
+    word-break: break-word;
+}
+@keyframes gpMsgIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.gp-msg.user {
+    background: rgba(0,80,180,0.22);
+    border: 1px solid rgba(0,140,255,0.2);
+    color: #c8e8ff;
+    align-self: flex-end;
+    border-bottom-right-radius: 3px;
+}
+.gp-msg.grim {
+    background: rgba(60,20,100,0.35);
+    border: 1px solid rgba(120,60,200,0.28);
+    color: #e0d0ff;
+    align-self: flex-start;
+    border-bottom-left-radius: 3px;
+}
+.gp-msg.grim::before {
+    content: '🌑 ';
+    font-size: 11px;
+}
+.gp-typing {
+    align-self: flex-start;
+    display: none;
+}
+.gp-typing.visible { display: flex; }
+.gp-typing-dots {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px;
+    background: rgba(60,20,100,0.3);
+    border: 1px solid rgba(120,60,200,0.2);
+    border-radius: 10px;
+    border-bottom-left-radius: 3px;
+    align-items: center;
+}
+.gp-typing-dots span {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: rgba(180,140,255,0.6);
+    animation: gpDotBounce 1.2s ease-in-out infinite;
+}
+.gp-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.gp-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes gpDotBounce {
+    0%,80%,100% { transform: scale(0.7); opacity: 0.5; }
+    40%          { transform: scale(1);   opacity: 1;   }
+}
+
+/* ── Input row (text + mic + send) ── */
+#gp-input-row {
+    flex-shrink: 0;
+    display: flex;
+    gap: 6px;
+    padding: 10px 12px;
+    border-top: 1px solid rgba(140,70,220,0.18);
+    background: rgba(10,5,20,0.7);
+    /* keyboard-safe: don't let the row scroll off-screen */
+    position: sticky;
+    bottom: 0;
+}
+#gp-input {
+    flex: 1;
+    padding: 9px 14px;
+    background: rgba(20,10,40,0.9);
+    border: 1px solid rgba(140,70,220,0.35);
+    border-radius: 22px;
+    color: #e0d0ff;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    width: 0;
+    margin: 0;
+    min-height: 38px;
+}
+#gp-input::placeholder { color: rgba(160,120,220,0.4); }
+#gp-input:focus {
+    border-color: rgba(160,90,255,0.6);
+    box-shadow: 0 0 12px rgba(120,50,200,0.22);
+}
+/* mic button */
+#gp-mic {
+    width: 38px; height: 38px;
+    background: rgba(60,20,100,0.25);
+    border: 1px solid rgba(140,70,220,0.3);
+    border-radius: 50%;
+    color: rgba(180,140,255,0.65);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, box-shadow 0.15s, color 0.15s;
+    flex-shrink: 0;
+    padding: 0;
+    touch-action: manipulation;
+}
+#gp-mic:hover   { background: rgba(80,30,150,0.40); color: #c8a0ff; }
+#gp-mic:active  { transform: scale(0.93); }
+#gp-mic.gp-mic-active {
+    background: rgba(160,40,200,0.35);
+    color: #ff88ff;
+    box-shadow: 0 0 14px rgba(200,80,255,0.55);
+    animation: gpMicPulse 1s ease-in-out infinite;
+}
+@keyframes gpMicPulse {
+    0%,100% { box-shadow: 0 0 10px rgba(200,80,255,0.45); }
+    50%      { box-shadow: 0 0 22px rgba(220,100,255,0.80); }
+}
+#gp-send {
+    width: 38px; height: 38px;
+    background: rgba(100,40,200,0.3);
+    border: 1px solid rgba(150,80,255,0.45);
+    border-radius: 50%;
+    color: #c8a0ff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, box-shadow 0.15s;
+    flex-shrink: 0;
+    padding: 0;
+    touch-action: manipulation;
+}
+#gp-send:hover  { background: rgba(130,50,230,0.45); box-shadow: 0 0 14px rgba(140,60,255,0.35); }
+#gp-send:active { transform: scale(0.93); }
+
+/* Full page link */
+#gp-fullpage-link {
+    flex-shrink: 0;
+    text-align: center;
+    padding: 6px 12px 10px;
+    font-size: 10px;
+    color: rgba(160,120,220,0.45);
+    letter-spacing: 0.4px;
+}
+#gp-fullpage-link a {
+    color: rgba(180,140,255,0.6);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(160,100,220,0.25);
+    transition: color 0.15s;
+}
+#gp-fullpage-link a:hover { color: #c8a0ff; }
+
+/* "Take me there" action button inside chat bubble */
+.gp-go-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    background: rgba(100,40,200,0.22);
+    border: 1px solid rgba(160,90,255,0.5);
+    border-radius: 16px;
+    color: #d8b8ff;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s, color 0.15s;
+    letter-spacing: 0.3px;
+    width: auto;
+    margin: 0;
+    align-self: flex-start;
+    touch-action: manipulation;
+}
+.gp-go-btn:hover {
+    background: rgba(130,55,230,0.38);
+    box-shadow: 0 0 14px rgba(140,60,255,0.35);
+    color: #ecd8ff;
+    border-color: rgba(190,120,255,0.7);
+}
+.gp-go-btn:active { transform: scale(0.96); }
+
+/* ── Mobile-specific Grim panel ── */
+@media (max-width: 600px) {
+    #grim-panel {
+        width: 100vw;
+        height: 100%;
+        /* slide up from bottom on very small screens */
+        border-left: none;
+        border-top: 1px solid rgba(140,70,220,0.32);
+        border-radius: 18px 18px 0 0;
+        transform: translateY(100%);
+        right: 0;
+        bottom: 0;
+        top: auto;
+        max-height: 96svh;
+        max-height: 96vh; /* fallback */
+    }
+    #grim-panel.open {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    #grim-panel-stage { height: 120px; }
+    #grim-panel-header { cursor: default; border-radius: 18px 18px 0 0; }
+    /* drag handle pill */
+    #grim-panel-header::before {
+        content: '';
+        display: block;
+        width: 38px; height: 4px;
+        border-radius: 3px;
+        background: rgba(180,140,255,0.3);
+        position: absolute;
+        top: 7px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    #grim-panel-header { position: relative; padding-top: 20px; }
+    /* make FAB sit above the bottom nav if one is present */
+    #grim-fab {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+    }
+}
+/* Hide FAB while panel is open */
+#grim-panel.open ~ #grim-fab,
+body.grim-open #grim-fab { opacity: 0; pointer-events: none; transform: scale(0.7); }
+
+/* Resize handle (desktop right edge) */
+#grim-resize-handle {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 5px;
+    cursor: ew-resize;
+    z-index: 1;
+    touch-action: none;
+}
+@media (max-width: 600px) {
+    #grim-resize-handle { display: none; }
+}
+</style>
+
+<!-- Grim AI Panel HTML -->
+<div id="grim-panel-overlay"></div>
+
+<!-- ⚡ Floating Action Button — persistent Grim AI launcher -->
+<button id="grim-fab"
+        onclick="toggleGrimPanel()"
+        aria-label="Open Grim AI Assistant"
+        title="Open Grim AI Assistant">
+    <span class="fab-bolt" aria-hidden="true">⚡</span>
+    <span class="fab-text">Grim AI</span>
+</button>
+
+<div id="grim-panel" role="dialog" aria-label="Grim AI Assistant" aria-modal="true">
+
+    <!-- Desktop resize handle (left edge drag) -->
+    <div id="grim-resize-handle" aria-hidden="true"></div>
+
+    <!-- Header / drag handle on desktop -->
+    <div id="grim-panel-header">
+        <div>
+            <div id="grim-panel-title">🌑 Shadow Reaper</div>
+            <div id="grim-panel-sub">Your guide through Shadow Nexus</div>
+        </div>
+        <button id="grim-panel-close" aria-label="Close Grim AI">✕</button>
+    </div>
+
+    <!-- Mini character stage -->
+    <div id="grim-panel-stage">
+        <canvas id="gp-scene-cv"></canvas>
+        <canvas id="gp-char-cv" width="420" height="160"></canvas>
+    </div>
+
+    <!-- Status bar -->
+    <div id="gp-status">
+        <div id="gp-mood-dot"></div>
+        <span id="gp-mood-label">Calm and Present</span>
+        <span style="margin-left:auto;" id="gp-conn-status">◆ Ready</span>
+    </div>
+
+    <!-- Quick navigation chips -->
+    <div id="gp-nav-chips">
+        <span class="gp-nav-chip" data-topic="How do I go live on this site?">📡 Go Live</span>
+        <span class="gp-nav-chip" data-topic="What are Storm Rooms?">⚡ Storm Rooms</span>
+        <span class="gp-nav-chip" data-topic="How do I use the Community Hub?">💙 Community</span>
+        <span class="gp-nav-chip" data-topic="How do I edit my profile?">👤 Profile</span>
+        <span class="gp-nav-chip" data-topic="I need support or someone to talk to">🫂 Support</span>
+        <span class="gp-nav-chip" data-topic="What can I do on Shadow Nexus Social?">🌑 What's here?</span>
+    </div>
+
+    <!-- Messages -->
+    <div id="gp-messages" role="log" aria-live="polite"></div>
+
+    <!-- Typing indicator -->
+    <div class="gp-typing" id="gp-typing">
+        <div class="gp-typing-dots">
+            <span></span><span></span><span></span>
+        </div>
+    </div>
+
+    <!-- Input row: mic + text + send -->
+    <div id="gp-input-row">
+        <button id="gp-mic" aria-label="Voice input" title="Voice input">🎙️</button>
+        <input type="text" id="gp-input" placeholder="Speak or type…" maxlength="400" autocomplete="off" aria-label="Message Shadow Reaper" inputmode="text">
+        <button id="gp-send" aria-label="Send">➤</button>
+    </div>
+
+    <!-- Link to full experience -->
+    <div id="gp-fullpage-link">
+        Want the full experience? <a href="grim-ai-assistant.html" target="_blank">Open Shadow Reaper ↗</a>
+    </div>
+
+</div>
+
+<script>
+/* ================================================================
+   GRIM AI PANEL — Embedded sidebar assistant for Shadow Nexus
+   Namespaced under GrimPanel to avoid conflicts with main app.
+================================================================ */
+(function () {
+'use strict';
+
+// ── Panel open/close ──────────────────────────────────────────
+function _grimSetOpen(open) {
+    const panel   = document.getElementById('grim-panel');
+    const overlay = document.getElementById('grim-panel-overlay');
+    const navBtn  = document.getElementById('navGrimAI');
+    const boltBtn = document.getElementById('bolt-grim-launcher');
+    const fab     = document.getElementById('grim-fab');
+    if (open) {
+        panel.classList.add('open');
+        overlay.classList.add('visible');
+        document.body.classList.add('grim-open');
+        if (navBtn)  navBtn.classList.add('grim-panel-open');
+        if (boltBtn) boltBtn.classList.add('grim-panel-open');
+        if (fab)     fab.classList.add('hidden');
+    } else {
+        panel.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.classList.remove('grim-open');
+        if (navBtn)  navBtn.classList.remove('grim-panel-open');
+        if (boltBtn) boltBtn.classList.remove('grim-panel-open');
+        if (fab)     fab.classList.remove('hidden');
+    }
+}
+
+window.toggleGrimPanel = function () {
+    const panel = document.getElementById('grim-panel');
+    const isOpen = panel.classList.contains('open');
+    if (isOpen) {
+        closeGrimPanel();
+    } else {
+        _grimSetOpen(true);
+        // Close the nav sidebar on mobile
+        const side = document.getElementById('side');
+        const menuBtn = document.getElementById('menuButton');
+        const sideOverlay = document.getElementById('sidebarOverlay');
+        if (side) side.classList.remove('active');
+        if (menuBtn) { menuBtn.classList.remove('is-open'); menuBtn.setAttribute('aria-expanded','false'); }
+        if (sideOverlay) sideOverlay.classList.remove('visible');
+        // Lazy-init on first open
+        if (!GP.initialized) GP.init();
+        // Focus input (delay allows animation to complete)
+        setTimeout(() => { const inp = document.getElementById('gp-input'); if (inp) inp.focus(); }, 360);
+    }
+};
+
+function closeGrimPanel() {
+    _grimSetOpen(false);
+    // Stop mic if active
+    if (GP.recognition && GP.micActive) {
+        try { GP.recognition.stop(); } catch(e) {}
+        GP.micActive = false;
+        const mic = document.getElementById('gp-mic');
+        if (mic) mic.classList.remove('gp-mic-active');
+    }
+}
+
+document.getElementById('grim-panel-close').addEventListener('click', closeGrimPanel);
+document.getElementById('grim-panel-overlay').addEventListener('click', closeGrimPanel);
+
+// Escape key closes panel
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const panel = document.getElementById('grim-panel');
+        if (panel && panel.classList.contains('open')) closeGrimPanel();
+    }
+});
+
+// ── Grim Panel namespace ──────────────────────────────────────
+const GP = {
+    initialized: false,
+    speaking: false,
+    apiKey: '',
+    mood: 'calm',
+    conversationHistory: [],
+    messageCount: 0,
+    // mic
+    recognition: null,
+    micActive: false,
+
+    // Animation state
+    t: 0,
+    breathPhase: 0,
+    walkPhase: 0,
+    eyeGlow: 0.8,
+    mouthAmount: 0,
+    leanX: 0,
+    targetLeanX: 0,
+    motes: [],
+    SW: 420, SH: 160,
+    animFrame: null,
+    canvasReady: false,
+};
+
+// ── Page navigation map ───────────────────────────────────────
+// Each entry: { label, description, action }
+// action() actually navigates — calls the right global function and closes the panel
+const GP_PAGES = {
+    feed: {
+        label: '🏠 Home Feed',
+        description: "The main social feed — where posts, images, and videos from the community live. You can create posts, react, comment, and see what everyone is up to.",
+        action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('feed'); }
+    },
+    profile: {
+        label: '👤 Profile',
+        description: "Your profile page — edit your bio, upload a photo, set a custom theme, and add music. Others can visit it to see your posts and follow you.",
+        action() { closeGrimPanel(); if (typeof viewMyProfile === 'function') viewMyProfile(); }
+    },
+    searchPage: {
+        label: '🔍 Search',
+        description: "Search for other users, posts, and content across Shadow Nexus Social. Find people to follow or look up specific posts.",
+        action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('searchPage'); }
+    },
+    notificationsPage: {
+        label: '🔔 Notifications',
+        description: "Your notification center — likes, comments, new followers, mentions, and system alerts all appear here.",
+        action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('notificationsPage'); }
+    },
+    live: {
+        label: '🔴 Go Live',
+        description: "Broadcast live video to the entire Shadow Nexus community. Click Go Live in the sidebar to start your stream instantly.",
+        action() { closeGrimPanel(); if (typeof goLiveOrWatch === 'function') goLiveOrWatch(); }
+    },
+    liveHubPage: {
+        label: '📺 Live Hub',
+        description: "Watch live streams from other users on the platform right now. The Live Hub shows everyone who is currently broadcasting.",
+        action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('liveHubPage'); }
+    },
+    stormRoomsPage: {
+        label: '⚡ Storm Rooms',
+        description: "Group voice and text rooms organized by topic. Join a Storm Room to have real conversations with others in the community.",
+        action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('stormRoomsPage'); }
+    },
+    supportRoomsPage: {
+        label: '🫂 Support Rooms',
+        description: "Safe, judgment-free spaces to share what you're going through and receive peer support. No topic is too heavy here.",
+        action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('supportRoomsPage'); }
+    },
+    communityPage: {
+        label: '💙 Community Hub',
+        description: "Community events, announcements, and shared spaces to connect with the wider Shadow Nexus family.",
+        action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('communityPage'); }
+    },
+    communityRulesPage: {
+        label: '📜 Community Rules',
+        description: "The platform guidelines — what's allowed, what's not, and how we keep this a safe space for everyone.",
+        action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('communityRulesPage'); }
+    },
+    settingsPage: {
+        label: '⚙️ Settings',
+        description: "Manage your account — change your password, adjust notification preferences, privacy settings, and more.",
+        action() { closeGrimPanel(); if (typeof navTo === 'function') navTo('settingsPage'); }
+    },
+    arcadeHub: {
+        label: '🕹️ Arcade',
+        description: "Mini-games and interactive fun built right into Shadow Nexus. Take a break and play something.",
+        action() { closeGrimPanel(); if (typeof openArcadeHub === 'function') openArcadeHub(); }
+    }
+};
+
+// ── Detect which page a message is about ─────────────────────
+function gpDetectPage(text) {
+    const t = text.toLowerCase();
+    if (/(go live|start.*live|broadcast|stream\b|live stream)/i.test(t))         return 'live';
+    if (/(live hub|watch.*live|who.*live|see.*live)/i.test(t))                   return 'liveHubPage';
+    if (/(storm room|voice room|group room|chat room)/i.test(t))                 return 'stormRoomsPage';
+    if (/(support room|peer support|someone to talk|need support|talk to someone)/i.test(t)) return 'supportRoomsPage';
+    if (/(community hub|community event|announcement)/i.test(t))                 return 'communityPage';
+    if (/(community rule|guideline|rules|report)/i.test(t))                      return 'communityRulesPage';
+    if (/(profile|bio|avatar|photo|theme|my page|edit.*profile)/i.test(t))       return 'profile';
+    if (/(search|find.*user|find.*people|look up)/i.test(t))                     return 'searchPage';
+    if (/(notif|alert|bell|mention|like.*notification)/i.test(t))                return 'notificationsPage';
+    if (/(setting|password|privacy|account setting)/i.test(t))                   return 'settingsPage';
+    if (/(arcade|game|play)/i.test(t))                                           return 'arcadeHub';
+    if (/(home|feed|post|timeline|what.*people.*post|main page)/i.test(t))       return 'feed';
+    return null;
+}
+
+// ── Smart fallback responses — page-specific ─────────────────
+function gpPickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function gpFallback(userText) {
+    const t = userText.toLowerCase();
+    // Crisis
+    if (/(suicide|kill myself|end my life|want to die|dont want to live|self.harm|hurt myself)/i.test(t))
+        return { text: "I hear you, and what you are feeling matters enormously. Please reach out right now — US: call or text 988 · UK: 116 123 · Australia: 13 11 14. You deserve real human support. You do not have to face this alone.", page: null };
+    // Anxiety
+    if (/(anxious|anxiety|panic|worry|stressed|overwhelm|nervous)/i.test(t))
+        return { text: "Anxiety is the mind running ahead of the present moment, trying to protect you from futures that haven't arrived yet. Right now, in this breath, you are safe. What does the anxiety keep returning to?", page: null };
+    // Greeting
+    if (/(hi\b|hello\b|hey\b)/i.test(t))
+        return { text: gpPickRandom(["The shadows part, and here you are. I know every corner of this place. Ask me anything — about the site, or whatever's on your mind.", "A wanderer arrives. I am here to guide you through Shadow Nexus Social and beyond. What do you need?"]), page: null };
+
+    // Page-specific
+    const page = gpDetectPage(userText);
+    if (page && GP_PAGES[page]) {
+        const p = GP_PAGES[page];
+        return { text: p.description, page };
+    }
+
+    // Generic
+    return { text: gpPickRandom(["Tell me more — I am listening.", "I have walked beside countless souls. Keep going, I am here.", "Every part of this place is open to you. Ask me anything."]), page: null };
+}
+
+// ── AI call — returns { text, page } ─────────────────────────
+async function gpCallAI(userText) {
+    const page = gpDetectPage(userText);
+
+    if (!GP.apiKey) {
+        return gpFallback(userText);
+    }
+    try {
+        const GP_SYSTEM_PROMPT = `You are Shadow Reaper — an ancient guardian and guide for Shadow Nexus Social. You are wise, calm, compassionate, and in-character at all times.
+
+SHADOW NEXUS SOCIAL FEATURES YOU KNOW:
+• Home/Feed — main social feed: posts, images, videos, reactions, comments.
+• Profile — edit bio, upload photo, set a custom theme, add music.
+• Search — find users and posts.
+• Notifications — likes, comments, follows, mentions, alerts.
+• Go Live — broadcast live video to the whole community.
+• Live Hub — watch live streams from other users right now.
+• Storm Rooms — group voice/text rooms organized by topic.
+• Support Rooms — peer support, safe and judgment-free.
+• Community Hub — events, announcements, community connection.
+• Community Rules — platform guidelines.
+• Arcade — built-in mini-games.
+• Settings — account, password, privacy, notification prefs.
+
+When asked about a feature, describe it clearly and warmly in 2-3 sentences. Do NOT say "click the nav button" — just describe what the feature IS and what someone can DO there.
+For emotional topics: be a compassionate companion. For crisis signals: direct to US 988 · UK 116 123 · AU 13 11 14.
+Keep replies to 2-5 sentences. Begin naturally — no repeated greetings.`;
+
+        const messages = [{ role: 'system', content: GP_SYSTEM_PROMPT }];
+        messages.push(...GP.conversationHistory.slice(-16));
+        messages.push({ role: 'user', content: userText });
+
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${GP.apiKey}`,
+                'HTTP-Referer': window.location.href,
+                'X-Title': 'Shadow Reaper — Shadow Nexus Guide'
+            },
+            body: JSON.stringify({
+                model: 'mistralai/mistral-7b-instruct:free',
+                messages,
+                max_tokens: 280,
+                temperature: 0.75
+            })
+        });
+        if (!res.ok) throw new Error('api');
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content?.trim() || '';
+        if (text && text.length > 6) {
+            gpSetConn('◆ AI Active', 'rgba(100,200,120,.7)');
+            return { text, page };
+        }
+        throw new Error('empty');
+    } catch (e) {
+        gpSetConn('◆ Offline', 'rgba(140,100,180,.5)');
+        return gpFallback(userText);
+    }
+}
+
+// ── UI helpers ────────────────────────────────────────────────
+function gpSetConn(text, color) {
+    const el = document.getElementById('gp-conn-status');
+    if (el) { el.textContent = text; el.style.color = color; }
+}
+
+function gpSetMood(label) {
+    const el = document.getElementById('gp-mood-label');
+    if (el) el.textContent = label;
+}
+
+// gpAppendMessage — role: 'user'|'grim', text: string, page: pageKey|null
+function gpAppendMessage(role, text, page) {
+    const display = document.getElementById('gp-messages');
+    if (!display) return;
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:' + (role === 'user' ? 'flex-end' : 'flex-start') + ';gap:5px;';
+
+    const msg = document.createElement('div');
+    msg.className = `gp-msg ${role}`;
+
+    if (role === 'grim') {
+        msg.textContent = '';
+        wrapper.appendChild(msg);
+        display.appendChild(wrapper);
+        display.scrollTop = display.scrollHeight;
+
+        // Typewriter
+        let idx = 0;
+        function type() {
+            if (idx < text.length) {
+                msg.textContent += text[idx++];
+                display.scrollTop = display.scrollHeight;
+                setTimeout(type, 13);
+            } else {
+                // After typing finishes, inject nav button if a page was identified
+                if (page && GP_PAGES[page]) {
+                    const p = GP_PAGES[page];
+                    const btn = document.createElement('button');
+                    btn.className = 'gp-go-btn';
+                    btn.textContent = '→ Take me to ' + p.label;
+                    btn.addEventListener('click', () => p.action());
+                    wrapper.appendChild(btn);
+                    display.scrollTop = display.scrollHeight;
+                }
+            }
+        }
+        type();
+    } else {
+        msg.textContent = text;
+        wrapper.appendChild(msg);
+        display.appendChild(wrapper);
+        display.scrollTop = display.scrollHeight;
+    }
+}
+
+function gpShowTyping() {
+    const el = document.getElementById('gp-typing');
+    if (el) { el.classList.add('visible'); const d = document.getElementById('gp-messages'); if(d) d.scrollTop = d.scrollHeight; }
+}
+
+function gpHideTyping() {
+    const el = document.getElementById('gp-typing');
+    if (el) el.classList.remove('visible');
+}
+
+async function gpSend() {
+    const input = document.getElementById('gp-input');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+
+    gpAppendMessage('user', text, null);
+    gpShowTyping();
+    GP.messageCount++;
+
+    GP.conversationHistory.push({ role: 'user', content: text });
+
+    const minDelay = 800 + Math.random() * 600;
+    const start = Date.now();
+
+    const result = await gpCallAI(text);
+    const wait = Math.max(0, minDelay - (Date.now() - start));
+
+    setTimeout(() => {
+        gpHideTyping();
+        gpAppendMessage('grim', result.text, result.page);
+        GP.conversationHistory.push({ role: 'assistant', content: result.text });
+        if (GP.conversationHistory.length > 32) {
+            GP.conversationHistory = GP.conversationHistory.slice(-32);
+        }
+    }, wait);
+}
+
+// ── Event listeners ───────────────────────────────────────────
+document.getElementById('gp-send').addEventListener('click', gpSend);
+document.getElementById('gp-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); gpSend(); }
+});
+document.querySelectorAll('.gp-nav-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+        const topic = chip.getAttribute('data-topic');
+        const input = document.getElementById('gp-input');
+        if (input) { input.value = topic; gpSend(); }
+    });
+});
+
+// ── Mic / voice input ─────────────────────────────────────────
+(function () {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const micBtn = document.getElementById('gp-mic');
+    if (!SpeechRecognition || !micBtn) {
+        if (micBtn) { micBtn.style.display = 'none'; }
+        return;
+    }
+    const rec = new SpeechRecognition();
+    rec.lang = 'en-US';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    GP.recognition = rec;
+
+    rec.onresult = (e) => {
+        const transcript = e.results[0][0].transcript;
+        const inp = document.getElementById('gp-input');
+        if (inp) { inp.value = transcript; gpSend(); }
+    };
+    rec.onerror = () => {
+        GP.micActive = false;
+        micBtn.classList.remove('gp-mic-active');
+    };
+    rec.onend = () => {
+        GP.micActive = false;
+        micBtn.classList.remove('gp-mic-active');
+    };
+
+    micBtn.addEventListener('click', () => {
+        if (GP.micActive) {
+            try { rec.stop(); } catch(e) {}
+            GP.micActive = false;
+            micBtn.classList.remove('gp-mic-active');
+        } else {
+            try { rec.start(); GP.micActive = true; micBtn.classList.add('gp-mic-active'); } catch(e) {}
+        }
+    });
+})();
+
+// ── Mini character animation ──────────────────────────────────
+function gpInitCanvas() {
+    const sceneCV = document.getElementById('gp-scene-cv');
+    const charCV  = document.getElementById('gp-char-cv');
+    if (!sceneCV || !charCV) return;
+
+    GP.sceneCV = sceneCV;
+    GP.charCV  = charCV;
+    GP.sctx    = sceneCV.getContext('2d');
+    GP.cctx    = charCV.getContext('2d');
+
+    function gpResize() {
+        const stage = document.getElementById('grim-panel-stage');
+        if (!stage) return;
+        const W = stage.clientWidth || 380;
+        const H = stage.clientHeight || 160;
+        sceneCV.width  = W; sceneCV.height  = H;
+        charCV.style.width  = W + 'px';
+        charCV.style.height = H + 'px';
+        GP.SW = W; GP.SH = H;
+        gpInitMotes(W, H);
+    }
+    gpResize();
+
+    GP.canvasReady = true;
+    gpAnimLoop();
+}
+
+function gpInitMotes(W, H) {
+    GP.motes = [];
+    const n = Math.min(18, Math.floor(W * H / 3000));
+    for (let i = 0; i < n; i++) GP.motes.push(gpNewMote(W, H));
+}
+
+function gpNewMote(W, H) {
+    return {
+        x: Math.random() * W, y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.18,
+        vy: -(0.1 + Math.random() * 0.25),
+        r: 0.6 + Math.random() * 1.2,
+        life: 0, maxLife: 120 + Math.random() * 180,
+        hue: Math.random() < 0.4 ? 270 : 200
+    };
+}
+
+function gpDrawScene() {
+    const { sctx, SW, SH, motes, t } = GP;
+    if (!sctx) return;
+
+    sctx.clearRect(0, 0, SW, SH);
+
+    // Gradient background
+    const bg = sctx.createLinearGradient(0, 0, 0, SH);
+    bg.addColorStop(0, 'rgba(12,6,25,0.95)');
+    bg.addColorStop(1, 'rgba(5,3,14,0.98)');
+    sctx.fillStyle = bg;
+    sctx.fillRect(0, 0, SW, SH);
+
+    // Subtle ground fog
+    const fog = sctx.createLinearGradient(0, SH * 0.6, 0, SH);
+    fog.addColorStop(0, 'transparent');
+    fog.addColorStop(1, 'rgba(60,20,100,0.18)');
+    sctx.fillStyle = fog;
+    sctx.fillRect(0, SH * 0.6, SW, SH * 0.4);
+
+    // Motes
+    motes.forEach((m, i) => {
+        m.life++;
+        m.x += m.vx + Math.sin(t * 0.4 + i) * 0.06;
+        m.y += m.vy;
+        if (m.life > m.maxLife) Object.assign(m, gpNewMote(SW, SH));
+        const alpha = Math.sin((m.life / m.maxLife) * Math.PI) * 0.55;
+        sctx.beginPath();
+        sctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+        sctx.fillStyle = `hsla(${m.hue},80%,75%,${alpha})`;
+        sctx.fill();
+    });
+
+    GP.t += 0.025;
+}
+
+function gpDrawChar() {
+    const { cctx, SW, SH, t } = GP;
+    if (!cctx) return;
+
+    cctx.clearRect(0, 0, SW, SH);
+
+    GP.breathPhase += 0.03;
+    GP.walkPhase   += 0.02;
+
+    const breathe = Math.sin(GP.breathPhase) * 1.5;
+    const cx = SW / 2;
+    const baseY = SH * 0.94;
+    const scale = SH / 320; // scale to panel height
+
+    cctx.save();
+    cctx.translate(cx, baseY);
+    cctx.scale(scale, scale);
+
+    // Ground glow
+    const grd = cctx.createRadialGradient(0, 0, 5, 0, 0, 55);
+    grd.addColorStop(0, 'rgba(100,30,180,0.22)');
+    grd.addColorStop(1, 'transparent');
+    cctx.fillStyle = grd;
+    cctx.beginPath();
+    cctx.ellipse(0, 0, 55, 14, 0, 0, Math.PI * 2);
+    cctx.fill();
+
+    const by = 0; // base Y relative to translate
+
+    // Robe body
+    cctx.save();
+    cctx.translate(0, breathe * 0.3);
+    const robeGrd = cctx.createLinearGradient(-28, by - 160, 28, by);
+    robeGrd.addColorStop(0, '#1a0830');
+    robeGrd.addColorStop(0.5, '#0d0420');
+    robeGrd.addColorStop(1, '#080215');
+    cctx.fillStyle = robeGrd;
+    cctx.beginPath();
+    cctx.moveTo(-16, by - 145);
+    cctx.bezierCurveTo(-22, by - 100, -30, by - 60, -34, by);
+    cctx.bezierCurveTo(-20, by + 2, 20, by + 2, 34, by);
+    cctx.bezierCurveTo(30, by - 60, 22, by - 100, 16, by - 145);
+    cctx.closePath();
+    cctx.fill();
+
+    // Hood
+    const hoodGrd = cctx.createRadialGradient(-4, by - 175, 2, 0, by - 165, 22);
+    hoodGrd.addColorStop(0, '#2a0845');
+    hoodGrd.addColorStop(1, '#0a0218');
+    cctx.fillStyle = hoodGrd;
+    cctx.beginPath();
+    cctx.moveTo(-20, by - 148);
+    cctx.bezierCurveTo(-22, by - 170, -18, by - 190, 0, by - 192);
+    cctx.bezierCurveTo(18, by - 190, 22, by - 170, 20, by - 148);
+    cctx.closePath();
+    cctx.fill();
+
+    // Eye glow
+    GP.eyeGlow = 0.75 + Math.sin(t * 1.8) * 0.15;
+    const eyeGlow = GP.eyeGlow;
+
+    // Left eye
+    cctx.beginPath();
+    cctx.arc(-6, by - 168, 3.5, 0, Math.PI * 2);
+    cctx.fillStyle = `rgba(180,100,255,${eyeGlow * 0.9})`;
+    cctx.fill();
+    const lgLeft = cctx.createRadialGradient(-6, by - 168, 0, -6, by - 168, 9);
+    lgLeft.addColorStop(0, `rgba(180,100,255,${eyeGlow * 0.4})`);
+    lgLeft.addColorStop(1, 'transparent');
+    cctx.fillStyle = lgLeft;
+    cctx.beginPath();
+    cctx.arc(-6, by - 168, 9, 0, Math.PI * 2);
+    cctx.fill();
+
+    // Right eye
+    cctx.beginPath();
+    cctx.arc(6, by - 168, 3.5, 0, Math.PI * 2);
+    cctx.fillStyle = `rgba(180,100,255,${eyeGlow * 0.9})`;
+    cctx.fill();
+    const lgRight = cctx.createRadialGradient(6, by - 168, 0, 6, by - 168, 9);
+    lgRight.addColorStop(0, `rgba(180,100,255,${eyeGlow * 0.4})`);
+    lgRight.addColorStop(1, 'transparent');
+    cctx.fillStyle = lgRight;
+    cctx.beginPath();
+    cctx.arc(6, by - 168, 9, 0, Math.PI * 2);
+    cctx.fill();
+
+    cctx.restore(); // breathe
+    cctx.restore(); // translate + scale
+}
+
+function gpAnimLoop() {
+    if (!GP.canvasReady) return;
+    gpDrawScene();
+    gpDrawChar();
+    GP.animFrame = requestAnimationFrame(gpAnimLoop);
+}
+
+// ── Greeting ─────────────────────────────────────────────────
+function gpGreet() {
+    const greetings = [
+        "The path brought you here, wanderer. I know every shadow and every corner of this place. Ask me anything about Shadow Nexus Social — or simply speak what's on your mind.",
+        "I am Shadow Reaper — your guide through this platform and beyond. Looking for a feature? Carrying something heavy? I am here for both.",
+        "The darkness parts, and here you are. Ask me about any part of this site, or just talk. Whatever you need, this space is yours."
+    ];
+    gpAppendMessage('grim', gpPickRandom(greetings), null);
+}
+
+// ── Init ──────────────────────────────────────────────────────
+GP.init = function () {
+    GP.initialized = true;
+    gpInitCanvas();
+    setTimeout(gpGreet, 600);
+};
+
+// ── Auto-scroll after every message append ────────────────────
+const _gpMsgBox = document.getElementById('gp-messages');
+const _origGpAppend = gpAppendMessage;
+// Wrap to scroll after each message
+gpAppendMessage = function(role, text, page) {
+    _origGpAppend(role, text, page);
+    if (_gpMsgBox) _gpMsgBox.scrollTop = _gpMsgBox.scrollHeight;
+};
+
+})(); // end IIFE
+
+// ── Desktop: drag panel by header ────────────────────────────
+(function () {
+    const panel  = document.getElementById('grim-panel');
+    const header = document.getElementById('grim-panel-header');
+    if (!panel || !header) return;
+
+    let dragging = false, startX = 0, startRight = 0;
+
+    function isMobile() { return window.innerWidth <= 600; }
+
+    header.addEventListener('mousedown', (e) => {
+        if (isMobile()) return;
+        if (e.target.closest('#grim-panel-close')) return;
+        dragging = true;
+        startX = e.clientX;
+        const rect = panel.getBoundingClientRect();
+        startRight = window.innerWidth - rect.right;
+        document.body.style.userSelect = 'none';
+        header.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const dx = startX - e.clientX;
+        let newRight = startRight + dx;
+        newRight = Math.max(0, Math.min(window.innerWidth - 120, newRight));
+        panel.style.right = newRight + 'px';
+        panel.style.left  = 'auto';
+        // keep transform clear when dragging
+        panel.style.transform = 'translateX(0)';
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        document.body.style.userSelect = '';
+        header.style.cursor = '';
+    });
+})();
+
+// ── Desktop: resize panel by left edge ───────────────────────
+(function () {
+    const panel   = document.getElementById('grim-panel');
+    const handle  = document.getElementById('grim-resize-handle');
+    if (!panel || !handle) return;
+
+    let resizing = false, startX = 0, startW = 0;
+
+    function isMobile() { return window.innerWidth <= 600; }
+
+    handle.addEventListener('mousedown', (e) => {
+        if (isMobile()) return;
+        resizing = true;
+        startX = e.clientX;
+        startW = panel.offsetWidth;
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'ew-resize';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!resizing) return;
+        const dx = startX - e.clientX;
+        let newW = startW + dx;
+        newW = Math.max(300, Math.min(window.innerWidth - 40, newW));
+        panel.style.width = newW + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!resizing) return;
+        resizing = false;
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+    });
+})();
+
+// ── Prevent viewport from bouncing behind panel on iOS ───────
+document.getElementById('gp-messages')?.addEventListener('touchmove', (e) => {
+    e.stopPropagation();
+}, { passive: true });
+</script>
 
 </body>
 </html>
