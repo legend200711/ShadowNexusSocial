@@ -1514,7 +1514,13 @@ async function _hostRelayGuestToViewer(guestUid, viewerUid, stream) {
   };
 
   let offer;
-  try { offer = await pc.createOffer(); await pc.setLocalDescription(offer); }
+  try {
+    // sendonly relay — explicitly tell the browser not to include receive capabilities.
+    // Without this, Firefox and some mobile browsers may generate sendrecv SDP which
+    // causes the viewer's answer to also be sendrecv, breaking the one-way relay.
+    offer = await pc.createOffer({ offerToReceiveVideo: false, offerToReceiveAudio: false });
+    await pc.setLocalDescription(offer);
+  }
   catch(e) { try { pc.close(); } catch(_){} return; }
 
   if (!_hostRelayPeers[guestUid]) _hostRelayPeers[guestUid] = {};
@@ -1663,24 +1669,43 @@ async function _viewerSubscribeGuestRelay(guestUid) {
   const relayData = relaySnap.val();
   const pc = new RTCPeerConnection(_ICE_SERVERS);
 
-  pc.ontrack = (e) => {
-    const stream = e.streams[0] || new MediaStream([e.track]);
-    // Attach stream to the guest's cell in the viewer grid
-    const grid = D.guestGrid;
-    if (!grid) return;
-    const cell = grid.querySelector(`.vgc-cell[data-uid="${guestUid}"]`);
-    if (cell) {
-      _attachStreamToGuestCell(cell, stream);
-    } else {
-      // Cell not yet rendered — retry up to 20 times
-      let attempts = 20;
-      const retry = () => {
-        const c = D.guestGrid?.querySelector(`.vgc-cell[data-uid="${guestUid}"]`);
-        if (c) { _attachStreamToGuestCell(c, stream); return; }
-        if (--attempts > 0) setTimeout(retry, 150);
-      };
-      setTimeout(retry, 150);
+  // Collect all tracks from every ontrack event into a single shared stream,
+  // then attach to the cell only once a video track is confirmed present.
+  // This prevents premature attachment with an audio-only stream when audio
+  // ontrack fires before video ontrack (common on Firefox / some mobile browsers).
+  const _relayStream = new MediaStream();
+  let   _relayAttached = false;
+  const _relayTryAttach = () => {
+    if (!_relayStream.getVideoTracks().length) return; // no video yet — skip until video arrives
+    if (_relayAttached) {
+      // Already attached — re-apply stream so any newly arrived audio track is included
+      // in the srcObject, and resume playback if the element was paused.
+      const cell = D.guestGrid?.querySelector(`.vgc-cell[data-uid="${guestUid}"]`);
+      if (cell) {
+        const v = cell.querySelector('video');
+        if (v) {
+          if (v.srcObject !== _relayStream) v.srcObject = _relayStream;
+          if (v.paused) v.play().catch(() => {});
+        }
+      }
+      return;
     }
+    _relayAttached = true;
+    const _doAttach = (attemptsLeft) => {
+      const grid = D.guestGrid;
+      if (!grid) return;
+      const cell = grid.querySelector(`.vgc-cell[data-uid="${guestUid}"]`);
+      if (cell) { _attachStreamToGuestCell(cell, _relayStream); return; }
+      if (attemptsLeft > 0) setTimeout(() => _doAttach(attemptsLeft - 1), 150);
+    };
+    _doAttach(40);
+  };
+  pc.ontrack = (e) => {
+    // Merge every incoming track into the shared stream
+    if (!_relayStream.getTracks().includes(e.track)) {
+      _relayStream.addTrack(e.track);
+    }
+    _relayTryAttach();
   };
 
   pc.onconnectionstatechange = () => {
@@ -1747,6 +1772,9 @@ async function _viewerSubscribeGuestRelay(guestUid) {
 /* ── VIEWER: Attach a stream to a guest cell (replaces avatar with live video) ── */
 function _attachStreamToGuestCell(cell, stream) {
   if (!cell || !stream) return;
+  // Only attach a stream that actually contains a video track — skip audio-only streams
+  // so we never accidentally overwrite a good srcObject with a partial one.
+  if (!stream.getVideoTracks().length) return;
   let vid = cell.querySelector('video');
   if (!vid) {
     vid = document.createElement('video');
@@ -1756,9 +1784,12 @@ function _attachStreamToGuestCell(cell, stream) {
     const nameEl = cell.querySelector('.vgc-name, .guest-cell-name');
     cell.insertBefore(vid, nameEl || null);
   }
-  vid.srcObject = stream;
+  // Always update srcObject so reconnects and stream replacements are handled
+  if (vid.srcObject !== stream) vid.srcObject = stream;
+  // Always call play() — browsers may pause a video element after a srcObject change
+  // or after the tab was backgrounded; this is a no-op when already playing.
   vid.play().catch(() => {});
-  // Hide avatar and cam-off overlay
+  // Hide avatar and cam-off overlay since we have live video
   const avatar = cell.querySelector('.vgc-avatar');
   if (avatar) avatar.style.display = 'none';
   const camOff = cell.querySelector('.vgc-cam-off');
@@ -2772,6 +2803,11 @@ function _startViewerGuestGrid() {
         if (camIcon) camIcon.textContent = g.camOn !== false ? '📷' : '🚫';
         if (micIcon) micIcon.textContent = g.micOn !== false ? '🎤' : '🔇';
         if (camOff)  camOff.classList.toggle('vgc-cam-off--visible', g.camOn === false);
+        // When cam turns back on, resume the video element in case it was paused
+        if (g.camOn !== false) {
+          const vid = card.querySelector('video');
+          if (vid && vid.paused) vid.play().catch(() => {});
+        }
         // Ensure host video is attached if not yet (e.g. stream arrived after card was built)
         if (g.isHost && !card.querySelector('video')) {
           _attachHostVideoToCell(card);
@@ -3726,10 +3762,28 @@ function _hostAddGuestCell(uid, name, avatar, stream, pc) {
   vid.play().catch(()=>{});
   cell.appendChild(vid);
 
+  // Camera-off overlay — same structure as the viewer-side vgc-cam-off so CSS applies
+  const camOffEl = document.createElement('div');
+  camOffEl.className = 'vgc-cam-off host-guest-cam-off';
+  camOffEl.innerHTML = '<span>📷</span><span>Camera off</span>';
+  cell.appendChild(camOffEl);
+
   const nameEl = document.createElement('div');
   nameEl.className = 'guest-cell-name';
   nameEl.textContent = name || 'Guest';
   cell.appendChild(nameEl);
+
+  // ── Watch this guest's cam/mic state in RTDB so the host sees the overlay ──
+  const _camStateRef = ref(_liveDB, `liveGuests/${_roomId}/${uid}`);
+  const _camStateUnsub = onValue(_camStateRef, snap => {
+    if (!snap.exists()) return;
+    const g = snap.val();
+    camOffEl.classList.toggle('vgc-cam-off--visible', g.camOn === false);
+    // Keep video playing when cam turns back on
+    if (g.camOn !== false && vid.paused) vid.play().catch(() => {});
+  });
+  // Store unsub alongside the peer so _hostDoRemoveGuest can tear it down
+  if (_guestPeers[uid]) _guestPeers[uid].camStateUnsub = _camStateUnsub;
 
   // Host can remove a guest by tapping ✕
   const removeBtn = document.createElement('button');
@@ -3845,6 +3899,8 @@ function _hostDoRemoveGuest(uid) {
 
   const peer = _guestPeers[uid];
   if (peer) {
+    // Tear down cam-state RTDB listener added by _hostAddGuestCell
+    if (peer.camStateUnsub) { try { peer.camStateUnsub(); } catch(_){} peer.camStateUnsub = null; }
     if (peer.pc) { try { peer.pc.close(); } catch(_){} }
     // Animate cell out (≤260ms) then remove — gives immediate visual feedback
     if (peer.cell && !peer.cell.classList.contains('removing')) {
@@ -3947,6 +4003,7 @@ function _teardownAllGuestPeers() {
 
   for (const uid of Object.keys(_guestPeers)) {
     const p = _guestPeers[uid];
+    if (p.camStateUnsub) { try { p.camStateUnsub(); } catch(_){} }
     if (p.pc)   { try { p.pc.close(); }   catch(_){} }
     if (p.cell) { try { p.cell.remove(); } catch(_){} }
   }
