@@ -10,7 +10,7 @@
  * shadownexussocial.online (/) and any local dev server (/).
  */
 
-const CACHE_VERSION = 'v15';
+const CACHE_VERSION = 'v16';
 const CACHE_NAME    = `shadow-nexus-${CACHE_VERSION}`;
 const MEDIA_CACHE   = `shadow-nexus-media-${CACHE_VERSION}`;
 
@@ -62,6 +62,12 @@ const NETWORK_ONLY_HOSTS = [
   'www.gstatic.com',
   'firebaseio.com',
   'googleapis.com',
+  // Cloudflare upload worker + R2 CDN — never cache, always network
+  'workers.dev',
+  'cloudflare.com',
+  'cdn.shadownexus.social',
+  'photos.shadownexus.social',
+  'r2.dev',
 ];
 
 /* ─────────────────────────────────────────────

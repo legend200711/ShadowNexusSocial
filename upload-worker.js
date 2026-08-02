@@ -21,7 +21,10 @@
  *   - Rate-limit hint headers (enforce limits in Cloudflare dashboard)
  */
 
-const MAX_SIZE = 200 * 1024 * 1024; // 200MB
+const MAX_SIZE_IMAGE = 10  * 1024 * 1024;  // 10 MB  — images
+const MAX_SIZE_VIDEO = 100 * 1024 * 1024;  // 100 MB — video
+const MAX_SIZE_AUDIO = 200 * 1024 * 1024;  // 200 MB — audio / music
+const MAX_SIZE       = MAX_SIZE_AUDIO;     // absolute upper bound (used by music endpoint)
 
 const ALLOWED_ORIGINS = [
   'https://shadownexussocial.online',
@@ -446,15 +449,20 @@ export default {
     }
 
     const buffer = await file.arrayBuffer();
-    if (buffer.byteLength > MAX_SIZE) {
-      return new Response(JSON.stringify({ error: 'File too large (max 200MB)' }), {
+    // Per-type size limits enforced server-side
+    const cleanMime = mime.split(';')[0].trim();
+    const sizeLimit = cleanMime.startsWith('image/') ? MAX_SIZE_IMAGE
+                    : cleanMime.startsWith('video/') ? MAX_SIZE_VIDEO
+                    : MAX_SIZE_AUDIO;
+    if (buffer.byteLength > sizeLimit) {
+      const limitMB = Math.round(sizeLimit / 1024 / 1024);
+      return new Response(JSON.stringify({ error: `File too large (max ${limitMB} MB for this type)` }), {
         status: 413,
         headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
       });
     }
 
     // ── Store in R2 under userUid/timestamp-random.ext ────────────────────────
-    const cleanMime = mime.split(';')[0].trim();
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
     const key = `${userUid}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
 

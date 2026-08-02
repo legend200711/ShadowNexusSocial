@@ -56,10 +56,6 @@
     if (!d) throw new Error('Firestore DB not ready.');
     return d;
   }
-  function storage() {
-    return window._snxStorage;
-  }
-
   // ── R2 upload via Cloudflare Worker ──────────────────────────────
   async function uploadToR2(r2Key, file, uid, onProgress) {
     const formData = new FormData();

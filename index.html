@@ -9838,7 +9838,6 @@ body.arcade-fs-ios body::after { display:none !important; }
   import { getFirestore, doc, setDoc, getDoc, getDocFromCache, updateDoc, deleteDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment, serverTimestamp, enableNetwork, disableNetwork } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
   import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
   import { getDatabase as _getRtdb, ref as _rtdbRef, set as _rtdbSet, onDisconnect as _rtdbOnDisconnect, serverTimestamp as _rtdbServerTimestamp, onValue as _rtdbOnValue, off as _rtdbOff } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-  import { getStorage, ref as _stRef, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y",
@@ -9882,10 +9881,6 @@ body.arcade-fs-ios body::after { display:none !important; }
       onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment,
       serverTimestamp, enableNetwork, disableNetwork,
   };
-
-  // ── Firebase Storage helpers for profile music / theme modules ──
-  window._snxFirebaseStorage = { ref: _stRef, uploadBytesResumable, getDownloadURL, deleteObject };
-  window._snxStorage = getStorage(app);
 
   // ── Auth-ready queue — lets non-module scripts register callbacks that
   //    run as soon as Firebase auth resolves (avoids the re-login requirement) ──
@@ -19889,6 +19884,17 @@ async function _compressImageFile(file, maxEdgePx = 1920, quality = 0.82) {
 
 async function uploadToR2(file, progressBarId, progressWrapId, _attempt) {
     _attempt = _attempt || 1;
+
+    // ── Client-side size limits (images: 10 MB, videos: 100 MB, others: 100 MB) ──
+    const IMG_LIMIT   = 10  * 1024 * 1024;  // 10 MB
+    const VIDEO_LIMIT = 100 * 1024 * 1024;  // 100 MB
+    if (file.type.startsWith('image/') && file.size > IMG_LIMIT) {
+        throw new Error(`Image too large — maximum is 10 MB (your file is ${(file.size / 1024 / 1024).toFixed(1)} MB). Please resize it before uploading.`);
+    }
+    if (file.type.startsWith('video/') && file.size > VIDEO_LIMIT) {
+        throw new Error(`Video too large — maximum is 100 MB (your file is ${(file.size / 1024 / 1024).toFixed(1)} MB). Please compress it before uploading.`);
+    }
+
     // Compress images before upload (skips video/audio/svg/gif automatically)
     if (file.type.startsWith('image/') && file.type !== 'image/svg+xml' && file.type !== 'image/gif') {
         try { file = await _compressImageFile(file); } catch(_) { /* compression failed — use original */ }
