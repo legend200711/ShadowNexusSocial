@@ -97,6 +97,14 @@
       }
     },
 
+    // ── Guest→viewer relay signaling (host relays guest streams to all viewers) ──
+    "guestViewerSignaling": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
     // ── Storm Rooms ───────────────────────────────────────────────────
     "stormRooms": {
       "$roomId": {
