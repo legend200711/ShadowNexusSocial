@@ -6281,18 +6281,19 @@ body.arcade-fs-ios body::after { display:none !important; }
 <!-- Portal page transition flash -->
 <div id="snxPortalTransition"></div>
 
-<!-- ████ SHADOW CORE — Floating Crystal Navigation ████ -->
+<!-- ████ SHADOW CORE — Full-height Desktop Navigation ████ -->
 <nav id="shadowCore" aria-label="Shadow Core Navigation">
 
-    <!-- Crystal orb — click to expand/collapse -->
-    <div class="sc-orb" id="scOrbBtn" title="Shadow Core" aria-label="Toggle Shadow Core">🌑</div>
+    <!-- Brand header at top of sidebar -->
+    <div class="sc-orb" id="scOrbBtn" aria-label="Shadow Nexus Social">
+        <div class="sc-orb-icon">🌑</div>
+        <div class="sc-orb-text">
+            <span class="sc-orb-name">Shadow Nexus</span>
+            <span class="sc-orb-sub">Stay Legendary 🌑</span>
+        </div>
+    </div>
 
     <div class="sc-nav-panel">
-        <!-- The Nexus (Home) -->
-        <button class="sc-item" id="scNavHome" onclick="realmNavTo('feed')" aria-label="The Nexus — Home">
-            <span class="sc-item-icon">⬡</span>
-            <span class="sc-item-label">The Nexus</span>
-        </button>
         <!-- Eclipse Feed -->
         <button class="sc-item" id="scNavFeed" onclick="realmNavTo('feed')" aria-label="Eclipse Feed">
             <span class="sc-item-icon">✦</span>
@@ -6300,34 +6301,38 @@ body.arcade-fs-ios body::after { display:none !important; }
         </button>
         <!-- Search -->
         <button class="sc-item" id="scNavSearch" onclick="realmNavTo('searchPage')" aria-label="Search the Realm">
-            <span class="sc-item-icon">◈</span>
+            <span class="sc-item-icon">🔍</span>
             <span class="sc-item-label">Search Realm</span>
         </button>
-        <!-- Shadow Portal (Messages) -->
-        <button class="sc-item" id="scNavInbox" onclick="realmNavTo('inboxPage')" aria-label="Shadow Portal — Messages">
-            <span class="sc-item-icon">◉</span>
-            <span class="sc-item-label">Shadow Portal</span>
+        <!-- Messages / Inbox -->
+        <button class="sc-item" id="scNavInbox" onclick="realmNavTo('inboxPage')" aria-label="Inbox — Messages">
+            <span class="sc-item-icon">💬</span>
+            <span class="sc-item-label">Inbox</span>
             <span class="sc-item-badge" id="scInboxBadge"></span>
         </button>
-        <!-- Shadow Signals (Notifications) -->
-        <button class="sc-item" id="scNavNotifs" onclick="realmNavTo('notificationsPage')" aria-label="Shadow Signals — Notifications">
-            <span class="sc-item-icon">⚡</span>
-            <span class="sc-item-label">Shadow Signals</span>
+        <!-- Notifications -->
+        <button class="sc-item" id="scNavNotifs" onclick="realmNavTo('notificationsPage')" aria-label="Notifications">
+            <span class="sc-item-icon">🔔</span>
+            <span class="sc-item-label">Notifications</span>
             <span class="sc-item-badge" id="scNotifBadge"></span>
         </button>
-        <!-- Shadow Identity (Profile) -->
-        <button class="sc-item" id="scNavProfile" onclick="realmViewMyProfile()" aria-label="Shadow Identity — Profile">
-            <span class="sc-item-icon">◎</span>
-            <span class="sc-item-label">Shadow Identity</span>
+        <!-- Profile -->
+        <button class="sc-item" id="scNavProfile" onclick="realmViewMyProfile()" aria-label="My Profile">
+            <span class="sc-item-icon">👤</span>
+            <span class="sc-item-label">My Profile</span>
         </button>
-        <!-- Shadow Music Realm -->
-        <button class="sc-item" id="scNavCommunity" onclick="realmNavTo('communityPage')" aria-label="Community Hub">
-            <span class="sc-item-icon">♦</span>
-            <span class="sc-item-label">Community Hub</span>
-        </button>
-
         <div class="sc-divider"></div>
 
+        <!-- Community Hub -->
+        <button class="sc-item" id="scNavCommunity" onclick="realmNavTo('communityPage')" aria-label="Community Hub">
+            <span class="sc-item-icon">💙</span>
+            <span class="sc-item-label">Community Hub</span>
+        </button>
+        <!-- Community Rules -->
+        <button class="sc-item" id="scNavCommunityRules" onclick="realmNavTo('communityRulesPage')" aria-label="Community Rules">
+            <span class="sc-item-icon">📜</span>
+            <span class="sc-item-label">Community Rules</span>
+        </button>
         <!-- Storm Rooms -->
         <button class="sc-item" id="scNavStorm" onclick="realmNavTo('stormRoomsPage')" aria-label="Storm Rooms">
             <span class="sc-item-icon">⛈</span>
@@ -6338,6 +6343,9 @@ body.arcade-fs-ios body::after { display:none !important; }
             <span class="sc-item-icon">🫂</span>
             <span class="sc-item-label">Support Rooms</span>
         </button>
+
+        <div class="sc-divider"></div>
+
         <!-- Live Hub -->
         <button class="sc-item sc-item-live" id="scNavLive" onclick="realmNavTo('liveHubPage')" aria-label="Live Hub">
             <span class="sc-item-icon">🔴</span>
@@ -6348,21 +6356,26 @@ body.arcade-fs-ios body::after { display:none !important; }
             <span class="sc-item-icon">📡</span>
             <span class="sc-item-label">Go Live</span>
         </button>
+        <!-- Arcade -->
+        <button class="sc-item" id="scNavArcade" onclick="openArcadeHub()" aria-label="Arcade">
+            <span class="sc-item-icon">🕹️</span>
+            <span class="sc-item-label">Arcade</span>
+        </button>
 
         <div class="sc-divider"></div>
 
         <!-- Settings -->
         <button class="sc-item" id="scNavSettings" onclick="realmNavTo('settingsPage')" aria-label="Settings">
-            <span class="sc-item-icon">⚙</span>
+            <span class="sc-item-icon">⚙️</span>
             <span class="sc-item-label">Settings</span>
         </button>
         <!-- Role panels — hidden by default, shown by JS -->
         <button class="sc-item" id="scNavMod" onclick="realmNavTo('moderatorPage')" aria-label="Moderator Panel" style="display:none; color:#cc88ff !important;">
-            <span class="sc-item-icon">🛡</span>
+            <span class="sc-item-icon">🛡️</span>
             <span class="sc-item-label">Mod Panel</span>
         </button>
         <button class="sc-item" id="scNavAdm" onclick="realmNavTo('administratorPage')" aria-label="Admin Panel" style="display:none; color:#66ccff !important;">
-            <span class="sc-item-icon">⚙</span>
+            <span class="sc-item-icon">⚙️</span>
             <span class="sc-item-label">Admin Panel</span>
         </button>
         <button class="sc-item" id="scNavFounder" onclick="realmNavTo('adminPage')" aria-label="Founder Control" style="display:none; color:#00ffee !important;">
@@ -6373,9 +6386,9 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="sc-divider"></div>
 
         <!-- Logout -->
-        <button class="sc-item" onclick="handleLogout()" aria-label="Log Out" style="color:#ff5566 !important;">
-            <span class="sc-item-icon" style="filter:drop-shadow(0 0 4px rgba(255,60,80,0.5))">⬡</span>
-            <span class="sc-item-label">Exit Nexus</span>
+        <button class="sc-item" id="scNavLogout" onclick="handleLogout()" aria-label="Log Out" style="color:#ff5566 !important;">
+            <span class="sc-item-icon" style="filter:drop-shadow(0 0 4px rgba(255,60,80,0.5))">🚪</span>
+            <span class="sc-item-label">Log Out</span>
         </button>
     </div>
 </nav>
@@ -6390,10 +6403,6 @@ body.arcade-fs-ios body::after { display:none !important; }
         <!-- ── MAIN ── -->
         <span class="ncm-section-label">Main</span>
 
-        <div class="ncm-item" id="ncmHome" onclick="mobileNavTo('feed')">
-            <div class="ncm-icon-wrap">🏠</div>
-            <div class="ncm-label">Home</div>
-        </div>
         <div class="ncm-item" id="ncmFeed" onclick="mobileNavTo('feed')">
             <div class="ncm-icon-wrap">✦</div>
             <div class="ncm-label">Eclipse Feed</div>
@@ -6416,11 +6425,6 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="ncm-icon-wrap">👤</div>
             <div class="ncm-label">My Profile</div>
         </div>
-        <div class="ncm-item" id="ncmFriends" onclick="mobileNavTo('friendsPage')">
-            <div class="ncm-icon-wrap">🦋</div>
-            <div class="ncm-label">Friends &amp; Family</div>
-        </div>
-
         <div class="ncm-divider"></div>
 
         <!-- ── COMMUNITY ── -->
@@ -6528,9 +6532,6 @@ body.arcade-fs-ios body::after { display:none !important; }
 
     <!-- Main nav -->
     <div class="sidebar-nav">
-        <button class="nav-item" id="navHome" onclick="navTo('feed')">
-            <span class="nav-icon">🏠</span> Home
-        </button>
         <button class="nav-item" id="navSearch" onclick="navTo('searchPage')">
             <span class="nav-icon">🔍</span> Search
         </button>
@@ -6544,9 +6545,6 @@ body.arcade-fs-ios body::after { display:none !important; }
         </button>
         <button class="nav-item" id="navProfile" onclick="viewMyProfile()">
             <span class="nav-icon">👤</span> Profile
-        </button>
-        <button class="nav-item" id="navFriends" onclick="navTo('friendsPage')">
-            <span class="nav-icon">🦋</span> Friends &amp; Family
         </button>
         <button class="nav-item" id="navSettings" onclick="navTo('settingsPage')">
             <span class="nav-icon">⚙️</span> Settings
@@ -17261,7 +17259,7 @@ function navTo(pageId) {
     // Update active nav highlight
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active-nav'));
     const map = {
-        feed:'navHome', profile:'navProfile',
+        profile:'navProfile',
         searchPage:'navSearch', friendsPage:'navFriends',
         notificationsPage:'navNotifs', settingsPage:'navSettings',
         stormRoomsPage:'navStorm', adminPage:'navAdmin',
@@ -27503,28 +27501,23 @@ document.getElementById('gp-messages')?.addEventListener('touchmove', (e) => {
     var orb  = document.getElementById('scOrbBtn');
     if (!core || !orb) return;
 
-    // Auto-collapse after 4s of no interaction
-    var collapseTimer = null;
-    function scheduleCollapse() {
-        clearTimeout(collapseTimer);
-        collapseTimer = setTimeout(function() {
-            core.classList.remove('expanded');
-        }, 3500);
-    }
+    // On desktop (≥1025px) the nav is always expanded — no expand/collapse needed.
+    // On mobile (≤1024px) the nav is hidden entirely and replaced by the slide-out drawer.
+    // So the expand/collapse behaviour is effectively unused, but kept for any intermediate edge cases.
+    var isDesktop = function() { return window.innerWidth >= 1025; };
 
+    // Always mark as expanded on desktop
+    if (isDesktop()) { core.classList.add('expanded'); }
+
+    window.addEventListener('resize', function() {
+        if (isDesktop()) { core.classList.add('expanded'); }
+    });
+
+    // Orb click: no-op on desktop
     orb.addEventListener('click', function() {
+        if (isDesktop()) return;
         core.classList.toggle('expanded');
-        clearTimeout(collapseTimer);
-        if (core.classList.contains('expanded')) {
-            scheduleCollapse();
-        }
     });
-
-    core.addEventListener('mouseenter', function() {
-        core.classList.add('expanded');
-        clearTimeout(collapseTimer);
-    });
-    core.addEventListener('mouseleave', scheduleCollapse);
 })();
 
 /* ═══════════════════════════════════════════════════════
@@ -27552,11 +27545,10 @@ window.realmNavTo = function(pageId) {
         if (typeof navTo === 'function') navTo(pageId);
     });
     updateShadowCoreActive(pageId);
-    // Collapse Shadow Core (desktop)
-    var core = document.getElementById('shadowCore');
-    if (core) core.classList.remove('expanded');
-    // Close mobile slide-out drawer (mobile/tablet)
-    if (typeof closeMobileDrawer === 'function') closeMobileDrawer();
+    // On mobile: close the slide-out drawer
+    if (window.innerWidth < 1025) {
+        if (typeof closeMobileDrawer === 'function') closeMobileDrawer();
+    }
 };
 
 window.realmViewMyProfile = function() {
@@ -27564,9 +27556,9 @@ window.realmViewMyProfile = function() {
         if (typeof viewMyProfile === 'function') viewMyProfile();
     });
     updateShadowCoreActive('profile');
-    var core = document.getElementById('shadowCore');
-    if (core) core.classList.remove('expanded');
-    if (typeof closeMobileDrawer === 'function') closeMobileDrawer();
+    if (window.innerWidth < 1025) {
+        if (typeof closeMobileDrawer === 'function') closeMobileDrawer();
+    }
 };
 
 function updateShadowCoreActive(pageId) {
@@ -27578,15 +27570,15 @@ function updateShadowCoreActive(pageId) {
     });
 
     var map = {
-        'feed':              ['scNavHome', 'scNavFeed', 'ncmHome', 'ncmFeed'],
+        'feed':              ['scNavFeed', 'ncmFeed'],
         'searchPage':        ['scNavSearch', 'ncmSearch'],
         'inboxPage':         ['scNavInbox', 'ncmInbox'],
         'notificationsPage': ['scNavNotifs', 'ncmNotifs'],
         'profile':           ['scNavProfile', 'ncmProfile'],
         'settingsPage':      ['scNavSettings', 'ncmSettings'],
         'communityPage':     ['scNavCommunity', 'ncmCommunity'],
-        'communityRulesPage':['navCommunityRules', 'ncmRules'],
-        'friendsPage':       ['navFriends', 'ncmFriends'],
+        'communityRulesPage':['navCommunityRules', 'scNavCommunityRules', 'ncmRules'],
+        'friendsPage':       ['navFriends', 'scNavFriends', 'ncmFriends'],
         'stormRoomsPage':    ['scNavStorm', 'ncmStorm'],
         'supportRoomsPage':  ['scNavSupport', 'ncmSupport'],
         'liveHubPage':       ['scNavLive', 'ncmLiveHub'],

@@ -25,8 +25,9 @@
   --realm-border-h:   rgba(0,240,255,0.75);
   --realm-text:       #e8f8ff;
   --realm-text-dim:   #6a9ab8;
-  --shadow-core-w:    72px;
-  --shadow-core-w-open: 240px;
+  /* Desktop: always expanded at full width */
+  --shadow-core-w:      220px;
+  --shadow-core-w-open: 220px;
   --nav-anim:         0.30s cubic-bezier(0.4,0,0.2,1);
 }
 
@@ -192,79 +193,120 @@ body {
   #snxMobileMenuBtn { display: none !important; }
 }
 
-/* New floating nav */
+/* New floating nav — always expanded on desktop */
 #shadowCore {
   position: fixed;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 0;
+  top: 0;
+  bottom: 0;
   z-index: 4000;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 0;
   width: var(--shadow-core-w);
   transition: width var(--nav-anim);
+  /* Full-height sidebar panel */
+  background: linear-gradient(180deg, rgba(0,6,16,0.98) 0%, rgba(0,12,28,0.97) 60%, rgba(0,4,12,0.98) 100%);
+  border-right: 1px solid rgba(0,174,239,0.18);
+  box-shadow: 4px 0 32px rgba(0,0,0,0.5), 2px 0 20px rgba(0,80,180,0.12);
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 #shadowCore.expanded {
   width: var(--shadow-core-w-open);
   align-items: flex-start;
 }
 
-/* Crystal orb branding at top */
+/* Header branding strip at top of the always-open nav */
 .sc-orb {
-  width: 52px;
-  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 12px 14px;
+  width: 100%;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(0,174,239,0.15);
+  background: linear-gradient(135deg, rgba(0,40,100,0.22) 0%, transparent 100%);
+  cursor: default;
+  user-select: none;
+  font-size: 22px;
+  /* Keep the orb glow on the icon element inside */
+}
+/* Inner icon inside the orb strip */
+.sc-orb-icon {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: radial-gradient(circle at 38% 32%, #004488, #000c18);
   border: 2px solid var(--realm-blue);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 18px;
   flex-shrink: 0;
-  cursor: pointer;
   box-shadow:
-    0 0 18px var(--realm-blue),
-    0 0 40px rgba(0,174,239,0.35),
-    inset 0 0 12px rgba(0,174,239,0.25);
+    0 0 14px var(--realm-blue),
+    inset 0 0 8px rgba(0,174,239,0.25);
   animation: orbPulse 3s ease-in-out infinite;
-  transition: box-shadow 0.25s, transform 0.18s;
-  user-select: none;
 }
-.sc-orb:hover {
-  transform: scale(1.1);
-  box-shadow:
-    0 0 28px var(--realm-cyan),
-    0 0 60px rgba(0,240,255,0.4),
-    inset 0 0 18px rgba(0,240,255,0.3);
+/* Brand name text beside the icon */
+.sc-orb-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
+.sc-orb-name {
+  font-size: 11px;
+  font-weight: 800;
+  color: #00d4ff;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  line-height: 1.2;
+  text-shadow: 0 0 10px rgba(0,200,255,0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sc-orb-sub {
+  font-size: 9px;
+  color: rgba(0,255,136,0.5);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sc-orb:hover { /* no-op on desktop */ }
 @keyframes orbPulse {
   0%,100% {
-    box-shadow: 0 0 18px var(--realm-blue), 0 0 40px rgba(0,174,239,0.35), inset 0 0 12px rgba(0,174,239,0.25);
+    box-shadow: 0 0 14px var(--realm-blue), inset 0 0 8px rgba(0,174,239,0.25);
   }
   50% {
-    box-shadow: 0 0 28px var(--realm-cyan), 0 0 60px rgba(0,240,255,0.45), inset 0 0 20px rgba(0,240,255,0.35);
+    box-shadow: 0 0 22px var(--realm-cyan), inset 0 0 14px rgba(0,240,255,0.3);
   }
 }
 
-/* Nav container panel */
+/* Nav container panel — scrollable, fills remaining height */
 .sc-nav-panel {
-  background: linear-gradient(160deg, rgba(0,10,25,0.95) 0%, rgba(0,20,45,0.92) 100%);
-  border: 1px solid var(--realm-border);
-  border-radius: 20px;
-  padding: 10px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 6px 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   width: 100%;
-  box-shadow:
-    0 0 30px rgba(0,174,239,0.18),
-    0 8px 40px rgba(0,0,0,0.7),
-    inset 0 1px 0 rgba(0,174,239,0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,174,239,0.25) transparent;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
 }
+.sc-nav-panel::-webkit-scrollbar { width: 3px; }
+.sc-nav-panel::-webkit-scrollbar-track { background: transparent; }
+.sc-nav-panel::-webkit-scrollbar-thumb { background: rgba(0,174,239,0.25); border-radius: 3px; }
 
 /* Individual crystal nav items */
 .sc-item {
@@ -324,13 +366,16 @@ body {
   filter: drop-shadow(0 0 8px var(--realm-cyan));
 }
 
+/* Labels always visible on desktop */
 .sc-item-label {
   flex: 1;
-  opacity: 0;
-  max-width: 0;
+  opacity: 1;
+  max-width: 160px;
   overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: auto;
   transition: opacity var(--nav-anim), max-width var(--nav-anim);
-  pointer-events: none;
 }
 #shadowCore.expanded .sc-item-label {
   opacity: 1;
@@ -1066,19 +1111,36 @@ button:not(.sc-item):not(.ncm-item):hover {
    DESKTOP RESPONSIVE PATCH — shadow core visible on desktop
    ═══════════════════════════════════════════════════════════ */
 @media (min-width: 1025px) {
-  #nexusCoreBtn  { display: none !important; }
-  #nexusCoreMenu { display: none !important; }
+  #nexusCoreBtn     { display: none !important; }
+  #nexusCoreMenu    { display: none !important; }
   #snxMobileMenuBtn { display: none !important; }
-  #shadowCore    { display: flex !important; }
+  #shadowCore       { display: flex !important; }
 
+  /* Orb click-to-expand hidden — nav is always open on desktop */
+  .sc-orb {
+    cursor: default !important;
+    pointer-events: none !important;
+  }
+
+  /* Pages shift right to clear the always-open sidebar */
   .page {
-    padding-left: calc(var(--shadow-core-w) + 44px) !important;
-    max-width: 960px !important;
+    padding-left: calc(var(--shadow-core-w) + 32px) !important;
+    max-width: calc(960px + var(--shadow-core-w)) !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
   }
   #inboxPage {
-    padding-left: calc(var(--shadow-core-w) + 44px) !important;
-    padding-right: 16px !important;
+    padding-left: calc(var(--shadow-core-w) + 0px) !important;
+    padding-right: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: var(--shadow-core-w) !important;
+    right: 0 !important;
+    bottom: 0 !important;
     max-width: none !important;
+    width: auto !important;
   }
 }
 
