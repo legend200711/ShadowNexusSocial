@@ -48,6 +48,8 @@
 <link rel="stylesheet" href="profile-theme.css">
 <!-- ── Shadow Nexus Realm — full immersive redesign ── -->
 <link rel="stylesheet" href="realm.css">
+<!-- ── Mobile responsive design layer ── -->
+<link rel="stylesheet" href="mobile.css">
 
 <!-- ── Preconnect to Firebase + R2 CDN so first load is faster ── -->
 <link rel="preconnect" href="https://www.gstatic.com">
@@ -6381,37 +6383,120 @@ body.arcade-fs-ios body::after { display:none !important; }
 <!-- ████ NEXUS CORE — Mobile Floating Button ████ -->
 <button id="nexusCoreBtn" aria-label="Open Nexus Core Navigation">🌑</button>
 
-<!-- ████ NEXUS CORE MENU — Mobile Radial Menu ████ -->
+<!-- ████ NEXUS CORE MENU — Full-screen bottom sheet nav (mobile) ████ -->
 <div id="nexusCoreMenu" role="navigation" aria-label="Nexus Core Menu">
     <div class="ncm-inner">
+
+        <!-- ── MAIN ── -->
+        <span class="ncm-section-label">Main</span>
+
         <div class="ncm-item" id="ncmHome" onclick="mobileNavTo('feed')">
-            <div class="ncm-icon-wrap">⬡</div>
-            <div class="ncm-label">Nexus</div>
+            <div class="ncm-icon-wrap">🏠</div>
+            <div class="ncm-label">Home</div>
         </div>
         <div class="ncm-item" id="ncmFeed" onclick="mobileNavTo('feed')">
             <div class="ncm-icon-wrap">✦</div>
             <div class="ncm-label">Eclipse Feed</div>
         </div>
+        <div class="ncm-item" id="ncmSearch" onclick="mobileNavTo('searchPage')">
+            <div class="ncm-icon-wrap">🔍</div>
+            <div class="ncm-label">Search Realm</div>
+        </div>
         <div class="ncm-item" id="ncmInbox" onclick="mobileNavTo('inboxPage')">
-            <div class="ncm-icon-wrap">◉</div>
-            <div class="ncm-label">Shadow Portal</div>
+            <div class="ncm-icon-wrap">💬</div>
+            <div class="ncm-label">Inbox</div>
+            <span class="ncm-badge" id="ncmInboxBadge"></span>
         </div>
         <div class="ncm-item" id="ncmNotifs" onclick="mobileNavTo('notificationsPage')">
-            <div class="ncm-icon-wrap">⚡</div>
-            <div class="ncm-label">Signals</div>
+            <div class="ncm-icon-wrap">🔔</div>
+            <div class="ncm-label">Notifications</div>
+            <span class="ncm-badge" id="ncmNotifBadge"></span>
         </div>
         <div class="ncm-item" id="ncmProfile" onclick="mobileNavTo('_profile')">
-            <div class="ncm-icon-wrap">◎</div>
-            <div class="ncm-label">Identity</div>
+            <div class="ncm-icon-wrap">👤</div>
+            <div class="ncm-label">My Profile</div>
         </div>
+        <div class="ncm-item" id="ncmFriends" onclick="mobileNavTo('friendsPage')">
+            <div class="ncm-icon-wrap">🦋</div>
+            <div class="ncm-label">Friends &amp; Family</div>
+        </div>
+
+        <div class="ncm-divider"></div>
+
+        <!-- ── COMMUNITY ── -->
+        <span class="ncm-section-label">Community</span>
+
+        <div class="ncm-item" id="ncmCommunity" onclick="mobileNavTo('communityPage')">
+            <div class="ncm-icon-wrap">💙</div>
+            <div class="ncm-label">Community Hub</div>
+        </div>
+        <div class="ncm-item" id="ncmRules" onclick="mobileNavTo('communityRulesPage')">
+            <div class="ncm-icon-wrap">📜</div>
+            <div class="ncm-label">Community Rules</div>
+        </div>
+        <div class="ncm-item" id="ncmStorm" onclick="mobileNavTo('stormRoomsPage')">
+            <div class="ncm-icon-wrap">⚡</div>
+            <div class="ncm-label">Storm Rooms</div>
+        </div>
+        <div class="ncm-item" id="ncmSupport" onclick="mobileNavTo('supportRoomsPage')">
+            <div class="ncm-icon-wrap">🫂</div>
+            <div class="ncm-label">Support Rooms</div>
+        </div>
+
+        <div class="ncm-divider"></div>
+
+        <!-- ── CREATOR / LIVE ── -->
+        <span class="ncm-section-label">Creator</span>
+
+        <div class="ncm-item ncm-item-live" id="ncmLiveHub" onclick="mobileNavTo('liveHubPage')">
+            <div class="ncm-icon-wrap">🔴</div>
+            <div class="ncm-label">Live Hub</div>
+        </div>
+        <div class="ncm-item ncm-item-live" id="ncmGoLive" onclick="mobileNavTo('_golive')">
+            <div class="ncm-icon-wrap">📡</div>
+            <div class="ncm-label">Go Live</div>
+        </div>
+        <div class="ncm-item" id="ncmArcade" onclick="mobileNavTo('_arcade')">
+            <div class="ncm-icon-wrap">🕹️</div>
+            <div class="ncm-label">Arcade</div>
+        </div>
+
+        <div class="ncm-divider"></div>
+
+        <!-- ── SETTINGS / TOOLS ── -->
+        <span class="ncm-section-label">Settings &amp; Tools</span>
+
         <div class="ncm-item" id="ncmSettings" onclick="mobileNavTo('settingsPage')">
-            <div class="ncm-icon-wrap">⚙</div>
+            <div class="ncm-icon-wrap">⚙️</div>
             <div class="ncm-label">Settings</div>
         </div>
-        <div class="ncm-item" onclick="mobileNavTo('_close')" style="color:rgba(255,80,100,0.7);">
-            <div class="ncm-icon-wrap" style="border-color:rgba(255,60,80,0.3);">✕</div>
-            <div class="ncm-label">Close</div>
+
+        <!-- Role panels — visibility toggled by JS (mirrors sidebar) -->
+        <div class="ncm-item" id="ncmMod" onclick="mobileNavTo('moderatorPage')" style="display:none;color:#cc88ff;">
+            <div class="ncm-icon-wrap">🛡️</div>
+            <div class="ncm-label">Moderator Panel</div>
         </div>
+        <div class="ncm-item" id="ncmAdm" onclick="mobileNavTo('administratorPage')" style="display:none;color:#66ccff;">
+            <div class="ncm-icon-wrap">⚙️</div>
+            <div class="ncm-label">Admin Panel</div>
+        </div>
+        <div class="ncm-item" id="ncmFounder" onclick="mobileNavTo('adminPage')" style="display:none;color:#00ffee;">
+            <div class="ncm-icon-wrap">🛸</div>
+            <div class="ncm-label">Founder Control</div>
+        </div>
+
+        <div class="ncm-divider"></div>
+
+        <!-- ── EXIT ── -->
+        <div class="ncm-item ncm-item-danger" onclick="handleLogout()">
+            <div class="ncm-icon-wrap" style="border-color:rgba(255,60,80,0.3);">🚪</div>
+            <div class="ncm-label">Log Out</div>
+        </div>
+        <div class="ncm-item ncm-item-danger" onclick="mobileNavTo('_close')">
+            <div class="ncm-icon-wrap" style="border-color:rgba(255,60,80,0.2);">✕</div>
+            <div class="ncm-label">Close Menu</div>
+        </div>
+
     </div>
 </div>
 
@@ -6459,6 +6544,9 @@ body.arcade-fs-ios body::after { display:none !important; }
         </button>
         <button class="nav-item" id="navProfile" onclick="viewMyProfile()">
             <span class="nav-icon">👤</span> Profile
+        </button>
+        <button class="nav-item" id="navFriends" onclick="navTo('friendsPage')">
+            <span class="nav-icon">🦋</span> Friends &amp; Family
         </button>
         <button class="nav-item" id="navSettings" onclick="navTo('settingsPage')">
             <span class="nav-icon">⚙️</span> Settings
@@ -27491,18 +27579,20 @@ function updateShadowCoreActive(pageId) {
 
     var map = {
         'feed':              ['scNavHome', 'scNavFeed', 'ncmHome', 'ncmFeed'],
-        'searchPage':        ['scNavSearch'],
+        'searchPage':        ['scNavSearch', 'ncmSearch'],
         'inboxPage':         ['scNavInbox', 'ncmInbox'],
         'notificationsPage': ['scNavNotifs', 'ncmNotifs'],
         'profile':           ['scNavProfile', 'ncmProfile'],
         'settingsPage':      ['scNavSettings', 'ncmSettings'],
-        'communityPage':     ['scNavCommunity'],
-        'stormRoomsPage':    ['scNavStorm'],
-        'supportRoomsPage':  ['scNavSupport'],
-        'liveHubPage':       ['scNavLive'],
-        'moderatorPage':     ['scNavMod'],
-        'administratorPage': ['scNavAdm'],
-        'adminPage':         ['scNavFounder']
+        'communityPage':     ['scNavCommunity', 'ncmCommunity'],
+        'communityRulesPage':['navCommunityRules', 'ncmRules'],
+        'friendsPage':       ['navFriends', 'ncmFriends'],
+        'stormRoomsPage':    ['scNavStorm', 'ncmStorm'],
+        'supportRoomsPage':  ['scNavSupport', 'ncmSupport'],
+        'liveHubPage':       ['scNavLive', 'ncmLiveHub'],
+        'moderatorPage':     ['scNavMod', 'ncmMod'],
+        'administratorPage': ['scNavAdm', 'ncmAdm'],
+        'adminPage':         ['scNavFounder', 'ncmFounder']
     };
 
     var ids = map[pageId] || [];
@@ -27605,6 +27695,14 @@ window.mobileNavTo = function(pageId) {
         updateShadowCoreActive('profile');
         return;
     }
+    if (pageId === '_golive') {
+        if (typeof goLiveOrWatch === 'function') goLiveOrWatch();
+        return;
+    }
+    if (pageId === '_arcade') {
+        if (typeof openArcadeHub === 'function') openArcadeHub();
+        return;
+    }
     realmNavTo(pageId);
 };
 
@@ -27631,6 +27729,9 @@ window.mobileNavTo = function(pageId) {
     }
     mirrorBadge('sidebarNotifBadge', 'scNotifBadge');
     mirrorBadge('sidebarInboxBadge', 'scInboxBadge');
+    // Also mirror to the expanded NCM badges
+    mirrorBadge('sidebarNotifBadge', 'ncmNotifBadge');
+    mirrorBadge('sidebarInboxBadge', 'ncmInboxBadge');
 })();
 
 /* ═══════════════════════════════════════════════════════
@@ -27638,16 +27739,19 @@ window.mobileNavTo = function(pageId) {
    ═══════════════════════════════════════════════════════ */
 (function syncRolePanels() {
     var pairs = [
-        ['navMod',          'scNavMod'],
-        ['navAdminOfficer', 'scNavAdm'],
-        ['navAdmin',        'scNavFounder']
+        ['navMod',          'scNavMod',    'ncmMod'],
+        ['navAdminOfficer', 'scNavAdm',    'ncmAdm'],
+        ['navAdmin',        'scNavFounder','ncmFounder']
     ];
     pairs.forEach(function(pair) {
-        var src  = document.getElementById(pair[0]);
-        var dest = document.getElementById(pair[1]);
-        if (!src || !dest) return;
+        var src   = document.getElementById(pair[0]);
+        var dest  = document.getElementById(pair[1]);
+        var dest2 = document.getElementById(pair[2]);
+        if (!src) return;
         var obs = new MutationObserver(function() {
-            dest.style.display = src.style.display === 'none' ? 'none' : '';
+            var val = src.style.display === 'none' ? 'none' : '';
+            if (dest)  dest.style.display  = val;
+            if (dest2) dest2.style.display = val;
         });
         obs.observe(src, { attributes: true });
     });

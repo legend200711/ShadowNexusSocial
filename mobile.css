@@ -1,0 +1,785 @@
+/*
+ * Shadow Nexus Social — mobile.css
+ * ============================================================
+ * Full mobile-responsive design layer.
+ * All rules in this file are scoped to max-width: 1024px
+ * (or more specific breakpoints) so desktop ≥ 1025px is
+ * completely unaffected.
+ *
+ * Linked after realm.css in index.html.
+ * ============================================================
+ */
+
+/* ────────────────────────────────────────────────────────────
+   NEXUS CORE MENU — expanded full-screen bottom sheet
+   Replaces the 7-item radial with a scrollable grid of ALL
+   navigation items when ≤ 1024px.
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+
+  /* Overlay background — full-screen modal */
+  #nexusCoreMenu {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 4900;
+    background: rgba(0, 4, 14, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+    animation: ncmBgIn 0.22s ease both;
+  }
+  #nexusCoreMenu.open { display: flex; }
+
+  @keyframes ncmBgIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Inner scroll container */
+  .ncm-inner {
+    width: 100%;
+    max-height: 75vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: linear-gradient(180deg, rgba(0, 10, 28, 0.99) 0%, rgba(0, 6, 18, 0.99) 100%);
+    border-top: 1px solid rgba(0, 174, 239, 0.28);
+    border-radius: 24px 24px 0 0;
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    /* Energy top border */
+    position: relative;
+  }
+  .ncm-inner::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0,174,239,0.8), rgba(0,240,255,0.9), rgba(57,255,20,0.6), transparent);
+    border-radius: 24px 24px 0 0;
+    pointer-events: none;
+  }
+
+  /* Drag handle */
+  .ncm-inner::after {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(0, 174, 239, 0.35);
+    margin: 6px auto 14px;
+    order: -1;
+    flex-shrink: 0;
+  }
+
+  /* Section header inside menu */
+  .ncm-section-label {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(0, 174, 239, 0.5);
+    padding: 10px 8px 4px;
+    display: block;
+  }
+  .ncm-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,174,239,0.18), transparent);
+    margin: 6px 0;
+  }
+
+  /* Each nav item — full-width row style */
+  .ncm-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    animation: ncmRowIn 0.25s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+    color: rgba(180, 220, 255, 0.85);
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+  }
+  .ncm-item:hover,
+  .ncm-item:active { background: rgba(0, 174, 239, 0.1); }
+
+  .ncm-item.active-nav {
+    background: rgba(0, 60, 120, 0.35);
+    color: #00f0ff;
+  }
+
+  @keyframes ncmRowIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Stagger animation delays for rows */
+  .ncm-item:nth-child(1) { animation-delay: 0.02s; }
+  .ncm-item:nth-child(2) { animation-delay: 0.04s; }
+  .ncm-item:nth-child(3) { animation-delay: 0.06s; }
+  .ncm-item:nth-child(4) { animation-delay: 0.08s; }
+  .ncm-item:nth-child(5) { animation-delay: 0.10s; }
+  .ncm-item:nth-child(6) { animation-delay: 0.12s; }
+  .ncm-item:nth-child(7) { animation-delay: 0.14s; }
+  .ncm-item:nth-child(8) { animation-delay: 0.16s; }
+  .ncm-item:nth-child(9) { animation-delay: 0.18s; }
+  .ncm-item:nth-child(10) { animation-delay: 0.20s; }
+  .ncm-item:nth-child(11) { animation-delay: 0.22s; }
+  .ncm-item:nth-child(12) { animation-delay: 0.24s; }
+  .ncm-item:nth-child(13) { animation-delay: 0.26s; }
+  .ncm-item:nth-child(14) { animation-delay: 0.28s; }
+  .ncm-item:nth-child(15) { animation-delay: 0.30s; }
+  .ncm-item:nth-child(16) { animation-delay: 0.32s; }
+  .ncm-item:nth-child(17) { animation-delay: 0.34s; }
+  .ncm-item:nth-child(18) { animation-delay: 0.36s; }
+  .ncm-item:nth-child(19) { animation-delay: 0.38s; }
+  .ncm-item:nth-child(20) { animation-delay: 0.40s; }
+
+  /* Icon wrap — smaller square in row mode */
+  .ncm-icon-wrap {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px;
+    border-radius: 12px !important;
+    background: rgba(0, 20, 50, 0.9);
+    border: 1px solid rgba(0, 174, 239, 0.25) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 18px !important;
+    flex-shrink: 0;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
+    box-shadow: 0 0 8px rgba(0, 174, 239, 0.15) !important;
+  }
+  .ncm-item:hover  .ncm-icon-wrap,
+  .ncm-item:active .ncm-icon-wrap { border-color: rgba(0,240,255,0.6) !important; box-shadow: 0 0 16px rgba(0,240,255,0.3) !important; }
+  .ncm-item.active-nav .ncm-icon-wrap { background: rgba(0,60,120,0.6) !important; border-color: rgba(0,240,255,0.8) !important; }
+
+  /* Label — left-aligned larger text */
+  .ncm-label {
+    font-size: 14px !important;
+    font-weight: 600;
+    color: inherit;
+    text-align: left !important;
+    letter-spacing: 0.2px;
+    line-height: 1.3;
+    flex: 1;
+  }
+  .ncm-item.active-nav .ncm-label { color: #00f0ff; }
+
+  /* Badge inside menu items */
+  .ncm-badge {
+    margin-left: auto;
+    background: linear-gradient(135deg, #00cc66, #00ff88);
+    color: #001a0a;
+    font-size: 10px;
+    font-weight: 800;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    padding: 0 5px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 8px rgba(0,255,136,0.55);
+    flex-shrink: 0;
+  }
+  .ncm-badge.visible { display: inline-flex; }
+
+  /* Live item highlight */
+  .ncm-item-live .ncm-icon-wrap { border-color: rgba(255, 40, 70, 0.4) !important; }
+  .ncm-item-live .ncm-label { color: #ff5566 !important; }
+  .ncm-item-live:hover .ncm-icon-wrap { border-color: rgba(255, 40, 70, 0.8) !important; box-shadow: 0 0 16px rgba(255, 30, 60, 0.3) !important; }
+
+  /* Close / exit items */
+  .ncm-item-danger .ncm-label { color: rgba(255, 80, 100, 0.85) !important; }
+  .ncm-item-danger .ncm-icon-wrap { border-color: rgba(255, 60, 80, 0.3) !important; }
+
+}/* end @media ≤1024px for NCM */
+
+/* ────────────────────────────────────────────────────────────
+   GENERAL PAGE LAYOUT — mobile-first improvements
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+
+  /* Ensure body doesn't overflow horizontally */
+  body { overflow-x: hidden; }
+
+  /* All pages get slightly more padding-bottom so content isn't
+     hidden behind the floating mobile menu button */
+  .page:not(#inboxPage) {
+    padding-bottom: 40px !important;
+  }
+
+  /* eclipse-title on mobile — smaller so it doesn't overflow */
+  .eclipse-title {
+    font-size: 22px !important;
+    word-break: break-word;
+  }
+
+  /* Section cards — consistent comfortable padding */
+  .section-card {
+    padding: 14px !important;
+    margin-bottom: 14px !important;
+  }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   TOUCH-FRIENDLY BUTTONS — min 44 × 44 tap target
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+
+  /* Generic buttons get a comfortable minimum tap area */
+  button {
+    min-height: 36px;
+    touch-action: manipulation;
+  }
+
+  /* Reaction buttons — slightly larger */
+  .react-btn {
+    padding: 7px 13px !important;
+    font-size: 13px !important;
+    min-height: 36px;
+  }
+
+  /* Tab buttons */
+  .tab-btn,
+  .friends-tab-btn,
+  .epm-tab {
+    padding: 10px 16px !important;
+    min-height: 40px;
+  }
+
+  /* Profile action row — full-width on very small screens */
+  .profile-actions-row {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .profile-actions-row button {
+    padding: 9px 16px !important;
+    min-height: 40px;
+  }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   PROFILE PAGE — responsive header
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  .cover-banner { height: 140px !important; }
+
+  .p-avatar { width: 76px !important; height: 76px !important; font-size: 28px !important; }
+
+  .profile-avatar-row {
+    gap: 10px !important;
+    padding: 0 12px 12px !important;
+    margin-top: -38px !important;
+  }
+
+  .profile-info-block { padding-top: 38px !important; }
+
+  .profile-display-name { font-size: 17px !important; }
+
+  .profile-stats-row { gap: 14px !important; }
+
+  .profile-stats-row .stat-num { font-size: 15px !important; }
+
+  /* Badges row wraps neatly */
+  .badge-container { gap: 4px !important; }
+
+  /* Social links wrap */
+  .profile-social-links { gap: 6px !important; }
+  .profile-social-link { font-size: 11px !important; padding: 3px 10px !important; }
+
+  /* Profile tabs — allow horizontal scroll on very small screens */
+  .profile-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .profile-tabs::-webkit-scrollbar { display: none; }
+  .tab-btn { min-width: unset !important; white-space: nowrap; }
+
+  /* Media grid — 2 columns on phones */
+  .media-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .media-grid-item { height: 100px !important; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   FEED PAGE — post composer & post cards
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  /* Post card padding */
+  .postBox { padding: 13px !important; }
+
+  /* Author row wraps */
+  .post-header-row { gap: 6px !important; }
+  .post-author-link { max-width: 55% !important; font-size: 13px !important; }
+
+  /* Action buttons — wraps into two rows */
+  .action-row { gap: 6px !important; }
+  .react-btn { padding: 6px 10px !important; font-size: 12px !important; }
+
+  /* Comment input row */
+  .comment-input-row input { font-size: 13px !important; padding: 8px 10px !important; }
+  .comment-submit-btn { padding: 8px 12px !important; }
+
+  /* Post media carousel */
+  .post-media-carousel img,
+  .post-media-carousel video { max-height: 200px !important; }
+
+  /* Feed live strip — allow horizontal scroll */
+  .feed-live-strip {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .feed-live-strip::-webkit-scrollbar { display: none; }
+  .feed-live-card { flex-shrink: 0 !important; }
+
+  /* Upload row wraps */
+  .snx-upload-row { flex-wrap: wrap !important; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   SEARCH PAGE
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  .search-bar-row { flex-direction: column !important; gap: 8px !important; }
+  .search-bar-row input { width: 100% !important; }
+  .search-bar-row button { width: 100% !important; }
+
+  /* User cards — stack actions below info */
+  .user-card { flex-wrap: wrap !important; }
+  .user-card-actions {
+    width: 100%;
+    justify-content: flex-start !important;
+    margin-top: 8px;
+  }
+  .user-card-actions button { flex: 1; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   FRIENDS & FAMILY PAGE
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  .friends-tabs { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .friends-tabs::-webkit-scrollbar { display: none; }
+  .friends-tab-btn { white-space: nowrap; flex-shrink: 0; padding: 8px 14px !important; }
+
+  .friend-card { flex-wrap: wrap !important; }
+  .friend-actions { width: 100%; margin-top: 6px; flex-wrap: wrap; }
+  .friend-actions button { flex: 1 1 auto; }
+
+  .req-card { flex-wrap: wrap !important; }
+  .req-actions { width: 100%; margin-top: 6px; }
+  .req-actions button { flex: 1; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   NOTIFICATIONS PAGE
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  .notif-item { padding: 12px 6px !important; }
+  .notif-icon { font-size: 20px !important; width: 26px !important; }
+  .notif-text { font-size: 13px !important; }
+  .notif-actions { flex-wrap: wrap !important; }
+  .notif-actions button { flex: 1 1 auto !important; font-size: 12px !important; }
+
+  /* Filter tab bar — horizontal scroll */
+  .notif-filter-bar {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+  }
+  .notif-filter-bar::-webkit-scrollbar { display: none; }
+  .notif-filter-tab { white-space: nowrap; flex-shrink: 0; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   SETTINGS PAGE
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  .settings-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    padding: 11px 0 !important;
+  }
+  .settings-row select { width: 100% !important; max-width: 100% !important; }
+  .settings-label { min-width: unset !important; }
+
+  /* Edit profile modal */
+  .edit-profile-inner { padding: 18px 14px !important; }
+  .epm-tabs { gap: 0 !important; }
+  .epm-tab { padding: 8px 12px !important; font-size: 11px !important; }
+
+  /* Delete-account confirm buttons */
+  .delete-modal-actions { flex-direction: column !important; }
+  .delete-modal-actions button { width: 100% !important; }
+
+  /* Maintenance buttons */
+  .maint-btn { width: 100% !important; margin-bottom: 6px !important; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   COMMUNITY PAGE
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  /* Community challenge — wrap button + XP */
+  .comm-challenge-card > div { flex-direction: column !important; align-items: flex-start !important; }
+  .comm-challenge-claim { width: 100% !important; }
+
+  /* Community reactions row — wraps */
+  .comm-reactions-row { flex-wrap: wrap !important; gap: 8px !important; }
+  .comm-react-pill { flex: 1 1 70px; justify-content: center; }
+
+  /* Anon post form */
+  .comm-anon-form-row { flex-direction: column !important; gap: 8px !important; }
+  .comm-anon-tag-select { width: 100% !important; }
+  .comm-anon-submit { width: 100% !important; }
+
+  /* Community badges grid */
+  .comm-badges-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   STORM ROOMS
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  .storm-lobby { padding: 0 4px !important; }
+  .storm-lobby h2 { font-size: 20px !important; }
+  .storm-card { padding: 14px !important; }
+
+  .storm-room-wrap { height: calc(100dvh - 90px) !important; }
+
+  .storm-room-header { padding: 10px 12px !important; }
+  .storm-room-title { font-size: 13px !important; }
+
+  .storm-bubble { max-width: 88% !important; font-size: 13px !important; }
+  .storm-bubble:hover .storm-react-bar { display: none !important; }/* hover menus don't work on touch */
+
+  /* Tap-to-react: show react bar on tap (handled by JS already) */
+  .storm-footer { padding: 6px 8px !important; }
+  .storm-footer-input-wrap { min-height: 42px; }
+
+  .storm-emoji-picker {
+    width: calc(100vw - 20px) !important;
+    left: 10px !important; right: 10px !important;
+  }
+
+  /* Room header — tighten on small screens */
+  .storm-online-badge { font-size: 10px !important; padding: 2px 8px !important; }
+  .storm-leave-btn { font-size: 11px !important; padding: 3px 10px !important; }
+  .storm-code-pill { font-size: 10px !important; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   SUPPORT ROOMS
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  .support-lobby { padding: 0 4px !important; }
+  .support-lobby h2 { font-size: 20px !important; }
+  .support-card { padding: 14px !important; }
+
+  /* Support room shares the same room-wrap style as storm */
+  .support-room-wrap { height: calc(100dvh - 90px) !important; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   LIVE HUB PAGE
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  /* Live hub grid — 1 column on phones */
+  .live-hub-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .live-hub-header { padding: 10px 12px !important; }
+  .live-hub-title { font-size: 16px !important; }
+
+  /* Feed live cards inside the feed — smaller width */
+  .feed-live-card { width: 140px !important; }
+  .flc-thumb { height: 78px !important; }
+
+}
+
+@media (min-width: 481px) and (max-width: 640px) {
+  .live-hub-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+/* ────────────────────────────────────────────────────────────
+   ADMIN / MODERATOR / ADMINISTRATOR PANELS
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+
+  /* Admin / mod panel cards */
+  .mod-panel-card,
+  .adm-panel-card {
+    border-radius: 14px !important;
+    padding: 14px !important;
+    margin-bottom: 14px !important;
+  }
+
+  /* Stats row — wrap on small screens */
+  #modStatsRow,
+  #admStatsRow {
+    flex-wrap: wrap !important;
+  }
+  .adm-stat-card {
+    flex: 1 1 100px !important;
+    min-width: 80px !important;
+  }
+
+  /* Tab bar — horizontal scroll */
+  .adm-tab-bar {
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    padding-bottom: 2px;
+  }
+  .adm-tab-bar::-webkit-scrollbar { display: none; }
+  .adm-tab { white-space: nowrap; flex-shrink: 0; }
+
+  /* Admin user row — stack on phones */
+  .admin-user-row { flex-wrap: wrap !important; }
+  .admin-badge-controls { flex-wrap: wrap !important; }
+  .admin-badge-btn { font-size: 11px !important; padding: 4px 10px !important; }
+
+}
+
+@media (max-width: 640px) {
+
+  /* Founder settings — maintenance buttons */
+  .maint-btn { min-height: 44px !important; }
+
+  /* Admin badge toggle row — full width on phones */
+  .admin-badge-controls { width: 100% !important; }
+
+  /* Role assign / user search rows */
+  .adm-user-search-row { flex-direction: column !important; gap: 8px !important; }
+  .adm-user-search-row input { width: 100% !important; }
+  .adm-user-search-row button { width: 100% !important; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   COMMUNITY RULES PAGE
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+
+  /* Rules sections — comfortable reading on phone */
+  .rules-section { padding: 12px 14px !important; margin-bottom: 12px !important; }
+  .rules-section h3 { font-size: 14px !important; }
+  .rules-section p, .rules-section li { font-size: 13px !important; line-height: 1.7 !important; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   MODALS — full-width on small phones
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+
+  /* Edit profile modal */
+  .edit-profile-modal { padding: 0 !important; align-items: flex-end !important; }
+  .edit-profile-inner {
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 92vh !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Delete account modal */
+  #deleteAccountModal { padding: 0 !important; align-items: flex-end !important; }
+  .delete-modal-inner {
+    border-radius: 20px 20px 0 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Badge tooltip modal */
+  .badge-tooltip-modal { padding: 12px !important; }
+  .badge-tooltip-inner { max-width: 100% !important; padding: 20px 16px !important; }
+
+  /* Social list modal */
+  .social-list-modal { padding: 0 !important; align-items: flex-end !important; }
+  .social-list-inner {
+    border-radius: 20px 20px 0 0 !important;
+    max-width: 100% !important;
+    max-height: 85vh !important;
+  }
+
+  /* Family request modal */
+  #familyReqModal { padding: 0 !important; align-items: flex-end !important; }
+  .fam-req-inner {
+    border-radius: 20px 20px 0 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Message context menu — full bottom-sheet on small phones */
+  .msg-ctx-menu {
+    position: fixed !important;
+    bottom: 0 !important; left: 0 !important; right: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   TABLET (769px – 1024px) — two-column-friendly tweaks
+   ──────────────────────────────────────────────────────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
+
+  /* Slightly larger page font on tablets */
+  .page { font-size: 14px; }
+
+  /* Profile — wider cover on tablet */
+  .cover-banner { height: 180px !important; }
+  .p-avatar { width: 88px !important; height: 88px !important; }
+
+  /* Feed live cards — 3 across on tablet */
+  .feed-live-card { width: 150px !important; }
+
+  /* Search results — 2-column grid on tablet */
+  #searchResults { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .user-card { margin-bottom: 0 !important; }
+
+  /* Live hub grid — 3 columns on tablet */
+  .live-hub-grid { grid-template-columns: repeat(3, 1fr) !important; }
+
+  /* Community badges — 3 across on tablet */
+  .comm-badges-grid { grid-template-columns: repeat(3, 1fr) !important; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   SMALL PHONES ≤ 380px
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 380px) {
+
+  .eclipse-title { font-size: 18px !important; }
+
+  .section-card { padding: 11px !important; }
+
+  .react-btn { padding: 5px 8px !important; font-size: 11px !important; }
+
+  /* Post author row — even tighter */
+  .post-author-link { max-width: 48% !important; font-size: 12px !important; }
+
+  .tab-btn { padding: 8px 12px !important; font-size: 12px !important; }
+
+  .profile-display-name { font-size: 15px !important; }
+
+  .cover-banner { height: 120px !important; }
+  .p-avatar { width: 64px !important; height: 64px !important; font-size: 24px !important; }
+  .profile-avatar-row { margin-top: -32px !important; }
+  .profile-info-block { padding-top: 32px !important; }
+
+  .ncm-label { font-size: 13px !important; }
+  .ncm-icon-wrap { width: 36px !important; height: 36px !important; min-width: 36px !important; font-size: 16px !important; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   SAFE AREA INSETS — iPhone notch / Dynamic Island
+   ──────────────────────────────────────────────────────────── */
+@supports (padding: env(safe-area-inset-top)) {
+  @media (max-width: 1024px) {
+
+    /* Hamburger / mobile menu button — move below status bar */
+    #snxMobileMenuBtn {
+      top: calc(14px + env(safe-area-inset-top, 0px)) !important;
+    }
+
+    /* Pages — account for top notch */
+    .page:not(#inboxPage) {
+      padding-top: calc(70px + env(safe-area-inset-top, 0px)) !important;
+    }
+
+    /* Inbox page fixed top offset */
+    #inboxPage {
+      top: calc(70px + env(safe-area-inset-top, 0px)) !important;
+    }
+
+    /* NCM bottom sheet — account for home-indicator bar */
+    .ncm-inner {
+      padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   LANDSCAPE PHONES (height < 500px)
+   ──────────────────────────────────────────────────────────── */
+@media (max-height: 500px) and (max-width: 900px) {
+
+  /* Shrink the enter overlay animation */
+  #snxEnterOverlay { display: none !important; }
+
+  /* Mobile menu button — smaller */
+  #snxMobileMenuBtn { width: 38px !important; height: 38px !important; font-size: 17px !important; }
+
+  /* Sidebar — full viewport height in landscape */
+  .sidebar { height: 100dvh !important; overflow-y: auto !important; }
+
+  /* NCM — shorter max-height in landscape so it fits */
+  .ncm-inner { max-height: 90dvh !important; }
+
+  /* Pages in landscape */
+  .page:not(#inboxPage) { padding-top: 56px !important; }
+
+  /* Cover banner — shorter */
+  .cover-banner { height: 100px !important; }
+
+}
+
+/* ────────────────────────────────────────────────────────────
+   PRINT — hide all navigation chrome
+   ──────────────────────────────────────────────────────────── */
+@media print {
+  #shadowCore, #snxMobileMenuBtn, #sidebarOverlay, .sidebar,
+  #nexusCoreBtn, #nexusCoreMenu, #pwa-install-banner,
+  #notification-toast, #grim-panel, #snxPortalTransition,
+  #grim-panel-overlay { display: none !important; }
+  .page { padding: 10px !important; max-width: 100% !important; }
+}
