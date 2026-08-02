@@ -46,10 +46,6 @@
 <link rel="stylesheet" href="album.css">
 <link rel="stylesheet" href="profile-music.css">
 <link rel="stylesheet" href="profile-theme.css">
-<!-- ── Shadow Nexus Realm — full immersive redesign ── -->
-<link rel="stylesheet" href="realm.css">
-<!-- ── Mobile responsive design layer ── -->
-<link rel="stylesheet" href="mobile.css">
 
 <!-- ── Preconnect to Firebase + R2 CDN so first load is faster ── -->
 <link rel="preconnect" href="https://www.gstatic.com">
@@ -327,7 +323,7 @@ body::after {
     position: fixed;
     top: 0;
     left: 0;
-    width: min(320px, 85vw);
+    width: min(260px, 85vw);
     height: 100%;
     background: linear-gradient(180deg, #071428 0%, #0B1F3A 50%, #071020 100%);
     transform: translateX(-100%);
@@ -336,7 +332,6 @@ body::after {
     z-index: 2000;
     box-sizing: border-box;
     overflow-y: auto;
-    overflow-x: hidden;
     display: flex;
     flex-direction: column;
     will-change: transform;
@@ -1724,7 +1719,7 @@ img.post-media-preview::before {
 .ipc-modal-expand:hover { color: #00aaff; }
 
 /* ── Responsive ── */
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
     #ipcModal { padding: 0; align-items: flex-end; }
     .ipc-modal-card {
         max-width: 100%;
@@ -1752,7 +1747,7 @@ img.post-media-preview::before {
 /* When the virtual keyboard is open (visualViewport shrinks), keep the
    modal card from growing taller than the visible viewport so the footer
    stays in view without scrolling. */
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
     .ipc-modal-card {
         /* Use dvh (dynamic viewport height) where supported so the card
            automatically shrinks when the keyboard appears. */
@@ -2044,6 +2039,19 @@ img.post-media-preview::before {
 .inbox-chat-send:active { transform: scale(0.9); }
 .inbox-chat-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
+/* ══ TABLET (769–1024px): sidebar is 220px, .page gets padding-left:240px ══ */
+@media (min-width: 769px) and (max-width: 1024px) {
+    /* height = viewport - page top-padding (80px) - title row (~42px) - bottom gap (8px) */
+    .inbox-split {
+        height: calc(100vh - 138px);
+        height: calc(100dvh - 138px);
+        min-height: calc(100vh - 138px);
+        min-height: calc(100dvh - 138px);
+    }
+    .inbox-list-pane { width: 240px; min-width: 200px; }
+    .inbox-page-title { font-size: 20px; margin-bottom: 10px; }
+}
+
 /* ══ LARGE DESKTOP (≥1025px): sidebar 260px, .page padding-left:290px ══ */
 @media (min-width: 1025px) {
     /* height = viewport - page top-padding (80px) - title row (~42px) - bottom gap (8px) */
@@ -2057,7 +2065,7 @@ img.post-media-preview::before {
 }
 
 /* ══ MOBILE (≤768px): single-pane with back button ══ */
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
     /* Title is redundant on mobile — list header shows "Messages" */
     .inbox-page-title { display: none; }
 
@@ -2067,7 +2075,7 @@ img.post-media-preview::before {
         padding-right: 0 !important;
         padding-bottom: 0 !important;
         padding-top: 0 !important;
-        /* position from just below the menu toggle button (fixed at top:14px, height:44px → 70px total) */
+        /* position from just below the hamburger button (fixed at top:14px, height:42px → 70px total) */
         position: fixed !important;
         top: 70px !important;
         left: 0 !important;
@@ -2124,8 +2132,8 @@ img.post-media-preview::before {
     }
 }
 
-/* ══ Larger phones & tablets (481–1024px): a bit more breathing room ══ */
-@media (min-width: 481px) and (max-width: 1024px) {
+/* ══ Large phones (481–768px): a bit more breathing room ══ */
+@media (min-width: 481px) and (max-width: 768px) {
     .inbox-conv-avatar { width: 46px; height: 46px; }
     .inbox-conv-name { font-size: 14px; }
 }
@@ -2739,7 +2747,7 @@ img.post-media-preview::before {
 .storm-flame { animation: flamePulse 1.6s infinite; display: inline-block; }
 
 /* Responsive */
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
     .storm-room-wrap { height: calc(100vh - 80px); }
     .storm-bubble { max-width: 84%; }
     .storm-emoji-picker { width: calc(100vw - 32px); left: 0; right: 0; }
@@ -3000,7 +3008,7 @@ img.post-media-preview::before {
 .support-emoji-grid { display: grid; grid-template-columns: repeat(8,1fr); gap: 2px; }
 
 /* Responsive */
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
     .support-room-wrap { height: calc(100vh - 68px); }
     .support-bubble { max-width: 86%; }
     .support-emoji-picker { width: calc(100vw - 32px); left: 0; right: 0; }
@@ -3050,16 +3058,38 @@ img, video { max-width: 100%; height: auto; }
     }
 }
 
-/* ─── Mobile / tablet (≤1024px): hamburger slide-out sidebar for ALL phones & tablets ─── */
-/* NOTE: The 769–1024px "always-visible sidebar" rule was removed.
-   Shadow Core (realm.css) handles desktop ≥1025px with its own fixed nav.
-   All devices ≤1024px — small phones, large phones, and tablets — get the
-   identical slide-out drawer triggered by #snxMobileMenuBtn. */
-@media (max-width: 1024px) {
+/* ─── Tablet (769–1024px): sidebar visible but tighter layout ─── */
+@media (min-width: 769px) and (max-width: 1024px) {
     .menuBtn { display: none !important; }
-    .page { padding: 70px 12px 28px !important; max-width: 100% !important; margin: 0 !important; }
+    #sidebarOverlay { display: none !important; }
+    .sidebar { transform: translateX(0) !important; box-shadow: none; width: 220px; }
+    .page { padding-left: 240px; padding-right: 16px; max-width: 100%; }
+    /* Slightly tighter profile on tablet */
+    .cover-banner { height: 150px; }
+    .p-avatar { width: 82px; height: 82px; }
+    /* User card wraps actions under info on tablet */
+    .user-card { flex-wrap: wrap; }
+    .user-card-actions { margin-left: auto; }
+    /* Inbox fills from sidebar edge to viewport right on tablet */
+    #inboxPage {
+        max-width: none !important;
+        width: auto !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        /* keep padding-left from .page (240px) so content clears the sidebar */
+        padding-right: 10px !important;
+        padding-bottom: 8px !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+    }
+}
+
+/* ─── Mobile / tablet: hamburger reveals slide-in sidebar ─── */
+@media (max-width: 768px) {
+    .menuBtn { display: flex; }
+    .page { padding: 68px 12px 32px; }
     .section-card { padding: 14px; }
-    /* Profile header — stack avatar below banner */
+    /* Profile header — stack avatar below banner on mobile */
     .cover-banner { height: 130px; }
     .profile-avatar-row { flex-direction: column; align-items: center; text-align: center; margin-top: -48px; padding: 0 14px 14px; gap: 10px; }
     .profile-info-block { padding-top: 0; width: 100%; text-align: center; }
@@ -3075,7 +3105,7 @@ img, video { max-width: 100%; height: auto; }
     /* Edit modal full-width on mobile */
     .edit-profile-inner { padding: 18px; }
 
-    /* User card: stack actions below info */
+    /* User card: stack actions below info on small screens */
     .user-card { flex-wrap: wrap; gap: 10px; }
     .user-card-actions { width: 100%; justify-content: flex-start; }
 
@@ -5377,16 +5407,16 @@ body.arcade-fs-ios body::after { display:none !important; }
     box-shadow:0 3px 12px rgba(57,255,20,0.3), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 /* Hide on-screen controls on desktop — UNLESS we're in fullscreen on a touch device */
-@media (min-width:1025px) {
+@media (min-width:769px) {
     .arcade-mobile-controls { display:none !important; }
 }
-@media (min-width:1025px) and (pointer:coarse) {
-    /* Touch-capable desktop in fullscreen — show controls */
+@media (min-width:769px) and (pointer:coarse) {
+    /* Touch-capable desktop/tablet in fullscreen — show controls */
     #arcadeGameModal:-webkit-full-screen .arcade-mobile-controls,
     #arcadeGameModal:fullscreen           .arcade-mobile-controls { display:flex !important; }
 }
-/* Always show on mobile/tablet (≤1024px) */
-@media (max-width:1024px) {
+/* Always show on mobile */
+@media (max-width:768px) {
     .arcade-mobile-controls { display:flex !important; }
 }
 .arcade-mobile-controls {
@@ -5634,7 +5664,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 .btn-challenge-banner:hover { background:rgba(57,255,20,0.16)!important; box-shadow:0 0 14px rgba(57,255,20,0.3)!important; }
 
 /* Responsive arcade hub */
-@media (max-width:1024px) {
+@media (max-width:768px) {
     .arcade-hub-card { max-width:100%; max-height:96vh; border-radius:18px 18px 0 0; }
     #arcadeHubModal { align-items:flex-end; padding:0; }
     .arcade-game-grid { grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:8px; }
@@ -6163,7 +6193,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 @supports (padding:env(safe-area-inset-bottom)) {
     .snx-mn-card { padding-bottom:env(safe-area-inset-bottom); }
 }
-@media (min-width:1025px) {
+@media (min-width:769px) {
     #snxMsgNotifModal { align-items:center; padding:16px; }
     .snx-mn-card { border-radius:18px; max-height:80vh; transform:scale(0.95) translateY(20px); transition:transform 0.28s cubic-bezier(0.34,1.56,0.64,1); }
     #snxMsgNotifModal.open .snx-mn-card { transform:scale(1) translateY(0); }
@@ -6233,262 +6263,19 @@ body.arcade-fs-ios body::after { display:none !important; }
     <div class="snx-gate-label">Loading…</div>
 </div>
 
-<!-- ████ SHADOW NEXUS REALM — Entering Animation ████ -->
-<div id="snxEnterOverlay">
-    <div class="snx-enter-logo">SHADOW NEXUS</div>
-    <div class="snx-enter-sub">REALM INITIALIZING</div>
-    <div class="snx-enter-bar"><div class="snx-enter-bar-fill"></div></div>
-</div>
-
-<!-- Stars + Particles Canvas -->
-<canvas id="snxStarsCanvas"></canvas>
 <canvas id="bg-canvas"></canvas>
 
-<!-- Portal page transition flash -->
-<div id="snxPortalTransition"></div>
-
-<!-- ████ SHADOW CORE — Full-height Desktop Navigation ████ -->
-<nav id="shadowCore" aria-label="Shadow Core Navigation">
-
-    <!-- Brand header at top of sidebar -->
-    <div class="sc-orb" id="scOrbBtn" aria-label="Shadow Nexus Social">
-        <div class="sc-orb-icon">🌑</div>
-        <div class="sc-orb-text">
-            <span class="sc-orb-name">Shadow Nexus</span>
-            <span class="sc-orb-sub">Stay Legendary 🌑</span>
-        </div>
-    </div>
-
-    <div class="sc-nav-panel">
-        <!-- Eclipse Feed -->
-        <button class="sc-item" id="scNavFeed" onclick="realmNavTo('feed')" aria-label="Eclipse Feed">
-            <span class="sc-item-icon">✦</span>
-            <span class="sc-item-label">Eclipse Feed</span>
-        </button>
-        <!-- Search -->
-        <button class="sc-item" id="scNavSearch" onclick="realmNavTo('searchPage')" aria-label="Search the Realm">
-            <span class="sc-item-icon">🔍</span>
-            <span class="sc-item-label">Search Realm</span>
-        </button>
-        <!-- Messages / Inbox -->
-        <button class="sc-item" id="scNavInbox" onclick="realmNavTo('inboxPage')" aria-label="Inbox — Messages">
-            <span class="sc-item-icon">💬</span>
-            <span class="sc-item-label">Inbox</span>
-            <span class="sc-item-badge" id="scInboxBadge"></span>
-        </button>
-        <!-- Notifications -->
-        <button class="sc-item" id="scNavNotifs" onclick="realmNavTo('notificationsPage')" aria-label="Notifications">
-            <span class="sc-item-icon">🔔</span>
-            <span class="sc-item-label">Notifications</span>
-            <span class="sc-item-badge" id="scNotifBadge"></span>
-        </button>
-        <!-- Profile -->
-        <button class="sc-item" id="scNavProfile" onclick="realmViewMyProfile()" aria-label="My Profile">
-            <span class="sc-item-icon">👤</span>
-            <span class="sc-item-label">My Profile</span>
-        </button>
-        <div class="sc-divider"></div>
-
-        <!-- Community Hub -->
-        <button class="sc-item" id="scNavCommunity" onclick="realmNavTo('communityPage')" aria-label="Community Hub">
-            <span class="sc-item-icon">💙</span>
-            <span class="sc-item-label">Community Hub</span>
-        </button>
-        <!-- Community Rules -->
-        <button class="sc-item" id="scNavCommunityRules" onclick="realmNavTo('communityRulesPage')" aria-label="Community Rules">
-            <span class="sc-item-icon">📜</span>
-            <span class="sc-item-label">Community Rules</span>
-        </button>
-        <!-- Storm Rooms -->
-        <button class="sc-item" id="scNavStorm" onclick="realmNavTo('stormRoomsPage')" aria-label="Storm Rooms">
-            <span class="sc-item-icon">⛈</span>
-            <span class="sc-item-label">Storm Rooms</span>
-        </button>
-        <!-- Support Rooms -->
-        <button class="sc-item" id="scNavSupport" onclick="realmNavTo('supportRoomsPage')" aria-label="Support Rooms">
-            <span class="sc-item-icon">🫂</span>
-            <span class="sc-item-label">Support Rooms</span>
-        </button>
-
-        <div class="sc-divider"></div>
-
-        <!-- Live Hub -->
-        <button class="sc-item sc-item-live" id="scNavLive" onclick="realmNavTo('liveHubPage')" aria-label="Live Hub">
-            <span class="sc-item-icon">🔴</span>
-            <span class="sc-item-label">Live Hub</span>
-        </button>
-        <!-- Go Live -->
-        <button class="sc-item sc-item-live" id="scNavGoLive" onclick="goLiveOrWatch()" aria-label="Go Live">
-            <span class="sc-item-icon">📡</span>
-            <span class="sc-item-label">Go Live</span>
-        </button>
-        <!-- Arcade -->
-        <button class="sc-item" id="scNavArcade" onclick="openArcadeHub()" aria-label="Arcade">
-            <span class="sc-item-icon">🕹️</span>
-            <span class="sc-item-label">Arcade</span>
-        </button>
-
-        <div class="sc-divider"></div>
-
-        <!-- Settings -->
-        <button class="sc-item" id="scNavSettings" onclick="realmNavTo('settingsPage')" aria-label="Settings">
-            <span class="sc-item-icon">⚙️</span>
-            <span class="sc-item-label">Settings</span>
-        </button>
-        <!-- Role panels — hidden by default, shown by JS -->
-        <button class="sc-item" id="scNavMod" onclick="realmNavTo('moderatorPage')" aria-label="Moderator Panel" style="display:none; color:#cc88ff !important;">
-            <span class="sc-item-icon">🛡️</span>
-            <span class="sc-item-label">Mod Panel</span>
-        </button>
-        <button class="sc-item" id="scNavAdm" onclick="realmNavTo('administratorPage')" aria-label="Admin Panel" style="display:none; color:#66ccff !important;">
-            <span class="sc-item-icon">⚙️</span>
-            <span class="sc-item-label">Admin Panel</span>
-        </button>
-        <button class="sc-item" id="scNavFounder" onclick="realmNavTo('adminPage')" aria-label="Founder Control" style="display:none; color:#00ffee !important;">
-            <span class="sc-item-icon">🛸</span>
-            <span class="sc-item-label">Founder Ctrl</span>
-        </button>
-
-        <div class="sc-divider"></div>
-
-        <!-- Logout -->
-        <button class="sc-item" id="scNavLogout" onclick="handleLogout()" aria-label="Log Out" style="color:#ff5566 !important;">
-            <span class="sc-item-icon" style="filter:drop-shadow(0 0 4px rgba(255,60,80,0.5))">🚪</span>
-            <span class="sc-item-label">Log Out</span>
-        </button>
-    </div>
-</nav>
-
-<!-- ████ NEXUS CORE — Mobile Floating Button ████ -->
-<button id="nexusCoreBtn" aria-label="Open Nexus Core Navigation">🌑</button>
-
-<!-- ████ NEXUS CORE MENU — Full-screen bottom sheet nav (mobile) ████ -->
-<div id="nexusCoreMenu" role="navigation" aria-label="Nexus Core Menu">
-    <div class="ncm-inner">
-
-        <!-- ── MAIN ── -->
-        <span class="ncm-section-label">Main</span>
-
-        <div class="ncm-item" id="ncmFeed" onclick="mobileNavTo('feed')">
-            <div class="ncm-icon-wrap">✦</div>
-            <div class="ncm-label">Eclipse Feed</div>
-        </div>
-        <div class="ncm-item" id="ncmSearch" onclick="mobileNavTo('searchPage')">
-            <div class="ncm-icon-wrap">🔍</div>
-            <div class="ncm-label">Search Realm</div>
-        </div>
-        <div class="ncm-item" id="ncmInbox" onclick="mobileNavTo('inboxPage')">
-            <div class="ncm-icon-wrap">💬</div>
-            <div class="ncm-label">Inbox</div>
-            <span class="ncm-badge" id="ncmInboxBadge"></span>
-        </div>
-        <div class="ncm-item" id="ncmNotifs" onclick="mobileNavTo('notificationsPage')">
-            <div class="ncm-icon-wrap">🔔</div>
-            <div class="ncm-label">Notifications</div>
-            <span class="ncm-badge" id="ncmNotifBadge"></span>
-        </div>
-        <div class="ncm-item" id="ncmProfile" onclick="mobileNavTo('_profile')">
-            <div class="ncm-icon-wrap">👤</div>
-            <div class="ncm-label">My Profile</div>
-        </div>
-        <div class="ncm-divider"></div>
-
-        <!-- ── COMMUNITY ── -->
-        <span class="ncm-section-label">Community</span>
-
-        <div class="ncm-item" id="ncmCommunity" onclick="mobileNavTo('communityPage')">
-            <div class="ncm-icon-wrap">💙</div>
-            <div class="ncm-label">Community Hub</div>
-        </div>
-        <div class="ncm-item" id="ncmRules" onclick="mobileNavTo('communityRulesPage')">
-            <div class="ncm-icon-wrap">📜</div>
-            <div class="ncm-label">Community Rules</div>
-        </div>
-        <div class="ncm-item" id="ncmStorm" onclick="mobileNavTo('stormRoomsPage')">
-            <div class="ncm-icon-wrap">⚡</div>
-            <div class="ncm-label">Storm Rooms</div>
-        </div>
-        <div class="ncm-item" id="ncmSupport" onclick="mobileNavTo('supportRoomsPage')">
-            <div class="ncm-icon-wrap">🫂</div>
-            <div class="ncm-label">Support Rooms</div>
-        </div>
-
-        <div class="ncm-divider"></div>
-
-        <!-- ── CREATOR / LIVE ── -->
-        <span class="ncm-section-label">Creator</span>
-
-        <div class="ncm-item ncm-item-live" id="ncmLiveHub" onclick="mobileNavTo('liveHubPage')">
-            <div class="ncm-icon-wrap">🔴</div>
-            <div class="ncm-label">Live Hub</div>
-        </div>
-        <div class="ncm-item ncm-item-live" id="ncmGoLive" onclick="mobileNavTo('_golive')">
-            <div class="ncm-icon-wrap">📡</div>
-            <div class="ncm-label">Go Live</div>
-        </div>
-        <div class="ncm-item" id="ncmArcade" onclick="mobileNavTo('_arcade')">
-            <div class="ncm-icon-wrap">🕹️</div>
-            <div class="ncm-label">Arcade</div>
-        </div>
-
-        <div class="ncm-divider"></div>
-
-        <!-- ── SETTINGS / TOOLS ── -->
-        <span class="ncm-section-label">Settings &amp; Tools</span>
-
-        <div class="ncm-item" id="ncmSettings" onclick="mobileNavTo('settingsPage')">
-            <div class="ncm-icon-wrap">⚙️</div>
-            <div class="ncm-label">Settings</div>
-        </div>
-
-        <!-- Role panels — visibility toggled by JS (mirrors sidebar) -->
-        <div class="ncm-item" id="ncmMod" onclick="mobileNavTo('moderatorPage')" style="display:none;color:#cc88ff;">
-            <div class="ncm-icon-wrap">🛡️</div>
-            <div class="ncm-label">Moderator Panel</div>
-        </div>
-        <div class="ncm-item" id="ncmAdm" onclick="mobileNavTo('administratorPage')" style="display:none;color:#66ccff;">
-            <div class="ncm-icon-wrap">⚙️</div>
-            <div class="ncm-label">Admin Panel</div>
-        </div>
-        <div class="ncm-item" id="ncmFounder" onclick="mobileNavTo('adminPage')" style="display:none;color:#00ffee;">
-            <div class="ncm-icon-wrap">🛸</div>
-            <div class="ncm-label">Founder Control</div>
-        </div>
-
-        <div class="ncm-divider"></div>
-
-        <!-- ── EXIT ── -->
-        <div class="ncm-item ncm-item-danger" onclick="handleLogout()">
-            <div class="ncm-icon-wrap" style="border-color:rgba(255,60,80,0.3);">🚪</div>
-            <div class="ncm-label">Log Out</div>
-        </div>
-        <div class="ncm-item ncm-item-danger" onclick="mobileNavTo('_close')">
-            <div class="ncm-icon-wrap" style="border-color:rgba(255,60,80,0.2);">✕</div>
-            <div class="ncm-label">Close Menu</div>
-        </div>
-
-    </div>
-</div>
-
-<!-- Hamburger button (hidden — kept for JS compat) -->
-<button class="menuBtn" id="menuButton" aria-label="Open navigation" aria-expanded="false" style="display:none!important;">☰
+<!-- Hamburger button -->
+<button class="menuBtn" id="menuButton" aria-label="Open navigation" aria-expanded="false">☰
     <span id="menuBtnNotifBadge" style="display:none;position:absolute;top:4px;right:4px;min-width:16px;height:16px;background:#ff3355;color:#fff;font-size:9px;font-weight:700;border-radius:8px;align-items:center;justify-content:center;padding:0 3px;line-height:16px;pointer-events:none;"></span>
 </button>
-
-<!-- ████ MOBILE SLIDE-OUT MENU TOGGLE BUTTON ████ -->
-<!-- Visible on mobile/tablet (≤1024px) — opens the full sidebar drawer -->
-<button id="snxMobileMenuBtn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="side">🌑</button>
 
 <!-- Tap-outside overlay -->
 <div id="sidebarOverlay"></div>
 
 <div id="notification-toast"></div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     UNIVERSAL MOBILE SIDE DRAWER — identical on every device
-     Android phones · Android tablets · iPhone · iPad
-     Only text/spacing scales to fit screen; structure never changes.
-     ═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════ NAVIGATION SIDE PANEL ═══════════════════ -->
 <nav class="sidebar" id="side" aria-label="Main navigation">
 
     <!-- Brand -->
@@ -6500,79 +6287,68 @@ body.arcade-fs-ios body::after { display:none !important; }
         </div>
     </div>
 
-    <!-- ── MAIN ── -->
+    <!-- Main nav -->
     <div class="sidebar-nav">
-        <button class="nav-item" id="navFeed" onclick="realmNavTo('feed')">
-            <span class="nav-icon">✦</span> Eclipse Feed
+        <button class="nav-item" id="navHome" onclick="navTo('feed')">
+            <span class="nav-icon">🏠</span> Home
         </button>
-        <button class="nav-item" id="navSearch" onclick="realmNavTo('searchPage')">
-            <span class="nav-icon">🔍</span> Search Realm
+        <button class="nav-item" id="navSearch" onclick="navTo('searchPage')">
+            <span class="nav-icon">🔍</span> Search
         </button>
-        <button class="nav-item" id="navNotifs" onclick="realmNavTo('notificationsPage')" title="Notification Center — messages, likes, followers, system alerts">
+        <button class="nav-item" id="navNotifs" onclick="navTo('notificationsPage')" title="Notification Center — messages, likes, followers, system alerts">
             <span class="nav-icon">🔔</span> Notifications
             <span class="nav-badge" id="sidebarNotifBadge"></span>
         </button>
-        <button class="nav-item" id="navInbox" onclick="realmNavTo('inboxPage')">
+        <button class="nav-item" id="navInbox" onclick="navTo('inboxPage')">
             <span class="nav-icon">💬</span> Inbox
             <span class="nav-badge" id="sidebarInboxBadge"></span>
         </button>
-        <button class="nav-item" id="navProfile" onclick="realmViewMyProfile()">
-            <span class="nav-icon">👤</span> My Profile
+        <button class="nav-item" id="navProfile" onclick="viewMyProfile()">
+            <span class="nav-icon">👤</span> Profile
         </button>
-        <button class="nav-item" id="navFriends" onclick="realmNavTo('friendsPage')">
-            <span class="nav-icon">👥</span> Friends
-            <span class="nav-badge" id="sidebarFriendBadge"></span>
-        </button>
-
-        <div class="sidebar-divider"></div>
-
-        <!-- ── COMMUNITY ── -->
-        <button class="nav-item" id="navCommunity" onclick="realmNavTo('communityPage')">
-            <span class="nav-icon">💙</span> Community Hub
-        </button>
-        <button class="nav-item" id="navCommunityRules" onclick="realmNavTo('communityRulesPage')">
-            <span class="nav-icon">📜</span> Community Rules
-        </button>
-        <button class="nav-item" id="navStorm" onclick="realmNavTo('stormRoomsPage')">
-            <span class="nav-icon">⛈</span> Storm Rooms
-        </button>
-        <button class="nav-item" id="navSupport" onclick="realmNavTo('supportRoomsPage')">
-            <span class="nav-icon">🫂</span> Support Rooms
-        </button>
-
-        <div class="sidebar-divider"></div>
-
-        <!-- ── CREATOR / LIVE ── -->
-        <button class="nav-item" id="navLiveHub" onclick="realmNavTo('liveHubPage')" style="color:#ff4455;border-left:3px solid rgba(255,50,80,0.55);">
-            <span class="nav-icon">🔴</span> Live Hub
-            <span id="navLiveHubCount" class="nav-badge" style="display:none;background:#ff3344;"></span>
-        </button>
-        <button class="nav-item nav-item-go-live" id="navLive" onclick="goLiveOrWatch()">
-            <span class="nav-icon">📡</span> Go Live
-            <span id="navLiveDot" class="nav-badge" style="display:none;background:#ff3344;"></span>
+        <button class="nav-item" id="navSettings" onclick="navTo('settingsPage')">
+            <span class="nav-icon">⚙️</span> Settings
         </button>
         <button class="nav-item" id="navArcade" onclick="openArcadeHub()">
             <span class="nav-icon">🕹️</span> Arcade
             <span class="nav-badge" id="sidebarArcadeBadge"></span>
         </button>
-
-        <div class="sidebar-divider"></div>
-
-        <!-- ── SETTINGS / TOOLS ── -->
-        <button class="nav-item" id="navSettings" onclick="realmNavTo('settingsPage')">
-            <span class="nav-icon">⚙️</span> Settings
+        <button class="nav-item" id="navLiveHub" onclick="navTo('liveHubPage')" style="color:#ff4455;border-left:3px solid rgba(255,50,80,0.55);">
+            <span class="nav-icon">🔴</span> Live Hub
+            <span id="navLiveHubCount" class="nav-badge" style="display:none;background:#ff3344;"></span>
         </button>
-        <!-- Role panels — only visible to users with that role; toggled by JS after auth -->
-        <button class="nav-item nav-item-mod" id="navMod" onclick="realmNavTo('moderatorPage')" style="display:none;">
+        <button class="nav-item nav-item-go-live" id="navLive" onclick="goLiveOrWatch()">
+            <span class="nav-icon">🔴</span> Go Live
+            <span id="navLiveDot" class="nav-badge" style="display:none;background:#ff3344;"></span>
+        </button>
+        <button class="nav-item" id="navStorm" onclick="navTo('stormRoomsPage')">
+            <span class="nav-icon">⚡</span> Storm Rooms
+        </button>
+        <button class="nav-item" id="navSupport" onclick="navTo('supportRoomsPage')">
+            <span class="nav-icon">🫂</span> Support Rooms
+        </button>
+        <button class="nav-item" id="navCommunity" onclick="navTo('communityPage')">
+            <span class="nav-icon">💙</span> Community Hub
+        </button>
+        <button class="nav-item" id="navCommunityRules" onclick="navTo('communityRulesPage')">
+            <span class="nav-icon">📜</span> Community Rules
+        </button>
+        <div class="sidebar-divider"></div>
+        <!-- Moderator Panel — only visible to Moderators; toggled in JS after auth -->
+        <button class="nav-item nav-item-mod" id="navMod" onclick="navTo('moderatorPage')" style="display:none;">
             <span class="nav-icon">🛡️</span> Moderator Panel
         </button>
-        <button class="nav-item nav-item-adm" id="navAdminOfficer" onclick="realmNavTo('administratorPage')" style="display:none;">
+        <!-- Administrator Panel — only visible to Administrators; toggled in JS after auth -->
+        <button class="nav-item nav-item-adm" id="navAdminOfficer" onclick="navTo('administratorPage')" style="display:none;">
             <span class="nav-icon">⚙️</span> Administrator Panel
         </button>
-        <button class="nav-item nav-item-founder-ctrl" id="navAdmin" onclick="realmNavTo('adminPage')" style="display:none;">
+        <!-- Founder Control — only visible to the Founder; toggled in JS after auth -->
+        <button class="nav-item nav-item-founder-ctrl" id="navAdmin" onclick="navTo('adminPage')" style="display:none;">
             <span class="nav-icon">🛸</span> Founder Control
         </button>
     </div>
+
+    <div class="sidebar-divider"></div>
 
     <!-- Footer / logout -->
     <div class="sidebar-footer">
@@ -17243,8 +17019,7 @@ function navTo(pageId) {
     // Update active nav highlight
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active-nav'));
     const map = {
-        feed:'navFeed',
-        profile:'navProfile',
+        feed:'navHome', profile:'navProfile',
         searchPage:'navSearch', friendsPage:'navFriends',
         notificationsPage:'navNotifs', settingsPage:'navSettings',
         stormRoomsPage:'navStorm', adminPage:'navAdmin',
@@ -17314,9 +17089,6 @@ function closeSidebar() {
     overlay.classList.remove("visible");
     btn.classList.remove("is-open");
     btn.setAttribute("aria-expanded", "false");
-    // Also close the realm mobile drawer toggle
-    const mobileBtn = document.getElementById("snxMobileMenuBtn");
-    if (mobileBtn) { mobileBtn.classList.remove("menu-open"); mobileBtn.setAttribute("aria-expanded", "false"); }
 }
 
 function toggleMenu() {
@@ -26464,11 +26236,9 @@ window.toggleGrimPanel = function () {
         const side = document.getElementById('side');
         const menuBtn = document.getElementById('menuButton');
         const sideOverlay = document.getElementById('sidebarOverlay');
-        const mobileMenuBtn = document.getElementById('snxMobileMenuBtn');
         if (side) side.classList.remove('active');
         if (menuBtn) { menuBtn.classList.remove('is-open'); menuBtn.setAttribute('aria-expanded','false'); }
         if (sideOverlay) sideOverlay.classList.remove('visible');
-        if (mobileMenuBtn) { mobileMenuBtn.classList.remove('menu-open'); mobileMenuBtn.setAttribute('aria-expanded','false'); }
         // Lazy-init on first open
         if (!GP.initialized) GP.init();
         // Focus input (delay allows animation to complete)
@@ -27344,449 +27114,6 @@ document.getElementById('gp-messages')?.addEventListener('touchmove', (e) => {
     if (closeBtn)  closeBtn.addEventListener('click',  stopTTSOnClose);
     if (overlay)   overlay.addEventListener('click',   stopTTSOnClose);
 })();
-</script>
-
-<!-- ████████████████████████████████████████████████████████████
-     SHADOW NEXUS REALM — realm.js (inlined)
-     ████████████████████████████████████████████████████████████ -->
-<script>
-(function() {
-'use strict';
-
-/* ═══════════════════════════════════════════════════════
-   1. ENTER OVERLAY — auto-dismiss after animation
-   ═══════════════════════════════════════════════════════ */
-(function initEnterOverlay() {
-    // Only show once per session
-    var overlay = document.getElementById('snxEnterOverlay');
-    if (!overlay) return;
-    if (sessionStorage.getItem('snx-realm-entered')) {
-        overlay.style.display = 'none';
-        return;
-    }
-    // Dismiss after animation (3.2s fade + 0.8s) = 4s
-    setTimeout(function() {
-        overlay.classList.add('done');
-        sessionStorage.setItem('snx-realm-entered', '1');
-    }, 4050);
-})();
-
-/* ═══════════════════════════════════════════════════════
-   2. STARS CANVAS — animated starfield
-   ═══════════════════════════════════════════════════════ */
-(function initStars() {
-    var canvas = document.getElementById('snxStarsCanvas');
-    if (!canvas) return;
-    var ctx = canvas.getContext('2d');
-    var stars = [];
-    var W, H;
-
-    function resize() {
-        W = canvas.width  = window.innerWidth;
-        H = canvas.height = window.innerHeight;
-    }
-    resize();
-    window.addEventListener('resize', resize);
-
-    // Create stars
-    for (var i = 0; i < 200; i++) {
-        stars.push({
-            x: Math.random(),
-            y: Math.random(),
-            r: Math.random() * 1.2 + 0.2,
-            a: Math.random(),
-            da: (Math.random() - 0.5) * 0.006,
-            blue: Math.random() < 0.15
-        });
-    }
-
-    function tick() {
-        ctx.clearRect(0, 0, W, H);
-        stars.forEach(function(s) {
-            s.a += s.da;
-            if (s.a > 1) { s.a = 1; s.da = -Math.abs(s.da); }
-            if (s.a < 0.1) { s.a = 0.1; s.da = Math.abs(s.da); }
-            ctx.beginPath();
-            ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
-            if (s.blue) {
-                ctx.fillStyle = 'rgba(0,180,255,' + (s.a * 0.7) + ')';
-            } else {
-                ctx.fillStyle = 'rgba(255,255,255,' + (s.a * 0.55) + ')';
-            }
-            ctx.fill();
-        });
-        requestAnimationFrame(tick);
-    }
-    tick();
-})();
-
-/* ═══════════════════════════════════════════════════════
-   3. BLUE RAIN — particle rain effect
-   ═══════════════════════════════════════════════════════ */
-(function initRain() {
-    var COUNT = window.innerWidth < 768 ? 18 : 35;
-    for (var i = 0; i < COUNT; i++) {
-        (function(idx) {
-            var drop = document.createElement('div');
-            drop.className = 'rain-drop';
-            var left = Math.random() * 100;
-            var height = Math.random() * 60 + 40;
-            var dur = Math.random() * 1.5 + 0.8;
-            var delay = Math.random() * 3;
-            drop.style.cssText = [
-                'left:' + left + 'vw',
-                'height:' + height + 'px',
-                'animation-duration:' + dur + 's',
-                'animation-delay:-' + (delay) + 's',
-                'opacity:' + (Math.random() * 0.25 + 0.1)
-            ].join(';');
-            document.body.appendChild(drop);
-        })(i);
-    }
-})();
-
-/* ═══════════════════════════════════════════════════════
-   4. ENERGY WAVES — periodic pulse from center
-   ═══════════════════════════════════════════════════════ */
-(function initEnergyWaves() {
-    var colors = [
-        'rgba(0,174,239,0.12) 0%, transparent 70%',
-        'rgba(57,255,20,0.07) 0%, transparent 70%',
-        'rgba(0,240,255,0.08) 0%, transparent 70%'
-    ];
-    var idx = 0;
-    function spawnWave() {
-        var wave = document.createElement('div');
-        wave.className = 'realm-energy-wave';
-        var size = Math.random() * 200 + 100;
-        var x = Math.random() * 80 + 10;
-        var y = Math.random() * 80 + 10;
-        wave.style.cssText = [
-            'width:' + size + 'px',
-            'height:' + size + 'px',
-            'left:' + x + 'vw',
-            'top:' + y + 'vh',
-            'background:radial-gradient(' + colors[idx % colors.length] + ')',
-            'animation-duration:' + (Math.random() * 3 + 4) + 's',
-            'animation-delay:0s'
-        ].join(';');
-        idx++;
-        document.body.appendChild(wave);
-        setTimeout(function() { wave.remove(); }, 8000);
-    }
-    spawnWave();
-    setInterval(spawnWave, 3500);
-})();
-
-/* ═══════════════════════════════════════════════════════
-   5. SHADOW CORE — orb expand/collapse
-   ═══════════════════════════════════════════════════════ */
-(function initShadowCore() {
-    var core = document.getElementById('shadowCore');
-    var orb  = document.getElementById('scOrbBtn');
-    if (!core || !orb) return;
-
-    // On desktop (≥1025px) the nav is always expanded — no expand/collapse needed.
-    // On mobile (≤1024px) the nav is hidden entirely and replaced by the slide-out drawer.
-    // So the expand/collapse behaviour is effectively unused, but kept for any intermediate edge cases.
-    var isDesktop = function() { return window.innerWidth >= 1025; };
-
-    // Always mark as expanded on desktop
-    if (isDesktop()) { core.classList.add('expanded'); }
-
-    window.addEventListener('resize', function() {
-        if (isDesktop()) { core.classList.add('expanded'); }
-    });
-
-    // Orb click: no-op on desktop
-    orb.addEventListener('click', function() {
-        if (isDesktop()) return;
-        core.classList.toggle('expanded');
-    });
-})();
-
-/* ═══════════════════════════════════════════════════════
-   6. PORTAL TRANSITION — fires on page change
-   ═══════════════════════════════════════════════════════ */
-function firePortalTransition(cb) {
-    var el = document.getElementById('snxPortalTransition');
-    if (!el) { if (cb) cb(); return; }
-    el.classList.remove('firing');
-    // Force reflow
-    void el.offsetWidth;
-    el.classList.add('firing');
-    setTimeout(function() {
-        el.classList.remove('firing');
-        if (cb) cb();
-    }, 250);
-}
-window.firePortalTransition = firePortalTransition;
-
-/* ═══════════════════════════════════════════════════════
-   7. SHADOW CORE NAV — realm navigation wrappers
-   ═══════════════════════════════════════════════════════ */
-window.realmNavTo = function(pageId) {
-    firePortalTransition(function() {
-        if (typeof navTo === 'function') navTo(pageId);
-    });
-    updateShadowCoreActive(pageId);
-    // On mobile: close the slide-out drawer
-    if (window.innerWidth < 1025) {
-        if (typeof closeMobileDrawer === 'function') closeMobileDrawer();
-    }
-};
-
-window.realmViewMyProfile = function() {
-    firePortalTransition(function() {
-        if (typeof viewMyProfile === 'function') viewMyProfile();
-    });
-    updateShadowCoreActive('profile');
-    if (window.innerWidth < 1025) {
-        if (typeof closeMobileDrawer === 'function') closeMobileDrawer();
-    }
-};
-
-function updateShadowCoreActive(pageId) {
-    document.querySelectorAll('.sc-item').forEach(function(el) {
-        el.classList.remove('active-nav');
-    });
-    document.querySelectorAll('.ncm-item').forEach(function(el) {
-        el.classList.remove('active-nav');
-    });
-
-    var map = {
-        'feed':              ['navFeed', 'scNavFeed', 'ncmFeed'],
-        'searchPage':        ['navSearch', 'scNavSearch', 'ncmSearch'],
-        'inboxPage':         ['navInbox', 'scNavInbox', 'ncmInbox'],
-        'notificationsPage': ['navNotifs', 'scNavNotifs', 'ncmNotifs'],
-        'profile':           ['navProfile', 'scNavProfile', 'ncmProfile'],
-        'settingsPage':      ['navSettings', 'scNavSettings', 'ncmSettings'],
-        'communityPage':     ['navCommunity', 'scNavCommunity', 'ncmCommunity'],
-        'communityRulesPage':['navCommunityRules', 'scNavCommunityRules', 'ncmRules'],
-        'friendsPage':       ['navFriends', 'scNavFriends', 'ncmFriends'],
-        'stormRoomsPage':    ['navStorm', 'scNavStorm', 'ncmStorm'],
-        'supportRoomsPage':  ['navSupport', 'scNavSupport', 'ncmSupport'],
-        'liveHubPage':       ['navLiveHub', 'scNavLive', 'ncmLiveHub'],
-        'moderatorPage':     ['navMod', 'scNavMod', 'ncmMod'],
-        'administratorPage': ['navAdminOfficer', 'scNavAdm', 'ncmAdm'],
-        'adminPage':         ['navAdmin', 'scNavFounder', 'ncmFounder']
-    };
-
-    var ids = map[pageId] || [];
-    ids.forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) el.classList.add('active-nav');
-    });
-}
-window._realmUpdateNav = updateShadowCoreActive;
-
-/* ═══════════════════════════════════════════════════════
-   8. MOBILE SLIDE-OUT MENU — full sidebar drawer on ≤1024px
-   ═══════════════════════════════════════════════════════ */
-
-/* ── Helper: close the mobile drawer ── */
-function closeMobileDrawer() {
-    var side    = document.getElementById('side');
-    var overlay = document.getElementById('sidebarOverlay');
-    var btn     = document.getElementById('snxMobileMenuBtn');
-    if (side)    { side.classList.remove('active'); }
-    if (overlay) { overlay.classList.remove('visible'); }
-    if (btn)     { btn.classList.remove('menu-open'); btn.setAttribute('aria-expanded', 'false'); }
-}
-window.closeMobileDrawer = closeMobileDrawer;
-
-/* ── Helper: open the mobile drawer ── */
-function openMobileDrawer() {
-    var side    = document.getElementById('side');
-    var overlay = document.getElementById('sidebarOverlay');
-    var btn     = document.getElementById('snxMobileMenuBtn');
-    if (side)    { side.classList.add('active'); }
-    if (overlay) { overlay.classList.add('visible'); }
-    if (btn)     { btn.classList.add('menu-open'); btn.setAttribute('aria-expanded', 'true'); }
-}
-window.openMobileDrawer = openMobileDrawer;
-
-(function initMobileSlideMenu() {
-    var btn     = document.getElementById('snxMobileMenuBtn');
-    var overlay = document.getElementById('sidebarOverlay');
-    var side    = document.getElementById('side');
-    if (!btn) return;
-
-    /* Toggle on button click */
-    btn.addEventListener('click', function() {
-        if (side && side.classList.contains('active')) {
-            closeMobileDrawer();
-        } else {
-            openMobileDrawer();
-        }
-    });
-
-    /* Close when tapping the backdrop overlay */
-    if (overlay) {
-        overlay.addEventListener('click', closeMobileDrawer);
-    }
-
-    /* Close when pressing Escape */
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') closeMobileDrawer();
-    });
-
-    /* Close drawer on any nav-item click (small delay for portal transition) */
-    if (side) {
-        side.addEventListener('click', function(e) {
-            var navItem = e.target.closest('.nav-item');
-            if (navItem) {
-                setTimeout(closeMobileDrawer, 80);
-            }
-        });
-    }
-})();
-
-/* ── Legacy radial menu (hidden on mobile, kept for compat) ── */
-(function initMobileNav() {
-    var btn  = document.getElementById('nexusCoreBtn');
-    var menu = document.getElementById('nexusCoreMenu');
-    if (!btn || !menu) return;
-    btn.addEventListener('click', function() {
-        if (menu.classList.contains('open')) {
-            menu.classList.remove('open');
-        } else {
-            menu.classList.add('open');
-        }
-    });
-    menu.addEventListener('click', function(e) {
-        if (e.target === menu) menu.classList.remove('open');
-    });
-})();
-
-window.mobileNavTo = function(pageId) {
-    var menu = document.getElementById('nexusCoreMenu');
-    if (menu) menu.classList.remove('open');
-    closeMobileDrawer();
-
-    if (pageId === '_close') return;
-    if (pageId === '_profile') {
-        firePortalTransition(function() {
-            if (typeof viewMyProfile === 'function') viewMyProfile();
-        });
-        updateShadowCoreActive('profile');
-        return;
-    }
-    if (pageId === '_golive') {
-        if (typeof goLiveOrWatch === 'function') goLiveOrWatch();
-        return;
-    }
-    if (pageId === '_arcade') {
-        if (typeof openArcadeHub === 'function') openArcadeHub();
-        return;
-    }
-    realmNavTo(pageId);
-};
-
-/* ═══════════════════════════════════════════════════════
-   9. BADGE SYNC — mirror sidebar badges to Shadow Core
-   ═══════════════════════════════════════════════════════ */
-(function syncBadges() {
-    function mirrorBadge(srcId, destId) {
-        var src  = document.getElementById(srcId);
-        var dest = document.getElementById(destId);
-        if (!src || !dest) return;
-        var obs = new MutationObserver(function() {
-            var count = src.textContent.trim();
-            var vis   = src.style.display !== 'none' && src.classList.contains('visible') || (src.style.display === 'inline-flex');
-            if (vis && count) {
-                dest.textContent = count;
-                dest.classList.add('visible');
-            } else {
-                dest.classList.remove('visible');
-                dest.textContent = '';
-            }
-        });
-        obs.observe(src, { attributes: true, childList: true, characterData: true });
-    }
-    mirrorBadge('sidebarNotifBadge', 'scNotifBadge');
-    mirrorBadge('sidebarInboxBadge', 'scInboxBadge');
-    // Also mirror to the expanded NCM badges
-    mirrorBadge('sidebarNotifBadge', 'ncmNotifBadge');
-    mirrorBadge('sidebarInboxBadge', 'ncmInboxBadge');
-})();
-
-/* ═══════════════════════════════════════════════════════
-   10. ROLE PANEL VISIBILITY — mirror sidebar show/hide
-   ═══════════════════════════════════════════════════════ */
-(function syncRolePanels() {
-    var pairs = [
-        ['navMod',          'scNavMod',    'ncmMod'],
-        ['navAdminOfficer', 'scNavAdm',    'ncmAdm'],
-        ['navAdmin',        'scNavFounder','ncmFounder']
-    ];
-    pairs.forEach(function(pair) {
-        var src   = document.getElementById(pair[0]);
-        var dest  = document.getElementById(pair[1]);
-        var dest2 = document.getElementById(pair[2]);
-        if (!src) return;
-        var obs = new MutationObserver(function() {
-            var val = src.style.display === 'none' ? 'none' : '';
-            if (dest)  dest.style.display  = val;
-            if (dest2) dest2.style.display = val;
-        });
-        obs.observe(src, { attributes: true });
-    });
-})();
-
-/* ═══════════════════════════════════════════════════════
-   11. PATCH navTo TO FIRE PORTAL + UPDATE SHADOW CORE
-   ═══════════════════════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', function() {
-    // Mirror navTo calls so Shadow Core stays in sync when
-    // other parts of the app call navTo() directly
-    var _origNavTo = window.navTo;
-    if (typeof _origNavTo === 'function') {
-        window.navTo = function(pageId) {
-            _origNavTo.call(this, pageId);
-            updateShadowCoreActive(pageId);
-        };
-    }
-    // Same for viewMyProfile
-    var _origVMP = window.viewMyProfile;
-    if (typeof _origVMP === 'function') {
-        window.viewMyProfile = function() {
-            _origVMP.apply(this, arguments);
-            updateShadowCoreActive('profile');
-        };
-    }
-});
-
-/* ═══════════════════════════════════════════════════════
-   12. REACTION ENERGY PULSE EFFECT
-   ═══════════════════════════════════════════════════════ */
-document.addEventListener('click', function(e) {
-    var btn = e.target.closest('.react-btn');
-    if (!btn) return;
-    btn.classList.remove('energy-pulse');
-    void btn.offsetWidth; // reflow
-    btn.classList.add('energy-pulse');
-    btn.addEventListener('animationend', function h() {
-        btn.classList.remove('energy-pulse');
-        btn.removeEventListener('animationend', h);
-    });
-});
-
-/* ═══════════════════════════════════════════════════════
-   13. INITIAL NAV STATE — mark active on first load
-   ═══════════════════════════════════════════════════════ */
-(function setInitialNav() {
-    // Find which page is currently active
-    var activePage = document.querySelector('.page.active');
-    if (activePage) {
-        updateShadowCoreActive(activePage.id);
-    } else {
-        // Default to feed
-        updateShadowCoreActive('feed');
-    }
-})();
-
-})(); // end IIFE
 </script>
 
 </body>
