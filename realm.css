@@ -58,13 +58,35 @@
   font-weight: 900;
   letter-spacing: 6px;
   text-transform: uppercase;
-  color: #fff;
+  color: #00AEEF;
   text-shadow:
-    0 0 10px #fff,
-    0 0 30px var(--realm-blue),
-    0 0 70px var(--realm-blue),
-    0 0 140px rgba(0,174,239,0.4);
-  animation: enterLogoIn 1.2s ease both;
+    0 0 6px  rgba(0,174,239,1.00),
+    0 0 20px rgba(0,174,239,0.90),
+    0 0 50px rgba(0,174,239,0.65),
+    0 0 100px rgba(0,174,239,0.35),
+    0 0 130px rgba(57,255,20,0.18),
+    0 0 200px rgba(57,255,20,0.08);
+  animation: enterLogoIn 1.2s ease both, enterLogoGlow 7s ease-in-out 1.2s infinite;
+}
+@keyframes enterLogoGlow {
+  0%, 100% {
+    text-shadow:
+      0 0 6px  rgba(0,174,239,1.00),
+      0 0 20px rgba(0,174,239,0.90),
+      0 0 50px rgba(0,174,239,0.65),
+      0 0 100px rgba(0,174,239,0.35),
+      0 0 130px rgba(57,255,20,0.18),
+      0 0 200px rgba(57,255,20,0.08);
+  }
+  50% {
+    text-shadow:
+      0 0 8px  rgba(0,207,255,1.00),
+      0 0 26px rgba(0,174,239,1.00),
+      0 0 60px rgba(0,174,239,0.75),
+      0 0 110px rgba(0,174,239,0.40),
+      0 0 150px rgba(57,255,20,0.32),
+      0 0 220px rgba(57,255,20,0.14);
+  }
 }
 .snx-enter-sub {
   font-size: 13px;

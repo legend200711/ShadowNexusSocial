@@ -1,5 +1,5 @@
 /**
- * Shadow Nexus Live — cohost.js  (v2)
+ * Shadow Nexus Social Live — cohost.js  (v2)
  *
  * Co-Host feature — completely self-contained.
  * Does NOT touch live.js internals, chat, comments, feed, guest boxes,

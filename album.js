@@ -1304,7 +1304,7 @@
         const photo = _viewerPhotos[_viewerIdx];
         if (!photo) return;
         const url   = photo.url;
-        const title = photo.caption || 'Check out this photo on Shadow Nexus!';
+        const title = photo.caption || 'Check out this photo on Shadow Nexus Social!';
         if (navigator.share) {
             navigator.share({ title, url }).catch(() => {});
         } else if (navigator.clipboard && window.isSecureContext) {

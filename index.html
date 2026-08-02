@@ -12,7 +12,7 @@
 <!-- ── PWA: iOS / Safari ── -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Shadow Nexus">
+<meta name="apple-mobile-web-app-title" content="Shadow Nexus Social">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
 <!-- ── PWA: Windows tiles ── -->
@@ -46,7 +46,7 @@
 <link rel="stylesheet" href="album.css">
 <link rel="stylesheet" href="profile-music.css">
 <link rel="stylesheet" href="profile-theme.css">
-<!-- ── Shadow Nexus Realm — full immersive redesign ── -->
+<!-- ── Shadow Nexus Social Realm — full immersive redesign ── -->
 <link rel="stylesheet" href="realm.css">
 <!-- ── Mobile responsive design layer ── -->
 <link rel="stylesheet" href="mobile.css">
@@ -1837,16 +1837,33 @@ img.post-media-preview::before {
     min-height: 0;
 }
 .inbox-list-header {
-    padding: 12px 12px 10px;
+    padding: 10px 10px 8px;
     border-bottom: 1px solid rgba(0,60,120,0.22);
     flex-shrink: 0;
 }
 .inbox-list-title {
-    font-size: 14px; font-weight: 800; color: #d8eeff; margin-bottom: 8px;
+    font-size: 14px; font-weight: 800; color: #d8eeff; margin-bottom: 7px;
     display: flex; align-items: center; justify-content: space-between;
+    gap: 6px;
 }
 .inbox-list-title span { color: #3a6a9a; font-size: 11px; font-weight: 600; }
-.inbox-search-row { display: flex; }
+/* ── Title-bar action buttons ── */
+.inbox-hdr-actions { display: flex; gap: 5px; align-items: center; margin-left: auto; }
+.inbox-hdr-btn {
+    background: none; border: 1px solid rgba(0,140,255,0.28);
+    color: #4a80b8; font-size: 15px; cursor: pointer;
+    width: 30px; height: 30px; border-radius: 8px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+    touch-action: manipulation; flex-shrink: 0;
+}
+.inbox-hdr-btn:hover { color: #00eeff; border-color: rgba(0,200,255,0.55); background: rgba(0,140,255,0.1); }
+.inbox-hdr-btn.inbox-new-msg-btn {
+    color: #00ff88; border-color: rgba(0,255,136,0.45);
+    font-size: 18px; font-weight: 700;
+}
+.inbox-hdr-btn.inbox-new-msg-btn:hover { background: rgba(0,255,136,0.1); box-shadow: 0 0 10px rgba(0,255,136,0.3); }
+.inbox-search-row { display: flex; gap: 5px; }
 .inbox-search-row input {
     flex: 1; margin: 0; font-size: 13px; padding: 7px 11px;
     background: rgba(0,10,30,0.8); border-color: rgba(0,100,200,0.3);
@@ -1870,8 +1887,31 @@ img.post-media-preview::before {
 }
 .inbox-conv-item:last-child { border-bottom: none; }
 .inbox-conv-item:hover  { background: rgba(0,100,220,0.08); }
-.inbox-conv-item.unread { background: rgba(0,80,200,0.07); }
+.inbox-conv-item.unread { background: rgba(0,60,180,0.1); }
+.inbox-conv-item.unread .inbox-conv-name { color: #fff; font-weight: 800; }
 .inbox-conv-item.active-conv { background: rgba(0,130,255,0.13); border-left: 3px solid #00AEEF; }
+.inbox-conv-item.pinned  { border-left: 3px solid rgba(255,200,0,0.55); }
+/* ── Swipe gesture container ── */
+.inbox-conv-swipe-wrap {
+    position: relative; overflow: hidden; flex-shrink: 0;
+    display: flex; flex-direction: column;
+}
+.inbox-conv-swipe-actions {
+    position: absolute; top: 0; bottom: 0; right: 0;
+    display: flex; align-items: stretch; pointer-events: none; opacity: 0;
+    transition: opacity 0.15s;
+}
+.inbox-conv-swipe-actions.revealed { pointer-events: auto; opacity: 1; }
+.inbox-conv-swipe-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 64px; font-size: 20px; cursor: pointer; border: none;
+    touch-action: manipulation;
+}
+.inbox-conv-swipe-btn.sw-archive { background: rgba(0,120,220,0.85); color: #fff; }
+.inbox-conv-swipe-btn.sw-delete  { background: rgba(220,30,60,0.88);  color: #fff; }
+.inbox-conv-swipe-btn.sw-pin     { background: rgba(200,160,0,0.85);  color: #fff; }
+.inbox-conv-swipe-btn.sw-unread  { background: rgba(0,90,200,0.85);   color: #fff; }
+
 .inbox-conv-avatar {
     width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
     background: #0B1F3A center/cover no-repeat;
@@ -1880,19 +1920,20 @@ img.post-media-preview::before {
     font-size: 15px; font-weight: 800; color: #00AEEF;
     position: relative;
 }
+/* ── Presence dots: green=online, yellow=away, gray=offline, blue=typing ── */
 .inbox-conv-online-dot {
     width: 10px; height: 10px; border-radius: 50%;
-    background: #333; border: 2px solid #071428;
+    background: #3a3a3a; border: 2px solid #071428;
     position: absolute; bottom: 1px; right: 1px;
 }
-.inbox-conv-online-dot.online {
-    background: #00ff88; box-shadow: 0 0 6px rgba(0,255,136,0.8);
-    animation: greenPulse 2s infinite;
-}
+.inbox-conv-online-dot.online  { background: #00ff88; box-shadow: 0 0 6px rgba(0,255,136,0.8); animation: greenPulse 2s infinite; }
+.inbox-conv-online-dot.away    { background: #ffcc00; box-shadow: 0 0 6px rgba(255,200,0,0.7); }
+.inbox-conv-online-dot.typing  { background: #00AEEF; box-shadow: 0 0 6px rgba(0,174,239,0.9); animation: greenPulse 1s infinite; }
 .inbox-conv-body { flex: 1; min-width: 0; }
-.inbox-conv-name-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 2px; }
-.inbox-conv-name  { font-size: 13px; font-weight: 700; color: #d8eeff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%; }
-.inbox-conv-ts    { font-size: 10px; color: #3a5a7a; flex-shrink: 0; }
+.inbox-conv-name-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 1px; }
+.inbox-conv-name  { font-size: 13px; font-weight: 700; color: #d8eeff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 62%; }
+.inbox-conv-ts    { font-size: 10px; color: #3a5a7a; flex-shrink: 0; display: flex; align-items: center; gap: 3px; }
+.inbox-conv-pin-icon { font-size: 9px; color: rgba(255,200,0,0.7); }
 .inbox-conv-preview { font-size: 11.5px; color: #3a6a8a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .inbox-conv-item.unread .inbox-conv-preview { color: #7aaac8; font-weight: 600; }
 .inbox-conv-unread-badge {
@@ -1907,6 +1948,150 @@ img.post-media-preview::before {
     display: flex; flex-direction: column; align-items: center; gap: 10px; flex: 1;
 }
 .inbox-empty-icon { font-size: 36px; }
+.inbox-empty-start-btn {
+    margin-top: 8px; padding: 10px 22px; font-size: 13px; font-weight: 700;
+    background: linear-gradient(135deg, #003a22, #005533);
+    border: 1px solid rgba(0,255,136,0.45); color: #00ff88;
+    border-radius: 20px; cursor: pointer; touch-action: manipulation;
+    transition: background 0.18s, box-shadow 0.18s;
+}
+.inbox-empty-start-btn:hover { background: linear-gradient(135deg,#004a2a,#006644); box-shadow: 0 0 14px rgba(0,255,136,0.3); }
+
+/* ── Conversation context menu ── */
+.inbox-conv-ctx-menu {
+    position: fixed; z-index: 9500;
+    background: #060d1e; border: 1px solid rgba(0,174,239,0.35);
+    border-radius: 12px; padding: 6px 0; min-width: 190px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.75);
+    animation: msgCtxIn 0.15s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.inbox-conv-ctx-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; cursor: pointer; font-size: 13px; color: #d8eeff;
+    transition: background 0.12s;
+}
+.inbox-conv-ctx-item:hover { background: rgba(0,174,239,0.1); }
+.inbox-conv-ctx-item.danger { color: #ff5577; }
+.inbox-conv-ctx-item.danger:hover { background: rgba(255,51,102,0.1); }
+.inbox-conv-ctx-divider { height: 1px; background: rgba(0,174,239,0.12); margin: 4px 0; }
+
+/* ── New Message modal ── */
+#inboxNewMsgModal {
+    display: none; position: fixed; inset: 0; z-index: 8000;
+    background: rgba(0,4,14,0.88); backdrop-filter: blur(6px);
+    align-items: center; justify-content: center;
+}
+#inboxNewMsgModal.open { display: flex; }
+.inbox-nm-card {
+    background: linear-gradient(160deg,#0a1a38,#071428);
+    border: 1px solid rgba(0,174,239,0.38); border-radius: 16px;
+    width: min(480px, 94vw); max-height: 80vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 16px 60px rgba(0,0,0,0.8), 0 0 40px rgba(0,100,255,0.12);
+    overflow: hidden;
+}
+.inbox-nm-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid rgba(0,80,160,0.22);
+    flex-shrink: 0;
+}
+.inbox-nm-title { font-size: 14px; font-weight: 800; color: #d8eeff; }
+.inbox-nm-close {
+    background: none; border: none; color: #4a6a8a; font-size: 20px;
+    cursor: pointer; padding: 2px 6px; border-radius: 6px; line-height: 1;
+    transition: color 0.15s;
+}
+.inbox-nm-close:hover { color: #ff5566; }
+.inbox-nm-search-wrap { padding: 12px 14px 8px; flex-shrink: 0; }
+.inbox-nm-search-wrap input {
+    width: 100%; margin: 0; font-size: 13px; padding: 9px 13px;
+    background: rgba(0,10,30,0.9); border-color: rgba(0,140,255,0.35);
+    border-radius: 10px; color: #c8e8ff;
+}
+.inbox-nm-list {
+    flex: 1; overflow-y: auto; padding: 4px 0 10px;
+    scrollbar-width: thin; scrollbar-color: rgba(0,100,220,0.18) transparent;
+    -webkit-overflow-scrolling: touch;
+}
+.inbox-nm-user-row {
+    display: flex; align-items: center; gap: 11px;
+    padding: 10px 16px; cursor: pointer;
+    transition: background 0.12s;
+}
+.inbox-nm-user-row:hover { background: rgba(0,100,220,0.1); }
+.inbox-nm-avatar {
+    width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+    background: #0B1F3A center/cover no-repeat;
+    border: 2px solid rgba(0,174,239,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: #00AEEF;
+    position: relative;
+}
+.inbox-nm-status-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #3a3a3a; border: 2px solid #071428;
+    position: absolute; bottom: 0; right: 0;
+}
+.inbox-nm-status-dot.online { background: #00ff88; }
+.inbox-nm-status-dot.away   { background: #ffcc00; }
+.inbox-nm-info { flex: 1; min-width: 0; }
+.inbox-nm-name { font-size: 13px; font-weight: 700; color: #d8eeff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inbox-nm-handle { font-size: 11px; color: #4a70a0; margin-top: 1px; }
+.inbox-nm-empty { text-align: center; color: #2a4a6a; padding: 24px 16px; font-size: 13px; }
+
+/* ── Delete conversation confirmation ── */
+#inboxDelConvModal {
+    display: none; position: fixed; inset: 0; z-index: 8500;
+    background: rgba(0,4,14,0.88); backdrop-filter: blur(6px);
+    align-items: center; justify-content: center;
+}
+#inboxDelConvModal.open { display: flex; }
+.inbox-del-card {
+    background: linear-gradient(160deg,#120815,#100a20);
+    border: 1px solid rgba(255,51,80,0.35); border-radius: 16px;
+    width: min(380px, 90vw); padding: 24px 22px;
+    box-shadow: 0 16px 60px rgba(0,0,0,0.8);
+    text-align: center;
+}
+.inbox-del-icon { font-size: 36px; margin-bottom: 10px; }
+.inbox-del-title { font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 8px; }
+.inbox-del-body { font-size: 13px; color: #9ab8d4; line-height: 1.6; margin-bottom: 18px; }
+.inbox-del-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.inbox-del-btns button { padding: 9px 20px; font-size: 13px; border-radius: 10px; }
+.inbox-del-confirm { background: rgba(180,20,50,0.25) !important; border-color: rgba(255,50,80,0.6) !important; color: #ff5577 !important; }
+.inbox-del-confirm:hover { background: rgba(200,20,50,0.4) !important; }
+.inbox-del-cancel { background: rgba(0,50,120,0.2) !important; border-color: rgba(0,140,255,0.3) !important; color: #7aaad8 !important; }
+
+/* ── Message reaction bar ── */
+.msg-reaction-bar {
+    display: flex; gap: 4px; padding: 4px 0 2px;
+    flex-wrap: wrap;
+}
+.msg-reaction-btn {
+    background: rgba(0,20,60,0.6); border: 1px solid rgba(0,100,200,0.25);
+    border-radius: 12px; padding: 1px 7px; font-size: 12px; cursor: pointer;
+    color: #9ab8d4; display: flex; align-items: center; gap: 3px;
+    transition: background 0.12s, border-color 0.12s;
+}
+.msg-reaction-btn:hover { background: rgba(0,60,160,0.4); border-color: rgba(0,174,239,0.5); }
+.msg-reaction-btn.active { background: rgba(0,80,200,0.35); border-color: rgba(0,174,239,0.7); color: #00eeff; }
+
+/* ── Reply quote bubble ── */
+.inbox-reply-preview {
+    display: none; align-items: center; gap: 8px;
+    padding: 6px 12px; background: rgba(0,30,80,0.5);
+    border-left: 3px solid rgba(0,174,239,0.6);
+    font-size: 12px; color: #7aaac8; flex-shrink: 0;
+    border-top: 1px solid rgba(0,60,120,0.2);
+}
+.inbox-reply-preview.visible { display: flex; }
+.inbox-reply-preview-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-reply-cancel { background: none; border: none; color: #ff5577; font-size: 16px; cursor: pointer; padding: 0 2px; }
+.ipc-modal-bubble .reply-quote {
+    background: rgba(0,20,60,0.55); border-left: 3px solid rgba(0,174,239,0.5);
+    border-radius: 4px; padding: 4px 8px; margin-bottom: 5px;
+    font-size: 11px; color: #4a80b0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* ── RIGHT PANE ── */
 .inbox-chat-pane {
@@ -3460,7 +3645,7 @@ body { background: #0B1F3A; color: #ffffff; }
     border: 2px solid rgba(0,174,239,0.72);
     box-shadow: 0 0 16px rgba(0,174,239,0.55), inset 0 0 8px rgba(0,120,200,0.30);
 }
-.sidebar-brand-name { color: #00AEEF; text-shadow: 0 0 14px rgba(0,174,239,0.62); }
+.sidebar-brand-name { color: #00AEEF; text-shadow: 0 0 6px rgba(0,174,239,1.00), 0 0 14px rgba(0,174,239,0.80), 0 0 40px rgba(0,174,239,0.45), 0 0 70px rgba(57,255,20,0.14); }
 .sidebar-brand-sub  { color: rgba(57,255,20,0.65); }
 .sidebar-divider {
     background: linear-gradient(90deg, transparent, rgba(0,174,239,0.28), rgba(57,255,20,0.16), transparent);
@@ -4615,8 +4800,32 @@ input:focus, textarea:focus, select:focus {
 }
 .sidebar-brand-name {
     color: #00AEEF !important;
-    text-shadow: 0 0 16px rgba(0,174,239,0.75), 0 0 32px rgba(0,174,239,0.35) !important;
+    text-shadow:
+        0 0 6px  rgba(0,174,239,1.00),
+        0 0 16px rgba(0,174,239,0.85),
+        0 0 32px rgba(0,174,239,0.55),
+        0 0 60px rgba(57,255,20,0.18),
+        0 0 100px rgba(57,255,20,0.08) !important;
     letter-spacing: 2.5px !important;
+    animation: sidebarNameGlow 7s ease-in-out infinite !important;
+}
+@keyframes sidebarNameGlow {
+    0%, 100% {
+        text-shadow:
+            0 0 6px  rgba(0,174,239,1.00),
+            0 0 16px rgba(0,174,239,0.85),
+            0 0 32px rgba(0,174,239,0.55),
+            0 0 60px rgba(57,255,20,0.18),
+            0 0 100px rgba(57,255,20,0.08);
+    }
+    50% {
+        text-shadow:
+            0 0 8px  rgba(0,207,255,1.00),
+            0 0 22px rgba(0,174,239,1.00),
+            0 0 44px rgba(0,174,239,0.70),
+            0 0 80px rgba(57,255,20,0.32),
+            0 0 140px rgba(57,255,20,0.14);
+    }
 }
 
 /* All nav items: blue text, green on active */
@@ -4688,46 +4897,34 @@ input:focus, textarea:focus, select:focus {
    Blue base → neon green flash cycle
    ────────────────────────────────────────── */
 @keyframes nexusLogoGlow {
-    0%   {
-        color: #ffffff;
+    /* Resting state: blue inner + faint green outer bloom */
+    0%, 100% {
+        color: #00AEEF;
         text-shadow:
-            0 0 8px  rgba(255,255,255,0.90),
-            0 0 20px rgba(0,174,239,0.85),
-            0 0 45px rgba(0,174,239,0.55),
-            0 0 80px rgba(0,174,239,0.25);
+            0 0 6px  rgba(0,174,239,1.00),
+            0 0 18px rgba(0,174,239,0.90),
+            0 0 38px rgba(0,174,239,0.60),
+            0 0 70px rgba(0,174,239,0.30),
+            0 0 90px rgba(57,255,20,0.12),
+            0 0 130px rgba(57,255,20,0.06);
         letter-spacing: 2px;
     }
-    45%  {
-        color: #ffffff;
+    /* Bloom peak: blue inner brightens, green outer swells softly */
+    50% {
+        color: #00CFFF;
         text-shadow:
-            0 0 12px rgba(255,255,255,1.00),
-            0 0 30px rgba(0,174,239,1.00),
-            0 0 65px rgba(0,174,239,0.70),
-            0 0 110px rgba(0,174,239,0.35);
-        letter-spacing: 2px;
-    }
-    55%  {
-        color: #ccffcc;
-        text-shadow:
-            0 0 10px rgba(200,255,200,0.95),
-            0 0 28px rgba(57,255,20,0.90),
-            0 0 58px rgba(57,255,20,0.60),
-            0 0 95px rgba(57,255,20,0.30);
-        letter-spacing: 3px;
-    }
-    100% {
-        color: #ffffff;
-        text-shadow:
-            0 0 8px  rgba(255,255,255,0.90),
-            0 0 20px rgba(0,174,239,0.85),
-            0 0 45px rgba(0,174,239,0.55),
-            0 0 80px rgba(0,174,239,0.25);
+            0 0 8px  rgba(0,207,255,1.00),
+            0 0 22px rgba(0,174,239,1.00),
+            0 0 50px rgba(0,174,239,0.75),
+            0 0 90px rgba(0,174,239,0.40),
+            0 0 120px rgba(57,255,20,0.28),
+            0 0 180px rgba(57,255,20,0.12);
         letter-spacing: 2px;
     }
 }
 
 .eclipse-title {
-    animation: nexusLogoGlow 4s ease-in-out infinite !important;
+    animation: nexusLogoGlow 7s ease-in-out infinite !important;
     font-weight: 900 !important;
     font-size: 30px !important;
 }
@@ -6221,7 +6418,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 <!-- ████ SHADOW NEXUS REALM — Entering Animation ████ -->
 <div id="snxEnterOverlay">
-    <div class="snx-enter-logo">SHADOW NEXUS</div>
+    <div class="snx-enter-logo">SHADOW NEXUS SOCIAL</div>
     <div class="snx-enter-sub">REALM INITIALIZING</div>
     <div class="snx-enter-bar"><div class="snx-enter-bar-fill"></div></div>
 </div>
@@ -6240,7 +6437,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     <div class="sc-orb" id="scOrbBtn" aria-label="Shadow Nexus Social">
         <div class="sc-orb-icon">🌑</div>
         <div class="sc-orb-text">
-            <span class="sc-orb-name">Shadow Nexus</span>
+            <span class="sc-orb-name">Shadow Nexus Social</span>
             <span class="sc-orb-sub">Stay Legendary 🌑</span>
         </div>
     </div>
@@ -6505,11 +6702,6 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="nav-item" id="navProfile" onclick="realmViewMyProfile()">
             <span class="nav-icon">👤</span> My Profile
         </button>
-        <button class="nav-item" id="navFriends" onclick="realmNavTo('friendsPage')">
-            <span class="nav-icon">👥</span> Friends
-            <span class="nav-badge" id="sidebarFriendBadge"></span>
-        </button>
-
         <div class="sidebar-divider"></div>
 
         <!-- ── COMMUNITY ── -->
@@ -7230,10 +7422,14 @@ body.arcade-fs-ios body::after { display:none !important; }
      MESSAGE CONTEXT MENU
      ═══════════════════════════════════════════ -->
 <div id="msgCtxMenu" class="msg-ctx-menu" style="display:none;">
-    <div class="msg-ctx-item" id="msgCtxCopy" onclick="msgCtxCopy()">📋 Copy</div>
+    <div class="msg-ctx-item" id="msgCtxReply"   onclick="msgCtxReply()">↩️ Reply</div>
+    <div class="msg-ctx-item" id="msgCtxReact"   onclick="msgCtxReact()">😊 React</div>
+    <div class="msg-ctx-item" id="msgCtxCopy"    onclick="msgCtxCopy()">📋 Copy</div>
+    <div class="msg-ctx-item" id="msgCtxForward" onclick="msgCtxForward()">↗️ Forward</div>
+    <div class="msg-ctx-item" id="msgCtxEdit"    onclick="msgCtxEdit()" style="display:none;">✏️ Edit</div>
     <div class="msg-ctx-divider"></div>
-    <div class="msg-ctx-item danger" id="msgCtxDeleteMe" onclick="msgCtxDeleteMe()">🗑 Delete for Me</div>
-    <div class="msg-ctx-item danger" id="msgCtxDeleteAll" onclick="msgCtxDeleteAll()">🚫 Delete for Everyone</div>
+    <div class="msg-ctx-item danger" id="msgCtxDeleteMe"  onclick="msgCtxDeleteMe()">🗑 Delete for Me</div>
+    <div class="msg-ctx-item danger" id="msgCtxDeleteAll" onclick="msgCtxDeleteAll()">🚫 Unsend for Everyone</div>
 </div>
 
 <!-- ═══════════════════════════════════════════
@@ -7443,9 +7639,13 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <div class="inbox-list-title">
                     Messages
                     <span id="inboxConvCount"></span>
+                    <div class="inbox-hdr-actions">
+                        <button class="inbox-hdr-btn inbox-new-msg-btn" title="New Message" onclick="inboxOpenNewMsgModal()" aria-label="New Message">＋</button>
+                        <button class="inbox-hdr-btn" id="inboxFilterBtn" title="Filter / Sort" onclick="inboxCycleFilter(this)" aria-label="Filter conversations">⊟</button>
+                    </div>
                 </div>
                 <div class="inbox-search-row">
-                    <input id="inboxSearchInput" placeholder="🔍 Search…" autocomplete="off" oninput="inboxFilter(this.value)">
+                    <input id="inboxSearchInput" placeholder="🔍 Search people, groups, messages…" autocomplete="off" oninput="inboxFilter(this.value)">
                 </div>
             </div>
             <div class="inbox-conv-list" id="inboxConvList">
@@ -7462,8 +7662,9 @@ body.arcade-fs-ios body::after { display:none !important; }
             <!-- Placeholder (no conversation selected) -->
             <div class="inbox-chat-placeholder" id="inboxChatPlaceholder">
                 <div class="inbox-chat-placeholder-icon">💬</div>
-                <div style="font-size:16px;font-weight:700;color:#3a6a9a;">Select a conversation</div>
-                <div style="font-size:13px;color:#2a4060;max-width:260px;line-height:1.6;">Pick someone from the list to open your chat history, or go to their profile and tap Message to start a new conversation.</div>
+                <div style="font-size:16px;font-weight:700;color:#3a6a9a;">No messages yet.</div>
+                <div style="font-size:13px;color:#2a4060;max-width:260px;line-height:1.6;">Pick someone from the list, or start a brand new conversation.</div>
+                <button class="inbox-empty-start-btn" onclick="inboxOpenNewMsgModal()">✉️ Start New Conversation</button>
             </div>
 
             <!-- Header (hidden until a conv is selected) -->
@@ -7477,6 +7678,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                     <div class="inbox-chat-hdr-sub"  id="inboxChatHdrSub">—</div>
                 </div>
                 <button class="inbox-chat-hdr-btn" title="View profile" onclick="inboxOpenPartnerProfile()">👤</button>
+                <button class="inbox-chat-hdr-btn" id="inboxConvOptionsBtn" title="More options" onclick="inboxOpenConvOptions(event)">⋯</button>
             </div>
 
             <!-- Messages area -->
@@ -7489,6 +7691,13 @@ body.arcade-fs-ios body::after { display:none !important; }
 
             <!-- Typing indicator -->
             <div class="inbox-chat-typing" id="inboxChatTyping" style="display:none;"></div>
+
+            <!-- Reply preview bar -->
+            <div class="inbox-reply-preview" id="inboxReplyPreview">
+                <span style="font-size:12px;color:#4a80b0;flex-shrink:0;">↩ Reply:</span>
+                <span class="inbox-reply-preview-text" id="inboxReplyPreviewText"></span>
+                <button class="inbox-reply-cancel" onclick="inboxCancelReply()" title="Cancel reply">✕</button>
+            </div>
 
             <!-- Upload preview strip -->
             <div class="inbox-upload-preview-strip" id="inboxUploadStrip" style="display:none;">
@@ -7514,6 +7723,49 @@ body.arcade-fs-ios body::after { display:none !important; }
 
         </div><!-- end chat pane -->
     </div><!-- end inbox-split -->
+</div>
+
+<!-- ═══════════ INBOX: NEW MESSAGE MODAL ═══════════ -->
+<div id="inboxNewMsgModal" role="dialog" aria-modal="true" aria-label="New Message">
+    <div style="position:absolute;inset:0;" onclick="inboxCloseNewMsgModal()"></div>
+    <div class="inbox-nm-card">
+        <div class="inbox-nm-header">
+            <span class="inbox-nm-title">✉️ New Message</span>
+            <button class="inbox-nm-close" onclick="inboxCloseNewMsgModal()" aria-label="Close">✕</button>
+        </div>
+        <div class="inbox-nm-search-wrap">
+            <input id="inboxNmSearch" placeholder="Search by name, @username or email…" autocomplete="off" oninput="inboxNmSearchUsers(this.value)">
+        </div>
+        <div class="inbox-nm-list" id="inboxNmList">
+            <div class="inbox-nm-empty">Start typing to find people…</div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ INBOX: DELETE CONVERSATION MODAL ═══════════ -->
+<div id="inboxDelConvModal" role="dialog" aria-modal="true" aria-label="Delete conversation">
+    <div style="position:absolute;inset:0;" onclick="inboxDelConvClose()"></div>
+    <div class="inbox-del-card">
+        <div class="inbox-del-icon">🗑️</div>
+        <div class="inbox-del-title">Delete Conversation?</div>
+        <div class="inbox-del-body" id="inboxDelConvBody">This will remove the conversation from your inbox. The other person will still see it unless they also delete it.</div>
+        <div class="inbox-del-btns">
+            <button class="inbox-del-cancel" onclick="inboxDelConvClose()">Cancel</button>
+            <button class="inbox-del-confirm" id="inboxDelConvConfirmBtn" onclick="inboxDelConvConfirm()">🗑 Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ INBOX: CONVERSATION CONTEXT MENU ═══════════ -->
+<div id="inboxConvCtxMenu" class="inbox-conv-ctx-menu" style="display:none;">
+    <div class="inbox-conv-ctx-item" id="ctxOpenChat"   onclick="inboxCtxOpenChat()">💬 Open Chat</div>
+    <div class="inbox-conv-ctx-divider"></div>
+    <div class="inbox-conv-ctx-item" id="ctxPinConv"    onclick="inboxCtxPin()">📌 Pin</div>
+    <div class="inbox-conv-ctx-item" id="ctxMuteConv"   onclick="inboxCtxMute()">🔕 Mute</div>
+    <div class="inbox-conv-ctx-item" id="ctxArchiveConv" onclick="inboxCtxArchive()">📁 Archive</div>
+    <div class="inbox-conv-ctx-item" id="ctxMarkUnread" onclick="inboxCtxMarkUnread()">● Mark Unread</div>
+    <div class="inbox-conv-ctx-divider"></div>
+    <div class="inbox-conv-ctx-item danger" id="ctxDeleteConv" onclick="inboxCtxDelete()">🗑 Delete</div>
 </div>
 
 <!-- ═══════════ NOTIFICATIONS PAGE (Notification Center 🔔) ═══════════ -->
@@ -8449,7 +8701,7 @@ body.arcade-fs-ios body::after { display:none !important; }
         </div>
     </div>
     <div class="section-card">
-        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🏅 Shadow Nexus Controls</h3>
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">🏅 Shadow Nexus Social Controls</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
             <button onclick="switchAdminTab('users')" style="font-size:12px;padding:6px 14px;border-radius:8px;">Manage Badges →</button>
             <button onclick="adminExportUsers()" style="font-size:12px;padding:6px 14px;border-radius:8px;">Export User List</button>
@@ -8913,7 +9165,7 @@ body.arcade-fs-ios body::after { display:none !important; }
   <div class="section-card" style="margin-bottom:16px;border-color:rgba(0,80,160,0.2);">
     <h3 style="margin:0 0 10px;font-size:13px;color:#5a8aaa;text-transform:uppercase;letter-spacing:0.8px;">👋 Legacy Fallback Welcome Message</h3>
     <p style="font-size:12px;color:#4a6a8a;margin:0 0 10px;line-height:1.6;">Used when the message library above is empty. Use <code style="background:rgba(0,174,239,0.08);padding:1px 5px;border-radius:4px;color:#39FF14;">{username}</code> for the user's name.</p>
-    <textarea id="scbWelcomeMsg" rows="3" placeholder="Welcome to Shadow Nexus, {username}! 💙 We're glad you're here. Remember: you matter, and this is a safe space." style="font-size:13px;resize:vertical;margin-bottom:10px;"></textarea>
+    <textarea id="scbWelcomeMsg" rows="3" placeholder="Welcome to Shadow Nexus Social, {username}! 💙 We're glad you're here. Remember: you matter, and this is a safe space." style="font-size:13px;resize:vertical;margin-bottom:10px;"></textarea>
     <button onclick="scbSaveWelcomeMsg()" style="font-size:12px;padding:6px 16px;border-radius:10px;border-color:rgba(0,174,239,0.55);color:#00AEEF;">💾 Save</button>
     <button onclick="scbPreviewWelcome()" style="font-size:12px;padding:6px 16px;border-radius:10px;margin-left:8px;border-color:rgba(57,255,20,0.45);color:#39FF14;background:rgba(57,255,20,0.06);">👁 Preview</button>
   </div>
@@ -9951,7 +10203,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     function _buildHubCard(room) {
       const name     = _esc(room.hostName || room.hostUsername || 'Creator');
       const handle   = room.hostUsername ? _esc('@' + room.hostUsername) : '';
-      const title    = _esc(room.title || 'Shadow Nexus LIVE');
+      const title    = _esc(room.title || 'Shadow Nexus Social LIVE');
       const category = room.category ? _esc(room.category) : '';
       const viewers  = room.viewers || 0;
       const roomId   = _esc(room.roomId || '');
@@ -10154,7 +10406,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
     function buildCard(room) {
       const name    = escL(room.hostName || room.hostUsername || 'Creator');
-      const title   = escL(room.title   || 'Shadow Nexus LIVE');
+      const title   = escL(room.title   || 'Shadow Nexus Social LIVE');
       const viewers = room.viewers || 0;
       const roomId  = escL(room.roomId  || '');
       const avatar  = room.hostAvatar   || '';
@@ -10585,7 +10837,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                           });
                       } catch(notifErr) {
                           console.warn('[SNX Push] showNotification failed:', notifErr.message);
-                          try { new Notification(n.title || '🔔 Shadow Nexus', { body: n.body || '', icon: _iconPath }); } catch(_) {}
+                          try { new Notification(n.title || '🔔 Shadow Nexus Social', { body: n.body || '', icon: _iconPath }); } catch(_) {}
                       }
                   }
                   // In-app toast: for messages, open the Profile Message modal immediately
@@ -10945,7 +11197,7 @@ body.arcade-fs-ios body::after { display:none !important; }
   ─────────────────────────────────────────────────────────────────── */
   window.showBadgeTooltip = function(el) {
       const name   = el.dataset.badge  || el.textContent.trim();
-      const desc   = el.dataset.desc   || 'A special Shadow Nexus badge.';
+      const desc   = el.dataset.desc   || 'A special Shadow Nexus Social badge.';
       const rarity = el.dataset.rarity || 'Common';
 
       const icon = BADGE_ICON_MAP[el.dataset.badge] || '🏅';
@@ -11331,7 +11583,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                       const _lName    = escFeed(post.authorName   || 'Someone');
                       const _lHandle  = escFeed(post.authorHandle || '');
                       const _lRoomId  = escFeed(post.liveRoomId   || '');
-                      const _lTitle   = escFeed(post.title        || 'Shadow Nexus LIVE');
+                      const _lTitle   = escFeed(post.title        || 'Shadow Nexus Social LIVE');
                       const _lWatchUrl = 'live.html#watch=' + encodeURIComponent(post.liveRoomId || '');
                       const _lAvatarStyle = _lAvatar ? `background-image:url('${_lAvatar}');background-size:cover;background-position:center;` : '';
                       const _lInitial = (_lName || '?')[0];
@@ -11528,13 +11780,13 @@ body.arcade-fs-ios body::after { display:none !important; }
   const BADGE_META = {
       'Founder':     { rarity:'Legendary', rarityClass:'badge-rarity-legendary', desc:'The creator of Shadow Nexus Social. One of a kind.' },
       'Admin':       { rarity:'Legendary', rarityClass:'badge-rarity-legendary', desc:'Platform administrator with elevated trust and responsibilities.' },
-      'Verified':    { rarity:'Epic',      rarityClass:'badge-rarity-epic',      desc:'Identity verified by the Shadow Nexus team.' },
+      'Verified':    { rarity:'Epic',      rarityClass:'badge-rarity-epic',      desc:'Identity verified by the Shadow Nexus Social team.' },
       'Moderator':   { rarity:'Epic',      rarityClass:'badge-rarity-epic',      desc:'Trusted community moderator helping keep the Nexus safe.' },
       'OG':          { rarity:'Legendary', rarityClass:'badge-rarity-legendary', desc:'One of the first 100 members. Account must be 50+ days old.' },
-      'Legend':      { rarity:'Legendary', rarityClass:'badge-rarity-legendary', desc:'A true Shadow Nexus legend. Awarded for exceptional contribution.' },
-      'Beta':        { rarity:'Epic',      rarityClass:'badge-rarity-epic',      desc:'Beta tester who helped shape Shadow Nexus before launch.' },
+      'Legend':      { rarity:'Legendary', rarityClass:'badge-rarity-legendary', desc:'A true Shadow Nexus Social legend. Awarded for exceptional contribution.' },
+      'Beta':        { rarity:'Epic',      rarityClass:'badge-rarity-epic',      desc:'Beta tester who helped shape Shadow Nexus Social before launch.' },
       'Top':         { rarity:'Rare',      rarityClass:'badge-rarity-rare',      desc:'Top contributor — consistently active and helpful.' },
-      'Supporter':   { rarity:'Rare',      rarityClass:'badge-rarity-rare',      desc:'Early supporter who believed in Shadow Nexus from the start.' },
+      'Supporter':   { rarity:'Rare',      rarityClass:'badge-rarity-rare',      desc:'Early supporter who believed in Shadow Nexus Social from the start.' },
       'Helper':      { rarity:'Rare',      rarityClass:'badge-rarity-rare',      desc:'Community helper — always lending a hand to others.' },
       'Achievement': { rarity:'Rare',      rarityClass:'badge-rarity-rare',      desc:'Earned by completing a special in-app achievement.' },
       'Event':       { rarity:'Rare',      rarityClass:'badge-rarity-rare',      desc:'Special event badge — limited time only.' },
@@ -11986,7 +12238,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           announcement:  notif.body || 'New announcement from admin',
           tag:           `${notif.fromName || 'Someone'} tagged you in a post`,
           system:        notif.body || 'System notification from Shadow Nexus Social',
-          live:          `${notif.fromName || 'Someone'} is live: ${notif.roomTitle || 'Shadow Nexus LIVE'}`,
+          live:          `${notif.fromName || 'Someone'} is live: ${notif.roomTitle || 'Shadow Nexus Social LIVE'}`,
       };
       sendPushToUser(targetUid, {
           title:   pushTitles[notif.type] || '🔔 Shadow Nexus Social',
@@ -14047,6 +14299,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
     let _ibAllConvs   = [];    // sorted conversation data
     let _ibQuery      = '';    // current filter text
+    let _ibFilterMode = 'all'; // 'all' | 'unread' | 'pinned' | 'archived'
     let _ibActiveUid  = null;  // currently open conversation partner UID
     let _ibActiveChId = null;  // currently open Firestore chat doc ID
     let _ibActiveData = null;  // cached partner user doc data
@@ -14056,6 +14309,13 @@ body.arcade-fs-ios body::after { display:none !important; }
     // uploaded media for current message
     let _ibMediaUrl   = '';
     let _ibMediaType  = '';    // 'image' | 'video' | 'audio'
+
+    // reply state
+    let _ibReplyIdx   = null;  // index of message being replied to
+    let _ibReplyText  = '';    // truncated preview of the replied message
+
+    // context menu state
+    let _ibCtxUid     = null;  // UID of the conversation in the conv context menu
 
     // ── Utility helpers ───────────────────────────────────────
     function _ibEsc(s) {
@@ -14098,25 +14358,42 @@ body.arcade-fs-ios body::after { display:none !important; }
         else b.classList.remove('visible');
     }
 
+    // ── Presence status helper ────────────────────────────────
+    function _ibPresenceCls(status, typing) {
+        if (typing) return ' typing';
+        if (status === 'online') return ' online';
+        if (status === 'away')   return ' away';
+        return '';
+    }
+
     // ── Render a single conversation row in the list ──────────
     function _ibRow(conv) {
-        const { otherUid, otherName, otherAvatar, otherOnline, lastText, lastTs, unread } = conv;
+        const { otherUid, otherName, otherAvatar, otherStatus, otherTyping, lastText, lastTs, unread, pinned, muted } = conv;
         const esc = _ibEsc;
         const avatarStyle = otherAvatar ? `background-image:url('${esc(otherAvatar)}');background-size:cover;` : '';
         const initial = (otherName||'?')[0].toUpperCase();
-        const onlineCls = otherOnline ? ' online' : '';
+        const presenceCls = _ibPresenceCls(otherStatus, otherTyping);
         const unreadCls = unread > 0 ? ' unread' : '';
+        const pinnedCls = pinned ? ' pinned' : '';
         const activeCls = _ibActiveUid === otherUid ? ' active-conv' : '';
         const badge = unread > 0 ? `<div class="inbox-conv-unread-badge">${unread > 99 ? '99+' : unread}</div>` : '';
-        const preview = lastText ? esc(lastText.substring(0,68)) : '<em style="color:#2a4060">No messages yet</em>';
-        return `<div class="inbox-conv-item${unreadCls}${activeCls}" onclick="inboxOpenConv('${esc(otherUid)}')" data-uid="${esc(otherUid)}">
-            <div class="inbox-conv-avatar" style="${avatarStyle}">${otherAvatar ? '' : esc(initial)}<div class="inbox-conv-online-dot${onlineCls}"></div></div>
+        const pinIcon = pinned ? `<span class="inbox-conv-pin-icon">📌</span>` : '';
+        const muteIcon = muted ? `<span title="Muted" style="font-size:9px;color:#3a5a7a;margin-right:2px;">🔕</span>` : '';
+        let previewText = lastText ? esc(lastText.substring(0,68)) : '<em style="color:#2a4060">No messages yet</em>';
+        if (otherTyping) previewText = '<span style="color:#00AEEF;font-style:italic;">Typing…</span>';
+        return `<div class="inbox-conv-item${unreadCls}${pinnedCls}${activeCls}"
+            onclick="inboxOpenConv('${esc(otherUid)}')"
+            oncontextmenu="inboxConvRightClick(event,'${esc(otherUid)}')"
+            data-uid="${esc(otherUid)}"
+            data-pinned="${pinned ? '1' : '0'}"
+            data-muted="${muted ? '1' : '0'}">
+            <div class="inbox-conv-avatar" style="${avatarStyle}">${otherAvatar ? '' : esc(initial)}<div class="inbox-conv-online-dot${presenceCls}"></div></div>
             <div class="inbox-conv-body">
                 <div class="inbox-conv-name-row">
-                    <span class="inbox-conv-name">${esc(otherName||'Unknown')}</span>
-                    <span class="inbox-conv-ts">${_ibFmt(lastTs)}</span>
+                    <span class="inbox-conv-name">${muteIcon}${esc(otherName||'Unknown')}</span>
+                    <span class="inbox-conv-ts">${pinIcon}${_ibFmt(lastTs)}</span>
                 </div>
-                <div class="inbox-conv-preview">${preview}</div>
+                <div class="inbox-conv-preview">${previewText}</div>
             </div>
             ${badge}
         </div>`;
@@ -14127,17 +14404,40 @@ body.arcade-fs-ios body::after { display:none !important; }
         const el = document.getElementById('inboxConvList');
         if (!el) return;
         const q = _ibQuery.toLowerCase().trim();
-        const rows = q ? _ibAllConvs.filter(c => (c.otherName||'').toLowerCase().includes(q)) : _ibAllConvs;
+        let rows = q ? _ibAllConvs.filter(c =>
+            (c.otherName||'').toLowerCase().includes(q) ||
+            (c.lastText||'').toLowerCase().includes(q)
+        ) : [..._ibAllConvs];
+
+        // Apply active filter
+        if (_ibFilterMode === 'unread')   rows = rows.filter(c => c.unread > 0);
+        if (_ibFilterMode === 'pinned')   rows = rows.filter(c => c.pinned);
+        if (_ibFilterMode === 'archived') rows = rows.filter(c => c.archived);
+
+        // Sort: unread → pinned → recent activity
+        rows.sort((a, b) => {
+            if (a.unread > 0 && b.unread === 0) return -1;
+            if (b.unread > 0 && a.unread === 0) return 1;
+            if (a.pinned && !b.pinned) return -1;
+            if (b.pinned && !a.pinned) return 1;
+            return b.lastTs - a.lastTs;
+        });
 
         const countEl = document.getElementById('inboxConvCount');
         if (countEl) countEl.textContent = _ibAllConvs.length ? _ibAllConvs.length + ' chats' : '';
 
         if (!rows.length) {
+            const emptyMsg = q ? 'No conversations match.' :
+                (_ibFilterMode !== 'all' ? `No ${_ibFilterMode} conversations.` :
+                'No messages yet.');
             el.innerHTML = `<div class="inbox-empty"><div class="inbox-empty-icon">💬</div>
-                <div>${q ? 'No conversations match.' : 'No conversations yet.<br><span style="font-size:12px;color:#2a4060;">Open a profile and tap Message.</span>'}</div></div>`;
+                <div>${emptyMsg}</div>
+                ${!q && _ibFilterMode === 'all' ? `<button class="inbox-empty-start-btn" onclick="inboxOpenNewMsgModal()">✉️ Start New Conversation</button>` : ''}</div>`;
             return;
         }
         el.innerHTML = rows.map(_ibRow).join('');
+        // Attach swipe listeners on mobile
+        el.querySelectorAll('.inbox-conv-item').forEach(row => _ibAttachSwipe(row));
     }
 
     // ── Subscribe to all chats (conversation list) ────────────
@@ -14176,9 +14476,20 @@ body.arcade-fs-ios body::after { display:none !important; }
                 const lastMsg = msgs[msgs.length - 1];
                 const lastText = lastMsg ? (lastMsg.deleted ? '(deleted)' : (lastMsg.text || (lastMsg.type === 'image' ? '📷 Image' : lastMsg.type === 'video' ? '🎥 Video' : lastMsg.type === 'audio' ? '🎵 Audio' : '[message]'))) : '';
                 const unread = data[`unread_${currentUser.uid}`] || 0;
-                totalUnread += unread;
-                return { chatId:d.id, otherUid:othUid, otherName:uInfo.displayName||othUid.substring(0,8), otherAvatar:uInfo.avatar||'', otherOnline:uInfo.status==='online', lastText, lastTs:data.lastMsgTs||0, unread };
-            }).filter(c => c.otherUid).sort((a, b) => b.lastTs - a.lastTs);
+                const pinned   = !!(data[`pinned_${currentUser.uid}`]);
+                const muted    = !!(data[`muted_${currentUser.uid}`]);
+                const archived = !!(data[`archived_${currentUser.uid}`]);
+                const otherTyping = !!(data[`typing_${othUid}`]);
+                totalUnread += (muted ? 0 : unread); // muted convs don't count to badge
+                return {
+                    chatId: d.id, otherUid: othUid,
+                    otherName: uInfo.displayName || othUid.substring(0,8),
+                    otherAvatar: uInfo.avatar || '',
+                    otherStatus: uInfo.status || 'offline',
+                    otherTyping, lastText, lastTs: data.lastMsgTs || 0,
+                    unread, pinned, muted, archived
+                };
+            }).filter(c => c.otherUid && !c.archived);
 
             _ibAllConvs = convRows;
             _ibUpdateBadge(totalUnread);
@@ -14200,7 +14511,7 @@ body.arcade-fs-ios body::after { display:none !important; }
             if (conv.otherAvatar) { av.style.backgroundImage = `url('${conv.otherAvatar}')`; av.style.backgroundSize = 'cover'; }
             else { av.style.backgroundImage = 'none'; }
             const dot = av.querySelector('.inbox-chat-hdr-status');
-            if (dot) dot.className = 'inbox-chat-hdr-status' + (conv.otherOnline ? ' online' : '');
+            if (dot) dot.className = 'inbox-chat-hdr-status' + _ibPresenceCls(conv.otherStatus, conv.otherTyping);
         }
     }
 
@@ -14291,11 +14602,14 @@ body.arcade-fs-ios body::after { display:none !important; }
         // Live status listener
         _ibStUnsub = onSnapshot(doc(db, 'users', capturedTgtUid), uSnap => {
             if (_ibActiveChId !== capturedChId || !uSnap.exists()) return;
-            const u = uSnap.data(); const isOn = u.status === 'online';
+            const u = uSnap.data();
             const dot = document.getElementById('inboxChatHdrStatus');
             const sub = document.getElementById('inboxChatHdrSub');
-            if (dot) dot.className = 'inbox-chat-hdr-status' + (isOn ? ' online' : '');
-            if (sub) sub.textContent = isOn ? '🟢 Online now' : (u.mood || '⚫ Offline');
+            if (dot) dot.className = 'inbox-chat-hdr-status' + _ibPresenceCls(u.status, false);
+            const statusLabel = u.status === 'online' ? '🟢 Online now' :
+                                u.status === 'away'   ? '🟡 Away'        :
+                                `Last seen ${_ibFmt(u.lastSeen||0) || 'a while ago'}`;
+            if (sub) sub.textContent = statusLabel;
         });
 
         // Live messages listener
@@ -14343,7 +14657,10 @@ body.arcade-fs-ios body::after { display:none !important; }
         const subEl  = document.getElementById('inboxChatHdrSub');
         const avEl   = document.getElementById('inboxChatHdrAvatar');
         if (nameEl) nameEl.textContent = uData.displayName || tgtUid.substring(0,8);
-        if (subEl)  subEl.textContent  = uData.status === 'online' ? '🟢 Online now' : (uData.mood || '⚫ Offline');
+        const statusLabel = uData.status === 'online' ? '🟢 Online now' :
+                            uData.status === 'away'   ? '🟡 Away'        :
+                            (uData.mood || '⚫ Offline');
+        if (subEl) subEl.textContent = statusLabel;
         if (avEl) {
             const dot = avEl.querySelector('.inbox-chat-hdr-status');
             avEl.innerHTML = '';
@@ -14353,8 +14670,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                 avEl.style.backgroundImage = 'none';
                 avEl.insertAdjacentText('afterbegin', (uData.displayName||'?')[0].toUpperCase());
             }
-            const isOn = uData.status === 'online';
-            if (dot) dot.className = 'inbox-chat-hdr-status' + (isOn ? ' online' : '');
+            if (dot) dot.className = 'inbox-chat-hdr-status' + _ibPresenceCls(uData.status, false);
         }
     }
 
@@ -14383,6 +14699,9 @@ body.arcade-fs-ios body::after { display:none !important; }
         } else {
             let lastDate = '';
             list.forEach((m, idx) => {
+                // Skip messages soft-deleted for this user
+                if (m[`deletedFor_${currentUser.uid}`]) return;
+
                 const isMine = m.sender === currentUser.uid;
                 const isLast = idx === list.length - 1;
                 const dl = _ibFmtDate(m.timestamp);
@@ -14427,6 +14746,14 @@ body.arcade-fs-ios body::after { display:none !important; }
                 bub.addEventListener('touchend',  () => clearTimeout(_pressTimer));
                 bub.addEventListener('touchmove', () => clearTimeout(_pressTimer));
 
+                // Reply quote
+                if (m.replyPreview) {
+                    const rq = document.createElement('div');
+                    rq.className = 'reply-quote';
+                    rq.textContent = m.replyPreview;
+                    bub.appendChild(rq);
+                }
+
                 if (m.deleted) {
                     const t = document.createElement('div');
                     t.style.cssText = 'font-size:13px;font-style:italic;';
@@ -14455,11 +14782,12 @@ body.arcade-fs-ios body::after { display:none !important; }
                     bub.textContent = m.text || '';
                 }
 
-                // Meta: time + ticks
+                // Meta: time + ticks + edit indicator
                 const meta = document.createElement('div');
                 meta.className = 'ipc-modal-meta';
                 const ts = document.createElement('span');
-                ts.className = 'ipc-modal-ts'; ts.textContent = _ibFmtTime(m.timestamp);
+                ts.className = 'ipc-modal-ts';
+                ts.textContent = _ibFmtTime(m.timestamp) + (m.edited ? ' ✏️' : '');
                 meta.appendChild(ts);
                 if (isMine) {
                     const tick = document.createElement('span');
@@ -14468,7 +14796,28 @@ body.arcade-fs-ios body::after { display:none !important; }
                     meta.appendChild(tick);
                 }
                 bub.appendChild(meta);
+
                 wrap.appendChild(bub);
+
+                // Reactions — shown below bubble
+                const reactions = m.reactions || {};
+                const reactionKeys = Object.keys(reactions).filter(k => reactions[k] && reactions[k].length > 0);
+                if (reactionKeys.length) {
+                    const rbar = document.createElement('div');
+                    rbar.className = 'msg-reaction-bar';
+                    reactionKeys.forEach(emoji => {
+                        const btn = document.createElement('button');
+                        btn.className = 'msg-reaction-btn' + (reactions[emoji].includes(currentUser.uid) ? ' active' : '');
+                        btn.innerHTML = `${emoji} <span>${reactions[emoji].length}</span>`;
+                        btn.title = reactions[emoji].join(', ');
+                        btn.onclick = (ev) => {
+                            if (typeof openMsgCtxMenu === 'function') openMsgCtxMenu(idx, isMine, m, ev.clientX, ev.clientY, _ibActiveChId);
+                        };
+                        rbar.appendChild(btn);
+                    });
+                    wrap.appendChild(rbar);
+                }
+
                 msgBox.appendChild(wrap);
             });
         }
@@ -14498,6 +14847,10 @@ body.arcade-fs-ios body::after { display:none !important; }
             if (blocked) return;
         }
 
+        // Capture reply state before async
+        const replyIdx  = _ibReplyIdx;
+        const replyText = _ibReplyText;
+
         const capturedChId   = _ibActiveChId;
         const capturedTgtUid = _ibActiveUid;
 
@@ -14508,6 +14861,7 @@ body.arcade-fs-ios body::after { display:none !important; }
         try {
             const msg = { sender: currentUser.uid, type: hasMedia ? _ibMediaType : 'text', text: text || '', timestamp: Date.now() };
             if (hasMedia) msg.imageUrl = _ibMediaUrl;
+            if (replyIdx !== null) { msg.replyIdx = replyIdx; msg.replyPreview = replyText; }
 
             const ref = doc(db, 'chats', capturedChId);
             const upd = { messages: arrayUnion(msg), readReceipt: false, lastMsgTs: msg.timestamp, [`typing_${currentUser.uid}`]: false };
@@ -14517,6 +14871,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
             if (inp) { inp.value = ''; _ibGrow(inp); }
             inboxClearMedia();
+            inboxCancelReply();
 
             const msgBox = document.getElementById('inboxChatMessages');
             if (msgBox) msgBox.scrollTop = msgBox.scrollHeight;
@@ -14568,6 +14923,7 @@ body.arcade-fs-ios body::after { display:none !important; }
         _ibActiveData = null;
         _ibReady      = false;
         inboxClearMedia();
+        inboxCancelReply();
     }
 
     // ── Media handling ────────────────────────────────────────
@@ -14633,6 +14989,243 @@ body.arcade-fs-ios body::after { display:none !important; }
         if (typeof viewProfile === 'function') viewProfile(_ibActiveUid);
     };
 
+    // ── Open conversation options (⋯ button in chat header) ──
+    window.inboxOpenConvOptions = function(e) {
+        if (!_ibActiveUid) return;
+        e.stopPropagation();
+        _ibCtxUid = _ibActiveUid;
+        _ibShowConvCtxMenu(e.clientX || e.touches?.[0]?.clientX || 0,
+                           e.clientY || e.touches?.[0]?.clientY || 0);
+    };
+
+    // ── Right-click on conv row ───────────────────────────────
+    window.inboxConvRightClick = function(e, uid) {
+        e.preventDefault();
+        e.stopPropagation();
+        _ibCtxUid = uid;
+        _ibShowConvCtxMenu(e.clientX, e.clientY);
+    };
+
+    // ── Show conversation context menu ────────────────────────
+    function _ibShowConvCtxMenu(x, y) {
+        const menu = document.getElementById('inboxConvCtxMenu');
+        if (!menu) return;
+        // Close any open message context menu first
+        const mc = document.getElementById('msgCtxMenu');
+        if (mc) mc.style.display = 'none';
+
+        const conv = _ibAllConvs.find(c => c.otherUid === _ibCtxUid);
+        // Update labels
+        const pinEl = document.getElementById('ctxPinConv');
+        if (pinEl) pinEl.textContent = (conv?.pinned ? '📌 Unpin' : '📌 Pin');
+        const muteEl = document.getElementById('ctxMuteConv');
+        if (muteEl) muteEl.textContent = (conv?.muted ? '🔔 Unmute' : '🔕 Mute');
+
+        menu.style.display = 'block';
+        // Position intelligently
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const mw = 200, mh = 220;
+        const left = Math.min(x, vw - mw - 8);
+        const top  = y + mh > vh ? Math.max(0, y - mh) : y;
+        menu.style.left = left + 'px';
+        menu.style.top  = top  + 'px';
+    }
+
+    function _ibHideConvCtxMenu() {
+        const menu = document.getElementById('inboxConvCtxMenu');
+        if (menu) menu.style.display = 'none';
+        _ibCtxUid = null;
+    }
+
+    // Context menu actions
+    window.inboxCtxOpenChat   = function() { const u = _ibCtxUid; _ibHideConvCtxMenu(); if (u) inboxOpenConv(u); };
+    window.inboxCtxPin        = async function() {
+        const u = _ibCtxUid; _ibHideConvCtxMenu(); if (!u || !currentUser) return;
+        const chId = [currentUser.uid, u].sort().join('_');
+        const conv = _ibAllConvs.find(c => c.otherUid === u);
+        const upd = {}; upd[`pinned_${currentUser.uid}`] = !conv?.pinned;
+        try { await updateDoc(doc(db, 'chats', chId), upd); toastNotification(conv?.pinned ? '📌 Unpinned' : '📌 Pinned'); } catch(e) { toastNotification('Could not update: ' + e.message); }
+    };
+    window.inboxCtxMute       = async function() {
+        const u = _ibCtxUid; _ibHideConvCtxMenu(); if (!u || !currentUser) return;
+        const chId = [currentUser.uid, u].sort().join('_');
+        const conv = _ibAllConvs.find(c => c.otherUid === u);
+        const upd = {}; upd[`muted_${currentUser.uid}`] = !conv?.muted;
+        try { await updateDoc(doc(db, 'chats', chId), upd); toastNotification(conv?.muted ? '🔔 Unmuted' : '🔕 Muted'); } catch(e) { toastNotification('Could not update: ' + e.message); }
+    };
+    window.inboxCtxArchive    = async function() {
+        const u = _ibCtxUid; _ibHideConvCtxMenu(); if (!u || !currentUser) return;
+        const chId = [currentUser.uid, u].sort().join('_');
+        const upd = {}; upd[`archived_${currentUser.uid}`] = true;
+        try { await updateDoc(doc(db, 'chats', chId), upd); toastNotification('📁 Archived'); if (_ibActiveUid === u) inboxBackToList(); } catch(e) { toastNotification('Could not archive: ' + e.message); }
+    };
+    window.inboxCtxMarkUnread = async function() {
+        const u = _ibCtxUid; _ibHideConvCtxMenu(); if (!u || !currentUser) return;
+        const chId = [currentUser.uid, u].sort().join('_');
+        const upd = {}; upd[`unread_${currentUser.uid}`] = 1;
+        try { await updateDoc(doc(db, 'chats', chId), upd); } catch(_) {}
+    };
+    window.inboxCtxDelete     = function() { const u = _ibCtxUid; _ibHideConvCtxMenu(); if (u) inboxConfirmDeleteConv(u); };
+
+    // ── Delete conversation flow ──────────────────────────────
+    let _ibDelUid = null;
+    window.inboxConfirmDeleteConv = function(uid) {
+        _ibDelUid = uid;
+        const modal = document.getElementById('inboxDelConvModal');
+        if (modal) modal.classList.add('open');
+    };
+    window.inboxDelConvClose = function() {
+        const modal = document.getElementById('inboxDelConvModal');
+        if (modal) modal.classList.remove('open');
+        _ibDelUid = null;
+    };
+    window.inboxDelConvConfirm = async function() {
+        const uid = _ibDelUid;
+        inboxDelConvClose();
+        if (!uid || !currentUser) return;
+        const chId = [currentUser.uid, uid].sort().join('_');
+        try {
+            // Soft-delete: mark as deleted/hidden for this user only
+            const upd = {};
+            upd[`deleted_${currentUser.uid}`] = true;
+            upd[`archived_${currentUser.uid}`] = true;
+            await updateDoc(doc(db, 'chats', chId), upd);
+            toastNotification('🗑 Conversation deleted.');
+            if (_ibActiveUid === uid) inboxBackToList();
+        } catch(e) { toastNotification('Could not delete: ' + e.message); }
+    };
+
+    // ── New Message modal ─────────────────────────────────────
+    let _nmSearchTimer = null;
+    window.inboxOpenNewMsgModal = function() {
+        const modal = document.getElementById('inboxNewMsgModal');
+        if (modal) modal.classList.add('open');
+        const inp = document.getElementById('inboxNmSearch');
+        if (inp) { inp.value = ''; inp.focus(); }
+        const list = document.getElementById('inboxNmList');
+        if (list) list.innerHTML = '<div class="inbox-nm-empty">Start typing to find people…</div>';
+    };
+    window.inboxCloseNewMsgModal = function() {
+        const modal = document.getElementById('inboxNewMsgModal');
+        if (modal) modal.classList.remove('open');
+    };
+    window.inboxNmSearchUsers = async function(val) {
+        clearTimeout(_nmSearchTimer);
+        const list = document.getElementById('inboxNmList');
+        const q = (val||'').trim();
+        if (!q) {
+            if (list) list.innerHTML = '<div class="inbox-nm-empty">Start typing to find people…</div>';
+            return;
+        }
+        if (list) list.innerHTML = '<div class="inbox-nm-empty">Searching…</div>';
+        _nmSearchTimer = setTimeout(async () => {
+            try {
+                const ql = q.toLowerCase();
+                const snap = await getDocs(query(collection(db, 'users'), limit(200)));
+                const results = [];
+                snap.forEach(d => {
+                    if (d.id === currentUser.uid) return;
+                    const u = d.data();
+                    const name = (u.displayName||'').toLowerCase();
+                    const username = (u.username||'').toLowerCase();
+                    const email = (u.email||'').toLowerCase();
+                    if (name.includes(ql) || username.includes(ql) || email.includes(ql)) results.push({ uid: d.id, ...u });
+                });
+                if (!results.length) {
+                    if (list) list.innerHTML = '<div class="inbox-nm-empty">No users found.</div>';
+                    return;
+                }
+                if (list) list.innerHTML = results.slice(0,30).map(u => {
+                    const esc = _ibEsc;
+                    const avatarStyle = u.avatar ? `background-image:url('${esc(u.avatar)}');background-size:cover;` : '';
+                    const initial = (u.displayName||'?')[0].toUpperCase();
+                    const presenceCls = u.status === 'online' ? ' online' : u.status === 'away' ? ' away' : '';
+                    return `<div class="inbox-nm-user-row" onclick="inboxNmSelectUser('${esc(u.uid)}')">
+                        <div class="inbox-nm-avatar" style="${avatarStyle}">${u.avatar ? '' : esc(initial)}<div class="inbox-nm-status-dot${presenceCls}"></div></div>
+                        <div class="inbox-nm-info">
+                            <div class="inbox-nm-name">${esc(u.displayName||'Unknown')}</div>
+                            <div class="inbox-nm-handle">@${esc(u.username||u.uid.substring(0,8))} · ${u.status === 'online' ? '🟢 Online' : u.status === 'away' ? '🟡 Away' : '⚫ Offline'}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch(e) {
+                if (list) list.innerHTML = `<div class="inbox-nm-empty">Search failed: ${e.message}</div>`;
+            }
+        }, 280);
+    };
+    window.inboxNmSelectUser = function(uid) {
+        inboxCloseNewMsgModal();
+        inboxOpenConv(uid);
+        // Navigate to inbox page if not already there
+        const page = document.getElementById('inboxPage');
+        if (page && !page.classList.contains('active')) {
+            if (typeof navTo === 'function') navTo('inboxPage');
+            else if (typeof realmNavTo === 'function') realmNavTo('inboxPage');
+        }
+    };
+
+    // ── Filter cycling ────────────────────────────────────────
+    window.inboxCycleFilter = function(btn) {
+        const modes = ['all', 'unread', 'pinned'];
+        const idx = modes.indexOf(_ibFilterMode);
+        _ibFilterMode = modes[(idx + 1) % modes.length];
+        const labels = { all: '⊟', unread: '🔵', pinned: '📌' };
+        if (btn) btn.textContent = labels[_ibFilterMode];
+        _ibPaint();
+    };
+
+    // ── Reply UI ──────────────────────────────────────────────
+    window.inboxSetReply = function(idx, previewText) {
+        _ibReplyIdx  = idx;
+        _ibReplyText = previewText;
+        const bar  = document.getElementById('inboxReplyPreview');
+        const text = document.getElementById('inboxReplyPreviewText');
+        if (bar)  bar.classList.add('visible');
+        if (text) text.textContent = previewText;
+        const inp = document.getElementById('inboxChatInput');
+        if (inp) inp.focus();
+    };
+    window.inboxCancelReply = function() {
+        _ibReplyIdx  = null;
+        _ibReplyText = '';
+        const bar = document.getElementById('inboxReplyPreview');
+        if (bar) bar.classList.remove('visible');
+    };
+
+    // ── Swipe gesture attachment ──────────────────────────────
+    function _ibAttachSwipe(el) {
+        if (!el || el._swipeAttached) return;
+        el._swipeAttached = true;
+        let startX = 0, startY = 0, dx = 0;
+        const THRESHOLD = 52;
+        el.addEventListener('touchstart', e => {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            dx = 0;
+        }, { passive: true });
+        el.addEventListener('touchmove', e => {
+            dx = e.touches[0].clientX - startX;
+            const dy = Math.abs(e.touches[0].clientY - startY);
+            if (dy > 20) return; // vertical scroll takes priority
+            el.style.transform = `translateX(${Math.max(-128, Math.min(128, dx))}px)`;
+            el.style.transition = 'none';
+        }, { passive: true });
+        el.addEventListener('touchend', () => {
+            el.style.transform = '';
+            el.style.transition = 'transform 0.2s';
+            const uid = el.dataset.uid;
+            if (dx < -THRESHOLD) {
+                // Swipe left → delete or archive
+                if (dx < -100) inboxConfirmDeleteConv(uid);
+                else { _ibCtxUid = uid; inboxCtxArchive(); }
+            } else if (dx > THRESHOLD) {
+                // Swipe right → pin
+                _ibCtxUid = uid; inboxCtxPin();
+            }
+            setTimeout(() => { el.style.transition = ''; }, 220);
+        });
+    }
+
     // ── Public API ────────────────────────────────────────────
     window.renderInboxPage = function() {
         _ibSubscribeList();
@@ -14669,6 +15262,222 @@ body.arcade-fs-ios body::after { display:none !important; }
     })();
 
   })(); // end INBOX module
+
+  /* ═══════════════════════════════════════════════════════════
+     MESSAGE CONTEXT MENU ENGINE
+     Handles Right-click / long-press on any message bubble in both
+     the Inbox pane and the ipcModal chat overlay.
+     Actions: Reply · React · Copy · Forward · Edit · Delete for Me · Unsend
+     ═══════════════════════════════════════════════════════════ */
+  (function() {
+    'use strict';
+
+    let _ctxIdx    = null;   // message index in the `messages` array
+    let _ctxMine   = false;  // whether the tapped message is ours
+    let _ctxMsg    = null;   // message object
+    let _ctxChId   = null;   // Firestore chat doc ID
+    let _ctxTimer  = null;   // scheduled hide timer
+
+    const REACT_EMOJIS = ['❤️','😂','👍','😮','😢','🔥'];
+
+    function _ctxEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    // ── Position and show the menu ────────────────────────────
+    window.openMsgCtxMenu = function(idx, isMine, msg, x, y, chId) {
+        _ctxIdx  = idx;
+        _ctxMine = isMine;
+        _ctxMsg  = msg;
+        _ctxChId = chId;
+
+        // Also hide conv context menu if open
+        const ccm = document.getElementById('inboxConvCtxMenu');
+        if (ccm) ccm.style.display = 'none';
+
+        const menu = document.getElementById('msgCtxMenu');
+        if (!menu) return;
+
+        // Show/hide Edit only for own recent messages (within 10 min)
+        const editEl = document.getElementById('msgCtxEdit');
+        if (editEl) {
+            const recent = isMine && msg.type === 'text' && !msg.deleted && (Date.now() - (msg.timestamp||0)) < 600000;
+            editEl.style.display = recent ? 'flex' : 'none';
+        }
+        // Unsend — only for sender, not too old
+        const unsendEl = document.getElementById('msgCtxDeleteAll');
+        if (unsendEl) {
+            unsendEl.style.display = (isMine && !msg.deleted && (Date.now() - (msg.timestamp||0)) < 3600000) ? 'flex' : 'none';
+        }
+
+        menu.style.display = 'block';
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const mw = menu.offsetWidth  || 210;
+        const mh = menu.offsetHeight || 230;
+        menu.style.left = Math.min(x, vw - mw - 8) + 'px';
+        menu.style.top  = (y + mh > vh ? Math.max(4, y - mh) : y + 4) + 'px';
+    };
+
+    // ── Actions ───────────────────────────────────────────────
+    window.msgCtxReply = function() {
+        _ctxHide();
+        if (_ctxMsg === null) return;
+        const preview = _ctxMsg.deleted ? '(deleted)' : (_ctxMsg.text || '[media]').substring(0,80);
+        // Route to the correct reply handler
+        if (typeof window.inboxSetReply === 'function' && document.getElementById('inboxChatInput')) {
+            window.inboxSetReply(_ctxIdx, preview);
+        } else {
+            // ipcModal reply — just pre-fill input with quote
+            const inp = document.getElementById('ipcModalInput');
+            if (inp && inp.style.display !== 'none') inp.value = `> ${preview}\n`;
+        }
+    };
+
+    window.msgCtxReact = function() {
+        _ctxHide();
+        if (_ctxMsg === null) return;
+        // Show quick emoji picker inline — insert as a reaction
+        const picker = document.createElement('div');
+        picker.style.cssText = 'position:fixed;z-index:9600;display:flex;gap:6px;padding:8px 12px;background:#060d1e;border:1px solid rgba(0,174,239,0.4);border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.6);';
+        REACT_EMOJIS.forEach(emoji => {
+            const btn = document.createElement('span');
+            btn.textContent = emoji;
+            btn.style.cssText = 'font-size:22px;cursor:pointer;transition:transform 0.12s;';
+            btn.onmouseenter = () => { btn.style.transform = 'scale(1.25)'; };
+            btn.onmouseleave = () => { btn.style.transform = 'scale(1)'; };
+            btn.onclick = () => { picker.remove(); _addReaction(_ctxIdx, emoji); };
+            picker.appendChild(btn);
+        });
+        // Position near the menu location
+        const menu = document.getElementById('msgCtxMenu');
+        const top  = menu ? parseInt(menu.style.top)  || 100 : 100;
+        const left = menu ? parseInt(menu.style.left) || 100 : 100;
+        picker.style.left = left + 'px';
+        picker.style.top  = (top - 50) + 'px';
+        document.body.appendChild(picker);
+        // Close on outside click
+        setTimeout(() => {
+            const close = (e) => { if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener('click', close); } };
+            document.addEventListener('click', close);
+        }, 10);
+    };
+
+    async function _addReaction(idx, emoji) {
+        if (_ctxChId === null || !currentUser) return;
+        try {
+            const snap = await getDoc(doc(db, 'chats', _ctxChId));
+            if (!snap.exists()) return;
+            const msgs = [...(snap.data().messages || [])];
+            if (!msgs[idx]) return;
+            const reactions = { ...(msgs[idx].reactions || {}) };
+            const users = reactions[emoji] ? [...reactions[emoji]] : [];
+            const alreadyReacted = users.includes(currentUser.uid);
+            if (alreadyReacted) reactions[emoji] = users.filter(u => u !== currentUser.uid);
+            else { reactions[emoji] = [...users, currentUser.uid]; }
+            if (reactions[emoji] && reactions[emoji].length === 0) delete reactions[emoji];
+            msgs[idx] = { ...msgs[idx], reactions };
+            await updateDoc(doc(db, 'chats', _ctxChId), { messages: msgs });
+        } catch(e) { console.warn('[Reaction]', e.message); }
+    }
+
+    window.msgCtxCopy = function() {
+        _ctxHide();
+        if (!_ctxMsg) return;
+        const text = _ctxMsg.text || '';
+        if (navigator.clipboard && text) navigator.clipboard.writeText(text).then(() => toastNotification('📋 Copied!')).catch(() => _fallbackCopy(text));
+        else _fallbackCopy(text);
+    };
+    function _fallbackCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); toastNotification('📋 Copied!'); } catch(_) {}
+        document.body.removeChild(ta);
+    }
+
+    window.msgCtxForward = function() {
+        _ctxHide();
+        if (!_ctxMsg) return;
+        const preview = _ctxMsg.text || '[media]';
+        // Open New Message modal pre-filled for forwarding
+        if (typeof window.inboxOpenNewMsgModal === 'function') {
+            window.inboxOpenNewMsgModal();
+            const inp = document.getElementById('inboxNmSearch');
+            if (inp) inp.placeholder = 'Forward to: search a person…';
+            // Store forward payload — picked up by inboxNmSelectUser
+            window._fwdPayload = _ctxMsg;
+        } else {
+            toastNotification('↗️ Forward: ' + preview.substring(0,40));
+        }
+    };
+
+    window.msgCtxEdit = async function() {
+        _ctxHide();
+        if (!_ctxMine || !_ctxMsg || !_ctxChId) return;
+        const newText = prompt('Edit message:', _ctxMsg.text || '');
+        if (newText === null || newText.trim() === '') return;
+        try {
+            const snap = await getDoc(doc(db, 'chats', _ctxChId));
+            if (!snap.exists()) return;
+            const msgs = [...(snap.data().messages || [])];
+            if (!msgs[_ctxIdx]) return;
+            msgs[_ctxIdx] = { ...msgs[_ctxIdx], text: newText.trim(), edited: true };
+            await updateDoc(doc(db, 'chats', _ctxChId), { messages: msgs });
+            toastNotification('✅ Message edited.');
+        } catch(e) { toastNotification('Edit failed: ' + e.message); }
+    };
+
+    window.msgCtxDeleteMe = async function() {
+        _ctxHide();
+        if (_ctxChId === null || _ctxIdx === null) return;
+        try {
+            const snap = await getDoc(doc(db, 'chats', _ctxChId));
+            if (!snap.exists()) return;
+            const msgs = [...(snap.data().messages || [])];
+            if (!msgs[_ctxIdx]) return;
+            msgs[_ctxIdx] = { ...msgs[_ctxIdx], [`deletedFor_${currentUser.uid}`]: true };
+            await updateDoc(doc(db, 'chats', _ctxChId), { messages: msgs });
+        } catch(e) { toastNotification('Delete failed: ' + e.message); }
+    };
+
+    window.msgCtxDeleteAll = async function() {
+        _ctxHide();
+        if (!_ctxMine || _ctxChId === null || _ctxIdx === null) return;
+        if (!confirm('Unsend this message for everyone? This cannot be undone.')) return;
+        try {
+            const snap = await getDoc(doc(db, 'chats', _ctxChId));
+            if (!snap.exists()) return;
+            const msgs = [...(snap.data().messages || [])];
+            if (!msgs[_ctxIdx]) return;
+            msgs[_ctxIdx] = { sender: msgs[_ctxIdx].sender, type: 'text', text: '', timestamp: msgs[_ctxIdx].timestamp, deleted: true };
+            await updateDoc(doc(db, 'chats', _ctxChId), { messages: msgs });
+        } catch(e) { toastNotification('Unsend failed: ' + e.message); }
+    };
+
+    function _ctxHide() {
+        const menu = document.getElementById('msgCtxMenu');
+        if (menu) menu.style.display = 'none';
+        _ctxIdx = null; _ctxMsg = null;
+    }
+
+    // ── Close menu on click outside ───────────────────────────
+    document.addEventListener('click', e => {
+        const menu = document.getElementById('msgCtxMenu');
+        if (menu && menu.style.display !== 'none' && !menu.contains(e.target)) _ctxHide();
+        const cmenu = document.getElementById('inboxConvCtxMenu');
+        if (cmenu && cmenu.style.display !== 'none' && !cmenu.contains(e.target)) {
+            cmenu.style.display = 'none';
+        }
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            _ctxHide();
+            const cmenu = document.getElementById('inboxConvCtxMenu');
+            if (cmenu) cmenu.style.display = 'none';
+            if (typeof window.inboxCloseNewMsgModal === 'function') inboxCloseNewMsgModal();
+            if (typeof window.inboxDelConvClose === 'function') inboxDelConvClose();
+        }
+    });
+
+  })(); // end MSG CTX MENU module
 
   // ── Render messages into the modal ──
   function _mRender(cData, forceScrollToBottom) {
@@ -15616,7 +16425,7 @@ body.arcade-fs-ios body::after { display:none !important; }
   /* ══════════════════════════════════════════════════════════════════════
      AI CONTENT SAFETY ENGINE — snxAIScan(text, context)
      ══════════════════════════════════════════════════════════════════════
-     Scans any user-submitted text against Shadow Nexus community rules.
+     Scans any user-submitted text against Shadow Nexus Social community rules.
      Returns { flagged:bool, category:string, severity:'warn'|'block', rule:string }
      Side-effects when flagged:
        • Shows an in-app warning toast to the user
@@ -16057,7 +16866,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           await adminAuditLog('SEND_ANNOUNCEMENT',`${type}: ${msg.substring(0,80)}`);
           const all=await getDocs(collection(db,'users'));
           const sends=[];
-          all.forEach(uDoc=>{const u=uDoc.data();if(!u.uid||u.uid===currentUser.uid)return;sends.push(pushNotification(u.uid,{type:'announcement',fromUid:currentUser.uid,fromName:'Shadow Nexus Admin',fromAvatar:'',body:msg}));});
+          all.forEach(uDoc=>{const u=uDoc.data();if(!u.uid||u.uid===currentUser.uid)return;sends.push(pushNotification(u.uid,{type:'announcement',fromUid:currentUser.uid,fromName:'Shadow Nexus Social Admin',fromAvatar:'',body:msg}));});
           await Promise.allSettled(sends);
           if(input)input.value='';
           toastNotification(`📢 Sent to ${sends.length} members!`);
@@ -19286,21 +20095,21 @@ window.clearBannerUpload   = clearBannerUpload;
 
     /* ── Quotes pool ── */
     const QUOTES = [
-        { text: "You are enough. You have always been enough.", author: "Shadow Nexus Community" },
+        { text: "You are enough. You have always been enough.", author: "Shadow Nexus Social Community" },
         { text: "It's okay to not be okay. What matters is that you keep going.", author: "Unknown" },
-        { text: "Storms don't last forever. Neither does pain.", author: "Shadow Nexus Community" },
+        { text: "Storms don't last forever. Neither does pain.", author: "Shadow Nexus Social Community" },
         { text: "Every day you survive is a day of strength.", author: "Unknown" },
-        { text: "You don't have to have it all figured out. Just take the next step.", author: "Shadow Nexus Community" },
-        { text: "Your feelings are valid. Your story matters.", author: "Shadow Nexus Community" },
+        { text: "You don't have to have it all figured out. Just take the next step.", author: "Shadow Nexus Social Community" },
+        { text: "Your feelings are valid. Your story matters.", author: "Shadow Nexus Social Community" },
         { text: "Be kind to yourself the way you would be to someone you love.", author: "Unknown" },
-        { text: "Small progress is still progress. Celebrate every step.", author: "Shadow Nexus Community" },
-        { text: "You are not alone — even in the darkest moments.", author: "Shadow Nexus Community" },
+        { text: "Small progress is still progress. Celebrate every step.", author: "Shadow Nexus Social Community" },
+        { text: "You are not alone — even in the darkest moments.", author: "Shadow Nexus Social Community" },
         { text: "Healing isn't linear. That's okay.", author: "Unknown" },
-        { text: "Your darkness doesn't define you. Your courage to face it does.", author: "Shadow Nexus Community" },
-        { text: "Reach out. Someone is always listening.", author: "Shadow Nexus Community" },
+        { text: "Your darkness doesn't define you. Your courage to face it does.", author: "Shadow Nexus Social Community" },
+        { text: "Reach out. Someone is always listening.", author: "Shadow Nexus Social Community" },
         { text: "One breath at a time. One moment at a time.", author: "Unknown" },
         { text: "You've survived 100% of your hardest days so far.", author: "Unknown" },
-        { text: "Kindness costs nothing but means everything.", author: "Shadow Nexus Community" },
+        { text: "Kindness costs nothing but means everything.", author: "Shadow Nexus Social Community" },
     ];
 
     /* ── Daily challenges pool ── */
@@ -23903,7 +24712,7 @@ window._snxArcadeSubscribeInvites = _subscribeInvites;
     <!-- Header -->
     <div class="arcade-hub-header">
         <div>
-            <div class="arcade-hub-title">🕹️ Shadow Nexus Arcade</div>
+            <div class="arcade-hub-title">🕹️ Shadow Nexus Social Arcade</div>
             <div class="arcade-hub-subtitle">Play solo · Challenge friends · Climb the leaderboard</div>
         </div>
         <button class="arcade-hub-close" onclick="closeArcadeHub()" aria-label="Close">✕</button>
@@ -24137,7 +24946,7 @@ window._snxArcadeSubscribeInvites = _subscribeInvites;
     <div class="scb-welcome-label">Shadow Chat Bot</div>
 
     <!-- Headline (personalised greeting) -->
-    <h3 class="scb-welcome-headline" id="scbWelcomeMsgHeadline">Welcome to Shadow Nexus! 💙</h3>
+    <h3 class="scb-welcome-headline" id="scbWelcomeMsgHeadline">Welcome to Shadow Nexus Social! 💙</h3>
 
     <!-- Message body -->
     <p class="scb-welcome-body" id="scbWelcomeMsgBody">We're glad you're here. This is a safe space — no judgment, just connection. You matter, and your story matters. ✨</p>
@@ -24581,13 +25390,13 @@ async function _scbAnalyzePost(text, authorUid, authorName) {
 const SCB_DEFAULT_WELCOME_MSGS = [
   '💙 Welcome back, {username}! We\'re so glad you\'re here.',
   '🌟 Hope you have an amazing day, {username}. You\'ve got this!',
-  '💚 Remember, {username}: you are never alone. The Shadow Nexus community is here for you.',
+  '💚 Remember, {username}: you are never alone. The Shadow Nexus Social community is here for you.',
   '✨ Keep moving forward, {username} — one step at a time.',
   '🌙 Thanks for being part of Shadow Nexus Social, {username}.',
   '💙 Hey {username}! We missed you. Welcome back! 🌑',
   '🌟 {username}, your presence makes this community better. Glad you\'re here!',
   '💫 A new day, a fresh start. Welcome back, {username}!',
-  '🔥 Stay legendary, {username}. Shadow Nexus is better with you in it.',
+  '🔥 Stay legendary, {username}. Shadow Nexus Social is better with you in it.',
   '🤍 {username}, this is your safe space. No judgment — just connection. 💙',
 ];
 
@@ -24984,7 +25793,7 @@ window.scbSaveWelcomeMsg = async function() {
 /* Legacy preview (uses new popup engine) */
 window.scbPreviewWelcome = function() {
   const el = document.getElementById('scbWelcomeMsg');
-  const msg = (el ? el.value.trim() : '') || 'Welcome to Shadow Nexus, {username}! 💙';
+  const msg = (el ? el.value.trim() : '') || 'Welcome to Shadow Nexus Social, {username}! 💙';
   const previewText = msg.replace(/{username}/gi, 'YourName');
   _scwShowPopup('Hey, YourName! 💙', previewText, _scbConfig || {}, true);
 };
@@ -25680,7 +26489,7 @@ window.adminLoadLiveRooms = async function() {
     const status   = r.status  || (r.isLive ? 'live' : 'ended');
     const isActive = status === 'live';
     const name     = r.hostName || r.hostUsername || roomId.slice(0, 12) + '…';
-    const title    = r.title    || 'Shadow Nexus LIVE';
+    const title    = r.title    || 'Shadow Nexus Social LIVE';
     const created  = r.createdAt ? new Date(r.createdAt).toLocaleString() : '—';
     const ended    = r.endedAt   ? new Date(r.endedAt).toLocaleString()   : '—';
 
@@ -26347,7 +27156,7 @@ window.switchAdminTab = function(tab) {
     <div id="grim-panel-header">
         <div>
             <div id="grim-panel-title">🌑 Shadow Reaper</div>
-            <div id="grim-panel-sub">Your guide through Shadow Nexus</div>
+            <div id="grim-panel-sub">Your guide through Shadow Nexus Social</div>
         </div>
         <button id="grim-panel-close" aria-label="Close Grim AI">✕</button>
     </div>
@@ -26410,7 +27219,7 @@ window.switchAdminTab = function(tab) {
 
 <script>
 /* ================================================================
-   GRIM AI PANEL — Embedded sidebar assistant for Shadow Nexus
+   GRIM AI PANEL — Embedded sidebar assistant for Shadow Nexus Social
    Namespaced under GrimPanel to avoid conflicts with main app.
 ================================================================ */
 (function () {
@@ -26549,7 +27358,7 @@ const GP_PAGES = {
     },
     live: {
         label: '🔴 Go Live',
-        description: "Go Live lets you broadcast live video to the entire Shadow Nexus community. Tap Go Live in the sidebar to open the live streaming page. Your stream appears instantly in the Live Hub for everyone to watch, and a LIVE NOW badge shows on your profile. You can end the stream at any time.",
+        description: "Go Live lets you broadcast live video to the entire Shadow Nexus Social community. Tap Go Live in the sidebar to open the live streaming page. Your stream appears instantly in the Live Hub for everyone to watch, and a LIVE NOW badge shows on your profile. You can end the stream at any time.",
         detail: "Live streams open in live.html. While live, viewers can watch your broadcast in real time. Your profile shows a LIVE NOW badge and a Watch Live button for other users. Live streams also appear as cards at the top of the Home Feed.",
         action() { closeGrimPanel(); if (typeof goLiveOrWatch === 'function') goLiveOrWatch(); }
     },
@@ -26760,7 +27569,7 @@ Keep replies focused: 2–5 sentences for simple exchanges, up to 8–10 for dee
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${GP.apiKey}`,
                 'HTTP-Referer': window.location.href,
-                'X-Title': 'Shadow Reaper — Shadow Nexus Guide'
+                'X-Title': 'Shadow Reaper — Shadow Nexus Social Guide'
             },
             body: JSON.stringify({
                 model: 'mistralai/mistral-7b-instruct:free',
