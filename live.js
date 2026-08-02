@@ -99,21 +99,6 @@ let _layoutRafId  = null;
 /* ── Performance: track if update-check has already run this session ── */
 let _updateChecked = false;
 
-/* ── V2: Reactions, Pinned Comments, Viewer List, Slow Mode ── */
-let _reactionTrayOpen    = false;
-let _pinnedMsgText       = '';          // currently pinned message text
-let _pinnedMsgId         = null;        // Firestore doc id of pinned msg
-let _slowModeOn          = false;       // host setting
-let _slowModeLastSentAt  = {};          // uid → timestamp of last chat message
-const _SLOW_MODE_DELAY   = 10000;       // 10 seconds between messages
-let _viewerListOpen      = false;
-let _viewerPresenceUnsub = null;        // RTDB listener for viewer presence list
-let _followingCreator    = false;       // viewer: has followed this creator?
-let _stormModeActive     = false;       // Storm Mode ambient fx
-let _spamTracker         = {};          // uid → { count, window } for anti-spam
-const _SPAM_WINDOW_MS    = 5000;        // 5 s window
-const _SPAM_MAX_MSGS     = 5;           // max 5 msgs per window before soft-block
-
 // WebRTC
 let _rtcPc           = null;   // RTCPeerConnection
 let _rtcSignalUnsub  = null;   // RTDB listener unsubscribe (off ref)
@@ -209,24 +194,6 @@ document.addEventListener('DOMContentLoaded', () => {
     likeBtnCount:    document.getElementById('likeBtnCount'),
     profileBtn:      document.getElementById('btnCreatorProfile'),
     btnShare:        document.getElementById('btnShareLive'),
-    btnFollowCreator: document.getElementById('btnFollowCreator'),
-    btnViewerList:   document.getElementById('btnViewerList'),
-    viewerListPanel: document.getElementById('viewerListPanel'),
-    viewerListItems: document.getElementById('viewerListItems'),
-    btnCloseViewerList: document.getElementById('btnCloseViewerList'),
-
-    // Pinned bar
-    pinnedBar:       document.getElementById('livePinnedBar'),
-    pinnedText:      document.getElementById('livePinnedText'),
-    pinnedDismiss:   document.getElementById('livePinnedDismiss'),
-
-    // Reaction
-    btnReactionPicker: document.getElementById('btnReactionPicker'),
-    reactionTray:    document.getElementById('liveReactionTray'),
-    reactionContainer: document.getElementById('liveReactionContainer'),
-
-    // Storm overlay
-    stormOverlay:    document.getElementById('stormOverlay'),
 
     // Chat
     chatMessages:    document.getElementById('liveChatMessages'),
@@ -282,39 +249,17 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('liveCloseBtn') &&
     document.getElementById('liveCloseBtn').addEventListener('click', onCloseBtn);
 
-  // ── V2: Reaction picker ──
-  D.btnReactionPicker && D.btnReactionPicker.addEventListener('click', e => {
-    e.stopPropagation();
-    _toggleReactionTray();
-  });
-  D.reactionTray && D.reactionTray.addEventListener('click', e => {
-    const btn = e.target.closest('.lrt-btn');
-    if (!btn) return;
-    const emoji = btn.dataset.reaction;
-    if (emoji) {
-      _sendReaction(emoji);
-      _closeReactionTray();
-    }
-  });
-
-  // ── V2: Pinned comment dismiss ──
-  D.pinnedDismiss && D.pinnedDismiss.addEventListener('click', () => _hidePinnedBar());
-
-  // ── V2: Viewer list ──
-  D.btnViewerList && D.btnViewerList.addEventListener('click', e => {
-    e.stopPropagation();
-    _toggleViewerList();
-  });
-  D.btnCloseViewerList && D.btnCloseViewerList.addEventListener('click', () => _closeViewerList());
-
-  // ── V2: Follow creator ──
-  D.btnFollowCreator && D.btnFollowCreator.addEventListener('click', _followCreator);
+  // Guest box button wiring
+  D.btnRequestBox     && D.btnRequestBox.addEventListener('click', _viewerRequestBox);
+  D.btnGuestCam       && D.btnGuestCam.addEventListener('click', _toggleGuestCam);
+  D.btnGuestMic       && D.btnGuestMic.addEventListener('click', _toggleGuestMic);
+  D.btnLeaveBox       && D.btnLeaveBox.addEventListener('click', _guestLeaveBox);
+  D.btnLayoutSettings && D.btnLayoutSettings.addEventListener('click', _toggleLayoutPanel);
 
   // Live Settings panel wiring (host only)
   const _btnLiveSettings = document.getElementById('btnLiveSettings');
   if (_btnLiveSettings) {
-    _btnLiveSettings.addEventListener('click', e => {
-      e.stopPropagation();
+    _btnLiveSettings.addEventListener('click', () => {
       const panel = document.getElementById('liveSettingsPanel');
       if (!panel) return;
       const open = panel.style.display !== 'none';
@@ -334,36 +279,44 @@ document.addEventListener('DOMContentLoaded', () => {
       _liveTimerSetEnabled(e.target.checked);
     });
 
-  // ── V2: Slow mode toggle ──
-  document.getElementById('toggleSlowMode') &&
-    document.getElementById('toggleSlowMode').addEventListener('change', e => {
-      _slowModeOn = e.target.checked;
-      // Persist to RTDB so viewers see slow-mode state
-      if (_roomId) try { update(ref(_liveDB, `liveRooms/${_roomId}`), { slowMode: _slowModeOn }); } catch(_) {}
-      toast(_slowModeOn ? '🐢 Slow Mode ON' : '🐢 Slow Mode OFF');
-    });
-
   document.getElementById('toggleInternetQuality') &&
     document.getElementById('toggleInternetQuality').addEventListener('change', e => {
       _iqSetEnabled(e.target.checked);
     });
 
-  // ── V2: Stage tap-to-dismiss overlays ──
+  // Layout option buttons
+  document.querySelectorAll('.layout-option-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.layout-option-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _guestLayout = btn.dataset.layout;
+      _applyGuestLayout();
+      // Broadcast layout change to all viewers and guests
+      _broadcastLayout();
+    });
+  });
+
+  // Box size buttons
+  document.querySelectorAll('.layout-size-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.layout-size-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _guestBoxSize = btn.dataset.size;
+      _applyGuestLayout();
+      // Broadcast size change to all viewers and guests
+      _broadcastLayout();
+    });
+  });
+
   D.stage && D.stage.addEventListener('click', e => {
-    // Close reaction tray on outside click
-    if (_reactionTrayOpen && !e.target.closest('#liveReactionTray') && !e.target.closest('#btnReactionPicker')) {
-      _closeReactionTray();
-    }
-    // Close viewer list on outside click
-    if (_viewerListOpen && !e.target.closest('#viewerListPanel') && !e.target.closest('#btnViewerList')) {
-      _closeViewerList();
-    }
     if (_mode !== 'creator') return;
     const ignore = ['.live-ctrl-btn','#btnEndLive','.live-chat-input','.live-chat-send',
                     '.live-close-btn','.live-creator-pill','.live-badge',
-                    '.live-settings-panel','#liveSettingsPanel','.lsp-row','.lsp-toggle','.lsp-slider',
-                    '#viewerListPanel','#liveReactionTray','#btnReactionPicker'];
+                    '.layout-settings-panel','.layout-option-btn','.layout-size-btn',
+                    '.live-settings-panel','#liveSettingsPanel','.lsp-row','.lsp-toggle','.lsp-slider'];
     if (ignore.some(s => e.target.closest(s))) return;
+    // Close layout panel on tap-away
+    if (_layoutPanelOpen) { _closeLayoutPanel(); return; }
     // Close settings panel on tap-away
     const sp = document.getElementById('liveSettingsPanel');
     if (sp && sp.style.display !== 'none') { sp.style.display = 'none'; return; }
@@ -1150,7 +1103,7 @@ async function _startViewer() {
   _roomWatchRef = ref(_liveDB, `liveRooms/${_roomId}`);
   onValue(_roomWatchRef, snap => {
     const d = snap.val() || {};
-    // Update counts
+    // Update counts (partial DOM update — only if value changed)
     const vText = '👁 ' + (d.viewers || 0);
     const lText = '❤️ ' + (d.likes   || 0);
     if (D.viewerCount && D.viewerCount.textContent !== vText) D.viewerCount.textContent = vText;
@@ -1158,16 +1111,6 @@ async function _startViewer() {
     // Sync layout changes from host
     if (d.guestLayout  && d.guestLayout  !== _guestLayout)  { _guestLayout  = d.guestLayout;  _applyGuestLayout(); }
     if (d.guestBoxSize && d.guestBoxSize !== _guestBoxSize)  { _guestBoxSize = d.guestBoxSize; _applyGuestLayout(); }
-    // ── V2: Pinned message from host ──
-    if (d.pinnedMsg && d.pinnedMsg !== _pinnedMsgText) _showPinnedBar(d.pinnedMsg);
-    else if (!d.pinnedMsg && _pinnedMsgText)           _hidePinnedBar();
-    // ── V2: Slow mode sync from host ──
-    if (typeof d.slowMode === 'boolean') _slowModeOn = d.slowMode;
-    // ── V2: Storm Mode — activate when 50+ viewers ──
-    const viewerCount = d.viewers || 0;
-    if (viewerCount >= 50 && !_stormModeActive) _activateStormMode();
-    else if (viewerCount < 50 && _stormModeActive) _deactivateStormMode();
-
     if (!_roomWatchSeenFirst) {
       _roomWatchSeenFirst = true;
       return;
@@ -1952,24 +1895,12 @@ function _subscribeChat() {
 }
 
 function _buildChatMsgEl(data) {
-  const hostUid   = _roomId ? _roomId.split('_')[0] : null;
-  const isHost    = !!(hostUid && data.userId === hostUid);
-  const isSystem  = data.type === 'system';
-  const isReaction = data.type === 'reaction';
-
-  // Spawn floating reaction for remote reactions received via Firestore
-  if (isReaction && data.userId !== _user?.uid) {
-    _spawnFloatingReaction(data.text || '❤️');
-  }
+  const hostUid  = _roomId ? _roomId.split('_')[0] : null;
+  const isHost   = !!(hostUid && data.userId === hostUid);
+  const isSystem = data.type === 'system';
 
   const el = document.createElement('div');
-  let cls = 'live-chat-msg';
-  if (isSystem)   cls += ' system';
-  if (isReaction) cls += ' reaction';
-  // Add host-actions class so creator can long-press to pin
-  if (_mode === 'creator' && !isSystem && !isReaction) cls += ' host-actions';
-  el.className = cls;
-
+  el.className = 'live-chat-msg' + (isSystem ? ' system' : '');
   if (!isSystem) {
     const author = document.createElement('span');
     author.className = 'live-chat-author' + (isHost ? ' is-host' : '');
@@ -1979,18 +1910,6 @@ function _buildChatMsgEl(data) {
     text.textContent = data.text || '';
     el.appendChild(author);
     el.appendChild(text);
-
-    // Host can long-press any message to pin it
-    if (_mode === 'creator' && !isReaction) {
-      el.addEventListener('contextmenu', e => {
-        e.preventDefault();
-        _hostPinMessage(data.text || '', data.id || '');
-      });
-      // Mobile long-press fallback
-      let _lpTimer;
-      el.addEventListener('touchstart', () => { _lpTimer = setTimeout(() => _hostPinMessage(data.text || '', data.id || ''), 600); }, { passive: true });
-      el.addEventListener('touchend',   () => clearTimeout(_lpTimer), { passive: true });
-    }
   } else {
     const text = document.createElement('span');
     text.className = 'live-chat-text';
@@ -2053,44 +1972,26 @@ function _liveScanText(text) {
 
 async function sendChat() {
   if (!_user || !_roomId) return;
+  // Guard against double-send (rapid taps / Enter+click combo)
   if (_chatSending) return;
 
   const text = (D.chatInput?.value || '').trim();
   if (!text || text.length > 200) return;
 
-  const isMod = _userData?.role === 'founder' ||
-                _userData?.role === 'administrator' ||
-                _userData?.role === 'moderator';
-
-  // ── Slow Mode: limit viewers to 1 message per 10 s ──
-  if (_slowModeOn && _mode === 'viewer' && !isMod) {
-    const last = _slowModeLastSentAt[_user.uid] || 0;
-    const wait = _SLOW_MODE_DELAY - (Date.now() - last);
-    if (wait > 0) {
-      toast(`🐢 Slow Mode — wait ${Math.ceil(wait / 1000)}s`);
-      return;
-    }
-  }
-
-  // ── Anti-spam check (viewers only, non-mods) ──
-  if (_mode === 'viewer' && !isMod && _checkSpam(_user.uid)) {
-    toast('⚠️ Sending too fast. Slow down!');
-    return;
-  }
-
   // ── AI Safety scan ──
   const hit = _liveScanText(text);
   if (hit) {
+    const isMod = _userData?.role === 'founder' ||
+                  _userData?.role === 'administrator' ||
+                  _userData?.role === 'moderator';
     if (hit.severity === 'block' && !isMod) {
       toast(`🚫 Blocked · ${hit.category}: Keep it safe.`);
-      return;
+      return;   // hard block — do NOT clear input, let user edit
     }
     toast(`⚠️ Warning · ${hit.category}: Please keep the community safe.`);
   }
 
-  // Record slow-mode timestamp
-  if (_slowModeOn) _slowModeLastSentAt[_user.uid] = Date.now();
-
+  // Clear input immediately so typing feels instant
   if (D.chatInput) {
     D.chatInput.value = '';
     D.chatInput.focus();
@@ -2336,179 +2237,6 @@ function _openShareModal() {
 function _closeShareModal() {
   const m = document.getElementById('_snxShareModal');
   if (m) m.remove();
-}
-
-/* ═══════════════════════════════════════════════════
-   V2 FEATURE FUNCTIONS
-   ═══════════════════════════════════════════════════ */
-
-/* ── Reaction Tray ── */
-function _toggleReactionTray() {
-  _reactionTrayOpen ? _closeReactionTray() : _openReactionTray();
-}
-function _openReactionTray() {
-  if (!D.reactionTray) return;
-  D.reactionTray.style.display = 'flex';
-  _reactionTrayOpen = true;
-}
-function _closeReactionTray() {
-  if (!D.reactionTray) return;
-  D.reactionTray.style.display = 'none';
-  _reactionTrayOpen = false;
-}
-
-/* ── Send Reaction — saves as special chat message + spawns float ── */
-async function _sendReaction(emoji) {
-  if (!_user || !_roomId) return;
-  _spawnFloatingReaction(emoji);
-  try {
-    await addDoc(collection(_db, 'liveRooms', _roomId, 'liveMessages'), {
-      userId:    _user.uid,
-      userName:  _userData?.displayName || 'Guest',
-      text:      emoji,
-      type:      'reaction',
-      createdAt: serverTimestamp(),
-    });
-  } catch (_) {}
-}
-
-/* ── Spawn floating emoji reaction on the video overlay ── */
-function _spawnFloatingReaction(emoji) {
-  const container = D.reactionContainer;
-  if (!container) return;
-  const el = document.createElement('div');
-  el.className = 'live-reaction-float';
-  el.textContent = emoji;
-  el.style.left = (20 + Math.random() * 20) + 'px';
-  container.appendChild(el);
-  el.addEventListener('animationend', () => el.remove(), { once: true });
-}
-
-/* ── Pinned Comment Bar ── */
-function _showPinnedBar(text) {
-  _pinnedMsgText = text;
-  if (!D.pinnedBar || !D.pinnedText) return;
-  D.pinnedText.textContent = text;
-  D.pinnedBar.style.display = 'flex';
-}
-function _hidePinnedBar() {
-  _pinnedMsgText = '';
-  _pinnedMsgId   = null;
-  if (D.pinnedBar) D.pinnedBar.style.display = 'none';
-}
-/* ── Host: pin a chat message ── */
-function _hostPinMessage(text, docId) {
-  if (_mode !== 'creator') return;
-  _pinnedMsgId = docId;
-  _showPinnedBar(text);
-  if (_roomId) {
-    try { update(ref(_liveDB, `liveRooms/${_roomId}`), { pinnedMsg: text }); } catch(_) {}
-  }
-  toast('📌 Comment pinned');
-}
-
-/* ── Viewer List Panel ── */
-function _toggleViewerList() {
-  _viewerListOpen ? _closeViewerList() : _openViewerList();
-}
-function _openViewerList() {
-  if (!D.viewerListPanel) return;
-  _viewerListOpen = true;
-  D.viewerListPanel.style.display = 'flex';
-  _subscribeViewerPresenceList();
-}
-function _closeViewerList() {
-  if (!D.viewerListPanel) return;
-  _viewerListOpen = false;
-  D.viewerListPanel.style.display = 'none';
-  if (_viewerPresenceUnsub) { try { _viewerPresenceUnsub(); } catch(_) {} _viewerPresenceUnsub = null; }
-}
-function _subscribeViewerPresenceList() {
-  if (!_roomId || !D.viewerListItems) return;
-  if (_viewerPresenceUnsub) { try { _viewerPresenceUnsub(); } catch(_) {} }
-  const presRef = ref(_liveDB, `liveRooms/${_roomId}/viewerPresence`);
-  _viewerPresenceUnsub = onValue(presRef, snap => {
-    if (!D.viewerListItems) return;
-    D.viewerListItems.innerHTML = '';
-    if (!snap.exists()) {
-      D.viewerListItems.innerHTML = '<div class="vlp-empty">No viewers yet</div>';
-      return;
-    }
-    const viewers = snap.val();
-    const uids = Object.keys(viewers);
-    if (!uids.length) {
-      D.viewerListItems.innerHTML = '<div class="vlp-empty">No viewers yet</div>';
-      return;
-    }
-    uids.forEach(uid => {
-      const item = document.createElement('div');
-      item.className = 'vlp-item';
-      const av = document.createElement('div');
-      av.className = 'vlp-avatar';
-      av.textContent = uid.slice(0, 2).toUpperCase();
-      const nm = document.createElement('div');
-      nm.className = 'vlp-name';
-      nm.textContent = viewers[uid]?.name || (uid.slice(0, 8) + '…');
-      item.appendChild(av);
-      item.appendChild(nm);
-      D.viewerListItems.appendChild(item);
-    });
-  });
-}
-
-/* ── Follow Creator ── */
-async function _followCreator() {
-  if (!_user || !_roomId) return;
-  const btn = D.btnFollowCreator;
-  if (_followingCreator) { toast('✅ Already following!'); return; }
-
-  // creatorUid is first segment of roomId (uid was sanitized: dots → underscores)
-  // We look it up from the room data stored in RTDB
-  try {
-    const snap = await get(ref(_liveDB, `liveRooms/${_roomId}`));
-    if (!snap.exists()) return;
-    const creatorUid = snap.val().hostId;
-    if (!creatorUid || creatorUid === _user.uid) { toast("You can't follow yourself."); return; }
-
-    await updateDoc(doc(_db, 'users', creatorUid), { followers: arrayUnion(_user.uid) });
-    await updateDoc(doc(_db, 'users', _user.uid),   { following: arrayUnion(creatorUid) });
-    _followingCreator = true;
-    if (btn) {
-      const icon  = btn.querySelector('.live-follow-icon');
-      const label = btn.querySelector('.live-follow-label');
-      btn.classList.add('following');
-      if (icon)  icon.textContent  = '✅';
-      if (label) label.textContent = 'Following';
-    }
-    toast('✅ Now following!');
-  } catch (_) {
-    toast('Could not follow. Try again.');
-  }
-}
-
-/* ── Storm Mode ambient visual effect ── */
-function _activateStormMode() {
-  if (_stormModeActive) return;
-  _stormModeActive = true;
-  if (D.stormOverlay) D.stormOverlay.classList.add('active');
-}
-function _deactivateStormMode() {
-  _stormModeActive = false;
-  if (D.stormOverlay) D.stormOverlay.classList.remove('active');
-}
-
-/* ── Anti-spam check — returns true if message should be suppressed ── */
-function _checkSpam(uid) {
-  const now = Date.now();
-  if (!_spamTracker[uid]) _spamTracker[uid] = { count: 0, windowStart: now };
-  const t = _spamTracker[uid];
-  if (now - t.windowStart > _SPAM_WINDOW_MS) {
-    t.count = 1;
-    t.windowStart = now;
-    return false;
-  }
-  t.count++;
-  return t.count > _SPAM_MAX_MSGS;
 }
 
 function toast(msg, duration = 3200) {
