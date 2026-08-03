@@ -252,6 +252,172 @@ async function handleLiveKitToken(request, env, cors, sec) {
   });
 }
 
+// ── Resumable / chunked upload ────────────────────────────────────────────────
+//
+//  Phase 1 — POST /upload-chunk
+//    FormData: { uploadId, chunkIndex, totalChunks, uid, key, chunk(File) }
+//    Stores each chunk as a temporary R2 object at:
+//      _tmp/{uploadId}/chunk_{chunkIndex}
+//    Returns { ok: true }
+//
+//  Phase 2 — POST /upload-complete
+//    FormData: { uploadId, totalChunks, key, uid, fileName, fileType, fileSize }
+//    Reads all chunks from R2 in order, concatenates them, stores the final
+//    object at `key`, deletes temp chunk objects, returns { url, key }.
+//
+// This lets the client implement retry-per-chunk for mobile/slow connections.
+
+async function handleUploadChunk(request, env, cors, sec) {
+  if (request.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405, headers: mergeHeaders(cors, sec) });
+  }
+  let fd;
+  try { fd = await request.formData(); }
+  catch (e) {
+    return new Response(JSON.stringify({ error: 'Invalid form data: ' + e.message }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const uploadId    = (fd.get('uploadId')    || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  const chunkIndex  = parseInt(fd.get('chunkIndex')  || '0', 10);
+  const totalChunks = parseInt(fd.get('totalChunks') || '1', 10);
+  const userUid     = (fd.get('uid') || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  const chunk       = fd.get('chunk');
+
+  if (!uploadId || !userUid || !chunk || typeof chunk === 'string') {
+    return new Response(JSON.stringify({ error: 'uploadId, uid, and chunk are required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+  if (chunkIndex < 0 || chunkIndex >= totalChunks) {
+    return new Response(JSON.stringify({ error: 'Invalid chunkIndex' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const buffer = await chunk.arrayBuffer();
+  if (buffer.byteLength > 50 * 1024 * 1024) { // 50 MB max per chunk
+    return new Response(JSON.stringify({ error: 'Chunk too large (max 50 MB)' }), {
+      status: 413, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const tmpKey = `_tmp/${uploadId}/chunk_${String(chunkIndex).padStart(6, '0')}`;
+  try {
+    await env.BUCKET.put(tmpKey, buffer, {
+      customMetadata: { uploaderUid: userUid, chunkIndex: String(chunkIndex) }
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: 'R2 chunk store failed: ' + e.message }), {
+      status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  return new Response(JSON.stringify({ ok: true, chunkIndex }), {
+    status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+  });
+}
+
+async function handleUploadComplete(request, env, cors, sec) {
+  if (request.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405, headers: mergeHeaders(cors, sec) });
+  }
+  let fd;
+  try { fd = await request.formData(); }
+  catch (e) {
+    return new Response(JSON.stringify({ error: 'Invalid form data: ' + e.message }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const uploadId    = (fd.get('uploadId')    || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  const totalChunks = parseInt(fd.get('totalChunks') || '1', 10);
+  const finalKey    = (fd.get('key')         || '').replace(/\.\./g, '');
+  const userUid     = (fd.get('uid')         || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  const fileName    = fd.get('fileName')    || 'upload';
+  let   fileType    = fd.get('fileType')    || 'application/octet-stream';
+  const fileSize    = parseInt(fd.get('fileSize') || '0', 10);
+
+  if (!uploadId || !finalKey || !userUid || totalChunks < 1) {
+    return new Response(JSON.stringify({ error: 'uploadId, key, uid, and totalChunks are required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  // Validate total assembled size
+  const sizeLimit = fileType.startsWith('image/') ? MAX_SIZE_IMAGE
+                  : fileType.startsWith('video/') ? MAX_SIZE_VIDEO
+                  : MAX_SIZE_AUDIO;
+  if (fileSize > sizeLimit) {
+    const limitMB = Math.round(sizeLimit / 1024 / 1024);
+    return new Response(JSON.stringify({ error: `File too large (max ${limitMB} MB for this type)` }), {
+      status: 413, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  // Validate MIME
+  const extMime = mimeFromExt(fileName);
+  if (!fileType || fileType === 'application/octet-stream') fileType = extMime || fileType;
+  else if (extMime && fileType.startsWith('video/') && extMime.startsWith('audio/')) fileType = extMime;
+  if (!isAllowedType(fileType)) {
+    return new Response(JSON.stringify({ error: `File type not supported: ${fileType}` }), {
+      status: 415, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  // Assemble all chunks in order
+  const parts = [];
+  for (let i = 0; i < totalChunks; i++) {
+    const tmpKey = `_tmp/${uploadId}/chunk_${String(i).padStart(6, '0')}`;
+    let obj;
+    try { obj = await env.BUCKET.get(tmpKey); }
+    catch (e) {
+      return new Response(JSON.stringify({ error: `Failed to read chunk ${i}: ` + e.message }), {
+        status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+      });
+    }
+    if (!obj) {
+      return new Response(JSON.stringify({ error: `Chunk ${i} not found — upload may have expired` }), {
+        status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+      });
+    }
+    parts.push(await obj.arrayBuffer());
+  }
+
+  // Concatenate
+  const totalBytes = parts.reduce((s, b) => s + b.byteLength, 0);
+  const assembled  = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const part of parts) {
+    assembled.set(new Uint8Array(part), offset);
+    offset += part.byteLength;
+  }
+
+  const cleanMime = fileType.split(';')[0].trim();
+  try {
+    await env.BUCKET.put(finalKey, assembled.buffer, {
+      httpMetadata:   { contentType: cleanMime },
+      customMetadata: { uploaderUid: userUid, originalName: fileName }
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: 'R2 final write failed: ' + e.message }), {
+      status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  // Clean up temp chunks (best-effort — do not fail the response if this fails)
+  for (let i = 0; i < totalChunks; i++) {
+    const tmpKey = `_tmp/${uploadId}/chunk_${String(i).padStart(6, '0')}`;
+    env.BUCKET.delete(tmpKey).catch(() => {});
+  }
+
+  const publicUrl = `https://yellow-term-11e6.nthntjrn.workers.dev/${finalKey}`;
+  return new Response(JSON.stringify({ url: publicUrl, key: finalKey }), {
+    status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+  });
+}
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin') || '';
@@ -270,6 +436,10 @@ export default {
     // ── LiveKit endpoints ──
     if (url.pathname === '/livekit-room')  return handleLiveKitRoom(request, env, cors, sec);
     if (url.pathname === '/livekit-token') return handleLiveKitToken(request, env, cors, sec);
+
+    // ── Chunked / resumable upload endpoints ──
+    if (url.pathname === '/upload-chunk')    return handleUploadChunk(request, env, cors, sec);
+    if (url.pathname === '/upload-complete') return handleUploadComplete(request, env, cors, sec);
 
     // ── POST /upload-music: upload a profile music file to R2 at a caller-supplied key ──
     // The client sends: file, uid, path (the full R2 key)

@@ -116,6 +116,24 @@
         { "fieldPath": "createdAt",  "order": "ASCENDING" }
       ]
     }
+    ,
+    {
+      "collectionGroup": "mediaFiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid",   "order": "ASCENDING"  },
+        { "fieldPath": "uploadedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mediaFiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid",  "order": "ASCENDING" },
+        { "fieldPath": "mediaKind", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt","order": "DESCENDING" }
+      ]
+    }
   ],
   "fieldOverrides": []
 }

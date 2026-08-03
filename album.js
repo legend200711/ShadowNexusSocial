@@ -912,6 +912,9 @@
     }
 
     /* ── R2 upload helper — XHR with real progress ─────────────── */
+    // Returns Promise<string> (URL) for backward compat; also writes to
+    // Firestore /mediaFiles and resolves with the full { url, key } object
+    // internally so callers that need r2Key can destructure it.
     function uploadFileToR2(file, onProgress) {
         const R2_URL = 'https://yellow-term-11e6.nthntjrn.workers.dev';
         // Always use the live UID so the Cloudflare worker receives the correct owner.
@@ -940,7 +943,8 @@
                             const res = JSON.parse(xhr.responseText);
                             if (res.url) {
                                 if (typeof onProgress === 'function') onProgress(100);
-                                resolve(res.url);
+                                // Resolve with the full result object so callers get r2Key
+                                resolve({ url: res.url, key: res.key || '' });
                             } else {
                                 reject(new Error(res.error || 'Cloudflare returned no URL'));
                             }
@@ -967,7 +971,47 @@
             });
         }
 
-        return attempt(1);
+        return attempt(1).then(result => {
+            // Save metadata to Firestore /mediaFiles (non-blocking)
+            _albumSaveMediaMeta({
+                ownerUid: uid,
+                fileName: file.name,
+                fileType: file.type || '',
+                fileSize: file.size,
+                r2Key:    result.key,
+                url:      result.url,
+                mediaKind:'album',
+            });
+            // Return just the URL so existing callers (submitUpload) work unchanged
+            return result.url;
+        });
+    }
+
+    /** Write metadata to Firestore /mediaFiles. Non-blocking — errors are swallowed. */
+    function _albumSaveMediaMeta(meta) {
+        try {
+            const _db  = window._snxFirestore && window._snxFirestore.db;
+            const _col = window._snxFirestore && window._snxFirestore.collection;
+            const _add = window._snxFirestore && window._snxFirestore.addDoc;
+            const _sts = window._snxFirestore && window._snxFirestore.serverTimestamp;
+            if (!_db || !_col || !_add || !_sts) return;
+            _add(_col(_db, 'mediaFiles'), {
+                ownerUid:   meta.ownerUid   || '',
+                fileName:   meta.fileName   || '',
+                fileType:   meta.fileType   || '',
+                fileSize:   meta.fileSize   || 0,
+                uploadedAt: _sts(),
+                r2Key:      meta.r2Key      || '',
+                url:        meta.url        || '',
+                mediaKind:  meta.mediaKind  || 'album',
+                postId:     meta.postId     || '',
+                messageId:  '',
+                storyId:    '',
+                visibility: 'public',
+            }).catch(e => console.warn('[Album] mediaFiles write failed:', e.message));
+        } catch (e) {
+            console.warn('[Album] mediaFiles write error:', e.message);
+        }
     }
 
     /* ═══════════════════════════════════════════════════════════

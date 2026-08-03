@@ -620,6 +620,33 @@ service cloud.firestore {
         && (resource.data.ownerUid == request.auth.uid || isFounder());
     }
 
+    // ── Media Files (Cloudflare R2 upload metadata) ────────────────────────────
+    //
+    //   /mediaFiles/{fileId}
+    //     ownerUid, fileName, fileType, fileSize, uploadedAt,
+    //     r2Key, url, mediaKind ('post'|'profile'|'cover'|'album'|'story'|
+    //                            'message'|'music'|'recording'|'attachment'),
+    //     postId, messageId, storyId, visibility ('public'|'private')
+    //
+    // Owner only may create/delete; any signed-in user can read public files.
+    // Owner or Founder can update.
+
+    match /mediaFiles/{fileId} {
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid;
+
+      allow read: if isSignedIn()
+        && (resource.data.ownerUid == request.auth.uid
+            || resource.data.visibility != 'private'
+            || isFounder());
+
+      allow update: if isSignedIn()
+        && (resource.data.ownerUid == request.auth.uid || isFounder());
+
+      allow delete: if isSignedIn()
+        && (resource.data.ownerUid == request.auth.uid || isFounder());
+    }
+
     // ── Wall Post Comments ─────────────────────────────────────────────────────
     //
     //   /wallPostComments/{wallDocId}/comments/{commentId}

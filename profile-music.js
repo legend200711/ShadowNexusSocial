@@ -838,6 +838,26 @@
         });
 
         console.log('[SNX Music] Saved song to R2 + Firebase:', songRef.id, { r2Key: audioR2Key, url: audioUrl });
+
+        // ── Also write to /mediaFiles so all uploads have a centralised metadata record ──
+        try {
+          const { collection: _col, addDoc: _add, serverTimestamp: _sts } = fs();
+          _add(_col(db(), 'mediaFiles'), {
+            ownerUid:   uid,
+            fileName:   f.name,
+            fileType:   f.type || 'audio/mpeg',
+            fileSize:   f.size,
+            uploadedAt: _sts(),
+            r2Key:      audioR2Key,
+            url:        audioUrl,
+            mediaKind:  'music',
+            postId:     '',
+            messageId:  '',
+            storyId:    '',
+            visibility: 'public',
+          }).catch(e => console.warn('[SNX Music] mediaFiles write failed (non-fatal):', e.message));
+        } catch (_) {}
+
         if (!firstSuccessId) firstSuccessId = songRef.id;
         results.push({ ok: true, id: songRef.id, url: audioUrl, title: fields.title || f.name, artist: fields.artist || '', artUrl });
 
