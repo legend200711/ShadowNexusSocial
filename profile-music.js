@@ -126,17 +126,25 @@
 
   // ── Firestore ops ─────────────────────────────────────────────
   async function loadSongs(uid) {
-    // uid must always be the profile owner's UID — never the signed-in user's UID
-    if (!uid) return [];
-    const { collection, query, where, orderBy, getDocs } = fs();
-
-    // Helper: deduplicate songs by Firestore doc id
-    function mergeDedupe(arr1, arr2) {
-      const seen = new Set(arr1.map(s => s.id));
-      return [...arr1, ...arr2.filter(s => !seen.has(s.id))];
+    // uid must ALWAYS be the profile owner's UID — never the signed-in visitor's UID.
+    if (!uid) {
+      console.error('[SNX Music] loadSongs called with empty uid — aborting');
+      return [];
     }
 
-    // Helper: sort by uploadedAt (server timestamp) newest-first
+    console.log('[SNX Music] loadSongs ── START ─────────────────────────');
+    console.log('[SNX Music]   profile UID :', uid);
+    console.log('[SNX Music]   signed-in   :', window._snxCurrentUser?.uid ?? '(none)');
+
+    const { collection, query, where, orderBy, getDocs } = fs();
+
+    // Deduplicate by Firestore doc id so three queries don't return duplicates.
+    function mergeDedupe(base, extra) {
+      const seen = new Set(base.map(s => s.id));
+      return [...base, ...extra.filter(s => !seen.has(s.id))];
+    }
+
+    // Sort newest-first using the server timestamp; fall back to createdAt string.
     function sortByDate(docs) {
       return docs.sort((a, b) => {
         const ta = a.uploadedAt?.seconds ?? (a.createdAt ? new Date(a.createdAt).getTime() / 1000 : 0);
@@ -145,47 +153,99 @@
       });
     }
 
-    console.log('[SNX Music] loadSongs — querying for ownerUid:', uid);
-    let results = [];
-
-    // ── Primary query: ownerUid field (current schema) ──
-    try {
-      const q = query(
-        collection(db(), COLL_SONGS),
-        where('ownerUid', '==', uid),
-        orderBy('uploadedAt', 'desc')
-      );
-      const snap = await getDocs(q);
-      results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      console.log('[SNX Music] loadSongs — ownerUid query found', results.length, 'songs');
-    } catch (err) {
-      // Composite index may not exist yet — fall back to unordered query
-      console.warn('[SNX Music] loadSongs ownerUid index fallback:', err.message);
+    // Run a single-field equality query, falling back to unordered if the
+    // composite index is missing.  Returns [] on any permission error so the
+    // caller gets a useful console message rather than a thrown exception.
+    async function queryByField(field) {
+      let docs = [];
       try {
-        const q2 = query(collection(db(), COLL_SONGS), where('ownerUid', '==', uid));
-        const snap2 = await getDocs(q2);
-        results = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
-      } catch (e2) {
-        console.warn('[SNX Music] loadSongs ownerUid fallback also failed:', e2.message);
+        const q = query(
+          collection(db(), COLL_SONGS),
+          where(field, '==', uid),
+          orderBy('uploadedAt', 'desc')
+        );
+        const snap = await getDocs(q);
+        docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        console.log(`[SNX Music]   ${field} query → ${docs.length} doc(s)`);
+      } catch (err) {
+        if (
+          err.code === 'permission-denied' ||
+          (err.message && err.message.includes('PERMISSION_DENIED'))
+        ) {
+          console.error(
+            `[SNX Music]   ${field} query PERMISSION DENIED —`,
+            'Firestore rule likely requires isSignedIn(); check auth state.',
+            err.message
+          );
+          return [];
+        }
+        // Index missing → retry without orderBy
+        console.warn(`[SNX Music]   ${field} query index fallback:`, err.message);
+        try {
+          const q2 = query(collection(db(), COLL_SONGS), where(field, '==', uid));
+          const snap2 = await getDocs(q2);
+          docs = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
+          console.log(`[SNX Music]   ${field} fallback query → ${docs.length} doc(s)`);
+        } catch (e2) {
+          console.error(`[SNX Music]   ${field} fallback query also failed:`, e2.message);
+        }
       }
+      return docs;
     }
 
-    // ── Secondary query: userId field (legacy schema, for older documents) ──
-    // Older uploads may only have userId, not ownerUid. Merge without duplicates.
-    try {
-      const qLegacy = query(collection(db(), COLL_SONGS), where('userId', '==', uid));
-      const snapLegacy = await getDocs(qLegacy);
-      const legacy = snapLegacy.docs.map(d => ({ id: d.id, ...d.data() }));
-      if (legacy.length) {
-        console.log('[SNX Music] loadSongs — legacy userId query found', legacy.length, 'additional songs');
-        results = mergeDedupe(results, legacy);
-      }
-    } catch (e) {
-      console.warn('[SNX Music] loadSongs legacy userId query failed (non-fatal):', e.message);
+    // ── Query all three ownership fields so every doc schema is covered ──
+    // New uploads write ownerUid + ownerId + userId.
+    // Old uploads may only have ownerUid or userId.
+    const [byOwnerUid, byOwnerId, byUserId] = await Promise.all([
+      queryByField('ownerUid'),   // current primary field
+      queryByField('ownerId'),    // spec-canonical field (added in latest schema)
+      queryByField('userId'),     // legacy field (older uploads)
+    ]);
+
+    let results = mergeDedupe(mergeDedupe(byOwnerUid, byOwnerId), byUserId);
+    results = sortByDate(results);
+
+    // ── Diagnostic logging ────────────────────────────────────────────────────
+    console.log(`[SNX Music]   total after dedup : ${results.length} song(s) for profile ${uid}`);
+
+    if (results.length === 0) {
+      console.warn('[SNX Music] ── ZERO RESULTS — root-cause checklist ──────────────');
+      console.warn('[SNX Music]   1. Firestore rules  : open the Rules Playground in Firebase Console');
+      console.warn(`[SNX Music]      and simulate a read of profileMusic where ownerUid=="${uid}"`);
+      console.warn('[SNX Music]      The rule must pass for isSignedIn() or visibility=="public".');
+      console.warn('[SNX Music]   2. Missing ownerId  : run this in the Firebase Console:');
+      console.warn(`[SNX Music]      db.collection("profileMusic").where("ownerUid","==","${uid}").get()`);
+      console.warn('[SNX Music]      If it returns docs, ownerId was not written. Re-upload a track.');
+      console.warn('[SNX Music]   3. Visibility filter: all docs must have visibility:"public".');
+      console.warn('[SNX Music]      Docs without the field will be excluded when rules check it.');
+      console.warn('[SNX Music]   4. Wrong profile UID: confirm window.activeProfileUid is the');
+      console.warn(`[SNX Music]      OWNER\'s UID, not the visitor\'s. Current value: "${uid}"`);
+      console.warn('[SNX Music]   5. R2 URL access    : paste a musicUrl into a private browser tab.');
+      console.warn('[SNX Music]      A 200 response means R2 is public. A 403 means it is private.');
+      console.warn('[SNX Music] ─────────────────────────────────────────────────────────────────');
+    } else {
+      // Log each document so the URL and visibility can be verified in DevTools.
+      results.forEach((s, i) => {
+        const url = s.musicUrl || s.downloadURL || s.url || '(missing)';
+        const vis = s.visibility ?? '(not set — treated as private by rule check)';
+        const owner = s.ownerUid || s.ownerId || s.userId || '(no owner field)';
+        console.log(
+          `[SNX Music]   [${i}] id=${s.id}  owner=${owner}  visibility=${vis}  url=${url}`
+        );
+        if (!s.musicUrl && !s.downloadURL && !s.url) {
+          console.warn(`[SNX Music]       ↳ doc ${s.id} has NO music URL — track will not play`);
+        }
+        if (!s.visibility) {
+          console.warn(
+            `[SNX Music]       ↳ doc ${s.id} missing visibility field —`,
+            'Firestore rule may deny reads for unauthenticated viewers'
+          );
+        }
+      });
     }
 
-    console.log('[SNX Music] loadSongs — total after merge:', results.length, 'songs for uid:', uid);
-    return sortByDate(results);
+    console.log('[SNX Music] loadSongs ── END ───────────────────────────────');
+    return results;
   }
 
   async function loadPlaylists(uid) {

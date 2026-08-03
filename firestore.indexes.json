@@ -112,6 +112,14 @@
       "collectionGroup": "profileMusic",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "ownerId",    "order": "ASCENDING"  },
+        { "fieldPath": "uploadedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "profileMusic",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "userId",     "order": "ASCENDING"  },
         { "fieldPath": "uploadedAt", "order": "DESCENDING" }
       ]
