@@ -382,6 +382,12 @@
 
   </div><!-- .live-video-wrap -->
 
+  <!-- ══════════════════════════════════════════════
+       JITSI LIVE ROOM — embedded video conference
+       Shown only when host activates Jitsi mode.
+       ══════════════════════════════════════════════ -->
+  <div id="jitsi-live-room"></div>
+
 </div><!-- #liveStage -->
 
 
@@ -407,6 +413,9 @@
      ══════════════════════════════════════════════ -->
 <script src="snx-net.js"></script>
 
+<!-- Jitsi Meet external API (must load before jitsi-live.js) -->
+<script src="https://meet.jit.si/external_api.js"></script>
+
 <!-- ══════════════════════════════════════════════
      LIVE ENGINE (ES module)
      ══════════════════════════════════════════════ -->
@@ -414,6 +423,9 @@
 
 <!-- Co-Host add-on (ES module) — remove to disable entirely -->
 <script type="module" src="cohost.js"></script>
+
+<!-- Jitsi Live integration (plain script — depends on JitsiMeetExternalAPI) -->
+<script src="jitsi-live.js"></script>
 
 </body>
 </html>
