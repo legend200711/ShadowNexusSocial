@@ -24,7 +24,7 @@
     playlists: [],
     activePlId: '__all__',
     currentIdx: -1,
-    settings: { enabled: true, autoplay: true, loop: false, repeat: false, repeatOne: false, shuffle: false, showPlayer: true, showPlaylist: true },
+    settings: { enabled: true, autoplay: false, loop: false, repeat: false, repeatOne: false, shuffle: false, showPlayer: true, showPlaylist: true },
     draggingIdx: null,
     autoplayUnlocked: false,
     resumeTime: 0,
@@ -39,10 +39,10 @@
       icon: '▶',
       color: '#FF0000',
       match: url => /(?:youtube\.com\/(?:watch|shorts)|youtu\.be\/)/i.test(url),
-      embedUrl: url => {
-        const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
-        return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=0` : null;
-      },
+      embedUrl: (url, autoplay = false) => {
+      const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
+      return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=${autoplay ? 1 : 0}` : null;
+    },
       canEmbed: true,
     },
     {
@@ -51,10 +51,10 @@
       icon: '🎵',
       color: '#FF0000',
       match: url => /music\.youtube\.com/i.test(url),
-      embedUrl: url => {
-        const m = url.match(/[?&]v=([A-Za-z0-9_-]{11})/);
-        return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=0` : null;
-      },
+      embedUrl: (url, autoplay = false) => {
+      const m = url.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+      return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=${autoplay ? 1 : 0}` : null;
+    },
       canEmbed: true,
     },
     {
@@ -63,11 +63,11 @@
       icon: '🎧',
       color: '#1DB954',
       match: url => /open\.spotify\.com/i.test(url),
-      embedUrl: url => {
-        // Convert share link to embed link: /track/id, /album/id, /playlist/id
-        const m = url.match(/open\.spotify\.com\/(track|album|playlist|episode)\/([A-Za-z0-9]+)/);
-        return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}?utm_source=generator` : null;
-      },
+      embedUrl: (url, autoplay = false) => {
+      // Convert share link to embed link: /track/id, /album/id, /playlist/id
+      const m = url.match(/open\.spotify\.com\/(track|album|playlist|episode)\/([A-Za-z0-9]+)/);
+      return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}?utm_source=generator${autoplay ? '&autoplay=1' : ''}` : null;
+    },
       canEmbed: true,
     },
     {
@@ -76,11 +76,13 @@
       icon: '🍎',
       color: '#FA243C',
       match: url => /music\.apple\.com/i.test(url),
-      embedUrl: url => {
-        // Convert  https://music.apple.com/us/album/... → embed
-        const m = url.match(/music\.apple\.com\/([a-z]{2})\/(.+)/);
-        return m ? `https://embed.music.apple.com/${m[1]}/${m[2]}` : null;
-      },
+      embedUrl: (url, autoplay = false) => {
+      // Convert  https://music.apple.com/us/album/... → embed
+      const m = url.match(/music\.apple\.com\/([a-z]{2})\/(.+)/);
+      if (!m) return null;
+      const base = `https://embed.music.apple.com/${m[1]}/${m[2]}`;
+      return autoplay ? `${base}${base.includes('?') ? '&' : '?'}autoplay=1` : base;
+    },
       canEmbed: true,
     },
     {
@@ -98,7 +100,7 @@
       icon: '☁',
       color: '#FF5500',
       match: url => /soundcloud\.com/i.test(url),
-      embedUrl: url => `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%2300AEEF&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`,
+      embedUrl: (url, autoplay = false) => `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%2300AEEF&auto_play=${autoplay ? 'true' : 'false'}&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`,
       canEmbed: true,
     },
     {
@@ -107,10 +109,10 @@
       icon: '🎶',
       color: '#A238FF',
       match: url => /deezer\.com/i.test(url),
-      embedUrl: url => {
-        const m = url.match(/deezer\.com\/(?:[a-z]+\/)?(track|album|playlist)\/(\d+)/);
-        return m ? `https://widget.deezer.com/widget/dark/${m[1]}/${m[2]}` : null;
-      },
+      embedUrl: (url, autoplay = false) => {
+      const m = url.match(/deezer\.com\/(?:[a-z]+\/)?(track|album|playlist)\/(\d+)/);
+      return m ? `https://widget.deezer.com/widget/dark/${m[1]}/${m[2]}${autoplay ? '?autoplay=true' : ''}` : null;
+    },
       canEmbed: true,
     },
     {
@@ -119,10 +121,10 @@
       icon: '〰',
       color: '#00FFFF',
       match: url => /tidal\.com/i.test(url),
-      embedUrl: url => {
-        const m = url.match(/tidal\.com\/(?:browse\/)?(track|album|playlist)\/([^/?#]+)/);
-        return m ? `https://embed.tidal.com/${m[1]}s/${m[2]}` : null;
-      },
+      embedUrl: (url, autoplay = false) => {
+      const m = url.match(/tidal\.com\/(?:browse\/)?(track|album|playlist)\/([^/?#]+)/);
+      return m ? `https://embed.tidal.com/${m[1]}s/${m[2]}${autoplay ? '?autoplay=true' : ''}` : null;
+    },
       canEmbed: true,
     },
     {
@@ -131,11 +133,11 @@
       icon: '🔊',
       color: '#FFA500',
       match: url => /audiomack\.com/i.test(url),
-      embedUrl: url => {
-        // https://audiomack.com/artist/song/slug → https://audiomack.com/embed/artist/song/slug
-        const m = url.match(/audiomack\.com\/(.+)/);
-        return m ? `https://audiomack.com/embed/${m[1]}` : null;
-      },
+      embedUrl: (url, autoplay = false) => {
+      // https://audiomack.com/artist/song/slug → https://audiomack.com/embed/artist/song/slug
+      const m = url.match(/audiomack\.com\/(.+)/);
+      return m ? `https://audiomack.com/embed/${m[1]}${autoplay ? '?autoplay=1' : ''}` : null;
+    },
       canEmbed: true,
     },
     {
@@ -679,7 +681,8 @@
     const p = detectPlatform(ml.url);
     const choice = ml.displayChoice || 'link';
     const useEmbed = choice === 'embed' && p && p.canEmbed;
-    const embedSrc = useEmbed ? p.embedUrl(ml.url) : null;
+    const autoplay = !state.isSelf && state.settings.autoplay;
+    const embedSrc = useEmbed ? p.embedUrl(ml.url, autoplay) : null;
 
     if (useEmbed && embedSrc) {
       const isYT = p.id === 'youtube' || p.id === 'youtubemusic';
@@ -689,6 +692,7 @@
         <div class="snx-music-link-card snx-music-link-embed-card" id="snxMusicLinkCard">
           <div class="snx-music-link-card-label" style="--plt-color:${p ? p.color : '#00AEEF'}">${p ? p.icon + ' ' + esc(p.name) : '🔗 Music Link'}</div>
           <iframe
+            id="snxMusicLinkIframe"
             src="${esc(embedSrc)}"
             width="100%"
             height="${height}"
@@ -713,8 +717,8 @@
 
   function renderSettingsBlock() {
     const s = state.settings;
-    const tog = (key, label) => `
-      <div class="snx-toggle-row">
+    const tog = (key, label, indent = false) => `
+      <div class="snx-toggle-row${indent ? ' snx-toggle-row--indent' : ''}">
         <span class="snx-toggle-label">${label}</span>
         <label class="snx-toggle">
           <input type="checkbox" data-setting="${key}" ${s[key] ? 'checked' : ''}>
@@ -724,8 +728,13 @@
     return `
       <div class="snx-music-settings">
         <div class="snx-music-settings-title">🎵 Music Settings</div>
-        ${tog('enabled',     'Enable Profile Music')}
-        ${tog('autoplay',    'Autoplay on Profile Visit')}
+        ${tog('enabled', 'Enable Profile Music')}
+        <div class="snx-autoplay-settings-group" id="snxAutoplayGroup" style="${s.enabled ? '' : 'display:none'}">
+          ${tog('autoplay', 'Autoplay Music <span class="snx-toggle-optional">(Optional)</span>', true)}
+          <div class="snx-autoplay-hint" id="snxAutoplayHint" style="${s.autoplay ? '' : 'display:none'}">
+            Music will start automatically when visitors open your profile. If the browser blocks autoplay, a Play button will appear instead.
+          </div>
+        </div>
         ${tog('loop',        'Loop Playlist')}
         ${tog('repeat',      'Repeat')}
         ${tog('repeatOne',   'Repeat One')}
@@ -905,7 +914,17 @@
         if (statusEl) statusEl.textContent = 'Saving…';
         try {
           if (url) {
+            // Security: only accept URLs from approved platforms or well-formed https links
+            let parsedUrl;
+            try { parsedUrl = new URL(url); } catch { throw new Error('Invalid URL — please enter a valid link.'); }
+            if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+              throw new Error('Only http/https links are allowed.');
+            }
             const p = detectPlatform(url);
+            if (!p) {
+              // Unknown platform — warn but allow (link-only, no embed)
+              console.warn('[SNX Music] Saving link from unrecognised platform:', url);
+            }
             await saveMusicLink({ url, platform: p ? p.id : 'unknown', displayChoice });
             if (statusEl) { statusEl.style.color = '#00AEEF'; statusEl.textContent = '✓ Link saved!'; }
           } else {
@@ -959,6 +978,14 @@
         const key = inp.dataset.setting;
         state.settings[key] = inp.checked;
         await saveSettings();
+        if (key === 'enabled') {
+          const g = document.getElementById('snxAutoplayGroup');
+          if (g) g.style.display = inp.checked ? '' : 'none';
+        }
+        if (key === 'autoplay') {
+          const h = document.getElementById('snxAutoplayHint');
+          if (h) h.style.display = inp.checked ? '' : 'none';
+        }
         if (key === 'showPlayer') { const w = document.getElementById('snxMusicPlayerWrap'); if (w) w.style.display = inp.checked ? '' : 'none'; }
         if (key === 'showPlaylist') { const w = document.getElementById('snxMusicListWrap'); if (w) w.style.display = inp.checked ? '' : 'none'; }
         if (key === 'shuffle') { const b = document.getElementById('snxShuffleBtn'); if (b) b.classList.toggle('active', inp.checked); }
@@ -1501,7 +1528,7 @@
       console.warn('[SNX Music] loadSettings failed:', e);
     }
     state.settings = Object.assign(
-      { enabled: true, autoplay: true, loop: false, repeat: false, repeatOne: false, shuffle: false, showPlayer: true, showPlaylist: true },
+      { enabled: true, autoplay: false, loop: false, repeat: false, repeatOne: false, shuffle: false, showPlayer: true, showPlaylist: true },
       savedSettings
     );
     // state.musicLink is already populated by loadSettings()
@@ -1532,23 +1559,28 @@
   }
 
   function stopMusicTab() {
-    if (!_audio) return;
+    // Stop uploaded audio playback
+    if (_audio) {
+      _audio.pause();
+      _audio.currentTime = 0;
+      _audio.removeAttribute('src');
+      _audio.load();
 
-    _audio.pause();
-    _audio.currentTime = 0;
-    _audio.removeAttribute('src');
-    _audio.load();
+      _audio.onended    = null;
+      _audio.onplay     = null;
+      _audio.onpause    = null;
+      _audio.onerror    = null;
 
-    _audio.onended    = null;
-    _audio.onplay     = null;
-    _audio.onpause    = null;
-    _audio.onerror    = null;
+      _audio.removeEventListener('timeupdate',    onTimeUpdate);
+      _audio.removeEventListener('ended',         onEnded);
+      _audio.removeEventListener('loadedmetadata',onMetaLoaded);
 
-    _audio.removeEventListener('timeupdate',    onTimeUpdate);
-    _audio.removeEventListener('ended',         onEnded);
-    _audio.removeEventListener('loadedmetadata',onMetaLoaded);
+      _audio = null;
+    }
 
-    _audio = null;
+    // Stop embedded platform player by blanking its src
+    const iframe = document.getElementById('snxMusicLinkIframe');
+    if (iframe) { iframe.src = ''; }
 
     state.currentIdx       = -1;
     state.resumeTime       = 0;

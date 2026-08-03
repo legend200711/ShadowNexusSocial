@@ -473,7 +473,27 @@
   border-bottom: 1px solid rgba(26,58,92,0.5);
 }
 .snx-toggle-row:last-child { border-bottom: none; }
+.snx-toggle-row--indent {
+  padding-left: 14px;
+  border-left: 2px solid rgba(0,174,239,0.25);
+  margin-left: 4px;
+}
 .snx-toggle-label { font-size: 12px; color: #b8d4f0; }
+.snx-toggle-optional { font-size: 11px; color: #4a6a8a; font-weight: 400; }
+.snx-autoplay-settings-group {
+  margin-bottom: 2px;
+}
+.snx-autoplay-hint {
+  font-size: 11px;
+  color: #4a9aef;
+  line-height: 1.5;
+  padding: 5px 14px 5px 18px;
+  margin: -2px 0 4px;
+  border-left: 2px solid rgba(0,174,239,0.25);
+  margin-left: 4px;
+  background: rgba(0,174,239,0.04);
+  border-radius: 0 4px 4px 0;
+}
 .snx-toggle {
   position: relative;
   width: 36px;
