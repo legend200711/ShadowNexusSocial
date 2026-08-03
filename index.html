@@ -9331,6 +9331,21 @@ body.arcade-fs-ios body::after { display:none !important; }
 ══════════════════════════════════ -->
 <div class="admin-tab-content" id="adminTab-pages">
 
+    <!-- ══ FOUNDER CONTROLS ══════════════════════════════════════════════ -->
+    <div id="founderControls" class="section-card" style="margin-bottom:16px;border-color:rgba(255,215,0,0.55);background:linear-gradient(135deg,rgba(60,40,0,0.45),rgba(11,31,58,0.92));">
+        <h3 style="margin:0 0 10px;font-size:13px;color:#ffd700;text-transform:uppercase;letter-spacing:0.8px;">👑 Founder Controls</h3>
+        <p style="font-size:12px;color:#c8b46e;margin:0 0 14px;line-height:1.7;">One-click controls visible only to the Founder. Changes are applied site-wide in real time — regular users cannot override them.</p>
+        <div class="settings-row" style="border-bottom:none;align-items:center;">
+            <div class="settings-label">🔴 Live Hub &amp; Live Features<small>Hide or restore Live Hub page, Go Live button &amp; all live nav links for all users</small></div>
+            <button id="toggleLiveSystem"
+                    style="flex-shrink:0;padding:8px 18px;border-radius:10px;font-size:13px;font-weight:700;border:1.5px solid rgba(255,68,85,0.6);background:rgba(255,30,50,0.12);color:#ff4455;cursor:pointer;white-space:nowrap;"
+                    onclick="founderToggleLiveSystem()">
+                Hide Live Hub &amp; Live Features
+            </button>
+        </div>
+    </div>
+    <!-- ══ END FOUNDER CONTROLS ══════════════════════════════════════════ -->
+
     <!-- Info banner -->
     <div class="section-card" style="margin-bottom:16px;border-color:rgba(0,174,239,0.45);background:linear-gradient(135deg,rgba(0,40,80,0.35),rgba(11,31,58,0.92));">
         <h3 style="margin:0 0 8px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">👁 Page Visibility Controls</h3>
@@ -17284,6 +17299,51 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
   };
 
+  // ── Founder Control: one-click Live Hub & Live Features toggle ──────────
+  // Uses the same Firestore key ('liveSystem') as the Page Visibility toggle
+  // so both controls stay in sync automatically via the onSnapshot listener.
+
+  function _syncLiveSystemBtn(visible) {
+      const btn = document.getElementById('toggleLiveSystem');
+      if (!btn) return;
+      if (visible) {
+          btn.textContent = 'Hide Live Hub & Live Features';
+          btn.style.borderColor  = 'rgba(255,68,85,0.6)';
+          btn.style.background   = 'rgba(255,30,50,0.12)';
+          btn.style.color        = '#ff4455';
+      } else {
+          btn.textContent = 'Show Live Hub & Live Features';
+          btn.style.borderColor  = 'rgba(57,255,20,0.55)';
+          btn.style.background   = 'rgba(0,180,50,0.1)';
+          btn.style.color        = '#39FF14';
+      }
+  }
+
+  window.founderToggleLiveSystem = async function() {
+      if (!founderOnly()) return;
+      // Read current state (default ON if not set)
+      const current = (window._snxPageVisibilityData || {}).liveSystem !== false;
+      const next    = !current;
+      try {
+          await setDoc(doc(db, 'siteSettings', 'pageVisibility'), { liveSystem: next }, { merge: true });
+          await addDoc(collection(db, 'siteSettings', 'navChangeLog'), {
+              action:    next ? 'SHOW_PAGE' : 'HIDE_PAGE',
+              page:      'Live Hub & Live Features',
+              key:       'liveSystem',
+              adminUid:  currentUser.uid,
+              adminName: userData.displayName,
+              ts:        Date.now()
+          }).catch(() => {});
+          await adminAuditLog(next ? 'SHOW_PAGE' : 'HIDE_PAGE', 'Live Hub & Live Features');
+          toastNotification(next
+              ? '✅ Live Hub & Live Features restored for all users.'
+              : '🙈 Live Hub & Live Features hidden from all users.');
+          // onSnapshot will fire and update both this button + the pvLiveSystem checkbox
+      } catch(e) {
+          toastNotification('Error: ' + e.message);
+      }
+  };
+
   // Listen for pageVisibility changes in Firestore and apply immediately.
   // Always cache the raw snapshot so _snxReapplyNavVisibility() can replay it
   // after auth resolves and window._snxRole is confirmed.
@@ -17291,6 +17351,8 @@ body.arcade-fs-ios body::after { display:none !important; }
       const visData = snap.exists() ? snap.data() : {};
       window._snxPageVisibilityData = visData; // persistent cache
       _applyPageVisibility(visData);
+      // Keep Founder Controls button label in sync with Firestore state
+      _syncLiveSystemBtn(visData.liveSystem !== false);
   });
 
   /* ════════════════════════════════════════════════════════════════════
