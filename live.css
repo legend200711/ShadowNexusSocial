@@ -1473,3 +1473,263 @@ button, input, a, [role="button"] {
 #iqBadge.iq-poor      { border-color: rgba(255,50,70,0.65);  color: #ff7788; }
 
 /* IQ quality-change toast — reuses existing #liveToast; colours are set inline via JS */
+
+/* ═══════════════════════════════════════════════════════════════
+   LIVE HUB PAGE  (live-hub.html)
+   Standalone page — lists active streams + Go Live CTA.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Page shell ── */
+.hub-loading {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #0B1F3A;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px;
+}
+
+/* ── Auth error state ── */
+.hub-auth-error {
+  min-height: 100vh; background: #0B1F3A;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 40px 24px; text-align: center; gap: 14px;
+}
+.hub-auth-icon  { font-size: 52px; }
+.hub-auth-title { font-size: 20px; font-weight: 800; color: #d8eeff; }
+.hub-auth-sub   { font-size: 14px; color: #6a90b8; line-height: 1.6; max-width: 280px; }
+
+/* ── Main hub wrapper ── */
+.hub-main {
+  min-height: 100vh; background: #0B1F3A;
+  display: block;
+  padding-bottom: calc(32px + env(safe-area-inset-bottom, 0));
+}
+
+/* ── Top bar ── */
+.hub-topbar {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center;
+  padding: calc(env(safe-area-inset-top, 0) + 12px) 16px 12px;
+  background: rgba(7,20,42,0.96); backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(0,174,239,0.15);
+  gap: 10px;
+}
+.hub-back-link {
+  font-size: 13px; font-weight: 700; color: #6a90b8;
+  text-decoration: none; flex-shrink: 0;
+  transition: color 0.15s;
+}
+.hub-back-link:hover { color: #00AEEF; }
+.hub-topbar-title {
+  flex: 1; font-size: 16px; font-weight: 800; color: #e8f4ff;
+  display: flex; align-items: center; gap: 7px;
+}
+.hub-topbar-icon { font-size: 18px; }
+.hub-live-count-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #ff2244; color: #fff;
+  font-size: 10px; font-weight: 800;
+  border-radius: 10px; padding: 2px 7px;
+  letter-spacing: 0.3px;
+  animation: feedLivePulse 1.4s ease-in-out infinite;
+}
+
+/* ── Go Live button (top-bar and empty-state variants) ── */
+.hub-go-live-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 18px; border-radius: 20px;
+  background: linear-gradient(135deg, #cc0022, #ff2244);
+  border: none; color: #fff;
+  font-size: 13px; font-weight: 800;
+  letter-spacing: 0.8px; text-transform: uppercase;
+  cursor: pointer; flex-shrink: 0;
+  box-shadow: 0 0 18px rgba(255,30,60,0.45);
+  transition: filter 0.15s, transform 0.1s;
+  touch-action: manipulation;
+  animation: goLivePulse 2s ease-in-out infinite;
+}
+.hub-go-live-btn:hover  { filter: brightness(1.14); }
+.hub-go-live-btn:active { transform: scale(0.95); }
+.hub-go-live-big {
+  padding: 14px 34px; border-radius: 14px;
+  font-size: 16px; margin-top: 8px;
+}
+
+/* ── 2-week test banner ── */
+.hub-test-banner {
+  margin: 12px 16px 0;
+  padding: 10px 14px;
+  background: rgba(0,174,239,0.08);
+  border: 1px solid rgba(0,174,239,0.3);
+  border-radius: 10px;
+  font-size: 12px; color: #88ccee; line-height: 1.5;
+}
+
+/* ── Back button (auth error screen) ── */
+.hub-back-btn {
+  display: inline-block; padding: 10px 28px;
+  background: rgba(0,174,239,0.12);
+  border: 1px solid rgba(0,174,239,0.45);
+  border-radius: 24px; color: #00AEEF;
+  text-decoration: none; font-size: 14px; font-weight: 600;
+  transition: background 0.15s;
+}
+.hub-back-btn:hover { background: rgba(0,174,239,0.22); }
+
+/* ── Empty state ── */
+.hub-empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 60px 24px 40px;
+  text-align: center; gap: 12px;
+}
+.hub-empty-icon  { font-size: 56px; }
+.hub-empty-title { font-size: 18px; font-weight: 800; color: #d8eeff; }
+.hub-empty-sub   { font-size: 13px; color: #5a8aaa; line-height: 1.65; max-width: 280px; }
+
+/* ── Rooms grid ── */
+.hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  padding: 16px;
+}
+
+/* ── Individual room card ── */
+.hub-room-card {
+  background: rgba(0,15,40,0.9);
+  border: 1.5px solid rgba(0,174,239,0.22);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  animation: hubCardIn 0.28s ease-out both;
+}
+@keyframes hubCardIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.hub-room-card:hover {
+  border-color: rgba(0,174,239,0.65);
+  box-shadow: 0 0 22px rgba(0,174,239,0.22);
+  transform: translateY(-2px);
+}
+.hub-room-card:active { transform: scale(0.98); }
+.hub-card-removing {
+  animation: hubCardOut 0.3s ease-in forwards;
+  pointer-events: none;
+}
+@keyframes hubCardOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.92); }
+}
+
+/* Thumbnail area (placeholder, shows LIVE badge) */
+.hub-card-thumb {
+  position: relative;
+  width: 100%; aspect-ratio: 16/9;
+  background: linear-gradient(135deg, #071428 0%, #0B1F3A 100%);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+/* placeholder static noise texture */
+.hub-card-thumb::before {
+  content: '📡';
+  font-size: 48px;
+  opacity: 0.12;
+}
+.hub-card-live-badge {
+  position: absolute; top: 10px; left: 10px;
+  display: flex; align-items: center; gap: 5px;
+  background: #ff2244;
+  padding: 3px 9px 3px 7px; border-radius: 7px;
+  font-size: 10px; font-weight: 800;
+  letter-spacing: 1px; text-transform: uppercase;
+  box-shadow: 0 0 12px rgba(255,30,60,0.65);
+  z-index: 2;
+}
+.hub-card-live-dot {
+  width: 5px; height: 5px; border-radius: 50%; background: #fff;
+  animation: feedLivePulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.hub-card-viewer-pill {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px; padding: 3px 9px;
+  font-size: 10px; color: #d0e8ff;
+  z-index: 2;
+}
+
+/* Card info row */
+.hub-card-info {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px 6px;
+}
+.hub-card-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: #0B1F3A center/cover no-repeat;
+  border: 2px solid rgba(0,174,239,0.5);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; color: #00AEEF;
+  overflow: hidden;
+}
+.hub-card-text { flex: 1; min-width: 0; }
+.hub-card-title {
+  font-size: 13px; font-weight: 700; color: #e8f4ff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.3;
+}
+.hub-card-host {
+  font-size: 11px; color: #5a8aaa;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+/* Watch button */
+.hub-card-watch-btn {
+  display: block; width: calc(100% - 24px);
+  margin: 4px 12px 12px;
+  padding: 9px;
+  border-radius: 10px;
+  background: rgba(0,80,200,0.25);
+  border: 1.5px solid rgba(0,174,239,0.55);
+  color: #00AEEF; font-size: 12px; font-weight: 800;
+  letter-spacing: 0.4px; text-transform: uppercase;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  touch-action: manipulation;
+}
+.hub-card-watch-btn:hover {
+  background: rgba(0,100,220,0.45);
+  border-color: rgba(0,174,239,0.9);
+}
+.hub-card-watch-btn:active { transform: scale(0.97); }
+
+/* ── Hub toast ── */
+.hub-toast {
+  position: fixed;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0));
+  left: 50%; transform: translateX(-50%) translateY(20px);
+  background: rgba(8,20,48,0.97);
+  border: 1px solid rgba(0,174,239,0.55);
+  padding: 10px 20px; border-radius: 10px;
+  z-index: 9500; font-size: 13px; color: #c8e8ff;
+  white-space: nowrap; max-width: calc(100vw - 40px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.hub-toast.visible {
+  opacity: 1; transform: translateX(-50%) translateY(0);
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .hub-grid { grid-template-columns: 1fr; gap: 10px; padding: 12px; }
+  .hub-topbar { padding: calc(env(safe-area-inset-top, 0) + 10px) 12px 10px; }
+  .hub-go-live-btn { padding: 7px 14px; font-size: 11px; }
+}
+@media (min-width: 1024px) {
+  .hub-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; padding: 20px; }
+}

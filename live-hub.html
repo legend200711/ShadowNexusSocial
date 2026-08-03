@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shadow Nexus — Live Hub 📡</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0B1F3A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="stylesheet" href="live.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     LOADING STATE
+     ══════════════════════════════════════════════ -->
+<div id="hubLoading" class="hub-loading">
+  <div class="ll-spinner"></div>
+  <div class="ll-text">Loading Live Hub…</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     AUTH ERROR (not signed in)
+     ══════════════════════════════════════════════ -->
+<div id="hubAuthError" class="hub-auth-error" style="display:none;">
+  <div class="hub-auth-icon">🔒</div>
+  <h2 class="hub-auth-title">Sign in Required</h2>
+  <p class="hub-auth-sub">You need to be signed in to access the Live Hub.</p>
+  <a href="index.html" class="hub-back-btn">← Go to Shadow Nexus</a>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MAIN HUB CONTENT
+     ══════════════════════════════════════════════ -->
+<div id="hubMain" class="hub-main" style="display:none;">
+
+  <!-- Top bar -->
+  <div class="hub-topbar">
+    <a href="index.html" class="hub-back-link" aria-label="Back to feed">← Feed</a>
+    <div class="hub-topbar-title">
+      <span class="hub-topbar-icon">📡</span>
+      Live Hub
+      <span class="hub-live-count-badge" id="hubLiveCountBadge" style="display:none;">0</span>
+    </div>
+    <button id="hubGoLiveBtn" class="hub-go-live-btn" aria-label="Start a live stream">
+      <span class="go-live-dot"></span>
+      Go Live
+    </button>
+  </div>
+
+  <!-- Test period notice -->
+  <div class="hub-test-banner">
+    🧪 <strong>2-Week Public Test</strong> — Live streaming is now open. Report issues via chat!
+  </div>
+
+  <!-- Live rooms grid -->
+  <div id="hubGrid" class="hub-grid" style="display:none;"></div>
+
+  <!-- Empty state -->
+  <div id="hubEmpty" class="hub-empty" style="display:none;">
+    <div class="hub-empty-icon">📡</div>
+    <div class="hub-empty-title">No one is live right now</div>
+    <div class="hub-empty-sub">Be the first to go live and get the community watching!</div>
+    <button class="hub-go-live-btn hub-go-live-big" id="hubGoLiveBtnEmpty" aria-label="Start your first live stream">
+      <span class="go-live-dot"></span>
+      Start Live
+    </button>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════
+     TOAST
+     ══════════════════════════════════════════════ -->
+<div id="hubToast" class="hub-toast" role="alert" aria-live="assertive"></div>
+
+
+<script type="module">
+/**
+ * live-hub.js (inline module)
+ * Shadow Nexus Live Hub — standalone page.
+ *
+ * Shows all active live rooms queried from Firestore (liveRooms collection).
+ * Provides a Go Live button (navigates to live-room.html?host=1 for creator setup).
+ * Updates automatically via Firestore onSnapshot without a page refresh.
+ */
+import { initializeApp, getApps, getApp }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, onAuthStateChanged }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import {
+  getFirestore,
+  collection, query, where, orderBy, onSnapshot, doc, getDoc, deleteDoc
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getDatabase, ref as rtdbRef, get as rtdbGet }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+/* ── Firebase config ── */
+const _CFG = {
+  apiKey:            'AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y',
+  authDomain:        'horr-a08f4.firebaseapp.com',
+  databaseURL:       'https://horr-a08f4-default-rtdb.firebaseio.com',
+  projectId:         'horr-a08f4',
+  storageBucket:     'horr-a08f4.firebasestorage.app',
+  messagingSenderId: '933810617818',
+  appId:             '1:933810617818:web:efb24f123337dd987c14e3',
+};
+const _app   = getApps().length ? getApp() : initializeApp(_CFG);
+const _auth  = getAuth(_app);
+const _db    = getFirestore(_app);
+const _rtdb  = getDatabase(_app);
+
+/* ── DOM refs ── */
+const $ = id => document.getElementById(id);
+const D = {
+  loading:         $('hubLoading'),
+  authError:       $('hubAuthError'),
+  main:            $('hubMain'),
+  grid:            $('hubGrid'),
+  empty:           $('hubEmpty'),
+  countBadge:      $('hubLiveCountBadge'),
+  goLiveBtn:       $('hubGoLiveBtn'),
+  goLiveBtnEmpty:  $('hubGoLiveBtnEmpty'),
+  toast:           $('hubToast'),
+};
+
+/* ── State ── */
+let _user        = null;
+let _userData    = null;
+let _roomsUnsub  = null;
+let _toastTimer  = null;
+
+/* ── Utilities ── */
+function _esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function toast(msg, duration = 3000) {
+  if (!D.toast) return;
+  D.toast.textContent = msg;
+  D.toast.classList.add('visible');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => D.toast.classList.remove('visible'), duration);
+}
+
+function _show(el)  { if (el) el.style.display = ''; }
+function _hide(el)  { if (el) el.style.display = 'none'; }
+function _flex(el)  { if (el) el.style.display = 'flex'; }
+function _block(el) { if (el) el.style.display = 'block'; }
+
+/* ── Auth ── */
+onAuthStateChanged(_auth, async user => {
+  _hide(D.loading);
+  if (!user) {
+    _show(D.authError);
+    return;
+  }
+  _user = user;
+  await _loadUserData();
+  _block(D.main);
+  _subscribeRooms();
+});
+
+async function _loadUserData() {
+  try {
+    const snap = await getDoc(doc(_db, 'users', _user.uid));
+    _userData = snap.exists() ? snap.data() : { displayName: _user.email?.split('@')[0] || 'Guest' };
+  } catch (_) {
+    _userData = { displayName: _user.email?.split('@')[0] || 'Guest' };
+  }
+}
+
+/* ── Go Live ── */
+function _goLive() {
+  // Check if user already has an active live session
+  if (_userData?.isLive && _userData?.liveRoomId) {
+    if (confirm('You already have a live session. Rejoin as host?')) {
+      window.location.href = 'live-room.html?host=1';
+    }
+    return;
+  }
+  window.location.href = 'live-room.html?host=1';
+}
+
+D.goLiveBtn      && D.goLiveBtn.addEventListener('click', _goLive);
+D.goLiveBtnEmpty && D.goLiveBtnEmpty.addEventListener('click', _goLive);
+
+/* ── Subscribe to live rooms (real-time) ── */
+function _subscribeRooms() {
+  if (_roomsUnsub) { try { _roomsUnsub(); } catch(_) {} }
+
+  // Primary query: status == 'live'
+  let q;
+  try {
+    q = query(
+      collection(_db, 'liveRooms'),
+      where('status', '==', 'live'),
+      orderBy('createdAt', 'desc')
+    );
+  } catch (_) {
+    // Fallback if compound index not ready
+    q = query(collection(_db, 'liveRooms'), where('isLive', '==', true));
+  }
+
+  _roomsUnsub = onSnapshot(q, snap => {
+    const rooms = [];
+    snap.forEach(d => {
+      const r = { id: d.id, ...d.data() };
+      // Validate: must have hostId, status live, and not stale (> 4 hours)
+      if (!r.hostId) return;
+      if (r.status !== 'live' && !r.isLive) return;
+      const age = Date.now() - (r.createdAt || 0);
+      if (age > 4 * 60 * 60 * 1000) {
+        // Stale room — silently skip (admin cleanup handles deletion)
+        return;
+      }
+      rooms.push(r);
+    });
+
+    _renderRooms(rooms);
+  }, err => {
+    console.warn('[LiveHub] Rooms query error:', err.code);
+    // Fallback to isLive field
+    const q2 = query(collection(_db, 'liveRooms'), where('isLive', '==', true));
+    _roomsUnsub = onSnapshot(q2, snap2 => {
+      const rooms = [];
+      snap2.forEach(d => {
+        const r = { id: d.id, ...d.data() };
+        if (r.hostId && r.isLive) rooms.push(r);
+      });
+      _renderRooms(rooms);
+    });
+  });
+}
+
+/* ── Render rooms grid ── */
+function _renderRooms(rooms) {
+  const grid = D.grid;
+  if (!grid) return;
+
+  // Update count badge
+  if (D.countBadge) {
+    D.countBadge.textContent = rooms.length;
+    D.countBadge.style.display = rooms.length ? 'inline-flex' : 'none';
+  }
+
+  // Toggle empty / grid visibility
+  if (rooms.length === 0) {
+    _hide(grid);
+    _block(D.empty);
+    return;
+  }
+  _hide(D.empty);
+  _show(grid);
+
+  // Preserve existing cards and update / add / remove
+  const existing = new Map();
+  grid.querySelectorAll('.hub-room-card').forEach(c => existing.set(c.dataset.rid, c));
+
+  const seen = new Set();
+  rooms.forEach(room => {
+    const rid = room.roomId || room.id;
+    seen.add(rid);
+    let card = existing.get(rid);
+    if (!card) {
+      card = _buildCard(room, rid);
+      grid.prepend(card);
+    } else {
+      _updateCard(card, room);
+    }
+  });
+
+  // Remove cards for rooms no longer live
+  existing.forEach((card, rid) => {
+    if (!seen.has(rid)) {
+      card.classList.add('hub-card-removing');
+      setTimeout(() => card.remove(), 300);
+    }
+  });
+}
+
+/* ── Build a room card DOM element ── */
+function _buildCard(room, rid) {
+  const hostName   = _esc(room.hostName || room.username || 'Creator');
+  const title      = _esc(room.title    || 'Shadow Nexus LIVE');
+  const viewers    = room.viewers ?? 0;
+  const avatar     = room.hostAvatar || room.avatar || '';
+  const initial    = (room.hostName || room.username || 'C')[0].toUpperCase();
+
+  const avatarHtml = avatar
+    ? `<div class="hub-card-avatar" style="background-image:url('${_esc(avatar)}');background-size:cover;"></div>`
+    : `<div class="hub-card-avatar">${_esc(initial)}</div>`;
+
+  const card = document.createElement('div');
+  card.className   = 'hub-room-card';
+  card.dataset.rid = rid;
+  card.innerHTML = `
+    <div class="hub-card-thumb">
+      <div class="hub-card-live-badge"><span class="hub-card-live-dot"></span>LIVE</div>
+      <div class="hub-card-viewer-pill">👁 <span class="hub-card-viewer-count">${viewers}</span></div>
+    </div>
+    <div class="hub-card-info">
+      ${avatarHtml}
+      <div class="hub-card-text">
+        <div class="hub-card-title">${title}</div>
+        <div class="hub-card-host">${hostName}</div>
+      </div>
+    </div>
+    <button class="hub-card-watch-btn" aria-label="Watch ${hostName} live">▶ Watch</button>
+  `;
+
+  card.querySelector('.hub-card-watch-btn').addEventListener('click', () => {
+    window.location.href = `live-room.html?room=${encodeURIComponent(rid)}`;
+  });
+  card.querySelector('.hub-card-thumb').addEventListener('click', () => {
+    window.location.href = `live-room.html?room=${encodeURIComponent(rid)}`;
+  });
+
+  return card;
+}
+
+/* ── Update an existing card's mutable fields ── */
+function _updateCard(card, room) {
+  const vc = card.querySelector('.hub-card-viewer-count');
+  if (vc) vc.textContent = room.viewers ?? 0;
+  const tc = card.querySelector('.hub-card-title');
+  if (tc) tc.textContent = room.title || 'Shadow Nexus LIVE';
+}
+</script>
+
+</body>
+</html>

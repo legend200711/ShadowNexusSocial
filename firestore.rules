@@ -446,13 +446,10 @@ service cloud.firestore {
       allow delete: if isSignedIn()
         && (resource.data.hostId == request.auth.uid || isFounder());
 
-      // ── Live chat messages ─────────────────────────────────────────────────
+      // ── Live chat messages (legacy subcollection name) ─────────────────────
       match /liveMessages/{msgId} {
-        // Any authenticated viewer can read chat
         allow read: if isSignedIn();
-        // Any authenticated user can send a message (spam guard is client-side)
         allow create: if isSignedIn();
-        // Only the sender or host/Founder may delete a message
         allow delete: if isSignedIn()
           && (
             resource.data.userId == request.auth.uid
@@ -460,6 +457,44 @@ service cloud.firestore {
             || isFounder()
           );
         allow update: if false;
+      }
+
+      // ── Live chat (new subcollection — used by live-room.html) ─────────────
+      match /chat/{msgId} {
+        // Any authenticated user can read chat messages
+        allow read: if isSignedIn();
+        // Any authenticated user can post a chat message
+        allow create: if isSignedIn()
+          && request.resource.data.userId == request.auth.uid;
+        // Only the sender, host, or Founder may delete
+        allow delete: if isSignedIn()
+          && (
+            resource.data.userId == request.auth.uid
+            || get(/databases/$(database)/documents/liveRooms/$(uid)).data.hostId == request.auth.uid
+            || isFounder()
+          );
+        allow update: if false;
+      }
+
+      // ── WebRTC signaling connections (liveRooms/{uid}/connections/{viewerUid}) ──
+      // Used when Firestore is preferred over RTDB for signaling.
+      match /connections/{connId} {
+        allow read:   if isSignedIn();
+        // Viewer creates their own signaling doc
+        allow create: if isSignedIn()
+          && request.resource.data.viewerId == request.auth.uid;
+        // Host writes answer + ICE; viewer writes offer + ICE
+        allow update: if isSignedIn()
+          && (
+            request.auth.uid == resource.data.viewerId
+            || get(/databases/$(database)/documents/liveRooms/$(uid)).data.hostId == request.auth.uid
+          );
+        allow delete: if isSignedIn()
+          && (
+            request.auth.uid == resource.data.viewerId
+            || get(/databases/$(database)/documents/liveRooms/$(uid)).data.hostId == request.auth.uid
+            || isFounder()
+          );
       }
     }
 

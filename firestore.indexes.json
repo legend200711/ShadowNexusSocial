@@ -134,6 +134,13 @@
     }
     ,
     {
+      "collectionGroup": "chat",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "mediaFiles",
       "queryScope": "COLLECTION",
       "fields": [
