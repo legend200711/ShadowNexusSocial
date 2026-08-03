@@ -681,6 +681,7 @@
     const p = detectPlatform(ml.url);
     const choice = ml.displayChoice || 'link';
     const useEmbed = choice === 'embed' && p && p.canEmbed;
+    // Owners viewing their own profile never get autoplay
     const autoplay = !state.isSelf && state.settings.autoplay;
     const embedSrc = useEmbed ? p.embedUrl(ml.url, autoplay) : null;
 
@@ -688,6 +689,7 @@
       const isYT = p.id === 'youtube' || p.id === 'youtubemusic';
       const isSC = p.id === 'soundcloud';
       const height = isYT ? '200' : isSC ? '120' : '152';
+      // data-autoplay lets JS show the tap-to-play prompt if needed
       return `
         <div class="snx-music-link-card snx-music-link-embed-card" id="snxMusicLinkCard">
           <div class="snx-music-link-card-label" style="--plt-color:${p ? p.color : '#00AEEF'}">${p ? p.icon + ' ' + esc(p.name) : '🔗 Music Link'}</div>
@@ -700,6 +702,7 @@
             allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
             loading="lazy"
             class="snx-music-link-iframe"
+            data-autoplay="${autoplay ? '1' : '0'}"
           ></iframe>
         </div>`;
     }
@@ -981,6 +984,13 @@
         if (key === 'enabled') {
           const g = document.getElementById('snxAutoplayGroup');
           if (g) g.style.display = inp.checked ? '' : 'none';
+          // Stop playback immediately when music is disabled
+          if (!inp.checked) {
+            if (_audio && !_audio.paused) { _audio.pause(); updatePlayBtn(); }
+            const iframe = document.getElementById('snxMusicLinkIframe');
+            if (iframe) iframe.src = '';
+            hidePrompt();
+          }
         }
         if (key === 'autoplay') {
           const h = document.getElementById('snxAutoplayHint');
@@ -1552,10 +1562,53 @@
 
     renderMusicTab();
 
-    // Autoplay when visiting another profile
-    if (!isSelf && state.settings.enabled && state.settings.autoplay && state.songs.length) {
-      loadTrack(0, true);
+    // ── Autoplay logic (visitor only, never the owner) ───────────
+    if (!isSelf && state.settings.enabled && state.settings.autoplay) {
+      // Case 1: uploaded songs — start the first track
+      if (state.songs.length) {
+        loadTrack(0, true);
+      }
+      // Case 2: embedded platform player
+      // The iframe already has autoplay=1 in its src (set by renderMusicLinkCard).
+      // Many browsers will block cross-origin autoplay; we surface a fallback tap
+      // prompt after a short grace period if the setting is on.
+      else if (state.musicLink && state.musicLink.url) {
+        const platform = detectPlatform(state.musicLink.url);
+        if (platform && platform.canEmbed && (state.musicLink.displayChoice || 'link') === 'embed') {
+          // Show the tap-to-play prompt as a fallback; browsers that allow autoplay
+          // will have already started the embed. Dismiss on user tap.
+          setTimeout(() => {
+            const iframe = document.getElementById('snxMusicLinkIframe');
+            // Only show prompt if the iframe is still present (page not navigated away)
+            if (iframe && iframe.dataset.autoplay === '1') {
+              showExternalPrompt(iframe);
+            }
+          }, 1200);
+        }
+      }
     }
+  }
+
+  // ── External embed tap-to-play prompt ────────────────────────
+  // Shown when autoplay is ON but the browser may have blocked the embed.
+  // Tapping scrolls to and focuses the iframe, then hides the prompt.
+  function showExternalPrompt(iframe) {
+    let el = document.getElementById('snxAutoplayPrompt');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'snxAutoplayPrompt';
+      el.className = 'snx-autoplay-prompt visible';
+      document.body.appendChild(el);
+    }
+    el.textContent = '🎵 Tap to play profile music';
+    el.className = 'snx-autoplay-prompt visible';
+    el.onclick = () => {
+      hidePrompt();
+      if (iframe && iframe.isConnected) {
+        iframe.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        iframe.focus();
+      }
+    };
   }
 
   function stopMusicTab() {
