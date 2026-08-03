@@ -9875,92 +9875,61 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   /* ════════════════════════════════════════════════════════════════
      FOUNDER FEATURE CONTROLS — Live & Live Hub Kill Switches
-     Set liveEnabled = false  → hides ALL live features for everyone
-     Set liveHubEnabled = false → hides Live Hub page for everyone
-     These override Firestore flags and apply to Founder too.
+     Toggled at runtime by founderToggleLiveSystem() via Firestore.
      Settings are saved to localStorage under 'founderFeatureControls'
      so they persist across page reloads, logouts, and logins.
-     To re-enable: change liveEnabled = true / liveHubEnabled = true
+     Hardcoded defaults are TRUE — Firestore / localStorage override.
   ════════════════════════════════════════════════════════════════ */
 
-  // ── Master kill-switch flags ──────────────────────────────────
-  const liveEnabled    = true;    // 2-week public test — live streaming ON
-  const liveHubEnabled = true;    // 2-week public test — Live Hub ON
-
-  // ── Persist flags to localStorage so they survive refresh/logout ──
-  (function _persistFounderFeatureControls() {
+  // ── Read saved state from localStorage (dynamic, not hardcoded) ──
+  (function _loadFounderFeatureControls() {
     try {
       const saved = JSON.parse(localStorage.getItem('founderFeatureControls') || '{}');
-      // Always write the current hardcoded values — code is source of truth
-      saved.liveEnabled    = liveEnabled;
-      saved.liveHubEnabled = liveHubEnabled;
-      localStorage.setItem('founderFeatureControls', JSON.stringify(saved));
-    } catch(_) {}
+      // Default to true when no value has ever been saved
+      window._snxLiveEnabled    = saved.liveEnabled    !== false;
+      window._snxLiveHubEnabled = saved.liveHubEnabled !== false;
+    } catch(_) {
+      window._snxLiveEnabled    = true;
+      window._snxLiveHubEnabled = true;
+    }
   })();
 
-  // ── Expose flags globally so other scripts can read them ──
-  window._snxLiveEnabled    = liveEnabled;
-  window._snxLiveHubEnabled = liveHubEnabled;
-
-  // ── Apply live feature gates immediately on page load ──────────
-  // Hides all live-related UI elements for EVERYONE (including Founder)
-  // when the kill-switch is active.  Runs before auth resolves.
+  // ── Apply live feature gates — show or hide based on current flags ──
+  // Runs on page load and whenever founderToggleLiveSystem() changes the flags.
   function _applyLiveFeatureGates() {
-    // IDs of every live-related nav/UI element across all nav surfaces
-    const liveNavIds = [
-      'liveSidebarButton',    // sidebar Go Live button
-      'liveHubSidebarButton', // sidebar Live Hub button
-      'scNavLive',            // Shadow Core Live Hub button
-      'scNavGoLive',          // Shadow Core Go Live button
-      'ncmLiveHub',           // mobile menu Live Hub
-      'ncmGoLive',            // mobile menu Go Live
-    ];
+    const liveOn    = window._snxLiveEnabled    !== false;
+    const liveHubOn = window._snxLiveHubEnabled !== false;
 
-    if (!liveEnabled && !liveHubEnabled) {
+    // Helper: show or hide a set of element IDs
+    const _setDisplay = (ids, show) => ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = show ? '' : 'none';
+    });
+
+    if (!liveOn && !liveHubOn) {
       // Both disabled — hide everything including section headers/dividers
-      liveNavIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-      });
+      _setDisplay([
+        'liveSidebarButton', 'liveHubSidebarButton',
+        'scNavLive', 'scNavGoLive', 'ncmLiveHub', 'ncmGoLive',
+      ], false);
       // Hide mobile menu Creator section label + divider
-      const ncmLbl = document.getElementById('ncmCreatorLabel');
-      const ncmDiv = document.getElementById('ncmCreatorDivider');
-      if (ncmLbl) ncmLbl.style.display = 'none';
-      if (ncmDiv) ncmDiv.style.display = 'none';
-      // Hide Shadow Core live divider
-      const scDiv = document.getElementById('scLiveDivider');
-      if (scDiv) scDiv.style.display = 'none';
-    } else if (!liveHubEnabled) {
-      // Only Live Hub disabled
-      ['liveHubSidebarButton','scNavLive','ncmLiveHub'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-      });
-    } else if (!liveEnabled) {
-      // Only Go Live disabled
-      ['liveSidebarButton','scNavGoLive','ncmGoLive'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-      });
+      _setDisplay(['ncmCreatorLabel', 'ncmCreatorDivider', 'scLiveDivider'], false);
+    } else {
+      // At least one is enabled — show/hide individual groups
+      // Live Hub nav buttons
+      _setDisplay(['liveHubSidebarButton', 'scNavLive', 'ncmLiveHub'], liveHubOn);
+      // Go Live nav buttons
+      _setDisplay(['liveSidebarButton', 'scNavGoLive', 'ncmGoLive'], liveOn);
+      // Restore section labels/dividers whenever either feature is on
+      _setDisplay(['ncmCreatorLabel', 'ncmCreatorDivider', 'scLiveDivider'], true);
     }
 
-    // Hide the LIVE NOW feed banner
-    if (!liveEnabled) {
-      const banner = document.getElementById('feedLiveBanner');
-      if (banner) banner.style.display = 'none';
-      // Hide profile live badge and Watch Live button
-      const liveBadge   = document.getElementById('profileLiveBadge');
-      const watchLive   = document.getElementById('btnWatchLive');
-      if (liveBadge) liveBadge.style.display = 'none';
-      if (watchLive) watchLive.style.display = 'none';
-      // Hide navLiveDot
-      const liveDot = document.getElementById('navLiveDot');
-      if (liveDot) liveDot.style.display = 'none';
-    }
+    // Live NOW feed banner, profile badge, Watch Live button, live dot
+    _setDisplay(['feedLiveBanner', 'profileLiveBadge', 'btnWatchLive', 'navLiveDot'], liveOn);
   }
   // Run immediately (DOM is ready at this point — script is after body content)
   _applyLiveFeatureGates();
-  // Also expose so it can be re-called after dynamic rendering
+  // Expose so it can be re-called after dynamic rendering or toggle changes
   window._applyLiveFeatureGates = _applyLiveFeatureGates;
 
   // ── Ensure auth token is always persisted in localStorage (survives tab/app close) ──
@@ -17235,14 +17204,15 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Sync control-panel toggle if open
           const cb = document.getElementById('pv' + key.charAt(0).toUpperCase() + key.slice(1));
           if (cb) cb.checked = visible;
-          // For the liveSystem key: if the hardcoded kill-switches are off,
-          // apply the hide to EVERYONE including the Founder (overrides Firestore).
+          // For the liveSystem key: the dynamic kill-switches (window flags) override Firestore
+          // ONLY when at least one flag is explicitly disabled (false).
           const liveKillActive = (key === 'liveSystem') &&
-              (!window._snxLiveEnabled || !window._snxLiveHubEnabled);
+              (window._snxLiveEnabled === false || window._snxLiveHubEnabled === false);
+          // Apply display changes for non-founders; also apply for founders when kill-switch forces a hide
           const applyHide = !isFounder || liveKillActive;
           if (applyHide) {
               if (navBtn) navBtn.style.display = visible ? '' : 'none';
-              // Hide any additional nav elements associated with this entry
+              // Show/hide any additional nav elements associated with this entry
               (cfg.extraNavIds || []).forEach(extraId => {
                   const el = document.getElementById(extraId);
                   if (el) el.style.display = visible ? '' : 'none';
@@ -17256,8 +17226,8 @@ body.arcade-fs-ios body::after { display:none !important; }
               }
           }
       });
-      // After Firestore visibility is applied, always re-enforce hardcoded kill-switches
-      // so Firestore can never override them while they are active.
+      // After Firestore visibility is applied, re-run the dynamic kill-switches
+      // so individual Live / Live Hub flags are correctly shown or hidden.
       if (typeof window._applyLiveFeatureGates === 'function') {
           window._applyLiveFeatureGates();
       }
@@ -17324,6 +17294,19 @@ body.arcade-fs-ios body::after { display:none !important; }
           }).catch(() => {});
           await adminAuditLog(visible ? 'SHOW_PAGE' : 'HIDE_PAGE', cfg.label);
           toastNotification(visible ? `👁 ${cfg.label} page shown.` : `🙈 ${cfg.label} page hidden.`);
+
+          // ── When the liveSystem toggle changes, keep window flags + localStorage in sync ──
+          if (key === 'liveSystem') {
+              window._snxLiveEnabled    = visible;
+              window._snxLiveHubEnabled = visible;
+              try {
+                  const _lsSaved = JSON.parse(localStorage.getItem('founderFeatureControls') || '{}');
+                  _lsSaved.liveEnabled    = visible;
+                  _lsSaved.liveHubEnabled = visible;
+                  localStorage.setItem('founderFeatureControls', JSON.stringify(_lsSaved));
+              } catch(_) {}
+          }
+
           // Apply immediately by merging the change into the cached snapshot so that
           // other keys retain their current state (avoids resetting them to defaults).
           const _merged = Object.assign({}, window._snxPageVisibilityData || {}, { [key]: visible });
@@ -17452,6 +17435,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       const current = (window._snxPageVisibilityData || {}).liveSystem !== false;
       const next    = !current;
       try {
+          // Update Firestore — onSnapshot will fire and sync all clients
           await setDoc(doc(db, 'siteSettings', 'pageVisibility'), { liveSystem: next }, { merge: true });
           await addDoc(collection(db, 'siteSettings', 'pageVisibility', 'navChangeLog'), {
               action:    next ? 'SHOW_PAGE' : 'HIDE_PAGE',
@@ -17462,10 +17446,28 @@ body.arcade-fs-ios body::after { display:none !important; }
               ts:        Date.now()
           }).catch(() => {});
           await adminAuditLog(next ? 'SHOW_PAGE' : 'HIDE_PAGE', 'Live Hub & Live Features');
+
+          // ── Update in-memory flags immediately so _applyLiveFeatureGates works ──
+          window._snxLiveEnabled    = next;
+          window._snxLiveHubEnabled = next;
+
+          // ── Persist to localStorage so flags survive page refresh ──
+          try {
+              const saved = JSON.parse(localStorage.getItem('founderFeatureControls') || '{}');
+              saved.liveEnabled    = next;
+              saved.liveHubEnabled = next;
+              localStorage.setItem('founderFeatureControls', JSON.stringify(saved));
+          } catch(_) {}
+
+          // ── Re-apply gate to show / hide all live UI elements immediately ──
+          if (typeof window._applyLiveFeatureGates === 'function') {
+              window._applyLiveFeatureGates();
+          }
+
           toastNotification(next
               ? '✅ Live Hub & Live Features restored for all users.'
               : '🙈 Live Hub & Live Features hidden from all users.');
-          // onSnapshot will fire and update both this button + the pvLiveSystem checkbox
+          // onSnapshot will fire and also update this button + the pvLiveSystem checkbox
       } catch(e) {
           toastNotification('Error: ' + e.message);
       }
@@ -17477,9 +17479,22 @@ body.arcade-fs-ios body::after { display:none !important; }
   onSnapshot(doc(db, 'siteSettings', 'pageVisibility'), (snap) => {
       const visData = snap.exists() ? snap.data() : {};
       window._snxPageVisibilityData = visData; // persistent cache
+
+      // ── Sync live window flags from Firestore so kill-switch logic stays current ──
+      const _liveSystemOn = visData.liveSystem !== false;
+      window._snxLiveEnabled    = _liveSystemOn;
+      window._snxLiveHubEnabled = _liveSystemOn;
+      // Persist to localStorage so the flag survives page refresh for all clients
+      try {
+          const _lsSaved = JSON.parse(localStorage.getItem('founderFeatureControls') || '{}');
+          _lsSaved.liveEnabled    = _liveSystemOn;
+          _lsSaved.liveHubEnabled = _liveSystemOn;
+          localStorage.setItem('founderFeatureControls', JSON.stringify(_lsSaved));
+      } catch(_) {}
+
       _applyPageVisibility(visData);
       // Keep Founder Controls button label in sync with Firestore state
-      _syncLiveSystemBtn(visData.liveSystem !== false);
+      _syncLiveSystemBtn(_liveSystemOn);
   });
 
   /* ════════════════════════════════════════════════════════════════════
@@ -18293,8 +18308,10 @@ function _snxShowUnavailablePage(message) {
 }
 
 function navTo(pageId) {
-    // ── Hardcoded Live kill-switch — blocks EVERYONE including Founder ──
-    if (pageId === 'liveHubPage' && !window._snxLiveHubEnabled) {
+    // ── Live Hub kill-switch — blocks non-founders when disabled ──
+    // Founder always has access so they can re-enable from within the app.
+    if (pageId === 'liveHubPage' && window._snxLiveHubEnabled === false
+            && window._snxRole !== 'founder') {
         _snxShowUnavailablePage('Live Hub is temporarily disabled. Please check back soon! 🔧');
         return;
     }
