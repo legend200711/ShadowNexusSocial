@@ -10643,6 +10643,9 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   // Mark offline when the tab is closed / navigated away (best-effort)
   window.addEventListener('beforeunload', () => {
+      if (typeof window.snxMusic?.stopMusicTab === 'function') {
+          try { window.snxMusic.stopMusicTab(); } catch(_) {}
+      }
       if (currentUser) {
           try { updateDoc(doc(db, "users", currentUser.uid), { status: "offline", lastSeen: Date.now() }); } catch(_) {}
       }
@@ -11054,6 +11057,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (typeof window._teardownActiveChat    === 'function') window._teardownActiveChat();
           if (typeof window._teardownInboxListener === 'function') window._teardownInboxListener();
           if (typeof window.closeProfileChat    === 'function') window.closeProfileChat();
+          if (typeof window.snxMusic?.stopMusicTab === 'function') window.snxMusic.stopMusicTab();
           document.getElementById("menuButton").style.display = "none";
           // Hide all role-gated nav buttons on logout
           ['navMod','navAdminOfficer','navAdmin'].forEach(id => {
@@ -18110,6 +18114,10 @@ function navTo(pageId) {
         }
     }
 
+    // Stop profile music whenever navigating away from the profile page
+    if (pageId !== 'profile' && typeof window.snxMusic?.stopMusicTab === 'function') {
+        window.snxMusic.stopMusicTab();
+    }
     show(pageId);
     // Update active nav highlight
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active-nav'));

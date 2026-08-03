@@ -1198,12 +1198,37 @@
   }
 
   function stopMusicTab() {
-    const a = getAudio();
-    if (!a.paused) {
-      state.resumeTime = a.currentTime;
-      a.pause();
-    }
+    if (!_audio) return;
+
+    _audio.pause();
+    _audio.currentTime = 0;
+    _audio.removeAttribute('src');
+    _audio.load();
+
+    _audio.onended    = null;
+    _audio.onplay     = null;
+    _audio.onpause    = null;
+    _audio.onerror    = null;
+
+    _audio.removeEventListener('timeupdate',    onTimeUpdate);
+    _audio.removeEventListener('ended',         onEnded);
+    _audio.removeEventListener('loadedmetadata',onMetaLoaded);
+
+    _audio = null;
+
+    state.currentIdx       = -1;
+    state.resumeTime       = 0;
+    state.autoplayUnlocked = false;
+
     hidePrompt();
+
+    // Clear player UI so stale track info isn't shown on next visit
+    const playBtn = document.getElementById('snxPlayerPlayBtn');
+    if (playBtn) playBtn.textContent = '▶';
+    const titleEl = document.getElementById('snxPlayerTitle');
+    if (titleEl) titleEl.textContent = '';
+    const fill = document.getElementById('snxPlayerFill');
+    if (fill) fill.style.width = '0%';
   }
 
   window.snxMusic = { initMusicTab, stopMusicTab, state };
