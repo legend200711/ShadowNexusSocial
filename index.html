@@ -13670,6 +13670,10 @@ body.arcade-fs-ios body::after { display:none !important; }
       activeProfileUid = uid;
       window.activeProfileUid = uid;
       show('profile');
+      // Stop any music playing from a previously viewed profile so state is fresh
+      if (typeof window.snxMusic?.stopMusicTab === 'function') {
+          window.snxMusic.stopMusicTab();
+      }
       // Highlight Profile nav item without closing sidebar
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active-nav'));
       const navEl = document.getElementById('navProfile');
@@ -14007,18 +14011,15 @@ body.arcade-fs-ios body::after { display:none !important; }
          }
      }, 300);
 
-     // ── Profile Music: autoplay when visiting another user's profile ──
-     // Only triggers if music tab hasn't been manually opened already.
-     // Music tab will also load on demand when clicked.
-     if (!isSelf) {
-         setTimeout(() => {
-             if (typeof window.snxMusic?.state !== 'undefined' && window.activeProfileUid === uid) {
-                 if (!window.snxMusic.state.profileUid || window.snxMusic.state.profileUid !== uid) {
-                     window.snxMusic.initMusicTab(uid, false).catch(() => {});
-                 }
-             }
-         }, 800);
-     }
+     // ── Profile Music: pre-load songs in the background when visiting a profile ──
+     // This enables autoplay and ensures songs are ready when the Music tab is clicked.
+     // Always re-initialize when navigating to a profile so visitors see current data.
+     setTimeout(() => {
+         if (typeof window.snxMusic?.initMusicTab === 'function' && window.activeProfileUid === uid) {
+             const _bgisSelf = !!(window._snxCurrentUser && uid === window._snxCurrentUser.uid);
+             window.snxMusic.initMusicTab(uid, _bgisSelf).catch(() => {});
+         }
+     }, 800);
  };
 
   document.getElementById("btnSaveProfile").onclick = async () => {
@@ -18275,8 +18276,10 @@ function switchProfileTab(t) {
         const el = document.getElementById('tabContentMusic');
         if (el) el.style.display = 'block';
         if (window.activeProfileUid && typeof window.snxMusic?.initMusicTab === 'function') {
-            const isSelf = !!(window._snxCurrentUser && window.activeProfileUid === window._snxCurrentUser.uid);
-            window.snxMusic.initMusicTab(window.activeProfileUid, isSelf);
+            const _musicUid  = window.activeProfileUid;
+            const _musicSelf = !!(window._snxCurrentUser && _musicUid === window._snxCurrentUser.uid);
+            console.log('[SNX Music] tab click — profileUid:', _musicUid, 'isSelf:', _musicSelf, 'currentUser:', window._snxCurrentUser?.uid);
+            window.snxMusic.initMusicTab(_musicUid, _musicSelf);
         }
     } else if (t === 'themes') {
         const isSelf = !!(window._snxCurrentUser && window.activeProfileUid === window._snxCurrentUser.uid);

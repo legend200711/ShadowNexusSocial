@@ -588,19 +588,39 @@ service cloud.firestore {
     // ── Profile Music ──────────────────────────────────────────────────────────
     //
     //   /profileMusic/{songId}
-    //     ownerUid, url, artUrl, title, artist, album, genre, year,
-    //     description, duration, uploadedAt
+    //     ownerUid, ownerId, userId, title, artist, album, genre, year,
+    //     description, duration, uploadedAt, visibility, isPublic,
+    //     downloadURL, musicUrl, url, artUrl, coverImage
     //
-    // Owner only can write; any signed-in user can read (visitor playback).
+    // Read:   any signed-in user can read (public playback for profile visitors).
+    //         Public docs (visibility == "public" or isPublic == true) are
+    //         readable by anyone — signed-in or not — so embedded players work.
+    // Create: only the authenticated owner (ownerUid == auth.uid).
+    // Update: only the owner.
+    // Delete: only the owner or a Founder.
 
     match /profileMusic/{songId} {
-      allow read:   if isSignedIn();
+      // Signed-in users can always read; public docs are readable by anyone
+      allow read: if isSignedIn()
+        || resource.data.visibility == 'public'
+        || resource.data.isPublic == true;
       allow create: if isSignedIn()
         && request.resource.data.ownerUid == request.auth.uid;
       allow update: if isSignedIn()
         && resource.data.ownerUid == request.auth.uid;
       allow delete: if isSignedIn()
         && (resource.data.ownerUid == request.auth.uid || isFounder());
+    }
+
+    // ── Music (public catalogue) ───────────────────────────────────────────────
+    //
+    //   /music/{musicId}
+    //     Public reads (no auth required).
+    //     Any signed-in user may create, update, or delete entries.
+
+    match /music/{musicId} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn();
     }
 
     // ── Profile Playlists ─────────────────────────────────────────────────────

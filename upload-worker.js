@@ -482,15 +482,17 @@ export default {
       if (!mime || mime === 'application/octet-stream') mime = extMime || mime;
       else if (extMime && mime.startsWith('video/') && extMime.startsWith('audio/')) mime = extMime;
 
-      if (!mime.startsWith('audio/') && mime !== 'application/octet-stream') {
-        return new Response(JSON.stringify({ error: `Only audio files are allowed for music uploads. Got: ${file.type}` }), {
+      if (!mime.startsWith('audio/') && !mime.startsWith('image/') && mime !== 'application/octet-stream') {
+        return new Response(JSON.stringify({ error: `Only audio or image files are allowed for music uploads. Got: ${file.type}` }), {
           status: 415, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
         });
       }
 
       const buffer = await file.arrayBuffer();
-      if (buffer.byteLength > MAX_SIZE) {
-        return new Response(JSON.stringify({ error: 'File too large (max 200MB)' }), {
+      const sizeLimit = mime.startsWith('image/') ? MAX_SIZE_IMAGE : MAX_SIZE_AUDIO;
+      if (buffer.byteLength > sizeLimit) {
+        const limitMB = Math.round(sizeLimit / 1024 / 1024);
+        return new Response(JSON.stringify({ error: `File too large (max ${limitMB} MB for this type)` }), {
           status: 413, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
         });
       }

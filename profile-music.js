@@ -126,9 +126,29 @@
 
   // ── Firestore ops ─────────────────────────────────────────────
   async function loadSongs(uid) {
+    // uid must always be the profile owner's UID — never the signed-in user's UID
+    if (!uid) return [];
     const { collection, query, where, orderBy, getDocs } = fs();
-    // Sort newest-first (desc). A composite index on (ownerUid, uploadedAt desc)
-    // is required in Firestore — if missing, this falls back gracefully below.
+
+    // Helper: deduplicate songs by Firestore doc id
+    function mergeDedupe(arr1, arr2) {
+      const seen = new Set(arr1.map(s => s.id));
+      return [...arr1, ...arr2.filter(s => !seen.has(s.id))];
+    }
+
+    // Helper: sort by uploadedAt (server timestamp) newest-first
+    function sortByDate(docs) {
+      return docs.sort((a, b) => {
+        const ta = a.uploadedAt?.seconds ?? (a.createdAt ? new Date(a.createdAt).getTime() / 1000 : 0);
+        const tb = b.uploadedAt?.seconds ?? (b.createdAt ? new Date(b.createdAt).getTime() / 1000 : 0);
+        return tb - ta;
+      });
+    }
+
+    console.log('[SNX Music] loadSongs — querying for ownerUid:', uid);
+    let results = [];
+
+    // ── Primary query: ownerUid field (current schema) ──
     try {
       const q = query(
         collection(db(), COLL_SONGS),
@@ -136,22 +156,36 @@
         orderBy('uploadedAt', 'desc')
       );
       const snap = await getDocs(q);
-      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      console.log('[SNX Music] loadSongs — ownerUid query found', results.length, 'songs');
     } catch (err) {
-      // Composite index may not exist yet — fall back to unordered query and
-      // sort client-side so songs still appear.
-      console.warn('[SNX Music] loadSongs index fallback:', err.message);
-      const q2 = query(collection(db(), COLL_SONGS), where('ownerUid', '==', uid));
-      const snap2 = await getDocs(q2);
-      const docs = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Sort newest-first client-side using uploadedAt seconds when available
-      docs.sort((a, b) => {
-        const ta = a.uploadedAt?.seconds ?? 0;
-        const tb = b.uploadedAt?.seconds ?? 0;
-        return tb - ta;
-      });
-      return docs;
+      // Composite index may not exist yet — fall back to unordered query
+      console.warn('[SNX Music] loadSongs ownerUid index fallback:', err.message);
+      try {
+        const q2 = query(collection(db(), COLL_SONGS), where('ownerUid', '==', uid));
+        const snap2 = await getDocs(q2);
+        results = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
+      } catch (e2) {
+        console.warn('[SNX Music] loadSongs ownerUid fallback also failed:', e2.message);
+      }
     }
+
+    // ── Secondary query: userId field (legacy schema, for older documents) ──
+    // Older uploads may only have userId, not ownerUid. Merge without duplicates.
+    try {
+      const qLegacy = query(collection(db(), COLL_SONGS), where('userId', '==', uid));
+      const snapLegacy = await getDocs(qLegacy);
+      const legacy = snapLegacy.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (legacy.length) {
+        console.log('[SNX Music] loadSongs — legacy userId query found', legacy.length, 'additional songs');
+        results = mergeDedupe(results, legacy);
+      }
+    } catch (e) {
+      console.warn('[SNX Music] loadSongs legacy userId query failed (non-fatal):', e.message);
+    }
+
+    console.log('[SNX Music] loadSongs — total after merge:', results.length, 'songs for uid:', uid);
+    return sortByDate(results);
   }
 
   async function loadPlaylists(uid) {
@@ -815,8 +849,11 @@
         setUploadStatus(`Saving track ${i + 1} to your library…`);
         const now = new Date().toISOString();
         const songRef = await addSong({
-          userId:      uid,
+          // ownership — queried by ownerUid; ownerId is an alias for spec compliance
           ownerUid:    uid,
+          ownerId:     uid,
+          userId:      uid,
+          // track metadata
           title:       fields.title  || f.name,
           artist:      fields.artist || '',
           album:       fields.album  || '',
@@ -826,13 +863,19 @@
           fileName:    f.name,
           fileSize:    f.size,
           duration:    dur,
+          // audio file
           r2Key:       audioR2Key,
           downloadURL: audioUrl,
+          musicUrl:    audioUrl,   // spec-required alias for downloadURL
           url:         audioUrl,
+          // artwork
           artR2Key:    artR2Key,
           artworkURL:  artUrl,
           artUrl:      artUrl,
+          coverImage:  artUrl,     // spec-required alias for artUrl
+          // visibility — always public so any signed-in user can read it
           visibility:  'public',
+          isPublic:    true,
           createdAt:   now,
           updatedAt:   now,
         });

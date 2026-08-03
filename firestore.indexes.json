@@ -109,6 +109,14 @@
       ]
     },
     {
+      "collectionGroup": "profileMusic",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",     "order": "ASCENDING"  },
+        { "fieldPath": "uploadedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "profilePlaylists",
       "queryScope": "COLLECTION",
       "fields": [
