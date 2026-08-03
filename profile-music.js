@@ -1,6 +1,7 @@
 /* ══════════════════════════════════════════════════════════════
    Shadow Nexus Social — Profile Music System
-   Handles: upload, playback, playlists, autoplay, settings
+   Handles: upload, playback, playlists, autoplay, settings,
+            external music links (YouTube, Spotify, SoundCloud…)
    ══════════════════════════════════════════════════════════════ */
 
 (function () {
@@ -27,7 +28,131 @@
     draggingIdx: null,
     autoplayUnlocked: false,
     resumeTime: 0,
+    musicLink: null,    // { url, platform, displayChoice }  — loaded from Firestore
   };
+
+  // ── External Music Link — Platform Definitions ─────────────────
+  const MUSIC_PLATFORMS = [
+    {
+      id: 'youtube',
+      name: 'YouTube',
+      icon: '▶',
+      color: '#FF0000',
+      match: url => /(?:youtube\.com\/(?:watch|shorts)|youtu\.be\/)/i.test(url),
+      embedUrl: url => {
+        const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
+        return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=0` : null;
+      },
+      canEmbed: true,
+    },
+    {
+      id: 'youtubemusic',
+      name: 'YouTube Music',
+      icon: '🎵',
+      color: '#FF0000',
+      match: url => /music\.youtube\.com/i.test(url),
+      embedUrl: url => {
+        const m = url.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+        return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=0` : null;
+      },
+      canEmbed: true,
+    },
+    {
+      id: 'spotify',
+      name: 'Spotify',
+      icon: '🎧',
+      color: '#1DB954',
+      match: url => /open\.spotify\.com/i.test(url),
+      embedUrl: url => {
+        // Convert share link to embed link: /track/id, /album/id, /playlist/id
+        const m = url.match(/open\.spotify\.com\/(track|album|playlist|episode)\/([A-Za-z0-9]+)/);
+        return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}?utm_source=generator` : null;
+      },
+      canEmbed: true,
+    },
+    {
+      id: 'applemusic',
+      name: 'Apple Music',
+      icon: '🍎',
+      color: '#FA243C',
+      match: url => /music\.apple\.com/i.test(url),
+      embedUrl: url => {
+        // Convert  https://music.apple.com/us/album/... → embed
+        const m = url.match(/music\.apple\.com\/([a-z]{2})\/(.+)/);
+        return m ? `https://embed.music.apple.com/${m[1]}/${m[2]}` : null;
+      },
+      canEmbed: true,
+    },
+    {
+      id: 'amazonmusic',
+      name: 'Amazon Music',
+      icon: '📦',
+      color: '#00A8E1',
+      match: url => /music\.amazon\./i.test(url),
+      embedUrl: () => null,
+      canEmbed: false,
+    },
+    {
+      id: 'soundcloud',
+      name: 'SoundCloud',
+      icon: '☁',
+      color: '#FF5500',
+      match: url => /soundcloud\.com/i.test(url),
+      embedUrl: url => `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%2300AEEF&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`,
+      canEmbed: true,
+    },
+    {
+      id: 'deezer',
+      name: 'Deezer',
+      icon: '🎶',
+      color: '#A238FF',
+      match: url => /deezer\.com/i.test(url),
+      embedUrl: url => {
+        const m = url.match(/deezer\.com\/(?:[a-z]+\/)?(track|album|playlist)\/(\d+)/);
+        return m ? `https://widget.deezer.com/widget/dark/${m[1]}/${m[2]}` : null;
+      },
+      canEmbed: true,
+    },
+    {
+      id: 'tidal',
+      name: 'TIDAL',
+      icon: '〰',
+      color: '#00FFFF',
+      match: url => /tidal\.com/i.test(url),
+      embedUrl: url => {
+        const m = url.match(/tidal\.com\/(?:browse\/)?(track|album|playlist)\/([^/?#]+)/);
+        return m ? `https://embed.tidal.com/${m[1]}s/${m[2]}` : null;
+      },
+      canEmbed: true,
+    },
+    {
+      id: 'audiomack',
+      name: 'Audiomack',
+      icon: '🔊',
+      color: '#FFA500',
+      match: url => /audiomack\.com/i.test(url),
+      embedUrl: url => {
+        // https://audiomack.com/artist/song/slug → https://audiomack.com/embed/artist/song/slug
+        const m = url.match(/audiomack\.com\/(.+)/);
+        return m ? `https://audiomack.com/embed/${m[1]}` : null;
+      },
+      canEmbed: true,
+    },
+    {
+      id: 'bandcamp',
+      name: 'Bandcamp',
+      icon: '🎸',
+      color: '#1DA0C3',
+      match: url => /\.bandcamp\.com/i.test(url),
+      embedUrl: () => null,  // Bandcamp doesn't offer a generic oEmbed URL we can auto-build
+      canEmbed: false,
+    },
+  ];
+
+  function detectPlatform(url) {
+    if (!url) return null;
+    return MUSIC_PLATFORMS.find(p => p.match(url)) || null;
+  }
 
   // Audio element (singleton)
   let _audio = null;
@@ -265,7 +390,12 @@
   async function loadSettings(uid) {
     const { doc, getDoc } = fs();
     const snap = await getDoc(doc(db(), 'users', uid));
-    if (snap.exists()) return snap.data().musicSettings || {};
+    if (snap.exists()) {
+      const d = snap.data();
+      // Also load the music link while we're here
+      state.musicLink = d.musicLink || null;
+      return d.musicSettings || {};
+    }
     return {};
   }
 
@@ -273,6 +403,14 @@
     if (!state.isSelf) return;
     const { doc, updateDoc } = fs();
     await updateDoc(doc(db(), 'users', state.profileUid), { musicSettings: state.settings }).catch(() => {});
+  }
+
+  async function saveMusicLink(linkObj) {
+    // linkObj = { url, platform, displayChoice } or null to clear
+    if (!state.isSelf) return;
+    const { doc, updateDoc } = fs();
+    await updateDoc(doc(db(), 'users', state.profileUid), { musicLink: linkObj || null }).catch(() => {});
+    state.musicLink = linkObj || null;
   }
 
   async function addSong(songData) {
@@ -473,6 +611,8 @@
     container.innerHTML = `
       ${isOwner ? renderSettingsBlock() : ''}
       ${isOwner ? renderUploadZone() : ''}
+      ${isOwner ? renderMusicLinkEditor() : ''}
+      ${renderMusicLinkCard()}
       <div id="snxMusicPlayerWrap" style="${vis.showPlayer ? '' : 'display:none'}">
         ${renderPlayer()}
       </div>
@@ -482,6 +622,93 @@
       </div>
     `;
     attachMusicEvents();
+    attachMusicLinkEvents();
+  }
+
+  // ── Music Link Editor (owner only) ────────────────────────────
+  function renderMusicLinkEditor() {
+    const ml = state.musicLink;
+    const currentUrl = ml ? ml.url : '';
+    const displayChoice = ml ? (ml.displayChoice || 'link') : 'link';
+    return `
+      <div class="snx-music-link-editor" id="snxMusicLinkEditor">
+        <div class="snx-music-link-editor-header" id="snxMusicLinkToggleBtn">
+          <span>🔗 Music Link <span class="snx-music-link-optional">(Optional)</span></span>
+          <span class="snx-music-link-chevron" id="snxMusicLinkChevron">${ml ? '▾' : '▸'}</span>
+        </div>
+        <div class="snx-music-link-body" id="snxMusicLinkBody" style="${ml ? '' : 'display:none'}">
+          <p class="snx-music-link-hint">Paste a link from YouTube, Spotify, Apple Music, SoundCloud, and more.</p>
+          <div class="snx-music-link-input-row">
+            <input type="url" id="snxMusicLinkInput" placeholder="https://open.spotify.com/track/…" value="${esc(currentUrl)}">
+            <button class="snx-music-link-detect-btn" id="snxMusicLinkDetectBtn">Detect</button>
+          </div>
+          <div class="snx-music-link-platform-info" id="snxMusicLinkPlatformInfo" style="${currentUrl ? '' : 'display:none'}">
+            ${currentUrl ? renderDetectedPlatformBadge(currentUrl) : ''}
+          </div>
+          <div class="snx-music-link-display-choice" id="snxMusicLinkDisplayChoice" style="${currentUrl ? '' : 'display:none'}">
+            <p class="snx-music-link-choice-label">Show on your profile:</p>
+            <label class="snx-music-link-radio">
+              <input type="radio" name="snxLinkDisplay" value="link" ${displayChoice === 'link' ? 'checked' : ''}>
+              <span>Link card (always works)</span>
+            </label>
+            <label class="snx-music-link-radio">
+              <input type="radio" name="snxLinkDisplay" value="embed" ${displayChoice === 'embed' ? 'checked' : ''}>
+              <span>Embedded player (if supported)</span>
+            </label>
+          </div>
+          <div class="snx-music-link-editor-btns">
+            <button class="snx-music-btn-cancel" id="snxMusicLinkClearBtn" ${!currentUrl ? 'disabled' : ''}>Clear Link</button>
+            <button class="snx-music-btn-upload" id="snxMusicLinkSaveBtn">Save Link</button>
+          </div>
+          <div class="snx-music-link-status" id="snxMusicLinkStatus"></div>
+        </div>
+      </div>`;
+  }
+
+  function renderDetectedPlatformBadge(url) {
+    const p = detectPlatform(url);
+    if (!p) return `<span class="snx-music-link-unknown">⚠ Platform not recognised — link will be saved as-is.</span>`;
+    return `<span class="snx-music-link-badge" style="--plt-color:${p.color}">${p.icon} ${esc(p.name)} detected${p.canEmbed ? ' · embedding supported' : ' · open-in-app only'}</span>`;
+  }
+
+  // ── Music Link Display Card (all viewers) ─────────────────────
+  function renderMusicLinkCard() {
+    const ml = state.musicLink;
+    if (!ml || !ml.url) return '';
+
+    const p = detectPlatform(ml.url);
+    const choice = ml.displayChoice || 'link';
+    const useEmbed = choice === 'embed' && p && p.canEmbed;
+    const embedSrc = useEmbed ? p.embedUrl(ml.url) : null;
+
+    if (useEmbed && embedSrc) {
+      const isYT = p.id === 'youtube' || p.id === 'youtubemusic';
+      const isSC = p.id === 'soundcloud';
+      const height = isYT ? '200' : isSC ? '120' : '152';
+      return `
+        <div class="snx-music-link-card snx-music-link-embed-card" id="snxMusicLinkCard">
+          <div class="snx-music-link-card-label" style="--plt-color:${p ? p.color : '#00AEEF'}">${p ? p.icon + ' ' + esc(p.name) : '🔗 Music Link'}</div>
+          <iframe
+            src="${esc(embedSrc)}"
+            width="100%"
+            height="${height}"
+            frameborder="0"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            class="snx-music-link-iframe"
+          ></iframe>
+        </div>`;
+    }
+
+    // Link card fallback
+    const platformName = p ? p.name : 'External Platform';
+    const platformIcon = p ? p.icon : '🔗';
+    const platformColor = p ? p.color : '#00AEEF';
+    return `
+      <div class="snx-music-link-card" id="snxMusicLinkCard">
+        <div class="snx-music-link-card-label" style="--plt-color:${platformColor}">${platformIcon} ${esc(platformName)}</div>
+        <a class="snx-music-link-open-btn" href="${esc(ml.url)}" target="_blank" rel="noopener noreferrer">Open in ${esc(platformName)} ↗</a>
+      </div>`;
   }
 
   function renderSettingsBlock() {
@@ -616,6 +843,112 @@
 
   function esc(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Music Link Event Wiring ───────────────────────────────────
+  function attachMusicLinkEvents() {
+    const toggleBtn = document.getElementById('snxMusicLinkToggleBtn');
+    const body      = document.getElementById('snxMusicLinkBody');
+    const chevron   = document.getElementById('snxMusicLinkChevron');
+    if (toggleBtn && body) {
+      toggleBtn.addEventListener('click', () => {
+        const open = body.style.display !== 'none';
+        body.style.display = open ? 'none' : '';
+        if (chevron) chevron.textContent = open ? '▸' : '▾';
+      });
+    }
+
+    const inp        = document.getElementById('snxMusicLinkInput');
+    const detectBtn  = document.getElementById('snxMusicLinkDetectBtn');
+    const infoArea   = document.getElementById('snxMusicLinkPlatformInfo');
+    const choiceArea = document.getElementById('snxMusicLinkDisplayChoice');
+
+    function updateDetection() {
+      const url = (inp ? inp.value.trim() : '');
+      if (infoArea) {
+        infoArea.style.display = url ? '' : 'none';
+        infoArea.innerHTML = url ? renderDetectedPlatformBadge(url) : '';
+      }
+      if (choiceArea) {
+        choiceArea.style.display = url ? '' : 'none';
+        // Hide embed option for non-embeddable platforms
+        const p = detectPlatform(url);
+        const embedRadio = choiceArea.querySelector('input[value="embed"]')?.closest('label');
+        if (embedRadio) {
+          embedRadio.style.opacity = (p && p.canEmbed) ? '1' : '0.4';
+          const embedInput = choiceArea.querySelector('input[value="embed"]');
+          if (embedInput && p && !p.canEmbed) {
+            embedInput.disabled = true;
+            // Switch to link if embed was selected but platform can't embed
+            const linkInput = choiceArea.querySelector('input[value="link"]');
+            if (linkInput) linkInput.checked = true;
+          } else if (embedInput) {
+            embedInput.disabled = false;
+          }
+        }
+      }
+      const clearBtn = document.getElementById('snxMusicLinkClearBtn');
+      if (clearBtn) clearBtn.disabled = !url;
+    }
+
+    if (inp) inp.addEventListener('input', updateDetection);
+    if (detectBtn) detectBtn.addEventListener('click', updateDetection);
+
+    const saveBtn = document.getElementById('snxMusicLinkSaveBtn');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async () => {
+        const url = inp ? inp.value.trim() : '';
+        const statusEl = document.getElementById('snxMusicLinkStatus');
+        const choiceEl = document.querySelector('input[name="snxLinkDisplay"]:checked');
+        const displayChoice = choiceEl ? choiceEl.value : 'link';
+
+        if (statusEl) statusEl.textContent = 'Saving…';
+        try {
+          if (url) {
+            const p = detectPlatform(url);
+            await saveMusicLink({ url, platform: p ? p.id : 'unknown', displayChoice });
+            if (statusEl) { statusEl.style.color = '#00AEEF'; statusEl.textContent = '✓ Link saved!'; }
+          } else {
+            await saveMusicLink(null);
+            if (statusEl) { statusEl.style.color = '#00AEEF'; statusEl.textContent = '✓ Link cleared.'; }
+          }
+          // Refresh only the card area without a full re-render
+          const card = document.getElementById('snxMusicLinkCard');
+          const cardHtml = renderMusicLinkCard();
+          if (card) {
+            card.outerHTML = cardHtml;
+          } else {
+            // Insert card before the player wrap
+            const playerWrap = document.getElementById('snxMusicPlayerWrap');
+            if (playerWrap && cardHtml) {
+              playerWrap.insertAdjacentHTML('beforebegin', cardHtml);
+            }
+          }
+        } catch (e) {
+          if (statusEl) { statusEl.style.color = '#ff4757'; statusEl.textContent = 'Error: ' + (e.message || e); }
+        }
+        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+      });
+    }
+
+    const clearBtn = document.getElementById('snxMusicLinkClearBtn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', async () => {
+        if (inp) inp.value = '';
+        updateDetection();
+        const statusEl = document.getElementById('snxMusicLinkStatus');
+        try {
+          await saveMusicLink(null);
+          if (statusEl) { statusEl.style.color = '#00AEEF'; statusEl.textContent = '✓ Link cleared.'; }
+          // Remove card from DOM
+          const card = document.getElementById('snxMusicLinkCard');
+          if (card) card.remove();
+        } catch (e) {
+          if (statusEl) { statusEl.style.color = '#ff4757'; statusEl.textContent = 'Error: ' + (e.message || e); }
+        }
+        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+      });
+    }
   }
 
   // ── Event Wiring ──────────────────────────────────────────────
@@ -1171,6 +1504,7 @@
       { enabled: true, autoplay: true, loop: false, repeat: false, repeatOne: false, shuffle: false, showPlayer: true, showPlaylist: true },
       savedSettings
     );
+    // state.musicLink is already populated by loadSettings()
 
     if (!state.settings.enabled && !isSelf) {
       const c = document.getElementById('tabContentMusic');
@@ -1231,5 +1565,5 @@
     if (fill) fill.style.width = '0%';
   }
 
-  window.snxMusic = { initMusicTab, stopMusicTab, state };
+  window.snxMusic = { initMusicTab, stopMusicTab, state, detectPlatform };
 })();
