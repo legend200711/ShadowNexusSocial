@@ -1473,33 +1473,3 @@ button, input, a, [role="button"] {
 #iqBadge.iq-poor      { border-color: rgba(255,50,70,0.65);  color: #ff7788; }
 
 /* IQ quality-change toast — reuses existing #liveToast; colours are set inline via JS */
-
-/* ═══════════════════════════════════════════════════════════════
-   JITSI LIVE ROOM  (#jitsi-live-room)
-   Sits inside #liveStage, hidden until JitsiLive.open() is called.
-   When .jitsi-active is added it expands over the full stage.
-   ═══════════════════════════════════════════════════════════════ */
-
-#jitsi-live-room {
-  /* Hidden by default — takes no space */
-  display: none;
-  position: absolute;
-  inset: 0;
-  z-index: 30;            /* above guest grid (z-index:5) and chat (z-index:20) */
-  background: #000;
-  border-radius: 0;
-  overflow: hidden;
-}
-
-/* Activated state — shown when JitsiLive.open() is called */
-#jitsi-live-room.jitsi-active {
-  display: block;
-}
-
-/* The iframe Jitsi injects must fill the container */
-#jitsi-live-room iframe {
-  width: 100% !important;
-  height: 100% !important;
-  border: none;
-  display: block;
-}
