@@ -9366,9 +9366,13 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="settings-label">💙 Community Hub<small>Community Hub page &amp; nav button</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="pvCommunity" class="notif-toggle-cb" checked onchange="snxSetPageVisible('community',this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
-        <div class="settings-row" style="border-bottom:none;">
+        <div class="settings-row">
             <div class="settings-label">📜 Community Rules<small>Community Rules page &amp; nav button</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="pvRules" class="notif-toggle-cb" checked onchange="snxSetPageVisible('rules',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row" style="border-bottom:none;">
+            <div class="settings-label">🔴 Live Hub &amp; Go Live<small>Live Hub page, Go Live button &amp; all nav links</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="pvLiveSystem" class="notif-toggle-cb" checked onchange="snxSetPageVisible('liveSystem',this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
     </div>
 
@@ -17077,6 +17081,13 @@ body.arcade-fs-ios body::after { display:none !important; }
       support:   { navId: 'navSupport',        pageId: 'supportRoomsPage',   label: 'Support Rooms' },
       community: { navId: 'navCommunity',      pageId: 'communityPage',      label: 'Community Hub' },
       rules:     { navId: 'navCommunityRules', pageId: 'communityRulesPage', label: 'Community Rules' },
+      // Live Hub + Go Live — multiple nav elements handled via extraNavIds
+      liveSystem: {
+          navId:       'navLiveHub',
+          pageId:      'liveHubPage',
+          label:       'Live Hub & Go Live',
+          extraNavIds: ['navLive', 'scNavLive', 'scNavGoLive', 'ncmLiveHub', 'ncmGoLive'],
+      },
   };
 
   // Apply page visibility from a Firestore config object
@@ -17091,9 +17102,14 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Sync control-panel toggle if open
           const cb = document.getElementById('pv' + key.charAt(0).toUpperCase() + key.slice(1));
           if (cb) cb.checked = visible;
-          // Hide nav button for non-founders when page is hidden
-          if (navBtn && !isFounder) {
-              navBtn.style.display = visible ? '' : 'none';
+          // Hide nav button(s) for non-founders when page is hidden
+          if (!isFounder) {
+              if (navBtn) navBtn.style.display = visible ? '' : 'none';
+              // Hide any additional nav elements associated with this entry
+              (cfg.extraNavIds || []).forEach(extraId => {
+                  const el = document.getElementById(extraId);
+                  if (el) el.style.display = visible ? '' : 'none';
+              });
           }
           // If non-founder is currently on a hidden page, redirect them to feed
           if (!visible && !isFounder) {
