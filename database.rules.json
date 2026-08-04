@@ -105,27 +105,6 @@
       }
     },
 
-    // ── Live viewer count (RTDB atomic counter per room) ─────────────────
-    //    Host increments/decrements; any authenticated user can read.
-    "viewerCount": {
-      "$roomId": {
-        ".read":  "auth != null",
-        ".write": "auth != null"
-      }
-    },
-
-    // ── Live chat messages (RTDB lightweight chat backup) ─────────────────
-    //    Firestore is primary; this node is an optional low-latency mirror.
-    "chat": {
-      "$roomId": {
-        ".read":  "auth != null",
-        "$msgId": {
-          ".write": "auth != null"
-        }
-      }
-    },
-
-
     // ── Storm Rooms ───────────────────────────────────────────────────
     "stormRooms": {
       "$roomId": {

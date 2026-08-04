@@ -150,39 +150,6 @@
         { "fieldPath": "uploadedAt","order": "DESCENDING" }
       ]
     }
-    ,
-    {
-      "collectionGroup": "memoryVault",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "privacy",     "order": "ASCENDING"  },
-        { "fieldPath": "dateCreated", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "memoryVault",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "privacy",     "order": "ASCENDING"  },
-        { "fieldPath": "dateCreated", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "shadowXP",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "level",      "order": "DESCENDING" },
-        { "fieldPath": "experience", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "quests",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "completed",     "order": "ASCENDING"  },
-        { "fieldPath": "completedDate", "order": "DESCENDING" }
-      ]
-    }
   ],
   "fieldOverrides": []
 }

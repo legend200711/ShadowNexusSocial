@@ -48,8 +48,6 @@
 <link rel="stylesheet" href="profile-theme.css">
 <!-- ── Shadow Nexus Social Realm — full immersive redesign ── -->
 <link rel="stylesheet" href="realm.css">
-<!-- ── Shadow Nexus Feature Pack — 5 unique systems ── -->
-<link rel="stylesheet" href="shadow-nexus-features.css">
 <!-- ── Mobile responsive design layer ── -->
 <link rel="stylesheet" href="mobile.css">
 
@@ -6557,15 +6555,15 @@ body.arcade-fs-ios body::after { display:none !important; }
             <span class="sc-item-label">Support Rooms</span>
         </button>
 
-        <div class="sc-divider" id="scLiveDivider" style="display:none;"></div>
+        <div class="sc-divider"></div>
 
         <!-- Live Hub -->
-        <button class="sc-item sc-item-live" id="scNavLive" onclick="realmNavTo('liveHubPage')" aria-label="Live Hub" style="display:none;">
+        <button class="sc-item sc-item-live" id="scNavLive" onclick="realmNavTo('liveHubPage')" aria-label="Live Hub">
             <span class="sc-item-icon">🔴</span>
             <span class="sc-item-label">Live Hub</span>
         </button>
         <!-- Go Live -->
-        <button class="sc-item sc-item-live" id="scNavGoLive" onclick="goLiveOrWatch()" aria-label="Go Live" style="display:none;">
+        <button class="sc-item sc-item-live" id="scNavGoLive" onclick="goLiveOrWatch()" aria-label="Go Live">
             <span class="sc-item-icon">📡</span>
             <span class="sc-item-label">Go Live</span>
         </button>
@@ -6573,30 +6571,6 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="sc-item" id="scNavArcade" onclick="openArcadeHub()" aria-label="Arcade">
             <span class="sc-item-icon">🕹️</span>
             <span class="sc-item-label">Arcade</span>
-        </button>
-
-        <div class="sc-divider"></div>
-
-        <!-- ── SHADOW NEXUS FEATURES ── -->
-        <button class="sc-item" id="scNavRealms" onclick="realmNavTo('shadowRealmsPage')" aria-label="Shadow Realms" style="color:#a070ff !important;">
-            <span class="sc-item-icon">🌑</span>
-            <span class="sc-item-label">Shadow Realms</span>
-        </button>
-        <button class="sc-item" id="scNavCompanions" onclick="realmNavTo('shadowCompanionsPage')" aria-label="Shadow Companions" style="color:#a070ff !important;">
-            <span class="sc-item-icon">🐺</span>
-            <span class="sc-item-label">Companions</span>
-        </button>
-        <button class="sc-item" id="scNavVault" onclick="realmNavTo('shadowVaultPage')" aria-label="Memory Vault" style="color:#a070ff !important;">
-            <span class="sc-item-icon">🕯️</span>
-            <span class="sc-item-label">Memory Vault</span>
-        </button>
-        <button class="sc-item" id="scNavQuests" onclick="realmNavTo('shadowQuestsPage')" aria-label="Shadow Quests" style="color:#a070ff !important;">
-            <span class="sc-item-icon">⚔️</span>
-            <span class="sc-item-label">Shadow Quests</span>
-        </button>
-        <button class="sc-item" id="scNavStories" onclick="realmNavTo('creatorStoriesPage')" aria-label="Creator Stories" style="color:#a070ff !important;">
-            <span class="sc-item-icon">🎤</span>
-            <span class="sc-item-label">Creator Stories</span>
         </button>
 
         <div class="sc-divider"></div>
@@ -6684,48 +6658,22 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="ncm-label">Support Rooms</div>
         </div>
 
-        <div class="ncm-divider" id="ncmCreatorDivider" style="display:none;"></div>
+        <div class="ncm-divider"></div>
 
         <!-- ── CREATOR / LIVE ── -->
-        <span class="ncm-section-label" id="ncmCreatorLabel" style="display:none;">Creator</span>
+        <span class="ncm-section-label">Creator</span>
 
-        <div class="ncm-item ncm-item-live" id="ncmLiveHub" onclick="mobileNavTo('liveHubPage')" style="display:none;">
+        <div class="ncm-item ncm-item-live" id="ncmLiveHub" onclick="mobileNavTo('liveHubPage')">
             <div class="ncm-icon-wrap">🔴</div>
             <div class="ncm-label">Live Hub</div>
         </div>
-        <div class="ncm-item ncm-item-live" id="ncmGoLive" onclick="mobileNavTo('_golive')" style="display:none;">
+        <div class="ncm-item ncm-item-live" id="ncmGoLive" onclick="mobileNavTo('_golive')">
             <div class="ncm-icon-wrap">📡</div>
             <div class="ncm-label">Go Live</div>
         </div>
         <div class="ncm-item" id="ncmArcade" onclick="mobileNavTo('_arcade')">
             <div class="ncm-icon-wrap">🕹️</div>
             <div class="ncm-label">Arcade</div>
-        </div>
-
-        <div class="ncm-divider"></div>
-
-        <!-- ── SHADOW NEXUS FEATURES ── -->
-        <span class="ncm-section-label" style="color:#a070ff;">Shadow Features</span>
-
-        <div class="ncm-item" id="ncmRealms" onclick="mobileNavTo('shadowRealmsPage')" style="color:#a070ff;">
-            <div class="ncm-icon-wrap" style="border-color:rgba(160,112,255,0.3);">🌑</div>
-            <div class="ncm-label">Shadow Realms</div>
-        </div>
-        <div class="ncm-item" id="ncmCompanions" onclick="mobileNavTo('shadowCompanionsPage')" style="color:#a070ff;">
-            <div class="ncm-icon-wrap" style="border-color:rgba(160,112,255,0.3);">🐺</div>
-            <div class="ncm-label">Companions</div>
-        </div>
-        <div class="ncm-item" id="ncmVault" onclick="mobileNavTo('shadowVaultPage')" style="color:#a070ff;">
-            <div class="ncm-icon-wrap" style="border-color:rgba(160,112,255,0.3);">🕯️</div>
-            <div class="ncm-label">Memory Vault</div>
-        </div>
-        <div class="ncm-item" id="ncmQuests" onclick="mobileNavTo('shadowQuestsPage')" style="color:#a070ff;">
-            <div class="ncm-icon-wrap" style="border-color:rgba(160,112,255,0.3);">⚔️</div>
-            <div class="ncm-label">Shadow Quests</div>
-        </div>
-        <div class="ncm-item" id="ncmStories" onclick="mobileNavTo('creatorStoriesPage')" style="color:#a070ff;">
-            <div class="ncm-icon-wrap" style="border-color:rgba(160,112,255,0.3);">🎤</div>
-            <div class="ncm-label">Creator Stories</div>
         </div>
 
         <div class="ncm-divider"></div>
@@ -6835,36 +6783,17 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="sidebar-divider"></div>
 
         <!-- ── CREATOR / LIVE ── -->
-        <button class="nav-item" id="liveHubSidebarButton" onclick="realmNavTo('liveHubPage')" style="color:#ff4455;border-left:3px solid rgba(255,50,80,0.55);display:none;">
+        <button class="nav-item" id="navLiveHub" onclick="realmNavTo('liveHubPage')" style="color:#ff4455;border-left:3px solid rgba(255,50,80,0.55);">
             <span class="nav-icon">🔴</span> Live Hub
             <span id="navLiveHubCount" class="nav-badge" style="display:none;background:#ff3344;"></span>
         </button>
-        <button class="nav-item nav-item-go-live" id="liveSidebarButton" onclick="goLiveOrWatch()" style="display:none;">
+        <button class="nav-item nav-item-go-live" id="navLive" onclick="goLiveOrWatch()">
             <span class="nav-icon">📡</span> Go Live
             <span id="navLiveDot" class="nav-badge" style="display:none;background:#ff3344;"></span>
         </button>
         <button class="nav-item" id="navArcade" onclick="openArcadeHub()">
             <span class="nav-icon">🕹️</span> Arcade
             <span class="nav-badge" id="sidebarArcadeBadge"></span>
-        </button>
-
-        <div class="sidebar-divider"></div>
-
-        <!-- ── SHADOW NEXUS FEATURES ── -->
-        <button class="nav-item nav-item-nexus-features" id="navRealms" onclick="realmNavTo('shadowRealmsPage')">
-            <span class="nav-icon">🌑</span> Shadow Realms
-        </button>
-        <button class="nav-item nav-item-nexus-features" id="navCompanions" onclick="realmNavTo('shadowCompanionsPage')">
-            <span class="nav-icon">🐺</span> Companions
-        </button>
-        <button class="nav-item nav-item-nexus-features" id="navVault" onclick="realmNavTo('shadowVaultPage')">
-            <span class="nav-icon">🕯️</span> Memory Vault
-        </button>
-        <button class="nav-item nav-item-nexus-features" id="navQuests" onclick="realmNavTo('shadowQuestsPage')">
-            <span class="nav-icon">⚔️</span> Shadow Quests
-        </button>
-        <button class="nav-item nav-item-nexus-features" id="navStories" onclick="realmNavTo('creatorStoriesPage')">
-            <span class="nav-icon">🎤</span> Creator Stories
         </button>
 
         <div class="sidebar-divider"></div>
@@ -9402,21 +9331,6 @@ body.arcade-fs-ios body::after { display:none !important; }
 ══════════════════════════════════ -->
 <div class="admin-tab-content" id="adminTab-pages">
 
-    <!-- ══ FOUNDER CONTROLS ══════════════════════════════════════════════ -->
-    <div id="founderControls" class="section-card" style="margin-bottom:16px;border-color:rgba(255,215,0,0.55);background:linear-gradient(135deg,rgba(60,40,0,0.45),rgba(11,31,58,0.92));">
-        <h3 style="margin:0 0 10px;font-size:13px;color:#ffd700;text-transform:uppercase;letter-spacing:0.8px;">👑 Founder Controls</h3>
-        <p style="font-size:12px;color:#c8b46e;margin:0 0 14px;line-height:1.7;">One-click controls visible only to the Founder. Changes are applied site-wide in real time — regular users cannot override them.</p>
-        <div class="settings-row" style="border-bottom:none;align-items:center;">
-            <div class="settings-label">🔴 Live Hub &amp; Live Features<small>Hide or restore Live Hub page, Go Live button &amp; all live nav links for all users</small></div>
-            <button id="toggleLiveSystem"
-                    style="flex-shrink:0;padding:8px 18px;border-radius:10px;font-size:13px;font-weight:700;border:1.5px solid rgba(255,68,85,0.6);background:rgba(255,30,50,0.12);color:#ff4455;cursor:pointer;white-space:nowrap;"
-                    onclick="founderToggleLiveSystem()">
-                Hide Live Hub &amp; Live Features
-            </button>
-        </div>
-    </div>
-    <!-- ══ END FOUNDER CONTROLS ══════════════════════════════════════════ -->
-
     <!-- Info banner -->
     <div class="section-card" style="margin-bottom:16px;border-color:rgba(0,174,239,0.45);background:linear-gradient(135deg,rgba(0,40,80,0.35),rgba(11,31,58,0.92));">
         <h3 style="margin:0 0 8px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">👁 Page Visibility Controls</h3>
@@ -9452,13 +9366,9 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="settings-label">💙 Community Hub<small>Community Hub page &amp; nav button</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="pvCommunity" class="notif-toggle-cb" checked onchange="snxSetPageVisible('community',this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
-        <div class="settings-row">
+        <div class="settings-row" style="border-bottom:none;">
             <div class="settings-label">📜 Community Rules<small>Community Rules page &amp; nav button</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="pvRules" class="notif-toggle-cb" checked onchange="snxSetPageVisible('rules',this.checked)"><span class="notif-toggle-slider"></span></label>
-        </div>
-        <div class="settings-row" style="border-bottom:none;">
-            <div class="settings-label">🔴 Live Hub &amp; Go Live<small>Live Hub page, Go Live button &amp; all nav links</small></div>
-            <label class="notif-toggle-wrap"><input type="checkbox" id="pvLiveSystem" class="notif-toggle-cb" checked onchange="snxSetPageVisible('liveSystem',this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
     </div>
 
@@ -9922,77 +9832,6 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 </div><!-- end liveHubPage -->
 
-<!-- ████ SHADOW REALMS PAGE ████ -->
-<div class="page" id="shadowRealmsPage">
-  <div class="snxf-page-title">🌑 Shadow Realms</div>
-  <div class="snxf-page-sub">Turn your profile into a personal digital universe</div>
-  <div class="snxf-xp-strip" id="realmsXPStrip"></div>
-  <div class="section-card">
-    <div id="realmsContent">
-      <div style="color:#3a5a7a;font-size:12px;text-align:center;padding:20px 0;">Loading your Realm…</div>
-    </div>
-  </div>
-</div><!-- end shadowRealmsPage -->
-
-<!-- ████ SHADOW COMPANIONS PAGE ████ -->
-<div class="page" id="shadowCompanionsPage">
-  <div class="snxf-page-title">🐺 Shadow Companions</div>
-  <div class="snxf-page-sub">Your digital companion that grows with you</div>
-  <div class="snxf-xp-strip" id="companionsXPStrip"></div>
-  <div class="section-card">
-    <div id="companionsContent">
-      <div style="color:#3a5a7a;font-size:12px;text-align:center;padding:20px 0;">Loading companion…</div>
-    </div>
-  </div>
-</div><!-- end shadowCompanionsPage -->
-
-<!-- ████ SHADOW MEMORY VAULT PAGE ████ -->
-<div class="page" id="shadowVaultPage">
-  <div class="snxf-page-title">🕯️ Shadow Memory Vault</div>
-  <div class="snxf-page-sub">Your digital life timeline and personal archive</div>
-  <div class="snxf-xp-strip" id="vaultXPStrip"></div>
-  <div class="section-card">
-    <button class="snxv-add-btn" onclick="snxf_openAddMemory()">➕ Add New Memory</button>
-    <div class="snxv-privacy-tabs" id="vaultPrivacyTabs"></div>
-    <div class="snxv-memory-grid" id="vaultGrid">
-      <div style="color:#3a5a7a;font-size:12px;text-align:center;padding:20px 0;grid-column:1/-1;">Loading memories…</div>
-    </div>
-  </div>
-</div><!-- end shadowVaultPage -->
-
-<!-- ████ SHADOW QUEST SYSTEM PAGE ████ -->
-<div class="page" id="shadowQuestsPage">
-  <div class="snxf-page-title">⚔️ Shadow Quests</div>
-  <div class="snxf-page-sub">Turn social activity into missions and rewards</div>
-  <div class="snxf-xp-strip" id="questsXPStrip"></div>
-  <div class="section-card">
-    <div class="snxq-rewards-strip">
-      <span class="snxq-reward-chip">🔥 Shadow XP</span>
-      <span class="snxq-reward-chip">🏅 Badges</span>
-      <span class="snxq-reward-chip">🏷 Titles</span>
-      <span class="snxq-reward-chip">🌑 Realm Upgrades</span>
-      <span class="snxq-reward-chip">🐺 Companion XP</span>
-    </div>
-    <div class="snxq-tab-row" id="questTabRow"></div>
-    <div class="snxq-quest-list" id="questList">
-      <div style="color:#3a5a7a;font-size:12px;text-align:center;padding:20px 0;">Loading quests…</div>
-    </div>
-  </div>
-</div><!-- end shadowQuestsPage -->
-
-<!-- ████ CREATOR STORY MODE PAGE ████ -->
-<div class="page" id="creatorStoriesPage">
-  <div class="snxf-page-title">🎤 Creator Story Mode</div>
-  <div class="snxf-page-sub">Tell your journey like a movie series</div>
-  <div class="snxf-xp-strip" id="storiesXPStrip"></div>
-  <div class="section-card">
-    <button class="snxs-new-episode-btn" onclick="snxf_openNewEpisode()">🎬 Create New Episode</button>
-    <div class="snxs-episode-list" id="episodeList">
-      <div style="color:#3a5a7a;font-size:12px;text-align:center;padding:20px 0;">Loading episodes…</div>
-    </div>
-  </div>
-</div><!-- end creatorStoriesPage -->
-
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, browserLocalPersistence, setPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -10014,65 +9853,6 @@ body.arcade-fs-ios body::after { display:none !important; }
   const auth = getAuth(app);
   const db = getFirestore(app);
   const _presenceRtdb = _getRtdb(app);
-
-  /* ════════════════════════════════════════════════════════════════
-     FOUNDER FEATURE CONTROLS — Live & Live Hub Kill Switches
-     Toggled at runtime by founderToggleLiveSystem() via Firestore.
-     Settings are saved to localStorage under 'founderFeatureControls'
-     so they persist across page reloads, logouts, and logins.
-     Hardcoded defaults are TRUE — Firestore / localStorage override.
-  ════════════════════════════════════════════════════════════════ */
-
-  // ── Read saved state from localStorage (dynamic, not hardcoded) ──
-  (function _loadFounderFeatureControls() {
-    try {
-      const saved = JSON.parse(localStorage.getItem('founderFeatureControls') || '{}');
-      // Default to true when no value has ever been saved
-      window._snxLiveEnabled    = saved.liveEnabled    !== false;
-      window._snxLiveHubEnabled = saved.liveHubEnabled !== false;
-    } catch(_) {
-      window._snxLiveEnabled    = true;
-      window._snxLiveHubEnabled = true;
-    }
-  })();
-
-  // ── Apply live feature gates — show or hide based on current flags ──
-  // Runs on page load and whenever founderToggleLiveSystem() changes the flags.
-  function _applyLiveFeatureGates() {
-    const liveOn    = window._snxLiveEnabled    !== false;
-    const liveHubOn = window._snxLiveHubEnabled !== false;
-
-    // Helper: show or hide a set of element IDs
-    const _setDisplay = (ids, show) => ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = show ? '' : 'none';
-    });
-
-    if (!liveOn && !liveHubOn) {
-      // Both disabled — hide everything including section headers/dividers
-      _setDisplay([
-        'liveSidebarButton', 'liveHubSidebarButton',
-        'scNavLive', 'scNavGoLive', 'ncmLiveHub', 'ncmGoLive',
-      ], false);
-      // Hide mobile menu Creator section label + divider
-      _setDisplay(['ncmCreatorLabel', 'ncmCreatorDivider', 'scLiveDivider'], false);
-    } else {
-      // At least one is enabled — show/hide individual groups
-      // Live Hub nav buttons
-      _setDisplay(['liveHubSidebarButton', 'scNavLive', 'ncmLiveHub'], liveHubOn);
-      // Go Live nav buttons
-      _setDisplay(['liveSidebarButton', 'scNavGoLive', 'ncmGoLive'], liveOn);
-      // Restore section labels/dividers whenever either feature is on
-      _setDisplay(['ncmCreatorLabel', 'ncmCreatorDivider', 'scLiveDivider'], true);
-    }
-
-    // Live NOW feed banner, profile badge, Watch Live button, live dot
-    _setDisplay(['feedLiveBanner', 'profileLiveBadge', 'btnWatchLive', 'navLiveDot'], liveOn);
-  }
-  // Run immediately (DOM is ready at this point — script is after body content)
-  _applyLiveFeatureGates();
-  // Expose so it can be re-called after dynamic rendering or toggle changes
-  window._applyLiveFeatureGates = _applyLiveFeatureGates;
 
   // ── Ensure auth token is always persisted in localStorage (survives tab/app close) ──
   setPersistence(auth, browserLocalPersistence).catch(() => {});
@@ -10425,16 +10205,6 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (sidebar)  sidebar.classList.remove('active');
       if (overlay)  overlay.classList.remove('visible');
 
-      // ── Hardcoded kill-switch — blocks EVERYONE including Founder ──
-      if (!window._snxLiveEnabled) {
-          if (typeof _snxShowUnavailablePage === 'function') {
-              _snxShowUnavailablePage('Live streaming is temporarily disabled. Please check back soon! 🔧');
-          } else if (typeof toastNotification === 'function') {
-              toastNotification('🔧 Live streaming is temporarily disabled.');
-          }
-          return;
-      }
-
       if (!currentUser) {
           window.location.href = 'live.html';
           return;
@@ -10465,9 +10235,6 @@ body.arcade-fs-ios body::after { display:none !important; }
      title, viewer count, elapsed time, Watch button.
    ═══════════════════════════════════════════════ */
   (function initLiveHub() {
-    // Skip entirely when Live Hub is disabled globally
-    if (!window._snxLiveHubEnabled) return;
-
     const grid      = document.getElementById('liveHubGrid');
     const emptyEl   = document.getElementById('liveHubEmpty');
     const loadingEl = document.getElementById('liveHubLoading');
@@ -10703,9 +10470,6 @@ body.arcade-fs-ios body::after { display:none !important; }
      top of the feed — tap to join instantly, no login.
    ═══════════════════════════════════════════════ */
   (function initFeedLiveBanner() {
-    // Skip entirely when Live is disabled globally
-    if (!window._snxLiveEnabled) return;
-
     const banner    = document.getElementById('feedLiveBanner');
     const cardsEl   = document.getElementById('feedLiveCards');
     const countEl   = document.getElementById('feedLiveCount');
@@ -11100,10 +10864,9 @@ body.arcade-fs-ios body::after { display:none !important; }
               updateFriendBadges((userData.friendRequestsReceived || []).length);
 
               // ── Live nav dot — lights up red when you are streaming ──
-              // (suppressed when live feature is globally disabled)
               const _liveDot = document.getElementById('navLiveDot');
               if (_liveDot) {
-                  if (userData.isLive && window._snxLiveEnabled) {
+                  if (userData.isLive) {
                       _liveDot.style.display = 'inline-flex';
                   } else {
                       _liveDot.style.display = 'none';
@@ -11173,9 +10936,8 @@ body.arcade-fs-ios body::after { display:none !important; }
                           // Remove the handler when the toast hides
                           setTimeout(() => { _t.removeEventListener('click', _handler); _t.style.cursor = ''; }, 3500);
                       }
-                  } else if (n.type === 'live' && n.roomId && window._snxLiveEnabled) {
+                  } else if (n.type === 'live' && n.roomId) {
                       // Live notification — vibrate + tappable toast → open live room
-                      // (suppressed when live feature is globally disabled)
                       try { if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 100]); } catch(_) {}
                       toastNotification('🔴 ' + (n.body || (n.fromName + ' is live!')));
                       const _lt = document.getElementById('notification-toast');
@@ -11214,10 +10976,6 @@ body.arcade-fs-ios body::after { display:none !important; }
           // (role was unknown), so this replays the cached settings correctly.
           if (typeof window._snxReapplyNavVisibility === 'function') {
               window._snxReapplyNavVisibility();
-          }
-          // Re-enforce hardcoded live kill-switches after role + Firestore data is known
-          if (typeof window._applyLiveFeatureGates === 'function') {
-              window._applyLiveFeatureGates();
           }
           // Dismiss auth gate + login loading overlay, then navigate to feed
           const _gate = document.getElementById('snx-auth-gate');
@@ -11895,10 +11653,6 @@ body.arcade-fs-ios body::after { display:none !important; }
                   if (post.expiresAt) div.dataset.expiresAt = post.expiresAt;
 
                   // ── LIVE / LIVE_SHARE card ─────────────────────────────────────
-                  // Skip live cards entirely when the live feature is disabled
-                  if ((post.type === 'live' || post.type === 'live_share') && !window._snxLiveEnabled) {
-                      return;   // live feature disabled — hide from feed
-                  }
                   // Skip ended streams — only render active live cards
                   if ((post.type === 'live' || post.type === 'live_share') && post.isLive === false) {
                       return;   // do not add ended stream cards to the feed
@@ -14002,10 +13756,9 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (onlineBadge) onlineBadge.style.display = p.status === 'online' ? 'inline-flex' : 'none';
 
           // LIVE NOW badge — link to the active stream room
-          // (hidden when live feature is globally disabled)
           const liveBadge = document.getElementById("profileLiveBadge");
           if (liveBadge) {
-            if (p.isLive && p.liveRoomId && window._snxLiveEnabled) {
+            if (p.isLive && p.liveRoomId) {
               liveBadge.href = `live.html#watch=${encodeURIComponent(p.liveRoomId)}`;
               liveBadge.style.display = 'inline-flex';
             } else {
@@ -14015,14 +13768,13 @@ body.arcade-fs-ios body::after { display:none !important; }
 
           // Avatar live ring — red pulsing border when the user is streaming
           const avatarEl2 = document.getElementById("profileAvatar");
-          if (avatarEl2) avatarEl2.classList.toggle('is-live', !!(p.isLive && window._snxLiveEnabled));
+          if (avatarEl2) avatarEl2.classList.toggle('is-live', !!(p.isLive));
 
           // Watch Live button — shown on OTHER user's profile only when they are live
-          // (hidden when live feature is globally disabled)
           const btnWatchLive = document.getElementById("btnWatchLive");
           const isSelf = currentUser && uid === currentUser.uid;
           if (btnWatchLive) {
-            if (!isSelf && p.isLive && p.liveRoomId && window._snxLiveEnabled) {
+            if (!isSelf && p.isLive && p.liveRoomId) {
               btnWatchLive.href = `live.html#watch=${encodeURIComponent(p.liveRoomId)}`;
               btnWatchLive.style.display = 'inline-flex';
             } else {
@@ -17325,13 +17077,6 @@ body.arcade-fs-ios body::after { display:none !important; }
       support:   { navId: 'navSupport',        pageId: 'supportRoomsPage',   label: 'Support Rooms' },
       community: { navId: 'navCommunity',      pageId: 'communityPage',      label: 'Community Hub' },
       rules:     { navId: 'navCommunityRules', pageId: 'communityRulesPage', label: 'Community Rules' },
-      // Live Hub + Go Live — multiple nav elements handled via extraNavIds
-      liveSystem: {
-          navId:       'liveHubSidebarButton',
-          pageId:      'liveHubPage',
-          label:       'Live Hub & Go Live',
-          extraNavIds: ['liveSidebarButton', 'scNavLive', 'scNavGoLive', 'ncmLiveHub', 'ncmGoLive'],
-      },
   };
 
   // Apply page visibility from a Firestore config object
@@ -17346,33 +17091,18 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Sync control-panel toggle if open
           const cb = document.getElementById('pv' + key.charAt(0).toUpperCase() + key.slice(1));
           if (cb) cb.checked = visible;
-          // For the liveSystem key: the dynamic kill-switches (window flags) override Firestore
-          // ONLY when at least one flag is explicitly disabled (false).
-          const liveKillActive = (key === 'liveSystem') &&
-              (window._snxLiveEnabled === false || window._snxLiveHubEnabled === false);
-          // Apply display changes for non-founders; also apply for founders when kill-switch forces a hide
-          const applyHide = !isFounder || liveKillActive;
-          if (applyHide) {
-              if (navBtn) navBtn.style.display = visible ? '' : 'none';
-              // Show/hide any additional nav elements associated with this entry
-              (cfg.extraNavIds || []).forEach(extraId => {
-                  const el = document.getElementById(extraId);
-                  if (el) el.style.display = visible ? '' : 'none';
-              });
+          // Hide nav button for non-founders when page is hidden
+          if (navBtn && !isFounder) {
+              navBtn.style.display = visible ? '' : 'none';
           }
-          // If user is currently on a hidden page, redirect them to feed
-          if (!visible && (!isFounder || liveKillActive)) {
+          // If non-founder is currently on a hidden page, redirect them to feed
+          if (!visible && !isFounder) {
               const activePage = document.querySelector('.page.active');
               if (activePage && activePage.id === cfg.pageId) {
                   if (typeof navTo === 'function') navTo('feed');
               }
           }
       });
-      // After Firestore visibility is applied, re-run the dynamic kill-switches
-      // so individual Live / Live Hub flags are correctly shown or hidden.
-      if (typeof window._applyLiveFeatureGates === 'function') {
-          window._applyLiveFeatureGates();
-      }
       // Apply disabled pages list
       const disabled = vis.disabledPages || [];
       // Store disabled pages on window so navTo can block access
@@ -17426,7 +17156,7 @@ body.arcade-fs-ios body::after { display:none !important; }
       try {
           await setDoc(doc(db, 'siteSettings', 'pageVisibility'), { [key]: visible }, { merge: true });
           // Log the change
-          await addDoc(collection(db, 'siteSettings', 'pageVisibility', 'navChangeLog'), {
+          await addDoc(collection(db, 'siteSettings', 'navChangeLog'), {
               action: visible ? 'SHOW_PAGE' : 'HIDE_PAGE',
               page: cfg.label,
               key,
@@ -17436,19 +17166,6 @@ body.arcade-fs-ios body::after { display:none !important; }
           }).catch(() => {});
           await adminAuditLog(visible ? 'SHOW_PAGE' : 'HIDE_PAGE', cfg.label);
           toastNotification(visible ? `👁 ${cfg.label} page shown.` : `🙈 ${cfg.label} page hidden.`);
-
-          // ── When the liveSystem toggle changes, keep window flags + localStorage in sync ──
-          if (key === 'liveSystem') {
-              window._snxLiveEnabled    = visible;
-              window._snxLiveHubEnabled = visible;
-              try {
-                  const _lsSaved = JSON.parse(localStorage.getItem('founderFeatureControls') || '{}');
-                  _lsSaved.liveEnabled    = visible;
-                  _lsSaved.liveHubEnabled = visible;
-                  localStorage.setItem('founderFeatureControls', JSON.stringify(_lsSaved));
-              } catch(_) {}
-          }
-
           // Apply immediately by merging the change into the cached snapshot so that
           // other keys retain their current state (avoids resetting them to defaults).
           const _merged = Object.assign({}, window._snxPageVisibilityData || {}, { [key]: visible });
@@ -17551,92 +17268,13 @@ body.arcade-fs-ios body::after { display:none !important; }
       }
   };
 
-  // ── Founder Control: one-click Live Hub & Live Features toggle ──────────
-  // Uses the same Firestore key ('liveSystem') as the Page Visibility toggle
-  // so both controls stay in sync automatically via the onSnapshot listener.
-
-  function _syncLiveSystemBtn(visible) {
-      const btn = document.getElementById('toggleLiveSystem');
-      if (!btn) return;
-      if (visible) {
-          btn.textContent = 'Hide Live Hub & Live Features';
-          btn.style.borderColor  = 'rgba(255,68,85,0.6)';
-          btn.style.background   = 'rgba(255,30,50,0.12)';
-          btn.style.color        = '#ff4455';
-      } else {
-          btn.textContent = 'Show Live Hub & Live Features';
-          btn.style.borderColor  = 'rgba(57,255,20,0.55)';
-          btn.style.background   = 'rgba(0,180,50,0.1)';
-          btn.style.color        = '#39FF14';
-      }
-  }
-
-  window.founderToggleLiveSystem = async function() {
-      if (!founderOnly()) return;
-      // Read current state (default ON if not set)
-      const current = (window._snxPageVisibilityData || {}).liveSystem !== false;
-      const next    = !current;
-      try {
-          // Update Firestore — onSnapshot will fire and sync all clients
-          await setDoc(doc(db, 'siteSettings', 'pageVisibility'), { liveSystem: next }, { merge: true });
-          await addDoc(collection(db, 'siteSettings', 'pageVisibility', 'navChangeLog'), {
-              action:    next ? 'SHOW_PAGE' : 'HIDE_PAGE',
-              page:      'Live Hub & Live Features',
-              key:       'liveSystem',
-              adminUid:  currentUser.uid,
-              adminName: userData.displayName,
-              ts:        Date.now()
-          }).catch(() => {});
-          await adminAuditLog(next ? 'SHOW_PAGE' : 'HIDE_PAGE', 'Live Hub & Live Features');
-
-          // ── Update in-memory flags immediately so _applyLiveFeatureGates works ──
-          window._snxLiveEnabled    = next;
-          window._snxLiveHubEnabled = next;
-
-          // ── Persist to localStorage so flags survive page refresh ──
-          try {
-              const saved = JSON.parse(localStorage.getItem('founderFeatureControls') || '{}');
-              saved.liveEnabled    = next;
-              saved.liveHubEnabled = next;
-              localStorage.setItem('founderFeatureControls', JSON.stringify(saved));
-          } catch(_) {}
-
-          // ── Re-apply gate to show / hide all live UI elements immediately ──
-          if (typeof window._applyLiveFeatureGates === 'function') {
-              window._applyLiveFeatureGates();
-          }
-
-          toastNotification(next
-              ? '✅ Live Hub & Live Features restored for all users.'
-              : '🙈 Live Hub & Live Features hidden from all users.');
-          // onSnapshot will fire and also update this button + the pvLiveSystem checkbox
-      } catch(e) {
-          toastNotification('Error: ' + e.message);
-      }
-  };
-
   // Listen for pageVisibility changes in Firestore and apply immediately.
   // Always cache the raw snapshot so _snxReapplyNavVisibility() can replay it
   // after auth resolves and window._snxRole is confirmed.
   onSnapshot(doc(db, 'siteSettings', 'pageVisibility'), (snap) => {
       const visData = snap.exists() ? snap.data() : {};
       window._snxPageVisibilityData = visData; // persistent cache
-
-      // ── Sync live window flags from Firestore so kill-switch logic stays current ──
-      const _liveSystemOn = visData.liveSystem !== false;
-      window._snxLiveEnabled    = _liveSystemOn;
-      window._snxLiveHubEnabled = _liveSystemOn;
-      // Persist to localStorage so the flag survives page refresh for all clients
-      try {
-          const _lsSaved = JSON.parse(localStorage.getItem('founderFeatureControls') || '{}');
-          _lsSaved.liveEnabled    = _liveSystemOn;
-          _lsSaved.liveHubEnabled = _liveSystemOn;
-          localStorage.setItem('founderFeatureControls', JSON.stringify(_lsSaved));
-      } catch(_) {}
-
       _applyPageVisibility(visData);
-      // Keep Founder Controls button label in sync with Firestore state
-      _syncLiveSystemBtn(_liveSystemOn);
   });
 
   /* ════════════════════════════════════════════════════════════════════
@@ -18450,14 +18088,6 @@ function _snxShowUnavailablePage(message) {
 }
 
 function navTo(pageId) {
-    // ── Live Hub kill-switch — blocks non-founders when disabled ──
-    // Founder always has access so they can re-enable from within the app.
-    if (pageId === 'liveHubPage' && window._snxLiveHubEnabled === false
-            && window._snxRole !== 'founder') {
-        _snxShowUnavailablePage('Live Hub is temporarily disabled. Please check back soon! 🔧');
-        return;
-    }
-
     // ── Access control: Founder-only pages ──
     if (pageId === 'adminPage' && window._snxRole !== 'founder') {
         if (typeof toastNotification === 'function') toastNotification('⛔ Access Denied — Founder access only.');
@@ -18500,10 +18130,7 @@ function navTo(pageId) {
         moderatorPage:'navMod', administratorPage:'navAdminOfficer',
         communityPage:'navCommunity', supportRoomsPage:'navSupport',
         communityRulesPage:'navCommunityRules',
-        liveHubPage:'liveHubSidebarButton', inboxPage:'navInbox',
-        shadowRealmsPage:'navRealms', shadowCompanionsPage:'navCompanions',
-        shadowVaultPage:'navVault', shadowQuestsPage:'navQuests',
-        creatorStoriesPage:'navStories',
+        liveHubPage:'navLiveHub', inboxPage:'navInbox'
     };
     const navEl = document.getElementById(map[pageId]);
     if (navEl) navEl.classList.add('active-nav');
@@ -27259,9 +26886,6 @@ window.switchAdminTab = function(tab) {
 <!-- ── Profile Theme System (loads after Firebase is initialized) ── -->
 <script src="profile-theme.js"></script>
 
-<!-- ── Shadow Nexus Feature Pack — 5 unique systems (Realms, Companions, Vault, Quests, Stories) ── -->
-<script src="shadow-nexus-features.js"></script>
-
 <!-- ═══════════════════ GRIM AI ASSISTANT PANEL ═══════════════════ -->
 
 <style>
@@ -28999,15 +28623,10 @@ function updateShadowCoreActive(pageId) {
         'friendsPage':       ['navFriends', 'scNavFriends', 'ncmFriends'],
         'stormRoomsPage':    ['navStorm', 'scNavStorm', 'ncmStorm'],
         'supportRoomsPage':  ['navSupport', 'scNavSupport', 'ncmSupport'],
-        'liveHubPage':       ['liveHubSidebarButton', 'scNavLive', 'ncmLiveHub'],
+        'liveHubPage':       ['navLiveHub', 'scNavLive', 'ncmLiveHub'],
         'moderatorPage':     ['navMod', 'scNavMod', 'ncmMod'],
         'administratorPage': ['navAdminOfficer', 'scNavAdm', 'ncmAdm'],
-        'adminPage':         ['navAdmin', 'scNavFounder', 'ncmFounder'],
-        'shadowRealmsPage':  ['navRealms', 'scNavRealms', 'ncmRealms'],
-        'shadowCompanionsPage': ['navCompanions', 'scNavCompanions', 'ncmCompanions'],
-        'shadowVaultPage':   ['navVault', 'scNavVault', 'ncmVault'],
-        'shadowQuestsPage':  ['navQuests', 'scNavQuests', 'ncmQuests'],
-        'creatorStoriesPage':['navStories', 'scNavStories', 'ncmStories'],
+        'adminPage':         ['navAdmin', 'scNavFounder', 'ncmFounder']
     };
 
     var ids = map[pageId] || [];
