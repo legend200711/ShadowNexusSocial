@@ -26,18 +26,25 @@ function _me() { return window._snxCurrentUser || null; }
 function _toast(msg) { if (typeof toastNotification === 'function') toastNotification(msg); }
 
 /**
- * cleanText — strips stray id="…" / id='…' attributes and trims whitespace.
- * Guards against dirty data written to Firestore (e.g. id="abc123" prepended
- * to a title or username).
+ * cleanText — strips stray HTML attributes and random slug prefixes that
+ * can appear in Firestore data (e.g. id="abc123" or a bare slug before the
+ * real title/username).
  * @param {*} text
  * @returns {string}
  */
 function cleanText(text) {
   if (!text) return '';
-  return String(text)
-    .replace(/id="[^"]*"/gi, '')
-    .replace(/id='[^']*'/gi, '')
-    .trim();
+  let s = String(text);
+  // 1. Remove any HTML-attribute fragments like  id="xyz"  or  id='xyz'
+  s = s.replace(/\s*id="[^"]*"/gi, '');
+  s = s.replace(/\s*id='[^']*'/gi, '');
+  // 2. Remove any remaining HTML tag fragments  <tag ...>  or  </tag>
+  s = s.replace(/<[^>]*>/g, '');
+  // 3. Strip a leading token of 4-30 non-space chars that contains NO
+  //    letters from a typical word (pure slug / random ID characters)
+  //    followed by optional whitespace — only when text follows after it.
+  s = s.replace(/^[a-zA-Z0-9_\-]{4,30}\s+(?=\S)/, '');
+  return s.trim();
 }
 
 /* ══════════════════════════════════════════════════════════

@@ -6558,12 +6558,12 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="sc-divider"></div>
 
         <!-- Live Hub -->
-        <button class="sc-item sc-item-live" id="scNavLive" onclick="realmNavTo('liveHubPage')" aria-label="Live Hub">
+        <button class="sc-item sc-item-live" id="scNavLive" onclick="realmNavTo('liveHubPage')" aria-label="Live Hub" style="display:none;">
             <span class="sc-item-icon">🔴</span>
             <span class="sc-item-label">Live Hub</span>
         </button>
         <!-- Go Live -->
-        <button class="sc-item sc-item-live" id="scNavGoLive" onclick="goLiveOrWatch()" aria-label="Go Live">
+        <button class="sc-item sc-item-live" id="scNavGoLive" onclick="goLiveOrWatch()" aria-label="Go Live" style="display:none;">
             <span class="sc-item-icon">📡</span>
             <span class="sc-item-label">Go Live</span>
         </button>
@@ -6663,11 +6663,11 @@ body.arcade-fs-ios body::after { display:none !important; }
         <!-- ── CREATOR / LIVE ── -->
         <span class="ncm-section-label">Creator</span>
 
-        <div class="ncm-item ncm-item-live" id="ncmLiveHub" onclick="mobileNavTo('liveHubPage')">
+        <div class="ncm-item ncm-item-live" id="ncmLiveHub" onclick="mobileNavTo('liveHubPage')" style="display:none;">
             <div class="ncm-icon-wrap">🔴</div>
             <div class="ncm-label">Live Hub</div>
         </div>
-        <div class="ncm-item ncm-item-live" id="ncmGoLive" onclick="mobileNavTo('_golive')">
+        <div class="ncm-item ncm-item-live" id="ncmGoLive" onclick="mobileNavTo('_golive')" style="display:none;">
             <div class="ncm-icon-wrap">📡</div>
             <div class="ncm-label">Go Live</div>
         </div>
@@ -6782,12 +6782,12 @@ body.arcade-fs-ios body::after { display:none !important; }
 
         <div class="sidebar-divider"></div>
 
-        <!-- ── CREATOR / LIVE ── -->
-        <button class="nav-item" id="navLiveHub" onclick="realmNavTo('liveHubPage')" style="color:#ff4455;border-left:3px solid rgba(255,50,80,0.55);">
+        <!-- ── CREATOR / LIVE ── hidden by default; shown when Founder enables -->
+        <button class="nav-item" id="navLiveHub" onclick="realmNavTo('liveHubPage')" style="display:none;color:#ff4455;border-left:3px solid rgba(255,50,80,0.55);">
             <span class="nav-icon">🔴</span> Live Hub
             <span id="navLiveHubCount" class="nav-badge" style="display:none;background:#ff3344;"></span>
         </button>
-        <button class="nav-item nav-item-go-live" id="navLive" onclick="goLiveOrWatch()">
+        <button class="nav-item nav-item-go-live" id="navLive" onclick="goLiveOrWatch()" style="display:none;">
             <span class="nav-icon">📡</span> Go Live
             <span id="navLiveDot" class="nav-badge" style="display:none;background:#ff3344;"></span>
         </button>
@@ -9448,9 +9448,17 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="settings-label">🤖 AI Moderation<small>AI safety &amp; moderation system</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="esAI" class="notif-toggle-cb" checked onchange="window.founderToggleAIModeration()"><span class="notif-toggle-slider"></span></label>
         </div>
-        <div class="settings-row" style="border-bottom:none;">
+        <div class="settings-row">
             <div class="settings-label">🤖 Shadow Bot<small>Bot posts &amp; welcome messages</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="esBot" class="notif-toggle-cb" checked onchange="emergencyToggle('shadowBotEnabled',this.checked,'Shadow Bot')"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">📡 Go Live<small>Hide Go Live button &amp; live.html for all users</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esLive" class="notif-toggle-cb" checked onchange="toggleLiveFeature(this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row" style="border-bottom:none;">
+            <div class="settings-label">🔴 Live Hub<small>Hide Live Hub button, page &amp; live feed cards</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esLiveHub" class="notif-toggle-cb" checked onchange="toggleLiveHubFeature(this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
     </div>
 
@@ -10199,6 +10207,11 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   /* ── Go Live or Watch ── */
   window.goLiveOrWatch = async function() {
+      // Blocked when Live feature is disabled — applies to ALL roles
+      if (window._snxLiveEnabled !== true) {
+          toastNotification('⛔ Live streaming is currently unavailable.');
+          return;
+      }
       // Close sidebar
       const sidebar = document.getElementById('side');
       const overlay = document.getElementById('sidebarOverlay');
@@ -11110,6 +11123,27 @@ body.arcade-fs-ios body::after { display:none !important; }
       window._snxMessagesTabEnabled = _msgEnabled;
       window._snxCfgMessagesTabEnabled = _msgEnabled; // persisted cache
       _syncMessagesTabUI(_msgEnabled);
+
+      // ── Live & Live Hub feature flags ──
+      // Must be explicitly true — default OFF globally until Founder enables them.
+      const _liveOn    = cfg.liveEnabled    === true;
+      const _liveHubOn = cfg.liveHubEnabled === true;
+      window._snxLiveEnabled    = _liveOn;
+      window._snxLiveHubEnabled = _liveHubOn;
+      // Sync control panel checkboxes if panel is open
+      const _cbLive    = document.getElementById('esLive');
+      const _cbLiveHub = document.getElementById('esLiveHub');
+      if (_cbLive)    _cbLive.checked    = _liveOn;
+      if (_cbLiveHub) _cbLiveHub.checked = _liveHubOn;
+      // Apply visibility immediately (only hides from non-founders)
+      if (typeof applyFeatureVisibility === 'function') applyFeatureVisibility();
+      // Write to localStorage so live-hub.html gate can read it instantly
+      try {
+          const _fc = JSON.parse(localStorage.getItem('founderFeatureControls') || '{}');
+          _fc.liveEnabled    = _liveOn;
+          _fc.liveHubEnabled = _liveHubOn;
+          localStorage.setItem('founderFeatureControls', JSON.stringify(_fc));
+      } catch(_) {}
   });
 
   /* ── Firebase connection loss detection + auto-reconnect ──────────────
@@ -11168,6 +11202,8 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (_visData && typeof _applyPageVisibility === 'function') {
           _applyPageVisibility(_visData);
       }
+      // Re-apply Live / Live Hub feature visibility after role is known
+      if (typeof applyFeatureVisibility === 'function') applyFeatureVisibility();
   };
 
   /* ── Sync maintenance status badge + toggle in Founder Controls ── */
@@ -17319,9 +17355,11 @@ body.arcade-fs-ios body::after { display:none !important; }
           _set('esStorm',        cfg.stormRoomsEnabled !== false);
           _set('esArcade',       cfg.arcadeEnabled !== false);
           _set('esRegistration', cfg.registrationEnabled !== false);
-          _set('esAI',           cfg.aiModerationEnabled !== false);
-          _set('esBot',          cfg.shadowBotEnabled !== false);
-          _set('esWelcomePopup', cfg.welcomePopupEnabled !== false);
+           _set('esAI',           cfg.aiModerationEnabled !== false);
+           _set('esBot',          cfg.shadowBotEnabled !== false);
+           _set('esWelcomePopup', cfg.welcomePopupEnabled !== false);
+           _set('esLive',         cfg.liveEnabled    !== false);
+           _set('esLiveHub',      cfg.liveHubEnabled !== false);
           // Sync maintenance badge
           const emBadge = document.getElementById('emergencyMaintBadge');
           if (emBadge) {
@@ -17331,6 +17369,67 @@ body.arcade-fs-ios body::after { display:none !important; }
           }
       } catch(e) {
           if (grid) grid.innerHTML = `<span style="color:#ff5566;font-size:12px;">Error loading status: ${e.message}</span>`;
+      }
+  };
+
+  /* ── Live & Live Hub feature toggles (Founder only) ──────────────────────── */
+
+  // applyFeatureVisibility — hides/shows Live and Live Hub nav buttons for ALL roles.
+  // liveEnabled / liveHubEnabled must be explicitly true to show — defaults OFF.
+  function applyFeatureVisibility() {
+      const liveOn    = window._snxLiveEnabled    === true;
+      const liveHubOn = window._snxLiveHubEnabled === true;
+
+      // Every nav area — sidebar, shadow core, mobile NCM
+      const liveIds    = ['navLive',    'scNavGoLive', 'ncmGoLive',  'liveSidebarButton'];
+      const liveHubIds = ['navLiveHub', 'scNavLive',   'ncmLiveHub', 'liveHubSidebarButton'];
+
+      liveIds.forEach(function(id) {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.style.display = liveOn ? '' : 'none';
+      });
+      liveHubIds.forEach(function(id) {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.style.display = liveHubOn ? '' : 'none';
+      });
+
+      // If user (any role) is currently on liveHubPage and it gets disabled → redirect to feed
+      if (!liveHubOn) {
+          const activePage = document.querySelector('.page.active');
+          if (activePage && activePage.id === 'liveHubPage') {
+              if (typeof navTo === 'function') navTo('feed');
+          }
+      }
+  }
+  window.applyFeatureVisibility = applyFeatureVisibility;
+
+  // toggleLiveFeature — called by esLive checkbox in Founder Control
+  window.toggleLiveFeature = async function(enabled) {
+      if (!founderOnly()) return;
+      try {
+          await setDoc(doc(db, 'siteSettings', 'config'), { liveEnabled: enabled }, { merge: true });
+          await adminAuditLog('FEATURE_TOGGLE', `Go Live: ${enabled ? 'ON' : 'OFF'}`);
+          toastNotification(`${enabled ? '✅' : '⛔'} Go Live ${enabled ? 'enabled' : 'disabled'} for all users.`);
+      } catch(e) {
+          toastNotification('Error: ' + e.message);
+          const cb = document.getElementById('esLive');
+          if (cb) cb.checked = !enabled;
+      }
+  };
+
+  // toggleLiveHubFeature — called by esLiveHub checkbox in Founder Control
+  window.toggleLiveHubFeature = async function(enabled) {
+      if (!founderOnly()) return;
+      try {
+          await setDoc(doc(db, 'siteSettings', 'config'), { liveHubEnabled: enabled }, { merge: true });
+          await adminAuditLog('FEATURE_TOGGLE', `Live Hub: ${enabled ? 'ON' : 'OFF'}`);
+          toastNotification(`${enabled ? '✅' : '⛔'} Live Hub ${enabled ? 'enabled' : 'disabled'} for all users.`);
+      } catch(e) {
+          toastNotification('Error: ' + e.message);
+          const cb = document.getElementById('esLiveHub');
+          if (cb) cb.checked = !enabled;
       }
   };
 
@@ -28583,6 +28682,11 @@ window.firePortalTransition = firePortalTransition;
    7. SHADOW CORE NAV — realm navigation wrappers
    ═══════════════════════════════════════════════════════ */
 window.realmNavTo = function(pageId) {
+    // Block Live Hub navigation when the feature is disabled (all roles)
+    if (pageId === 'liveHubPage' && window._snxLiveHubEnabled !== true) {
+        if (typeof toastNotification === 'function') toastNotification('⛔ Live Hub is currently unavailable.');
+        return;
+    }
     firePortalTransition(function() {
         if (typeof navTo === 'function') navTo(pageId);
     });

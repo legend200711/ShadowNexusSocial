@@ -10,333 +10,308 @@
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link rel="stylesheet" href="live.css">
 <style>
-/* ─── Live Room Page — additional styles ──────────────────────────── */
+/* ── Live Room page-specific overrides ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; background: #050e1f; color: #c8e4ff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+/* States */
 #lrLoading {
-  position: fixed; inset: 0;
-  background: #060f1c;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 14px;
-  z-index: 999;
+  position: fixed; inset: 0; z-index: 9000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; background: #0B1F3A;
 }
 #lrError {
-  position: fixed; inset: 0;
-  background: #060f1c;
-  display: none; flex-direction: column;
-  align-items: center; justify-content: center; gap: 14px;
-  text-align: center; padding: 24px;
-  z-index: 999;
+  position: fixed; inset: 0; z-index: 8500;
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 32px 20px; text-align: center; background: #0B1F3A;
 }
 .lr-error-icon  { font-size: 52px; }
 .lr-error-title { font-size: 20px; font-weight: 800; color: #d8eeff; }
 .lr-error-sub   { font-size: 14px; color: #5a8aaa; line-height: 1.6; max-width: 300px; }
 .lr-back-btn {
-  display: inline-block; margin-top: 6px;
-  padding: 10px 26px;
-  background: rgba(0,174,239,0.12);
-  border: 1px solid rgba(0,174,239,0.45);
-  border-radius: 24px;
-  color: #00aeef; font-size: 14px; font-weight: 600;
-  text-decoration: none; cursor: pointer;
-  transition: background .18s;
+  display: inline-block; padding: 10px 28px;
+  background: rgba(0,174,239,0.12); border: 1px solid rgba(0,174,239,0.45);
+  border-radius: 24px; color: #00aeef; text-decoration: none;
+  font-size: 14px; font-weight: 600; transition: background 0.15s;
 }
 .lr-back-btn:hover { background: rgba(0,174,239,0.22); }
 
-/* ─── Room wrapper ─────────────────────────────────── */
+/* Room wrapper */
 #lrRoom {
-  display: none;
-  flex-direction: column;
-  height: 100dvh;
-  height: 100vh; /* fallback */
-  background: #060f1c;
-  overflow: hidden;
+  display: none; flex-direction: column; height: 100%; width: 100%;
+  position: fixed; inset: 0;
 }
 
-/* ─── Top bar ──────────────────────────────────────── */
+/* Top bar */
 .lr-topbar {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 14px;
-  padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
-  background: rgba(6,15,28,0.95);
-  border-bottom: 1px solid rgba(0,174,239,0.15);
-  flex-shrink: 0; position: relative; z-index: 30;
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  padding: calc(env(safe-area-inset-top,0) + 10px) 14px 10px;
+  background: rgba(5,14,31,0.96); backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0,174,239,0.14); z-index: 100;
 }
 .lr-back-link {
-  color: #5a8aaa; font-size: 13px; font-weight: 600;
-  text-decoration: none; flex-shrink: 0;
-  transition: color .15s;
+  font-size: 12px; font-weight: 700; color: #5a8aaa;
+  text-decoration: none; flex-shrink: 0; transition: color 0.15s;
 }
 .lr-back-link:hover { color: #00aeef; }
 .lr-live-badge {
   display: flex; align-items: center; gap: 5px;
-  background: rgba(220,0,40,0.18);
-  border: 1px solid rgba(220,0,40,0.5);
-  border-radius: 20px;
-  padding: 3px 10px;
-  font-size: 11px; font-weight: 800; color: #ff4455;
-  letter-spacing: 0.5px; flex-shrink: 0;
+  background: rgba(255,30,60,0.9); border-radius: 7px;
+  padding: 3px 8px 3px 6px; flex-shrink: 0;
+  font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  box-shadow: 0 0 10px rgba(255,30,60,0.55);
 }
 .lr-live-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: #ff3344;
+  width: 5px; height: 5px; border-radius: 50%; background: #fff; flex-shrink: 0;
   animation: feedLivePulse 1.2s ease-in-out infinite;
-  flex-shrink: 0;
 }
 .lr-room-title {
-  flex: 1; min-width: 0;
-  font-size: 14px; font-weight: 700; color: #d8eeff;
+  flex: 1; font-size: 13px; font-weight: 700; color: #d8eeff;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.lr-host-name  { font-size: 11px; color: #5a8aaa; flex-shrink: 0; }
 .lr-viewer-pill {
-  font-size: 12px; color: #5a8aaa; flex-shrink: 0;
-  display: flex; align-items: center; gap: 4px;
-}
-.lr-host-name {
-  font-size: 12px; font-weight: 700; color: #00aeef; flex-shrink: 0;
+  font-size: 11px; color: #88aacc; flex-shrink: 0;
+  background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px; padding: 2px 8px;
 }
 
-/* ─── Video grid (boxes 1–4) ───────────────────────── */
+/* 4-box stage */
 .lr-stage {
-  flex: 1; position: relative; overflow: hidden;
-  background: #030810;
+  flex: 1; min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 3px;
+  gap: 3px; background: #020913; overflow: hidden;
 }
-.lr-stage.single { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-.lr-stage.one-col { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+.lr-stage.full   { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.lr-stage.two    { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+.lr-stage.two-v  { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
 @media (orientation: landscape) and (max-height: 500px) {
   .lr-stage { grid-template-columns: 1fr 1fr 1fr 1fr; grid-template-rows: 1fr; }
-  .lr-stage.single { grid-template-columns: 1fr; }
-  .lr-stage.one-col { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+  .lr-stage.full  { grid-template-columns: 1fr; }
+  .lr-stage.two   { grid-template-columns: 1fr 1fr; }
+  .lr-stage.two-v { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
 }
 
+/* Video box */
 .lr-box {
-  position: relative;
-  background: #0a1a2e;
-  overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; background: #020913;
 }
 .lr-box video {
-  width: 100%; height: 100%;
-  object-fit: cover; display: block;
-  background: #000;
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; background: #020913;
 }
 .lr-box-label {
-  position: absolute; bottom: 0; left: 0; right: 0;
-  padding: 5px 8px;
-  background: linear-gradient(transparent, rgba(0,0,0,0.72));
-  font-size: 11px; font-weight: 700; color: #fff;
+  position: absolute; bottom: 6px; left: 8px; z-index: 5;
   display: flex; align-items: center; gap: 5px;
-  pointer-events: none;
+  font-size: 11px; font-weight: 700; color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
 }
 .lr-box-host-badge {
-  font-size: 9px; padding: 1px 6px;
-  background: rgba(220,0,40,0.7);
-  border-radius: 8px; color: #fff; font-weight: 800;
-  letter-spacing: 0.4px;
+  font-size: 9px; font-weight: 800; letter-spacing: 0.5px;
+  color: #ff6677; background: rgba(0,0,0,0.6); border-radius: 4px; padding: 1px 4px;
 }
 .lr-box-empty {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 8px;
-  color: #1e3a55; font-size: 12px; width: 100%; height: 100%;
-}
-.lr-box-empty-icon { font-size: 30px; opacity: 0.35; }
-.lr-box-empty-label { font-size: 11px; color: #1e3a55; font-weight: 600; }
-
-/* Camera-off placeholder inside a box */
-.lr-cam-off {
   position: absolute; inset: 0;
-  display: none; flex-direction: column;
-  align-items: center; justify-content: center; gap: 6px;
-  background: #0a1a2e;
-  font-size: 11px; color: #2a4a6a;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(135deg, #050e20, #0a1a30);
+}
+.lr-box-empty-icon  { font-size: 28px; opacity: 0.2; }
+.lr-box-empty-label { font-size: 10px; color: #1e3a55; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.lr-cam-off {
+  position: absolute; inset: 0; z-index: 3;
+  display: none; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: #050e20;
 }
 .lr-cam-off.visible { display: flex; }
-.lr-cam-off-icon { font-size: 32px; opacity: 0.5; }
+.lr-cam-off-icon    { font-size: 30px; opacity: 0.45; }
 
-/* ─── Host control bar (bottom) ────────────────────── */
+/* Connection banner inside box 1 */
+.lr-conn-banner {
+  position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%);
+  z-index: 10; display: none;
+  background: rgba(5,14,31,0.92); border: 1px solid rgba(0,174,239,0.45);
+  border-radius: 10px; padding: 8px 16px; text-align: center; white-space: nowrap;
+}
+.lr-conn-banner.visible { display: block; }
+.lr-conn-title { font-size: 13px; font-weight: 700; color: #d8eeff; }
+.lr-conn-sub   { font-size: 11px; color: #5a8aaa; margin-top: 3px; }
+
+/* Host controls */
 .lr-host-bar {
-  display: none; /* shown only for host */
-  align-items: center; justify-content: center;
-  gap: 10px; flex-wrap: wrap;
-  padding: 10px 14px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-  background: rgba(6,15,28,0.97);
-  border-top: 1px solid rgba(0,174,239,0.15);
-  flex-shrink: 0;
+  display: none; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px;
+  padding: 10px 14px calc(env(safe-area-inset-bottom,0) + 10px);
+  background: rgba(5,14,31,0.97); border-top: 1px solid rgba(0,174,239,0.12); flex-shrink: 0;
 }
 body.lr-is-host .lr-host-bar { display: flex; }
-
 .lr-ctrl-btn {
   width: 42px; height: 42px; border-radius: 50%;
-  background: rgba(0,40,100,0.55);
-  border: 1px solid rgba(0,174,239,0.35);
-  color: #a8d4f0; font-size: 18px;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: background .15s, transform .1s;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  background: rgba(0,30,80,0.7); border: 1.5px solid rgba(0,174,239,0.35);
+  color: #a0ccee; font-size: 17px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  touch-action: manipulation; flex-shrink: 0;
 }
 .lr-ctrl-btn:hover  { background: rgba(0,80,200,0.32); }
 .lr-ctrl-btn:active { transform: scale(0.92); }
 .lr-ctrl-btn.off    { background: rgba(255,30,50,0.22); border-color: rgba(255,50,70,0.6); color: #ff6677; }
 .lr-end-btn {
-  padding: 10px 20px; border-radius: 20px;
-  background: rgba(180,0,30,0.45);
-  border: 1px solid rgba(220,0,40,0.7);
-  color: #ff8899; font-size: 12px; font-weight: 800;
-  letter-spacing: 0.4px; cursor: pointer;
-  transition: background .15s, color .15s;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  padding: 9px 22px; border-radius: 20px;
+  background: rgba(180,0,30,0.25); border: 1.5px solid rgba(220,0,40,0.5);
+  color: #ff5577; font-size: 12px; font-weight: 800;
+  letter-spacing: 0.8px; text-transform: uppercase; cursor: pointer;
+  transition: background 0.15s, color 0.15s; touch-action: manipulation;
 }
 .lr-end-btn:hover { background: rgba(220,0,40,0.7); color: #fff; }
 
-/* ─── Viewer action bar (bottom) ───────────────────── */
+/* Viewer controls */
 .lr-viewer-bar {
-  display: none; /* shown only for viewers */
-  align-items: center; justify-content: center;
-  gap: 12px; flex-wrap: wrap;
-  padding: 10px 14px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-  background: rgba(6,15,28,0.97);
-  border-top: 1px solid rgba(0,174,239,0.15);
-  flex-shrink: 0;
+  display: none; align-items: center; justify-content: center; gap: 12px;
+  padding: 10px 14px calc(env(safe-area-inset-bottom,0) + 10px);
+  background: rgba(5,14,31,0.97); border-top: 1px solid rgba(0,174,239,0.12); flex-shrink: 0;
 }
 body.lr-is-viewer .lr-viewer-bar { display: flex; }
 .lr-like-btn {
-  padding: 7px 18px; border-radius: 20px;
-  background: rgba(255,30,70,0.16);
-  border: 1px solid rgba(255,60,100,0.45);
-  color: #ff7799; font-size: 13px; font-weight: 700;
-  cursor: pointer;
-  transition: background .15s;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  padding: 8px 18px; border-radius: 20px;
+  background: rgba(80,0,30,0.3); border: 1.5px solid rgba(255,30,70,0.4);
+  color: #ff6688; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: background 0.15s; touch-action: manipulation;
 }
-.lr-like-btn:hover { background: rgba(255,30,70,0.3); }
-.lr-like-btn.liked { color: #ff4466; border-color: rgba(255,60,100,0.8); }
+.lr-like-btn:hover  { background: rgba(255,30,70,0.3); }
+.lr-like-btn.liked  { color: #ff4466; border-color: rgba(255,60,100,0.8); }
 .lr-share-btn {
-  padding: 7px 18px; border-radius: 20px;
-  background: rgba(0,174,239,0.1);
-  border: 1px solid rgba(0,174,239,0.35);
-  color: #55aadd; font-size: 13px; font-weight: 700;
-  cursor: pointer;
-  transition: background .15s;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  padding: 8px 18px; border-radius: 20px;
+  background: rgba(0,40,100,0.3); border: 1.5px solid rgba(0,174,239,0.4);
+  color: #55aadd; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: background 0.15s; touch-action: manipulation;
 }
 .lr-share-btn:hover { background: rgba(0,174,239,0.22); }
 
-/* ─── Chat panel ────────────────────────────────────── */
+/* Chat panel */
 .lr-chat {
-  display: flex; flex-direction: column;
-  height: 160px; flex-shrink: 0;
+  display: flex; flex-direction: column; flex-shrink: 0;
+  height: 200px; background: rgba(5,14,31,0.98);
   border-top: 1px solid rgba(0,174,239,0.12);
-  background: rgba(6,15,28,0.97);
 }
 .lr-chat-msgs {
-  flex: 1; overflow-y: auto; overflow-x: hidden;
-  padding: 6px 10px 4px;
-  display: flex; flex-direction: column; gap: 3px;
-  -ms-overflow-style: none; scrollbar-width: none;
+  flex: 1; overflow-y: auto; padding: 8px 10px 4px;
+  scroll-behavior: smooth; overscroll-behavior: contain;
 }
 .lr-chat-msgs::-webkit-scrollbar { display: none; }
 .lr-chat-msg {
-  font-size: 12px; line-height: 1.45; color: #c0d8f0;
-  word-break: break-word; animation: chatMsgIn .18s ease;
+  font-size: 12px; line-height: 1.5; padding: 2px 0; color: #a8ccee;
 }
-.lr-chat-author {
-  font-weight: 700; color: #00aeef; margin-right: 5px;
-}
+.lr-chat-author { font-weight: 700; color: #55aadd; }
 .lr-chat-author.is-host { color: #ff6677; }
 .lr-chat-msg.sys .lr-chat-author { color: #5a8aaa; font-style: italic; }
 .lr-chat-row {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 8px;
-  border-top: 1px solid rgba(0,174,239,0.08);
+  display: flex; gap: 6px; padding: 6px 8px calc(env(safe-area-inset-bottom,0) + 6px);
+  border-top: 1px solid rgba(0,174,239,0.08); flex-shrink: 0;
 }
 .lr-chat-input {
-  flex: 1; background: rgba(0,30,70,0.6);
-  border: 1px solid rgba(0,174,239,0.28);
-  border-radius: 18px; padding: 7px 14px;
-  color: #d8eeff; font-size: 13px; outline: none;
+  flex: 1; background: rgba(0,20,60,0.6); border: 1px solid rgba(0,174,239,0.25);
+  border-radius: 18px; color: #c8e4ff; font-size: 13px;
+  padding: 8px 14px; outline: none; min-width: 0;
   -webkit-appearance: none;
-  transition: border-color .15s;
 }
+.lr-chat-input::placeholder { color: rgba(80,140,200,0.45); }
 .lr-chat-input:focus { border-color: rgba(0,174,239,0.6); }
 .lr-chat-send {
-  width: 34px; height: 34px; border-radius: 50%;
-  background: rgba(0,140,60,0.4);
-  border: 1px solid rgba(0,200,80,0.45);
-  color: #55ff99; font-size: 15px; flex-shrink: 0;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: background .15s;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(0,100,40,0.5); border: 1.5px solid rgba(0,200,80,0.4);
+  color: #44cc88; font-size: 15px; cursor: pointer; align-self: center;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s; touch-action: manipulation;
 }
 .lr-chat-send:hover { background: rgba(0,180,60,0.55); }
 
-/* ─── Toast ─────────────────────────────────────────── */
-#lrToast {
-  position: fixed; bottom: 24px; left: 50%;
-  transform: translateX(-50%) translateY(20px);
-  background: rgba(0,20,50,0.92);
-  border: 1px solid rgba(0,174,239,0.4);
-  border-radius: 22px; padding: 9px 20px;
-  font-size: 13px; color: #d8eeff; pointer-events: none;
-  opacity: 0; transition: opacity .22s, transform .22s;
-  z-index: 500; white-space: nowrap;
-}
-#lrToast.visible {
-  opacity: 1; transform: translateX(-50%) translateY(0);
-}
-
-/* ─── Ended overlay ─────────────────────────────────── */
+/* Stream ended overlay */
 #lrEnded {
-  position: fixed; inset: 0;
-  background: rgba(4,10,20,0.96);
-  display: none; flex-direction: column;
-  align-items: center; justify-content: center; gap: 16px;
-  text-align: center; padding: 28px; z-index: 800;
+  display: none; position: fixed; inset: 0; z-index: 9500;
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 32px 24px; text-align: center; background: #0B1F3A;
 }
 .lr-ended-icon  { font-size: 56px; }
 .lr-ended-title { font-size: 22px; font-weight: 800; color: #fff; }
 .lr-ended-sub   { font-size: 14px; color: #5a8aaa; line-height: 1.65; max-width: 290px; }
 
-/* ─── Connection banner ─────────────────────────────── */
-#lrConnBanner {
-  position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(0,20,50,0.88);
-  border: 1px solid rgba(0,174,239,0.35);
-  border-radius: 14px; padding: 14px 22px;
-  text-align: center; z-index: 50;
-  display: none;
+/* Toast */
+#lrToast {
+  position: fixed; bottom: calc(20px + env(safe-area-inset-bottom,0));
+  left: 50%; transform: translateX(-50%) translateY(20px);
+  background: rgba(5,14,31,0.97); border: 1px solid rgba(0,174,239,0.55);
+  padding: 10px 20px; border-radius: 10px; z-index: 9800;
+  font-size: 13px; color: #c8e8ff;
+  white-space: nowrap; max-width: calc(100vw - 40px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
 }
-#lrConnBanner.visible { display: block; }
-.lr-conn-title { font-size: 15px; font-weight: 700; color: #d8eeff; }
-.lr-conn-sub   { font-size: 12px; color: #5a8aaa; margin-top: 4px; }
+#lrToast.visible {
+  opacity: 1; transform: translateX(-50%) translateY(0);
+}
 
-/* ─── Responsive ────────────────────────────────────── */
-@media (max-width: 380px) {
-  .lr-ctrl-btn { width: 36px; height: 36px; font-size: 15px; }
-  .lr-host-bar { gap: 7px; }
-}
+/* Desktop: side-by-side layout */
 @media (min-width: 768px) {
   #lrRoom { flex-direction: row; flex-wrap: wrap; }
-  .lr-topbar { width: 100%; }
-  .lr-stage  { flex: 1; height: 0; min-height: 0; }
-  .lr-chat   { width: 280px; height: auto; border-top: none; border-left: 1px solid rgba(0,174,239,0.12); }
+  .lr-topbar { width: 100%; flex-shrink: 0; }
+  .lr-stage { flex: 1; height: 0; }
+  .lr-chat {
+    width: 280px; height: auto; border-top: none;
+    border-left: 1px solid rgba(0,174,239,0.12);
+    align-self: stretch;
+  }
   .lr-host-bar, .lr-viewer-bar { width: 100%; order: 10; }
+}
+/* Small phone adjustments */
+@media (max-width: 380px) {
+  .lr-ctrl-btn { width: 36px; height: 36px; font-size: 14px; }
+  .lr-host-bar { gap: 7px; }
+  .lr-end-btn  { padding: 7px 14px; font-size: 11px; }
 }
 </style>
 </head>
 <body>
 
+<!-- ── Feature gate: checked before any Firebase code runs ── -->
+<script>
+(function() {
+  try {
+    var ctrl = JSON.parse(localStorage.getItem('founderFeatureControls') || '{}');
+    // liveEnabled must be explicitly true — defaults OFF until Founder enables
+    var enabled = ctrl.liveEnabled === true;
+    if (!enabled) {
+      document.documentElement.style.background = '#0B1F3A';
+      document.write(
+        '<style>*{margin:0;padding:0;box-sizing:border-box;}</style>' +
+        '<div style="min-height:100vh;background:#0B1F3A;display:flex;flex-direction:column;' +
+        'align-items:center;justify-content:center;padding:32px 24px;text-align:center;font-family:system-ui,sans-serif;">' +
+        '<div style="font-size:52px;margin-bottom:20px;">📡</div>' +
+        '<div style="font-size:22px;font-weight:700;color:#d8eeff;margin-bottom:12px;">Feature Temporarily Disabled</div>' +
+        '<div style="font-size:15px;color:#9bbdd8;max-width:380px;line-height:1.75;margin-bottom:28px;">' +
+        'Live streaming is currently unavailable.<br>Please check back soon — it will be back!</div>' +
+        '<a href="index.html" style="display:inline-block;padding:10px 28px;background:rgba(0,174,239,0.15);' +
+        'border:1px solid rgba(0,174,239,0.5);color:#00aeef;border-radius:24px;text-decoration:none;' +
+        'font-size:14px;font-weight:600;">← Back to Shadow Nexus</a>' +
+        '</div>'
+      );
+      document.addEventListener('DOMContentLoaded', function() { document.body.innerHTML = document.body.innerHTML; });
+      throw new Error('live_disabled');
+    }
+  } catch(e) {
+    if (e.message !== 'live_disabled') {
+      // localStorage unavailable — allow page to load normally
+    }
+  }
+})();
+</script>
+
 <!-- ══════════════════════════════════════════════
-     LOADING SCREEN
+     LOADING STATE
      ══════════════════════════════════════════════ -->
 <div id="lrLoading">
   <div class="ll-spinner"></div>
@@ -344,7 +319,7 @@ body.lr-is-viewer .lr-viewer-bar { display: flex; }
 </div>
 
 <!-- ══════════════════════════════════════════════
-     ERROR SCREEN
+     ERROR STATE
      ══════════════════════════════════════════════ -->
 <div id="lrError">
   <div class="lr-error-icon">📡</div>
@@ -369,18 +344,17 @@ body.lr-is-viewer .lr-viewer-bar { display: flex; }
     <div class="lr-viewer-pill">👁 <span id="lrViewerCount">0</span></div>
   </div>
 
-  <!-- ── 2×2 video grid ─────────────────────────────── -->
-  <!-- Box 1 = host stream, Box 2-4 = guest slots -->
+  <!-- 4-Box Stage -->
   <div class="lr-stage" id="lrStage">
 
-    <!-- Box 1 — Host -->
+    <!-- Box 1: Host -->
     <div class="lr-box" id="lrBox1">
       <video id="lrVid1" autoplay playsinline muted></video>
-      <div  class="lr-cam-off" id="lrCamOff1">
+      <div class="lr-cam-off" id="lrCamOff1">
         <span class="lr-cam-off-icon">📷</span>
-        <span>Camera off</span>
+        <span style="font-size:11px;color:#2a4a6a;">Camera off</span>
       </div>
-      <div class="lr-conn-banner" id="lrConnBanner" aria-live="polite">
+      <div class="lr-conn-banner" id="lrConnBanner">
         <div class="lr-conn-title" id="lrConnTitle">Connecting…</div>
         <div class="lr-conn-sub"   id="lrConnSub"></div>
       </div>
@@ -390,7 +364,7 @@ body.lr-is-viewer .lr-viewer-bar { display: flex; }
       </div>
     </div>
 
-    <!-- Box 2 — Guest slot -->
+    <!-- Box 2: Guest Slot -->
     <div class="lr-box" id="lrBox2">
       <div class="lr-box-empty" id="lrBox2Empty">
         <div class="lr-box-empty-icon">👤</div>
@@ -399,14 +373,14 @@ body.lr-is-viewer .lr-viewer-bar { display: flex; }
       <video id="lrVid2" autoplay playsinline style="display:none;"></video>
       <div class="lr-cam-off" id="lrCamOff2">
         <span class="lr-cam-off-icon">📷</span>
-        <span>Camera off</span>
+        <span style="font-size:11px;color:#2a4a6a;">Camera off</span>
       </div>
       <div class="lr-box-label" id="lrBox2Label" style="display:none;">
         <span id="lrBox2Name">Guest</span>
       </div>
     </div>
 
-    <!-- Box 3 — Guest slot -->
+    <!-- Box 3: Guest Slot -->
     <div class="lr-box" id="lrBox3">
       <div class="lr-box-empty" id="lrBox3Empty">
         <div class="lr-box-empty-icon">👤</div>
@@ -415,14 +389,14 @@ body.lr-is-viewer .lr-viewer-bar { display: flex; }
       <video id="lrVid3" autoplay playsinline style="display:none;"></video>
       <div class="lr-cam-off" id="lrCamOff3">
         <span class="lr-cam-off-icon">📷</span>
-        <span>Camera off</span>
+        <span style="font-size:11px;color:#2a4a6a;">Camera off</span>
       </div>
       <div class="lr-box-label" id="lrBox3Label" style="display:none;">
         <span id="lrBox3Name">Guest</span>
       </div>
     </div>
 
-    <!-- Box 4 — Guest slot -->
+    <!-- Box 4: Guest Slot -->
     <div class="lr-box" id="lrBox4">
       <div class="lr-box-empty" id="lrBox4Empty">
         <div class="lr-box-empty-icon">👤</div>
@@ -431,16 +405,16 @@ body.lr-is-viewer .lr-viewer-bar { display: flex; }
       <video id="lrVid4" autoplay playsinline style="display:none;"></video>
       <div class="lr-cam-off" id="lrCamOff4">
         <span class="lr-cam-off-icon">📷</span>
-        <span>Camera off</span>
+        <span style="font-size:11px;color:#2a4a6a;">Camera off</span>
       </div>
       <div class="lr-box-label" id="lrBox4Label" style="display:none;">
         <span id="lrBox4Name">Guest</span>
       </div>
     </div>
 
-  </div><!-- .lr-stage -->
+  </div><!-- /.lr-stage -->
 
-  <!-- ── Host control bar ──────────────────────────── -->
+  <!-- Host Controls -->
   <div class="lr-host-bar">
     <button class="lr-ctrl-btn" id="lrBtnCam"        aria-label="Toggle camera">📷</button>
     <button class="lr-ctrl-btn" id="lrBtnMic"        aria-label="Toggle microphone">🎤</button>
@@ -450,27 +424,28 @@ body.lr-is-viewer .lr-viewer-bar { display: flex; }
     <button class="lr-end-btn"  id="lrBtnEnd"        aria-label="End live stream">END LIVE</button>
   </div>
 
-  <!-- ── Viewer action bar ─────────────────────────── -->
+  <!-- Viewer Controls -->
   <div class="lr-viewer-bar">
-    <button class="lr-like-btn"  id="lrBtnLike"  aria-label="Like stream">❤️ Like</button>
-    <button class="lr-share-btn" id="lrBtnShareV" aria-label="Share stream">📤 Share</button>
+    <button class="lr-like-btn"  id="lrBtnLike"   aria-label="Like stream">❤️ Like</button>
+    <button class="lr-share-btn" id="lrBtnShareV"  aria-label="Share stream">📤 Share</button>
     <a href="live-hub.html" class="lr-back-btn" style="font-size:12px;padding:7px 16px;">← Hub</a>
   </div>
 
-  <!-- ── Chat panel ─────────────────────────────────── -->
+  <!-- Chat -->
   <div class="lr-chat">
-    <div id="lrChatMsgs" class="lr-chat-msgs" aria-live="polite"></div>
+    <div id="lrChatMsgs" class="lr-chat-msgs" aria-live="polite" aria-label="Live chat messages"></div>
     <div class="lr-chat-row">
       <input
-        id="lrChatInput" class="lr-chat-input"
-        type="text" placeholder="Say something…"
-        maxlength="200" autocomplete="off" autocorrect="off" spellcheck="false"
+        type="text" id="lrChatInput" class="lr-chat-input"
+        placeholder="Say something…" maxlength="200"
+        autocomplete="off" autocorrect="off" spellcheck="false"
+        aria-label="Chat message"
       >
-      <button id="lrChatSend" class="lr-chat-send" aria-label="Send">➤</button>
+      <button id="lrChatSend" class="lr-chat-send" aria-label="Send message">➤</button>
     </div>
   </div>
 
-</div><!-- #lrRoom -->
+</div><!-- /#lrRoom -->
 
 <!-- ══════════════════════════════════════════════
      STREAM ENDED OVERLAY
@@ -482,31 +457,30 @@ body.lr-is-viewer .lr-viewer-bar { display: flex; }
   <a href="live-hub.html" class="lr-back-btn">← Back to Live Hub</a>
 </div>
 
-<!-- ══════════════════════════════════════════════
-     TOAST
-     ══════════════════════════════════════════════ -->
+<!-- Toast -->
 <div id="lrToast" role="alert" aria-live="assertive"></div>
 
 
-<!-- ══════════════════════════════════════════════
-     LIVE ROOM ENGINE
-     ══════════════════════════════════════════════ -->
 <script type="module">
 /**
- * live-room.js  (inline module)
- * Shadow Nexus — Multi-user Live Room
+ * Shadow Nexus — Live Room (inline module)
  *
  * URL params:
- *   ?room=<roomId>   — join as viewer
- *   ?host=1          — start / resume as host (uses current user uid as roomId)
+ *   ?host=1            → start / resume as host (roomId = current user UID)
+ *   ?room=<roomId>     → join as viewer
  *
- * Firestore:
- *   /liveRooms/{roomId}               — room metadata
- *   /liveRooms/{roomId}/chat/{msgId}  — real-time chat
- *   /liveRooms/{roomId}/connections/{viewerUid} — WebRTC signaling
+ * Architecture (Firebase only):
+ *   Firestore  /liveRooms/{roomId}               — room metadata (status, title, viewers)
+ *   Firestore  /liveRooms/{roomId}/chat/{msgId}  — real-time chat
+ *   RTDB       liveSignaling/{roomId}/viewers/{viewerUid}
+ *                → offer / answer / viewerIce / hostIce (WebRTC signaling)
+ *   RTDB       livePresence/{roomId}/host            — host keep-alive
+ *   RTDB       livePresence/{roomId}/viewers/{uid}   — per-viewer presence
  *
- * WebRTC topology: one-to-many (host → every viewer, each its own PC).
- * Guest boxes 2-4 are scaffolded for future co-host / relay support.
+ * WebRTC topology: 1-to-many. Host creates one RTCPeerConnection per viewer.
+ * Each viewer writes an offer; host answers; both exchange ICE candidates.
+ *
+ * Guest boxes 2–4 are scaffolded (DOM + empty state) for future co-host support.
  */
 
 import { initializeApp, getApps, getApp }
@@ -515,14 +489,14 @@ import { getAuth, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   getFirestore,
-  doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot,
+  doc, getDoc, setDoc, updateDoc, onSnapshot,
   collection, addDoc, query, orderBy, limit,
-  serverTimestamp, Timestamp
+  serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getDatabase, ref, set, onValue, off, onDisconnect, remove }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
-/* ── Firebase config ─────────────────────────────────────────────── */
+/* ── Firebase config ── */
 const _CFG = {
   apiKey:            'AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y',
   authDomain:        'horr-a08f4.firebaseapp.com',
@@ -537,16 +511,24 @@ const _auth = getAuth(_app);
 const _db   = getFirestore(_app);
 const _rtdb = getDatabase(_app);
 
-/* ── STUN / TURN servers ─────────────────────────────────────────── */
+/* ── STUN/TURN servers ── */
 const _ICE = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-  ]
+    { urls: 'stun:stun3.l.google.com:19302' },
+    // Public TURN (openrelay) — allows NAT traversal on restricted networks
+    { urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:openrelay.metered.ca:443',
+      username: 'openrelayproject', credential: 'openrelayproject' },
+  ],
 };
 
-/* ── DOM references ──────────────────────────────────────────────── */
+/* ── DOM refs ── */
 const $ = id => document.getElementById(id);
 const D = {
   loading:      $('lrLoading'),
@@ -559,16 +541,15 @@ const D = {
   roomTitle:    $('lrRoomTitle'),
   hostName:     $('lrHostName'),
   viewerCount:  $('lrViewerCount'),
-  liveBadge:    $('lrLiveBadge'),
   connBanner:   $('lrConnBanner'),
   connTitle:    $('lrConnTitle'),
   connSub:      $('lrConnSub'),
   stage:        $('lrStage'),
   // Boxes
-  box1: $('lrBox1'),  vid1: $('lrVid1'), camOff1: $('lrCamOff1'), box1Name: $('lrBox1Name'),
-  box2: $('lrBox2'),  vid2: $('lrVid2'), camOff2: $('lrCamOff2'), box2Empty: $('lrBox2Empty'), box2Label: $('lrBox2Label'), box2Name: $('lrBox2Name'),
-  box3: $('lrBox3'),  vid3: $('lrVid3'), camOff3: $('lrCamOff3'), box3Empty: $('lrBox3Empty'), box3Label: $('lrBox3Label'), box3Name: $('lrBox3Name'),
-  box4: $('lrBox4'),  vid4: $('lrVid4'), camOff4: $('lrCamOff4'), box4Empty: $('lrBox4Empty'), box4Label: $('lrBox4Label'), box4Name: $('lrBox4Name'),
+  box1: $('lrBox1'), vid1: $('lrVid1'), camOff1: $('lrCamOff1'), box1Name: $('lrBox1Name'),
+  box2: $('lrBox2'), vid2: $('lrVid2'), camOff2: $('lrCamOff2'), box2Empty: $('lrBox2Empty'), box2Label: $('lrBox2Label'), box2Name: $('lrBox2Name'),
+  box3: $('lrBox3'), vid3: $('lrVid3'), camOff3: $('lrCamOff3'), box3Empty: $('lrBox3Empty'), box3Label: $('lrBox3Label'), box3Name: $('lrBox3Name'),
+  box4: $('lrBox4'), vid4: $('lrVid4'), camOff4: $('lrCamOff4'), box4Empty: $('lrBox4Empty'), box4Label: $('lrBox4Label'), box4Name: $('lrBox4Name'),
   // Host controls
   btnCam:        $('lrBtnCam'),
   btnMic:        $('lrBtnMic'),
@@ -585,7 +566,7 @@ const D = {
   chatSend:  $('lrChatSend'),
 };
 
-/* ── State ───────────────────────────────────────────────────────── */
+/* ── State ── */
 let _user        = null;
 let _userData    = null;
 let _mode        = null;   // 'host' | 'viewer'
@@ -599,27 +580,33 @@ let _chatSending = false;
 let _toastTimer  = null;
 
 // Host: one RTCPeerConnection per viewer
-let _hostPeers      = {};  // viewerUid → pc
-let _hostViewerUnsub = null;
+let _hostPeers       = {};  // viewerUid → { pc }
+let _hostViewersRef  = null;
 
 // Viewer: one RTCPeerConnection to host
-let _viewerPc        = null;
-let _reconnectTimer  = null;
-let _reconnectCount  = 0;
+let _viewerPc       = null;
+let _reconnectTimer = null;
+let _reconnectCount = 0;
+const _MAX_RECONNECTS = 8;
 
 // Subscriptions
-let _roomUnsub       = null;
-let _chatUnsub       = null;
-let _viewerPresRef   = null;
+let _roomUnsub     = null;
+let _chatUnsub     = null;
+let _presUnsub     = null;
+let _viewerPresRef = null;
 
-/* ── Helpers ─────────────────────────────────────────────────────── */
+// Guards
+let _endedOnce  = false;
+let _staleTimer = null;
+
+/* ── Helpers ── */
 function _esc(s) {
   return String(s ?? '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-function toast(msg, dur = 3000) {
+function toast(msg, dur = 3200) {
   if (!D.toast) return;
   D.toast.textContent = msg;
   D.toast.classList.add('visible');
@@ -627,19 +614,22 @@ function toast(msg, dur = 3000) {
   _toastTimer = setTimeout(() => D.toast.classList.remove('visible'), dur);
 }
 
-function _show(el) { if (el) el.style.display = ''; }
-function _hide(el) { if (el) el.style.display = 'none'; }
-function _flex(el) { if (el) el.style.display = 'flex'; }
+function _show(el)  { if (el) el.style.display = ''; }
+function _hide(el)  { if (el) el.style.display = 'none'; }
+function _flex(el)  { if (el) el.style.display = 'flex'; }
 
 function _showError(title, sub) {
   _hide(D.loading);
   _hide(D.room);
+  _hide(D.ended);
   if (D.errorTitle) D.errorTitle.textContent = title || 'Error';
   if (D.errorSub)   D.errorSub.textContent   = sub   || '';
   _flex(D.error);
 }
 
 function _showEnded() {
+  _hide(D.loading);
+  _hide(D.room);
   if (D.ended) _flex(D.ended);
 }
 
@@ -651,17 +641,17 @@ function _setConnBanner(title, sub) {
   D.connBanner.classList.add('visible');
 }
 
-/* ── URL param parsing ───────────────────────────────────────────── */
+/* ── URL params ── */
 function _parseParams() {
-  const sp = new URLSearchParams(location.search);
-  const hashRoom = location.hash.replace(/^#watch=/, '');
+  const sp      = new URLSearchParams(location.search);
+  const hashRoom = location.hash.replace(/^#room=/, '').replace(/^#watch=/, '');
   return {
     roomId: sp.get('room') || (hashRoom ? decodeURIComponent(hashRoom) : null),
     isHost: sp.get('host') === '1',
   };
 }
 
-/* ── Auth gate ───────────────────────────────────────────────────── */
+/* ── Auth gate ── */
 onAuthStateChanged(_auth, async user => {
   if (!user) {
     _showError('Sign in Required', 'You must be signed in to join a live room.');
@@ -672,9 +662,11 @@ onAuthStateChanged(_auth, async user => {
   const { roomId, isHost } = _parseParams();
 
   if (isHost) {
-    _roomId = _user.uid;  // room ID = host UID (one room per user)
+    _mode   = 'host';
+    _roomId = _user.uid;   // one room per user, keyed by uid
     await _startHostSession();
   } else if (roomId) {
+    _mode   = 'viewer';
     _roomId = roomId;
     await _startViewerSession();
   } else {
@@ -686,7 +678,7 @@ async function _loadUserData() {
   try {
     const snap = await getDoc(doc(_db, 'users', _user.uid));
     _userData = snap.exists() ? snap.data() : {};
-  } catch (_) { _userData = {}; }
+  } catch (_e) { _userData = {}; }
 }
 
 function _displayName() {
@@ -696,122 +688,128 @@ function _displayName() {
       || 'User';
 }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════
    HOST SESSION
-   ═══════════════════════════════════════════════════════════════════ */
+   ══════════════════════════════════════════════════════════ */
 async function _startHostSession() {
   document.body.classList.add('lr-is-host');
 
-  // Guard: prevent starting if already live with a different session
+  // Guard: check for existing live session conflict
   try {
     const existing = await getDoc(doc(_db, 'liveRooms', _roomId));
-    if (existing.exists() && existing.data().status === 'live'
+    if (existing.exists()
+        && existing.data().status === 'live'
         && existing.data().hostId !== _user.uid) {
-      _showError('Room Conflict', 'Another user owns this room ID.');
+      _showError('Room Conflict', 'Another session is using this room ID.');
       return;
     }
-  } catch (_) {}
+  } catch (_e) {}
 
-  // Camera access
+  // Request camera + mic
   _setConnBanner('Accessing camera…');
   try {
     _localStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: _facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: { echoCancellation: true, noiseSuppression: true }
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
   } catch (e) {
+    // Fallback: audio-only
     console.warn('[LR] Camera error:', e.name);
     try {
       _localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      toast('Camera unavailable — audio only');
-    } catch (_) {
+      _camOn = false;
+      if (D.camOff1) D.camOff1.classList.add('visible');
+      toast('Camera unavailable — audio only mode');
+    } catch (_e) {
       _showError('Camera / Mic Blocked',
-        'Allow camera & microphone access in your browser settings, then reload.');
+        'Allow camera & microphone in your browser settings, then reload this page.');
       return;
     }
   }
 
-  // Show host stream in box 1
-  D.vid1.srcObject = _localStream;
-  D.vid1.muted = true;
-  D.vid1.play().catch(() => {});
-  D.box1Name.textContent = _displayName();
+  // Preview host stream in Box 1
+  if (D.vid1) {
+    D.vid1.srcObject = _localStream;
+    D.vid1.muted = true;
+    D.vid1.play().catch(() => {});
+  }
+  if (D.box1Name) D.box1Name.textContent = _displayName();
 
-  // Write room to Firestore
-  const title = _userData?.liveTitle || 'Shadow Nexus Live';
-  await setDoc(doc(_db, 'liveRooms', _roomId), {
-    roomId:    _roomId,
-    hostId:    _user.uid,
-    hostName:  _displayName(),
-    hostAvatar: _userData?.profileImage || '',
-    username:  _displayName(),
-    title,
-    status:    'live',
-    isLive:    true,
-    viewers:   0,
-    likes:     0,
-    createdAt: Date.now(),
-  });
+  // Write room doc to Firestore
+  const title = (_userData?.liveTitle || '').trim() || 'Shadow Nexus Live';
+  try {
+    await setDoc(doc(_db, 'liveRooms', _roomId), {
+      roomId:     _roomId,
+      hostId:     _user.uid,
+      hostName:   _displayName(),
+      hostAvatar: _userData?.profileImage || _userData?.avatar || '',
+      username:   _displayName(),
+      title,
+      status:     'live',
+      isLive:     true,
+      viewers:    0,
+      likes:      0,
+      createdAt:  Date.now(),
+    });
+  } catch (e) {
+    toast('Could not create room: ' + e.message);
+    _showError('Room Error', 'Could not create your live room. Try again.');
+    return;
+  }
 
   // Update user doc
   try {
     await updateDoc(doc(_db, 'users', _user.uid), { isLive: true, liveRoomId: _roomId });
-  } catch (_) {}
+  } catch (_e) {}
 
-  // Presence keep-alive in RTDB
-  const presRef = ref(_rtdb, `livePresence/${_roomId}/host`);
-  await set(presRef, { uid: _user.uid, ts: Date.now() });
-  onDisconnect(presRef).remove();
+  // Host presence keep-alive in RTDB
+  const hostPresRef = ref(_rtdb, `livePresence/${_roomId}/host`);
+  await set(hostPresRef, { uid: _user.uid, ts: Date.now() }).catch(() => {});
+  onDisconnect(hostPresRef).remove();
 
-  // Subscribe room metadata (viewer count)
-  _subscribeRoomMeta();
-
-  // Subscribe incoming viewer signals
+  // Start listening for viewers
   _hostListenViewers();
+
+  // Subscribe room metadata + viewer count
+  _subscribeRoomMeta();
 
   // Subscribe chat
   _subscribeChat();
 
-  // Update UI
+  // Show room
   _hide(D.loading);
   _flex(D.room);
   _setConnBanner(null);
   if (D.roomTitle) D.roomTitle.textContent = title;
   if (D.hostName)  D.hostName.textContent  = _displayName();
+
   toast('🔴 You are now live!');
+  _sysChat('Stream started — welcome to Shadow Nexus Live!');
 
   // Wire host controls
   _wireHostControls();
 
-  // Add system chat message
-  _sysChat('Stream started. Welcome to Shadow Nexus Live!');
-
-  // Beforeunload / pagehide cleanup
-  const _cleanup = () => _endLiveCleanup(false);
-  window.addEventListener('beforeunload', _cleanup);
-  window.addEventListener('pagehide',    _cleanup);
+  // Cleanup on page leave
+  const _unloadCleanup = () => _endLiveCleanup(false);
+  window.addEventListener('beforeunload', _unloadCleanup);
+  window.addEventListener('pagehide',    _unloadCleanup);
 }
 
-/* ── Host: wire UI controls ──────────────────────────────────────── */
+/* ── Host: wire UI controls ── */
 function _wireHostControls() {
   D.btnCam?.addEventListener('click', () => {
     _camOn = !_camOn;
     _localStream?.getVideoTracks().forEach(t => { t.enabled = _camOn; });
     D.btnCam.classList.toggle('off', !_camOn);
-    D.camOff1.classList.toggle('visible', !_camOn);
-    // Signal viewers that cam changed
-    Object.values(_hostPeers).forEach(({ pc }) => {
-      pc.getSenders().forEach(s => {
-        if (s.track?.kind === 'video') s.track.enabled = _camOn;
-      });
-    });
+    if (D.camOff1) D.camOff1.classList.toggle('visible', !_camOn);
+    toast(_camOn ? 'Camera on' : 'Camera off');
   });
 
   D.btnMic?.addEventListener('click', () => {
     _micOn = !_micOn;
     _localStream?.getAudioTracks().forEach(t => { t.enabled = _micOn; });
     D.btnMic.classList.toggle('off', !_micOn);
-    toast(_micOn ? 'Mic on' : 'Mic muted');
+    toast(_micOn ? '🎤 Mic on' : '🔇 Mic muted');
   });
 
   D.btnFlip?.addEventListener('click', async () => {
@@ -819,7 +817,8 @@ function _wireHostControls() {
     _facingMode = _facingMode === 'user' ? 'environment' : 'user';
     try {
       const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: _facingMode }, audio: false
+        video: { facingMode: _facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
       });
       const newTrack = newStream.getVideoTracks()[0];
       if (!newTrack) return;
@@ -828,197 +827,222 @@ function _wireHostControls() {
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');
         if (sender) await sender.replaceTrack(newTrack).catch(() => {});
       }
-      // Replace in local stream
+      // Swap track in local stream
       _localStream.getVideoTracks().forEach(t => { _localStream.removeTrack(t); t.stop(); });
       _localStream.addTrack(newTrack);
-      D.vid1.srcObject = _localStream;
-    } catch (_) { toast('Cannot flip camera'); }
+      if (D.vid1) D.vid1.srcObject = _localStream;
+    } catch (_e) { toast('Cannot flip camera on this device'); }
   });
 
   D.btnFullscreen?.addEventListener('click', () => {
     const el = document.documentElement;
     if (!document.fullscreenElement) {
-      el.requestFullscreen?.() || el.webkitRequestFullscreen?.();
+      (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
     } else {
-      document.exitFullscreen?.() || document.webkitExitFullscreen?.();
+      (document.exitFullscreen || document.webkitExitFullscreen || (() => {})).call(document);
     }
   });
 
   D.btnShare?.addEventListener('click', _shareStream);
 
   D.btnEnd?.addEventListener('click', async () => {
-    if (!confirm('End your live stream?')) return;
+    if (!confirm('End your live stream? Everyone will be disconnected.')) return;
     await _endLiveCleanup(true);
     _showEnded();
   });
 }
 
-/* ── Host: listen for viewer connections ─────────────────────────── */
+/* ── Host: listen for incoming viewer connections ── */
 function _hostListenViewers() {
-  // RTDB path: liveSignaling/{roomId}/viewers/{viewerUid}
   const viewersRef = ref(_rtdb, `liveSignaling/${_roomId}/viewers`);
   onValue(viewersRef, async snap => {
     if (!snap.exists()) return;
     snap.forEach(child => {
       const viewerUid = child.key;
       const data = child.val();
-      if (!data || _hostPeers[viewerUid]) return;
-      if (data.offer) {
-        _hostHandleOffer(viewerUid, data.offer);
-      }
+      // Only process new viewers that have submitted an offer
+      if (!data || !data.offer) return;
+      if (_hostPeers[viewerUid]) return;
+      _hostHandleOffer(viewerUid, data.offer);
     });
   });
-  _hostViewerUnsub = () => off(viewersRef);
+  _hostViewersRef = viewersRef;
 }
 
 async function _hostHandleOffer(viewerUid, offer) {
-  if (_hostPeers[viewerUid]) return; // already connected
+  if (_hostPeers[viewerUid]) return;
+
   const pc = new RTCPeerConnection(_ICE);
   _hostPeers[viewerUid] = { pc };
 
-  // Add local stream tracks
+  // Add local stream to this peer
   _localStream?.getTracks().forEach(t => pc.addTrack(t, _localStream));
 
-  // ICE candidates → RTDB
-  const icePath = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}/hostIce`);
+  // Send host ICE candidates to viewer via RTDB
   pc.onicecandidate = e => {
     if (e.candidate) {
-      const list = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}/hostIce/${Date.now()}`);
-      set(list, e.candidate.toJSON()).catch(() => {});
+      const r = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}/hostIce/${Date.now()}`);
+      set(r, e.candidate.toJSON()).catch(() => {});
     }
   };
 
+  // Clean up failed/closed connections
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+    const s = pc.connectionState;
+    if (s === 'failed' || s === 'closed' || s === 'disconnected') {
       _hostRemovePeer(viewerUid);
     }
   };
 
-  await pc.setRemoteDescription(new RTCSessionDescription(offer));
-  const answer = await pc.createAnswer();
-  await pc.setLocalDescription(answer);
+  try {
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
 
-  // Write answer
-  await set(ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}/answer`), {
-    type: answer.type, sdp: answer.sdp
-  });
-
-  // Watch for viewer ICE
-  const viewerIceRef = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}/viewerIce`);
-  onValue(viewerIceRef, snap2 => {
-    if (!snap2.exists()) return;
-    snap2.forEach(c => {
-      pc.addIceCandidate(new RTCIceCandidate(c.val())).catch(() => {});
+    // Write answer to RTDB
+    await set(ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}/answer`), {
+      type: answer.type, sdp: answer.sdp
     });
-  });
+
+    // Watch for viewer ICE candidates
+    const viewerIceRef = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}/viewerIce`);
+    onValue(viewerIceRef, snap2 => {
+      if (!snap2.exists()) return;
+      snap2.forEach(c => {
+        pc.addIceCandidate(new RTCIceCandidate(c.val())).catch(() => {});
+      });
+    });
+  } catch (e) {
+    console.warn('[LR] Host offer handling error:', e);
+    _hostRemovePeer(viewerUid);
+  }
 }
 
 function _hostRemovePeer(viewerUid) {
   const peer = _hostPeers[viewerUid];
   if (!peer) return;
-  try { peer.pc.close(); } catch (_) {}
+  try { peer.pc.close(); } catch (_e) {}
   delete _hostPeers[viewerUid];
+  // Clean up signaling node
   remove(ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}`)).catch(() => {});
 }
 
-/* ── Host: end live ──────────────────────────────────────────────── */
-let _endedOnce = false;
+/* ── Host: end live cleanup ── */
 async function _endLiveCleanup(updateFirestore) {
   if (_endedOnce) return;
   _endedOnce = true;
 
-  // Stop local stream
+  // Stop local media
   _localStream?.getTracks().forEach(t => t.stop());
   _localStream = null;
 
-  // Close all viewer peers
+  // Close all peer connections
   Object.keys(_hostPeers).forEach(uid => _hostRemovePeer(uid));
+  if (_hostViewersRef) { off(_hostViewersRef); _hostViewersRef = null; }
 
-  // Remove signaling node
+  // Remove RTDB nodes
   remove(ref(_rtdb, `liveSignaling/${_roomId}`)).catch(() => {});
   remove(ref(_rtdb, `livePresence/${_roomId}`)).catch(() => {});
 
   if (updateFirestore) {
     try {
-      await updateDoc(doc(_db, 'liveRooms', _roomId), { status: 'ended', isLive: false });
-    } catch (_) {}
+      await updateDoc(doc(_db, 'liveRooms', _roomId), {
+        status: 'ended', isLive: false, endedAt: Date.now()
+      });
+    } catch (_e) {}
     try {
       await updateDoc(doc(_db, 'users', _user.uid), { isLive: false, liveRoomId: null });
-    } catch (_) {}
+    } catch (_e) {}
   }
 
-  if (_roomUnsub) { try { _roomUnsub(); } catch (_) {} _roomUnsub = null; }
-  if (_chatUnsub) { try { _chatUnsub(); } catch (_) {} _chatUnsub = null; }
+  // Unsub listeners
+  if (_roomUnsub) { try { _roomUnsub(); } catch (_e) {} _roomUnsub = null; }
+  if (_chatUnsub) { try { _chatUnsub(); } catch (_e) {} _chatUnsub = null; }
+  if (_presUnsub) { try { _presUnsub(); } catch (_e) {} _presUnsub = null; }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════
    VIEWER SESSION
-   ═══════════════════════════════════════════════════════════════════ */
+   ══════════════════════════════════════════════════════════ */
 async function _startViewerSession() {
   document.body.classList.add('lr-is-viewer');
 
-  // Check room exists and is live
+  // Verify room exists and is live
   let roomData;
   try {
     const snap = await getDoc(doc(_db, 'liveRooms', _roomId));
-    if (!snap.exists()) { _showError('Room Not Found', 'This room doesn\'t exist.'); return; }
+    if (!snap.exists()) {
+      _showError('Room Not Found', 'This live room does not exist or has already ended.');
+      return;
+    }
     roomData = snap.data();
-    if (roomData.status === 'ended' || (!roomData.isLive && roomData.status !== 'live')) {
-      _showError('Stream Ended', 'This live stream has already ended.'); return;
+    if (roomData.status === 'ended' || (roomData.status !== 'live' && !roomData.isLive)) {
+      _showError('Stream Ended', 'This live stream has already ended.');
+      return;
     }
   } catch (e) {
-    _showError('Connection Error', 'Could not load room: ' + e.message); return;
+    _showError('Connection Error', 'Could not load room: ' + e.message);
+    return;
   }
 
-  // Update UI with room metadata
-  if (D.roomTitle) D.roomTitle.textContent  = roomData.title || 'Shadow Nexus Live';
+  // Update UI
+  if (D.roomTitle) D.roomTitle.textContent  = roomData.title    || 'Shadow Nexus Live';
   if (D.hostName)  D.hostName.textContent   = roomData.hostName || roomData.username || '';
   if (D.box1Name)  D.box1Name.textContent   = roomData.hostName || roomData.username || 'Host';
 
-  // Viewer presence in RTDB
+  // Viewer presence in RTDB (auto-removed on disconnect)
   _viewerPresRef = ref(_rtdb, `livePresence/${_roomId}/viewers/${_user.uid}`);
-  await set(_viewerPresRef, { uid: _user.uid, ts: Date.now() });
+  await set(_viewerPresRef, { uid: _user.uid, ts: Date.now() }).catch(() => {});
   onDisconnect(_viewerPresRef).remove();
 
-  // Subscribe room meta for viewer count / ended detection
+  // Subscribe room meta (detect stream end)
   _subscribeRoomMeta();
 
-  // Subscribe chat (binds send events internally)
+  // Subscribe chat
   _subscribeChat();
 
-  // Show room, hide loading
+  // Show room
   _hide(D.loading);
   _flex(D.room);
 
-  // Wire viewer controls
+  // Wire viewer buttons
   D.btnLike?.addEventListener('click',   _handleLike);
   D.btnShareV?.addEventListener('click', _shareStream);
 
-  // Initiate WebRTC connection to host
-  _setConnBanner('Connecting to stream…', 'Establishing peer connection…');
-  _viewerConnect();
+  // Start WebRTC connection to host
+  _setConnBanner('Connecting to stream…', 'Setting up peer connection…');
+  await _viewerConnect();
 }
 
-/* ── Viewer: establish WebRTC connection to host ─────────────────── */
+/* ── Viewer: WebRTC connection to host ── */
 async function _viewerConnect() {
-  // Clean up previous attempt
-  if (_viewerPc) { try { _viewerPc.close(); } catch (_) {} _viewerPc = null; }
+  // Teardown previous attempt
+  if (_viewerPc) {
+    try { _viewerPc.close(); } catch (_e) {}
+    _viewerPc = null;
+  }
+  clearTimeout(_reconnectTimer);
 
   const pc = new RTCPeerConnection(_ICE);
   _viewerPc = pc;
 
-  // Receive host stream → Box 1
+  // Receive host video → Box 1
   pc.ontrack = e => {
     const stream = e.streams[0] || new MediaStream([e.track]);
-    if (!D.vid1.srcObject || D.vid1.srcObject !== stream) {
+    if (D.vid1 && D.vid1.srcObject !== stream) {
       D.vid1.srcObject = stream;
-      D.vid1.play().catch(() => {});
+      // Unmute-on-gesture for iOS
+      D.vid1.play().catch(() => {
+        document.addEventListener('click', function _tapPlay() {
+          D.vid1?.play().catch(() => {});
+          document.removeEventListener('click', _tapPlay);
+        }, { once: true });
+      });
     }
     _setConnBanner(null);
   };
 
-  // ICE → RTDB
-  const viewerIceRef = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${_user.uid}/viewerIce`);
+  // Send viewer ICE candidates to RTDB
   pc.onicecandidate = e => {
     if (e.candidate) {
       const r = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${_user.uid}/viewerIce/${Date.now()}`);
@@ -1026,36 +1050,42 @@ async function _viewerConnect() {
     }
   };
 
+  // Connection state changes
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'connected') {
+    const s = pc.connectionState;
+    if (s === 'connected') {
       _setConnBanner(null);
       _reconnectCount = 0;
-    } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-      _setConnBanner('Connection lost…', 'Attempting to reconnect');
+    } else if (s === 'disconnected') {
+      _setConnBanner('Connection lost…', 'Attempting to reconnect…');
+      _scheduleReconnect();
+    } else if (s === 'failed') {
+      _setConnBanner('Connection failed', 'Reconnecting…');
       _scheduleReconnect();
     }
   };
 
-  // Add transceiver so host can send video + audio to us
+  // Declare intent to receive video + audio
   pc.addTransceiver('video', { direction: 'recvonly' });
   pc.addTransceiver('audio', { direction: 'recvonly' });
 
+  // Create and write offer
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
 
-  // Write offer to RTDB
-  const offerRef = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${_user.uid}/offer`);
-  await set(offerRef, { type: offer.type, sdp: offer.sdp });
+  await set(ref(_rtdb, `liveSignaling/${_roomId}/viewers/${_user.uid}/offer`), {
+    type: offer.type, sdp: offer.sdp
+  });
 
   // Watch for host answer
   const answerRef = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${_user.uid}/answer`);
   onValue(answerRef, async snap => {
     if (!snap.exists()) return;
-    const ans = snap.val();
+    if (pc !== _viewerPc) return;  // stale PC guard
     if (pc.remoteDescription) return;
     try {
-      await pc.setRemoteDescription(new RTCSessionDescription(ans));
-    } catch (_) {}
+      await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
+    } catch (_e) {}
   });
 
   // Watch for host ICE candidates
@@ -1067,25 +1097,32 @@ async function _viewerConnect() {
     });
   });
 
-  // Tap-to-play on mobile (browsers require user gesture to play audio)
-  document.addEventListener('click', function _tapPlay() {
-    D.vid1.play().catch(() => {});
-    document.removeEventListener('click', _tapPlay);
-  }, { once: true });
+  // Stale connection watchdog: if not connected in 12s, retry
+  clearTimeout(_staleTimer);
+  _staleTimer = setTimeout(() => {
+    if (_viewerPc?.connectionState !== 'connected') {
+      console.warn('[LR] Stale connection — retrying');
+      _scheduleReconnect();
+    }
+  }, 12000);
 }
 
 function _scheduleReconnect() {
+  if (_reconnectCount >= _MAX_RECONNECTS) {
+    _setConnBanner('Could not connect', 'Please go back and try again.');
+    return;
+  }
   clearTimeout(_reconnectTimer);
-  const delay = Math.min(2000 * (1 + _reconnectCount), 15000);
+  const delay = Math.min(1500 * Math.pow(1.5, _reconnectCount), 20000);
   _reconnectCount++;
-  _reconnectTimer = setTimeout(() => {
+  _reconnectTimer = setTimeout(async () => {
     if (_viewerPc?.connectionState !== 'connected') {
-      _viewerConnect();
+      await _viewerConnect();
     }
   }, delay);
 }
 
-/* ── Viewer like ─────────────────────────────────────────────────── */
+/* ── Viewer: like ── */
 async function _handleLike() {
   if (_hasLiked) return;
   _hasLiked = true;
@@ -1097,58 +1134,67 @@ async function _handleLike() {
         likes: (snap.data().likes || 0) + 1
       });
     }
-  } catch (_) {}
+  } catch (_e) {}
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   SHARED — room metadata subscription
-   ═══════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════
+   SHARED — Room metadata subscription
+   ══════════════════════════════════════════════════════════ */
 function _subscribeRoomMeta() {
-  if (_roomUnsub) { try { _roomUnsub(); } catch (_) {} }
-  _roomUnsub = onSnapshot(doc(_db, 'liveRooms', _roomId), snap => {
-    if (!snap.exists()) return;
-    const d = snap.data();
+  if (_roomUnsub) { try { _roomUnsub(); } catch (_e) {} }
 
-    // Update viewer count badge
+  // Firestore room doc listener
+  _roomUnsub = onSnapshot(doc(_db, 'liveRooms', _roomId), snap => {
+    if (!snap.exists()) {
+      if (_mode === 'viewer') _showEnded();
+      return;
+    }
+    const d = snap.data();
     if (D.viewerCount) D.viewerCount.textContent = d.viewers ?? 0;
     if (D.roomTitle)   D.roomTitle.textContent   = d.title   || 'Shadow Nexus Live';
 
-    // Viewer: detect stream ended
-    if (_mode === 'viewer' || document.body.classList.contains('lr-is-viewer')) {
-      if (d.status === 'ended' || d.isLive === false) {
-        _showEnded();
-      }
+    // Viewer: detect stream end
+    if (_mode === 'viewer') {
+      if (d.status === 'ended' || d.isLive === false) _showEnded();
     }
   });
 
-  // Viewer presence count via RTDB
+  // RTDB viewer presence counter (live viewer count)
   const presRef = ref(_rtdb, `livePresence/${_roomId}/viewers`);
   onValue(presRef, snap => {
     const count = snap.exists() ? Object.keys(snap.val() || {}).length : 0;
     if (D.viewerCount) D.viewerCount.textContent = count;
-    // Persist to Firestore for hub display
-    if (document.body.classList.contains('lr-is-host')) {
+    // Host writes count to Firestore so Live Hub cards show it
+    if (_mode === 'host') {
       updateDoc(doc(_db, 'liveRooms', _roomId), { viewers: count }).catch(() => {});
     }
   });
+  _presUnsub = () => off(presRef);
 }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════
    CHAT
-   ═══════════════════════════════════════════════════════════════════ */
+   ══════════════════════════════════════════════════════════ */
 function _subscribeChat() {
   const chatRef = collection(_db, 'liveRooms', _roomId, 'chat');
-  const q = query(chatRef, orderBy('timestamp', 'asc'), limit(100));
-  _chatUnsub = onSnapshot(q, snap => {
-    snap.docChanges().forEach(change => {
-      if (change.type === 'added') {
-        _renderChatMsg(change.doc.data());
-      }
-    });
-  });
+  const q = query(chatRef, orderBy('timestamp', 'asc'), limit(120));
+  _chatUnsub = onSnapshot(q,
+    snap => {
+      snap.docChanges().forEach(change => {
+        if (change.type === 'added') _renderChatMsg(change.doc.data());
+      });
+    },
+    err => {
+      console.warn('[LR] Chat snapshot error:', err.code);
+      // Retry after 3s
+      setTimeout(_subscribeChat, 3000);
+    }
+  );
 
   D.chatSend?.addEventListener('click',  _sendChat);
-  D.chatInput?.addEventListener('keydown', e => { if (e.key === 'Enter') _sendChat(); });
+  D.chatInput?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _sendChat(); }
+  });
 }
 
 async function _sendChat() {
@@ -1157,17 +1203,15 @@ async function _sendChat() {
   _chatSending = true;
   if (D.chatInput) D.chatInput.value = '';
   try {
-    const name = _displayName();
-    const isHostUser = document.body.classList.contains('lr-is-host');
     await addDoc(collection(_db, 'liveRooms', _roomId, 'chat'), {
-      username:  name,
+      username:  _displayName(),
       userId:    _user.uid,
       message:   text,
-      isHost:    isHostUser,
+      isHost:    _mode === 'host',
       timestamp: serverTimestamp(),
     });
   } catch (e) {
-    toast('Failed to send message');
+    toast('Message failed — try again');
     if (D.chatInput) D.chatInput.value = text;
   } finally {
     _chatSending = false;
@@ -1176,12 +1220,11 @@ async function _sendChat() {
 
 function _renderChatMsg(data) {
   if (!D.chatMsgs) return;
-  const msg   = document.createElement('div');
-  const isHost = data.isHost;
+  const msg    = document.createElement('div');
   msg.className = 'lr-chat-msg';
 
   const author = document.createElement('span');
-  author.className = 'lr-chat-author' + (isHost ? ' is-host' : '');
+  author.className = 'lr-chat-author' + (data.isHost ? ' is-host' : '');
   author.textContent = _esc(data.username || 'User') + ':';
 
   const text = document.createElement('span');
@@ -1191,7 +1234,7 @@ function _renderChatMsg(data) {
   msg.appendChild(text);
   D.chatMsgs.appendChild(msg);
 
-  // Auto-scroll
+  // Auto-scroll if user is near bottom
   const near = D.chatMsgs.scrollHeight - D.chatMsgs.clientHeight - D.chatMsgs.scrollTop < 100;
   if (near) D.chatMsgs.scrollTop = D.chatMsgs.scrollHeight;
 }
@@ -1211,18 +1254,17 @@ function _sysChat(text) {
   D.chatMsgs.scrollTop = D.chatMsgs.scrollHeight;
 }
 
-/* ── Shared: share ───────────────────────────────────────────────── */
+/* ── Share ── */
 function _shareStream() {
   const url = `${location.origin}/live-room.html?room=${encodeURIComponent(_roomId)}`;
   if (navigator.share) {
-    navigator.share({ title: 'Watch me live on Shadow Nexus!', url }).catch(() => {});
+    navigator.share({ title: 'Watch me LIVE on Shadow Nexus!', url }).catch(() => {});
   } else {
-    navigator.clipboard?.writeText(url).then(() => toast('Link copied!')).catch(() => {
-      toast('Share: ' + url);
-    });
+    navigator.clipboard?.writeText(url)
+      .then(() => toast('📋 Link copied to clipboard!'))
+      .catch(() => toast('Share: ' + url));
   }
 }
-
 </script>
 
 </body>
