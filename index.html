@@ -48,6 +48,8 @@
 <link rel="stylesheet" href="profile-theme.css">
 <!-- ── Shadow Nexus Social Realm — full immersive redesign ── -->
 <link rel="stylesheet" href="realm.css">
+<!-- ── Shadow Nexus Feature Pack — 5 unique systems ── -->
+<link rel="stylesheet" href="shadow-nexus-features.css">
 <!-- ── Mobile responsive design layer ── -->
 <link rel="stylesheet" href="mobile.css">
 
@@ -6575,6 +6577,30 @@ body.arcade-fs-ios body::after { display:none !important; }
 
         <div class="sc-divider"></div>
 
+        <!-- ── SHADOW NEXUS FEATURES ── -->
+        <button class="sc-item" id="scNavRealms" onclick="realmNavTo('shadowRealmsPage')" aria-label="Shadow Realms" style="color:#a070ff !important;">
+            <span class="sc-item-icon">🌑</span>
+            <span class="sc-item-label">Shadow Realms</span>
+        </button>
+        <button class="sc-item" id="scNavCompanions" onclick="realmNavTo('shadowCompanionsPage')" aria-label="Shadow Companions" style="color:#a070ff !important;">
+            <span class="sc-item-icon">🐺</span>
+            <span class="sc-item-label">Companions</span>
+        </button>
+        <button class="sc-item" id="scNavVault" onclick="realmNavTo('shadowVaultPage')" aria-label="Memory Vault" style="color:#a070ff !important;">
+            <span class="sc-item-icon">🕯</span>
+            <span class="sc-item-label">Memory Vault</span>
+        </button>
+        <button class="sc-item" id="scNavQuests" onclick="realmNavTo('shadowQuestsPage')" aria-label="Shadow Quests" style="color:#a070ff !important;">
+            <span class="sc-item-icon">⚔</span>
+            <span class="sc-item-label">Shadow Quests</span>
+        </button>
+        <button class="sc-item" id="scNavStories" onclick="realmNavTo('creatorStoriesPage')" aria-label="Creator Stories" style="color:#a070ff !important;">
+            <span class="sc-item-icon">🎤</span>
+            <span class="sc-item-label">Creator Stories</span>
+        </button>
+
+        <div class="sc-divider"></div>
+
         <!-- Settings -->
         <button class="sc-item" id="scNavSettings" onclick="realmNavTo('settingsPage')" aria-label="Settings">
             <span class="sc-item-icon">⚙️</span>
@@ -6674,6 +6700,32 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="ncm-item" id="ncmArcade" onclick="mobileNavTo('_arcade')">
             <div class="ncm-icon-wrap">🕹️</div>
             <div class="ncm-label">Arcade</div>
+        </div>
+
+        <div class="ncm-divider"></div>
+
+        <!-- ── SHADOW NEXUS FEATURES ── -->
+        <span class="ncm-section-label" style="color:#a070ff;">Shadow Features</span>
+
+        <div class="ncm-item" id="ncmRealms" onclick="mobileNavTo('shadowRealmsPage')" style="color:#a070ff;">
+            <div class="ncm-icon-wrap" style="border-color:rgba(160,112,255,0.3);">🌑</div>
+            <div class="ncm-label">Shadow Realms</div>
+        </div>
+        <div class="ncm-item" id="ncmCompanions" onclick="mobileNavTo('shadowCompanionsPage')" style="color:#a070ff;">
+            <div class="ncm-icon-wrap" style="border-color:rgba(160,112,255,0.3);">🐺</div>
+            <div class="ncm-label">Companions</div>
+        </div>
+        <div class="ncm-item" id="ncmVault" onclick="mobileNavTo('shadowVaultPage')" style="color:#a070ff;">
+            <div class="ncm-icon-wrap" style="border-color:rgba(160,112,255,0.3);">🕯</div>
+            <div class="ncm-label">Memory Vault</div>
+        </div>
+        <div class="ncm-item" id="ncmQuests" onclick="mobileNavTo('shadowQuestsPage')" style="color:#a070ff;">
+            <div class="ncm-icon-wrap" style="border-color:rgba(160,112,255,0.3);">⚔</div>
+            <div class="ncm-label">Shadow Quests</div>
+        </div>
+        <div class="ncm-item" id="ncmStories" onclick="mobileNavTo('creatorStoriesPage')" style="color:#a070ff;">
+            <div class="ncm-icon-wrap" style="border-color:rgba(160,112,255,0.3);">🎤</div>
+            <div class="ncm-label">Creator Stories</div>
         </div>
 
         <div class="ncm-divider"></div>
@@ -6794,6 +6846,25 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button class="nav-item" id="navArcade" onclick="openArcadeHub()">
             <span class="nav-icon">🕹️</span> Arcade
             <span class="nav-badge" id="sidebarArcadeBadge"></span>
+        </button>
+
+        <div class="sidebar-divider"></div>
+
+        <!-- ── SHADOW NEXUS FEATURES ── -->
+        <button class="nav-item nav-item-nexus-features" id="navRealms" onclick="realmNavTo('shadowRealmsPage')">
+            <span class="nav-icon">🌑</span> Shadow Realms
+        </button>
+        <button class="nav-item nav-item-nexus-features" id="navCompanions" onclick="realmNavTo('shadowCompanionsPage')">
+            <span class="nav-icon">🐺</span> Companions
+        </button>
+        <button class="nav-item nav-item-nexus-features" id="navVault" onclick="realmNavTo('shadowVaultPage')">
+            <span class="nav-icon">🕯</span> Memory Vault
+        </button>
+        <button class="nav-item nav-item-nexus-features" id="navQuests" onclick="realmNavTo('shadowQuestsPage')">
+            <span class="nav-icon">⚔</span> Shadow Quests
+        </button>
+        <button class="nav-item nav-item-nexus-features" id="navStories" onclick="realmNavTo('creatorStoriesPage')">
+            <span class="nav-icon">🎤</span> Creator Stories
         </button>
 
         <div class="sidebar-divider"></div>
@@ -9850,6 +9921,77 @@ body.arcade-fs-ios body::after { display:none !important; }
   <div class="live-hub-grid" id="liveHubGrid"></div>
 
 </div><!-- end liveHubPage -->
+
+<!-- ████ SHADOW REALMS PAGE ████ -->
+<div class="page" id="shadowRealmsPage">
+  <div class="snxf-page-title">🌑 Shadow Realms</div>
+  <div class="snxf-page-sub">Turn your profile into a personal digital universe</div>
+  <div class="snxf-xp-strip" id="realmsXPStrip"></div>
+  <div class="section-card">
+    <div id="realmsContent">
+      <div style="color:#3a5a7a;font-size:12px;text-align:center;padding:20px 0;">Loading your Realm…</div>
+    </div>
+  </div>
+</div><!-- end shadowRealmsPage -->
+
+<!-- ████ SHADOW COMPANIONS PAGE ████ -->
+<div class="page" id="shadowCompanionsPage">
+  <div class="snxf-page-title">🐺 Shadow Companions</div>
+  <div class="snxf-page-sub">Your digital companion that grows with you</div>
+  <div class="snxf-xp-strip" id="companionsXPStrip"></div>
+  <div class="section-card">
+    <div id="companionsContent">
+      <div style="color:#3a5a7a;font-size:12px;text-align:center;padding:20px 0;">Loading companion…</div>
+    </div>
+  </div>
+</div><!-- end shadowCompanionsPage -->
+
+<!-- ████ SHADOW MEMORY VAULT PAGE ████ -->
+<div class="page" id="shadowVaultPage">
+  <div class="snxf-page-title">🕯 Shadow Memory Vault</div>
+  <div class="snxf-page-sub">Your digital life timeline and personal archive</div>
+  <div class="snxf-xp-strip" id="vaultXPStrip"></div>
+  <div class="section-card">
+    <button class="snxv-add-btn" onclick="snxf_openAddMemory()">➕ Add New Memory</button>
+    <div class="snxv-privacy-tabs" id="vaultPrivacyTabs"></div>
+    <div class="snxv-memory-grid" id="vaultGrid">
+      <div style="color:#3a5a7a;font-size:12px;text-align:center;padding:20px 0;grid-column:1/-1;">Loading memories…</div>
+    </div>
+  </div>
+</div><!-- end shadowVaultPage -->
+
+<!-- ████ SHADOW QUEST SYSTEM PAGE ████ -->
+<div class="page" id="shadowQuestsPage">
+  <div class="snxf-page-title">⚔ Shadow Quests</div>
+  <div class="snxf-page-sub">Turn social activity into missions and rewards</div>
+  <div class="snxf-xp-strip" id="questsXPStrip"></div>
+  <div class="section-card">
+    <div class="snxq-rewards-strip">
+      <span class="snxq-reward-chip">🔥 Shadow XP</span>
+      <span class="snxq-reward-chip">🏅 Badges</span>
+      <span class="snxq-reward-chip">🏷 Titles</span>
+      <span class="snxq-reward-chip">🌑 Realm Upgrades</span>
+      <span class="snxq-reward-chip">🐺 Companion XP</span>
+    </div>
+    <div class="snxq-tab-row" id="questTabRow"></div>
+    <div class="snxq-quest-list" id="questList">
+      <div style="color:#3a5a7a;font-size:12px;text-align:center;padding:20px 0;">Loading quests…</div>
+    </div>
+  </div>
+</div><!-- end shadowQuestsPage -->
+
+<!-- ████ CREATOR STORY MODE PAGE ████ -->
+<div class="page" id="creatorStoriesPage">
+  <div class="snxf-page-title">🎤 Creator Story Mode</div>
+  <div class="snxf-page-sub">Tell your journey like a movie series</div>
+  <div class="snxf-xp-strip" id="storiesXPStrip"></div>
+  <div class="section-card">
+    <button class="snxs-new-episode-btn" onclick="snxf_openNewEpisode()">🎬 Create New Episode</button>
+    <div class="snxs-episode-list" id="episodeList">
+      <div style="color:#3a5a7a;font-size:12px;text-align:center;padding:20px 0;">Loading episodes…</div>
+    </div>
+  </div>
+</div><!-- end creatorStoriesPage -->
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -18358,7 +18500,10 @@ function navTo(pageId) {
         moderatorPage:'navMod', administratorPage:'navAdminOfficer',
         communityPage:'navCommunity', supportRoomsPage:'navSupport',
         communityRulesPage:'navCommunityRules',
-        liveHubPage:'liveHubSidebarButton', inboxPage:'navInbox'
+        liveHubPage:'liveHubSidebarButton', inboxPage:'navInbox',
+        shadowRealmsPage:'navRealms', shadowCompanionsPage:'navCompanions',
+        shadowVaultPage:'navVault', shadowQuestsPage:'navQuests',
+        creatorStoriesPage:'navStories',
     };
     const navEl = document.getElementById(map[pageId]);
     if (navEl) navEl.classList.add('active-nav');
@@ -27114,6 +27259,9 @@ window.switchAdminTab = function(tab) {
 <!-- ── Profile Theme System (loads after Firebase is initialized) ── -->
 <script src="profile-theme.js"></script>
 
+<!-- ── Shadow Nexus Feature Pack — 5 unique systems (Realms, Companions, Vault, Quests, Stories) ── -->
+<script src="shadow-nexus-features.js"></script>
+
 <!-- ═══════════════════ GRIM AI ASSISTANT PANEL ═══════════════════ -->
 
 <style>
@@ -28854,7 +29002,12 @@ function updateShadowCoreActive(pageId) {
         'liveHubPage':       ['liveHubSidebarButton', 'scNavLive', 'ncmLiveHub'],
         'moderatorPage':     ['navMod', 'scNavMod', 'ncmMod'],
         'administratorPage': ['navAdminOfficer', 'scNavAdm', 'ncmAdm'],
-        'adminPage':         ['navAdmin', 'scNavFounder', 'ncmFounder']
+        'adminPage':         ['navAdmin', 'scNavFounder', 'ncmFounder'],
+        'shadowRealmsPage':  ['navRealms', 'scNavRealms', 'ncmRealms'],
+        'shadowCompanionsPage': ['navCompanions', 'scNavCompanions', 'ncmCompanions'],
+        'shadowVaultPage':   ['navVault', 'scNavVault', 'ncmVault'],
+        'shadowQuestsPage':  ['navQuests', 'scNavQuests', 'ncmQuests'],
+        'creatorStoriesPage':['navStories', 'scNavStories', 'ncmStories'],
     };
 
     var ids = map[pageId] || [];

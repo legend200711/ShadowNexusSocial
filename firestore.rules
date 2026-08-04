@@ -702,6 +702,101 @@ service cloud.firestore {
         && (resource.data.ownerUid == request.auth.uid || isFounder());
     }
 
+    // ── Shadow Nexus Feature Pack ─────────────────────────────────────────────
+    //
+    //  Sub-collections under /users/{uid}/:
+    //
+    //   shadowRealm/{docId}           — realm config (only owner writes)
+    //   companion/{docId}             — companion data (only owner writes)
+    //   memoryVault/{itemId}          — vault items (private/friends/legacy privacy)
+    //   quests/{questId}              — quest progress (only owner writes)
+    //   creatorStories/{episodeId}    — story episodes (only owner writes)
+    //
+    //  Top-level progression collections:
+    //
+    //   /shadowXP/{uid}               — XP and level (owner or via XP awards)
+    //   /badges/{uid}                 — badge collection (read-only for all)
+    //   /achievements/{uid}           — achievements (owner reads/writes)
+    //   /leaderboards/{docId}         — public leaderboard (public read)
+    //   /rewards/{docId}              — reward catalogue (public read)
+
+    // ── Shadow Realms (sub-collection) ────────────────────────────────────────
+    match /users/{uid}/shadowRealm/{docId} {
+      allow read:   if isSignedIn();
+      allow write:  if isOwner(uid);
+    }
+
+    // ── Shadow Companions (sub-collection) ────────────────────────────────────
+    match /users/{uid}/companion/{docId} {
+      allow read:   if isSignedIn();
+      allow write:  if isOwner(uid);
+    }
+
+    // ── Shadow Memory Vault (sub-collection) ──────────────────────────────────
+    // Private items: owner only. Friends/Legacy items: any signed-in user.
+    match /users/{uid}/memoryVault/{itemId} {
+      allow create: if isOwner(uid);
+      allow update, delete: if isOwner(uid);
+      allow read: if isOwner(uid)
+        || resource.data.privacy == 'friends'
+        || resource.data.privacy == 'legacy'
+        || isFounder();
+    }
+
+    // ── Shadow Quests (sub-collection) ────────────────────────────────────────
+    match /users/{uid}/quests/{questId} {
+      allow read:   if isSignedIn();
+      allow write:  if isOwner(uid);
+    }
+
+    // ── Creator Stories (sub-collection) ──────────────────────────────────────
+    match /users/{uid}/creatorStories/{episodeId} {
+      allow read:   if isSignedIn();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid)
+        || (isSignedIn() && request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['views']));
+      allow delete: if isOwner(uid) || isFounder();
+    }
+
+    // ── Shadow XP (top-level) ─────────────────────────────────────────────────
+    match /shadowXP/{uid} {
+      allow read:   if isSignedIn();
+      allow create, update: if isOwner(uid);
+      allow delete: if isFounder();
+    }
+
+    // ── Badges (top-level) ────────────────────────────────────────────────────
+    match /badges/{uid} {
+      allow read:   if isSignedIn();
+      allow write:  if isOwner(uid) || isFounder();
+    }
+
+    // ── Achievements (top-level) ──────────────────────────────────────────────
+    match /achievements/{uid} {
+      allow read:   if isSignedIn();
+      allow write:  if isOwner(uid) || isFounder();
+    }
+
+    // ── Leaderboards (top-level, public) ─────────────────────────────────────
+    match /leaderboards/{docId} {
+      allow read:  if true;
+      allow write: if isFounder();
+    }
+
+    // ── Rewards catalogue (top-level, public read) ────────────────────────────
+    match /rewards/{docId} {
+      allow read:  if true;
+      allow write: if isFounder();
+    }
+
+    // ── Events (top-level, public read) ──────────────────────────────────────
+    match /events/{docId} {
+      allow read:   if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isFounder();
+    }
+
     // ── Wall Post Comments ─────────────────────────────────────────────────────
     //
     //   /wallPostComments/{wallDocId}/comments/{commentId}
