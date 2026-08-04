@@ -25,6 +25,21 @@ function _fs() { return window._snxFirestore || null; }
 function _me() { return window._snxCurrentUser || null; }
 function _toast(msg) { if (typeof toastNotification === 'function') toastNotification(msg); }
 
+/**
+ * cleanText — strips stray id="…" / id='…' attributes and trims whitespace.
+ * Guards against dirty data written to Firestore (e.g. id="abc123" prepended
+ * to a title or username).
+ * @param {*} text
+ * @returns {string}
+ */
+function cleanText(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/id="[^"]*"/gi, '')
+    .replace(/id='[^']*'/gi, '')
+    .trim();
+}
+
 /* ══════════════════════════════════════════════════════════
    XP / PROGRESSION SYSTEM
    ══════════════════════════════════════════════════════════ */
@@ -85,12 +100,12 @@ async function snxf_loadXPStrip(elementId) {
     const lvl  = d.level || 1;
     const xp   = d.experience || 0;
     const pct  = _xpPercent(xp, lvl);
-    const name = window._snxUserData?.displayName || user.email?.split('@')[0] || 'Shadow User';
+    const name = cleanText(window._snxUserData?.displayName || user.email?.split('@')[0] || 'Shadow User');
     el.innerHTML = `
       <div class="snxf-xp-avatar">${window._snxUserData?.avatar || '🌑'}</div>
       <div class="snxf-xp-info">
         <div class="snxf-xp-name">${name}</div>
-        <div class="snxf-xp-title-text">${_xpTitle(lvl)}</div>
+        <div class="snxf-xp-title-text">${cleanText(_xpTitle(lvl))}</div>
         <div class="snxf-xp-bar-wrap"><div class="snxf-xp-bar-fill" style="width:${pct}%"></div></div>
         <div class="snxf-xp-pct">${pct}% to next level · ${xp} total XP</div>
       </div>
@@ -358,7 +373,7 @@ async function snxf_loadVaultItems(privacy) {
         <div class="snxv-memory-card">
           <div class="snxv-memory-thumb">${thumb}</div>
           <div class="snxv-memory-body">
-            <div class="snxv-memory-title">${m.title || 'Untitled Memory'}</div>
+            <div class="snxv-memory-title">${cleanText(m.title) || 'Untitled Memory'}</div>
             <div class="snxv-memory-meta">${m.dateCreated ? new Date(m.dateCreated.seconds ? m.dateCreated.seconds*1000 : m.dateCreated).toLocaleDateString() : ''}</div>
             <span class="snxv-memory-cat">${m.category || 'Moment'}</span>
           </div>
@@ -592,8 +607,8 @@ async function snxf_renderEpisodeList(targetUid) {
             <div class="snxs-ep-num">EP${ep.episodeNumber}</div>
             <div class="snxs-ep-info">
               <div class="snxs-ep-label">Episode ${ep.episodeNumber}</div>
-              <div class="snxs-ep-title">${ep.title || `Episode ${ep.episodeNumber}`}</div>
-              <div class="snxs-ep-desc">${ep.description || ''}</div>
+              <div class="snxs-ep-title">${cleanText(ep.title) || `Episode ${ep.episodeNumber}`}</div>
+              <div class="snxs-ep-desc">${cleanText(ep.description)}</div>
             </div>
           </div>
           <div class="snxs-ep-meta">
