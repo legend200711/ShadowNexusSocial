@@ -214,8 +214,23 @@ service cloud.firestore {
             || isModerator());
     }
 
-    // ── Chats (Direct Messages — legacy collection) ───────────────────────────
-    // Kept so existing conversations are readable; new DMs write to /messages/
+    // ── Chats (Direct Messages — primary DM collection) ──────────────────────
+    //
+    //   /chats/{chatId}
+    //     chatId = sorted(uidA, uidB).join('_')
+    //     participants: [uidA, uidB]
+    //     messages: [ { sender, type, text, timestamp, deleted?,
+    //                   deletedFor_<uid>?, reactions?, replyIdx?, replyPreview?,
+    //                   imageUrl?, edited? } ]
+    //     lastMsgTs, readReceipt,
+    //     unread_<uid>, typing_<uid>,
+    //     pinned_<uid>, muted_<uid>, archived_<uid>, deleted_<uid>
+    //
+    // Only participants (or Founder) may read.
+    // Any signed-in user may create (setDoc with merge to initialise a chat doc).
+    // Only participants or moderator may update (covers message array writes,
+    //   typing indicators, read receipts, pin/mute/archive flags).
+    // Only a participant or Founder may delete the whole conversation doc.
 
     match /chats/{chatId} {
       allow read: if isSignedIn()

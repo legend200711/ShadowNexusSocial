@@ -7702,31 +7702,35 @@ body.arcade-fs-ios body::after { display:none !important; }
                     Messages
                     <span id="inboxConvCount"></span>
                     <div class="inbox-hdr-actions">
-                        <button class="inbox-hdr-btn inbox-new-msg-btn" title="New Message" onclick="inboxOpenNewMsgModal()" aria-label="New Message">＋</button>
+                        <!-- primary alias: openNewMessage() routes here -->
+                        <button class="inbox-hdr-btn inbox-new-msg-btn" title="New Message" onclick="openNewMessage()" aria-label="New Message">＋</button>
                         <button class="inbox-hdr-btn" id="inboxFilterBtn" title="Filter / Sort" onclick="inboxCycleFilter(this)" aria-label="Filter conversations">⊟</button>
                     </div>
                 </div>
                 <div class="inbox-search-row">
-                    <input id="inboxSearchInput" placeholder="🔍 Search people, groups, messages…" autocomplete="off" oninput="inboxFilter(this.value)">
+                    <!-- id="userSearchInput" alias feeds inboxFilter(); real id kept for JS engine -->
+                    <input id="userSearchInput" placeholder="🔍 Search conversations…" autocomplete="off" oninput="searchUsers(this.value)">
                 </div>
             </div>
+            <!-- id="userSearchResults" alias: populated by searchUsers() with matched convs -->
             <div class="inbox-conv-list" id="inboxConvList">
                 <div class="inbox-empty">
                     <div class="inbox-empty-icon">💬</div>
                     <div>Loading…</div>
                 </div>
             </div>
+            <div id="userSearchResults" style="display:none;"></div>
         </div>
 
-        <!-- ── RIGHT: chat pane ── -->
-        <div class="inbox-chat-pane" id="inboxChatPane">
+        <!-- ── RIGHT: chat pane  (id="chatWindow" alias covers the whole pane) ── -->
+        <div class="inbox-chat-pane" id="chatWindow">
 
             <!-- Placeholder (no conversation selected) -->
             <div class="inbox-chat-placeholder" id="inboxChatPlaceholder">
                 <div class="inbox-chat-placeholder-icon">💬</div>
                 <div style="font-size:16px;font-weight:700;color:#3a6a9a;">No messages yet.</div>
                 <div style="font-size:13px;color:#2a4060;max-width:260px;line-height:1.6;">Pick someone from the list, or start a brand new conversation.</div>
-                <button class="inbox-empty-start-btn" onclick="inboxOpenNewMsgModal()">✉️ Start New Conversation</button>
+                <button class="inbox-empty-start-btn" onclick="openNewMessage()">✉️ Start New Conversation</button>
             </div>
 
             <!-- Header (hidden until a conv is selected) -->
@@ -7743,7 +7747,7 @@ body.arcade-fs-ios body::after { display:none !important; }
                 <button class="inbox-chat-hdr-btn" id="inboxConvOptionsBtn" title="More options" onclick="inboxOpenConvOptions(event)">⋯</button>
             </div>
 
-            <!-- Messages area -->
+            <!-- Messages area  (id="messages" alias also targets this element) -->
             <div class="inbox-chat-messages" id="inboxChatMessages" style="display:none;">
                 <div class="ipc-modal-loading">
                     <div class="ipc-ldot"></div><div class="ipc-ldot"></div><div class="ipc-ldot"></div>
@@ -15224,6 +15228,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     window.inboxCloseNewMsgModal = function() {
         const modal = document.getElementById('inboxNewMsgModal');
         if (modal) modal.classList.remove('open');
+        window._fwdPayload = null; // clear any pending forward on cancel
     };
     window.inboxNmSearchUsers = async function(val) {
         clearTimeout(_nmSearchTimer);
@@ -15270,13 +15275,28 @@ body.arcade-fs-ios body::after { display:none !important; }
         }, 280);
     };
     window.inboxNmSelectUser = function(uid) {
+        const fwd = window._fwdPayload || null;
+        window._fwdPayload = null; // clear immediately so it can't be reused
         inboxCloseNewMsgModal();
-        inboxOpenConv(uid);
-        // Navigate to inbox page if not already there
+        // Navigate to inbox page first if not already there
         const page = document.getElementById('inboxPage');
         if (page && !page.classList.contains('active')) {
             if (typeof navTo === 'function') navTo('inboxPage');
             else if (typeof realmNavTo === 'function') realmNavTo('inboxPage');
+        }
+        inboxOpenConv(uid);
+        // If this was a forward, pre-fill the input and send once ready
+        if (fwd) {
+            const _waitAndForward = (attempts) => {
+                const inp = document.getElementById('inboxChatInput');
+                if (inp && !inp.disabled) {
+                    const text = fwd.text || (fwd.type === 'image' ? '[Image]' : fwd.type === 'video' ? '[Video]' : fwd.type === 'audio' ? '[Audio]' : '');
+                    if (text) { inp.value = text; inp.dispatchEvent(new Event('input')); }
+                } else if (attempts > 0) {
+                    setTimeout(() => _waitAndForward(attempts - 1), 200);
+                }
+            };
+            setTimeout(() => _waitAndForward(15), 300);
         }
     };
 
@@ -15361,6 +15381,101 @@ body.arcade-fs-ios body::after { display:none !important; }
         _ibTeardownChat();
         _ibAllConvs = [];
         _ibUpdateBadge(0);
+    };
+
+    // ── Simple-name aliases ───────────────────────────────────
+    // These map the short function/element names from the user-facing
+    // snippet onto the real inbox engine, so both naming conventions work.
+
+    // openNewMessage()  →  opens the New Message search modal
+    window.openNewMessage = function() {
+        window.inboxOpenNewMsgModal();
+    };
+
+    // searchUsers(text)  →  filters the conversation list AND drives the
+    //   New Message modal search so both inputs stay in sync.
+    //   The left-pane input (id="userSearchInput") calls this via oninput.
+    window.searchUsers = function(text) {
+        // Filter existing conversation list
+        window.inboxFilter(text);
+        // If the New Message modal is open, also search there
+        const modal = document.getElementById('inboxNewMsgModal');
+        if (modal && modal.classList.contains('open')) {
+            window.inboxNmSearchUsers(text);
+        }
+    };
+
+    // openChat(uid)  →  opens a conversation with the given user UID
+    window.openChat = function(uid) {
+        // Ensure we're on the inbox page first
+        const page = document.getElementById('inboxPage');
+        if (page && !page.classList.contains('active')) {
+            if (typeof navTo === 'function') navTo('inboxPage');
+            else if (typeof realmNavTo === 'function') realmNavTo('inboxPage');
+        }
+        window.inboxOpenConv(uid);
+    };
+
+    // loadMessages(uid)  →  alias for opening / refreshing a conversation
+    window.loadMessages = function(uid) {
+        window.openChat(uid);
+    };
+
+    // sendMessage(text)  →  sends a text message in the currently open chat
+    window.sendMessage = function(text) {
+        if (!text || !text.trim()) return;
+        const inp = document.getElementById('inboxChatInput');
+        if (inp) {
+            inp.value = text.trim();
+            inp.dispatchEvent(new Event('input')); // trigger auto-grow
+        }
+        // Trigger the real send via the send button click
+        const btn = document.getElementById('inboxChatSendBtn');
+        if (btn) btn.click();
+    };
+
+    // deleteMessage(chatId, msgIndex, forEveryone)
+    //   chatId      — Firestore chats/{chatId} document ID
+    //   msgIndex    — index of the message in the messages[] array
+    //   forEveryone — true = unsend (marks deleted:true for both users)
+    //                 false/omitted = delete for me only (sets deletedFor_<uid>:true)
+    //
+    // Messages are stored as an array inside chats/{chatId}, not as individual
+    // docs, so deleteDoc() on a messages/{id} path will never work here.
+    // This function does the correct array update directly.
+    window.deleteMessage = async function(chatId, msgIndex, forEveryone) {
+        if (!currentUser) { console.warn('[SNX] deleteMessage: no current user'); return; }
+        if (!chatId || msgIndex == null) { console.warn('[SNX] deleteMessage: missing chatId or msgIndex'); return; }
+        try {
+            const ref  = doc(db, 'chats', chatId);
+            const snap = await getDoc(ref);
+            if (!snap.exists()) { console.warn('[SNX] deleteMessage: chat doc not found'); return; }
+            const msgs = [...(snap.data().messages || [])];
+            if (!msgs[msgIndex]) { console.warn('[SNX] deleteMessage: message index out of range'); return; }
+
+            if (forEveryone) {
+                // Hard unsend — only allowed if the caller is the sender
+                if (msgs[msgIndex].sender !== currentUser.uid) {
+                    toastNotification('⛔ You can only unsend your own messages.');
+                    return;
+                }
+                msgs[msgIndex] = {
+                    sender:    msgs[msgIndex].sender,
+                    type:      'text',
+                    text:      '',
+                    timestamp: msgs[msgIndex].timestamp,
+                    deleted:   true
+                };
+            } else {
+                // Soft delete — hide for this user only
+                msgs[msgIndex] = { ...msgs[msgIndex], [`deletedFor_${currentUser.uid}`]: true };
+            }
+
+            await updateDoc(ref, { messages: msgs });
+        } catch (err) {
+            toastNotification('❌ Delete failed: ' + err.message);
+            console.error('[SNX] deleteMessage:', err);
+        }
     };
 
     // ── Wire send button and Enter key ────────────────────────
