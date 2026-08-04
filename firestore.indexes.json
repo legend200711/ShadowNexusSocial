@@ -134,13 +134,6 @@
     }
     ,
     {
-      "collectionGroup": "chat",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "timestamp", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "mediaFiles",
       "queryScope": "COLLECTION",
       "fields": [
@@ -168,16 +161,10 @@
     },
     {
       "collectionGroup": "memoryVault",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
+        { "fieldPath": "privacy",     "order": "ASCENDING"  },
         { "fieldPath": "dateCreated", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "creatorStories",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "episodeNumber", "order": "ASCENDING" }
       ]
     },
     {
