@@ -65,7 +65,27 @@
       }
     },
 
-    // ── WebRTC signaling ──────────────────────────────────────────────
+    // ── WebRTC signaling (live-room.html / basic live system) ─────────
+    //  liveSignaling/{roomId}/viewers/{viewerUid}
+    //    → offer / answer / viewerIce / hostIce
+    "liveSignaling": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    // ── Viewer + host presence (live-room.html) ────────────────────────
+    //  livePresence/{roomId}/host
+    //  livePresence/{roomId}/viewers/{uid}
+    "livePresence": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    // ── WebRTC signaling (legacy live.js system) ──────────────────────
     "liveConnections": {
       "$roomId": {
         ".read":  "auth != null",

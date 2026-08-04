@@ -12,38 +12,14 @@
 </head>
 <body>
 
-<!-- ── Feature gate: checked before any Firebase code runs ── -->
-<script>
-(function() {
-  try {
-    var ctrl = JSON.parse(localStorage.getItem('founderFeatureControls') || '{}');
-    // liveHubEnabled must be explicitly true — defaults OFF until Founder enables
-    var enabled = ctrl.liveHubEnabled === true;
-    if (!enabled) {
-      document.documentElement.style.background = '#0B1F3A';
-      document.write(
-        '<style>*{margin:0;padding:0;box-sizing:border-box;}</style>' +
-        '<div style="min-height:100vh;background:#0B1F3A;display:flex;flex-direction:column;' +
-        'align-items:center;justify-content:center;padding:32px 24px;text-align:center;font-family:system-ui,sans-serif;">' +
-        '<div style="font-size:52px;margin-bottom:20px;">📡</div>' +
-        '<div style="font-size:22px;font-weight:700;color:#d8eeff;margin-bottom:12px;">Feature Temporarily Disabled</div>' +
-        '<div style="font-size:15px;color:#9bbdd8;max-width:380px;line-height:1.75;margin-bottom:28px;">' +
-        'Live Hub is currently unavailable.<br>Please check back soon — it will be back!</div>' +
-        '<a href="index.html" style="display:inline-block;padding:10px 28px;background:rgba(0,174,239,0.15);' +
-        'border:1px solid rgba(0,174,239,0.5);color:#00aeef;border-radius:24px;text-decoration:none;' +
-        'font-size:14px;font-weight:600;">← Back to Shadow Nexus</a>' +
-        '</div>'
-      );
-      document.addEventListener('DOMContentLoaded', function() { document.body.innerHTML = document.body.innerHTML; });
-      throw new Error('livehub_disabled');
-    }
-  } catch(e) {
-    if (e.message !== 'livehub_disabled') {
-      // localStorage unavailable — allow page to load normally
-    }
-  }
-})();
-</script>
+<!-- ── Feature gate ─────────────────────────────────────────────────────────
+     2-Week Public Test: Live Hub is ENABLED by default.
+     The Founder can disable it globally via Firestore siteSettings/config
+     (liveHubEnabled: false) — that flag is checked inside the module below
+     after Firebase loads, and shows a clean "coming soon" screen if off.
+     The old localStorage-based gate has been removed so the page loads for
+     all signed-in users during the public test period.
+──────────────────────────────────────────────────────────────────────────── -->
 
 <!-- ══════════════════════════════════════════════
      LOADING STATE
@@ -182,6 +158,32 @@ function _show(el)  { if (el) el.style.display = ''; }
 function _hide(el)  { if (el) el.style.display = 'none'; }
 function _block(el) { if (el) el.style.display = 'block'; }
 
+/* ── Founder kill-switch check (Firestore siteSettings/config.liveHubEnabled) ── */
+async function _checkFeatureFlag() {
+  try {
+    const snap = await getDoc(doc(_db, 'siteSettings', 'config'));
+    if (snap.exists() && snap.data().liveHubEnabled === false) {
+      _hide(D.loading);
+      // Show a clean "temporarily unavailable" screen
+      document.body.innerHTML =
+        '<div style="min-height:100vh;background:#0B1F3A;display:flex;flex-direction:column;' +
+        'align-items:center;justify-content:center;padding:32px 24px;text-align:center;font-family:system-ui,sans-serif;">' +
+        '<div style="font-size:52px;margin-bottom:20px;">📡</div>' +
+        '<div style="font-size:22px;font-weight:700;color:#d8eeff;margin-bottom:12px;">Live Hub Unavailable</div>' +
+        '<div style="font-size:15px;color:#9bbdd8;max-width:380px;line-height:1.75;margin-bottom:28px;">' +
+        'Live Hub is temporarily offline. Please check back soon!</div>' +
+        '<a href="index.html" style="display:inline-block;padding:10px 28px;background:rgba(0,174,239,0.15);' +
+        'border:1px solid rgba(0,174,239,0.5);color:#00aeef;border-radius:24px;text-decoration:none;' +
+        'font-size:14px;font-weight:600;">← Back to Shadow Nexus</a>' +
+        '</div>';
+      return false;
+    }
+  } catch (_e) {
+    // If siteSettings is unreachable, default to enabled
+  }
+  return true;
+}
+
 /* ── Auth gate ── */
 onAuthStateChanged(_auth, async user => {
   _hide(D.loading);
@@ -190,6 +192,9 @@ onAuthStateChanged(_auth, async user => {
     return;
   }
   _user = user;
+  // Check Firestore kill-switch before loading the hub
+  const enabled = await _checkFeatureFlag();
+  if (!enabled) return;
   await _loadUserData();
   _block(D.main);
   _subscribeRooms();

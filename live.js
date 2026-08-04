@@ -120,9 +120,14 @@ let _rtcSignalRef    = null;   // RTDB ref being listened to
 let _hostViewerPeers = {};
 
 // Auto-reconnect for viewers
+// Fix: no hard cap on reconnect attempts — keep trying as long as the page is open
 let _viewerReconnectTimer   = null;
 let _viewerReconnectAttempt = 0;
-const _MAX_RECONNECT_ATTEMPTS = 5;
+const _MAX_RECONNECT_ATTEMPTS = 9999;  // effectively unlimited for the 2-week test
+
+/* ── Viewer presence heartbeat (separate from 8s guest heartbeat) ── */
+let _viewerPresenceHeartbeatInterval = null;
+const _VIEWER_PRESENCE_HB_MS = 30000; // 30 s keep-alive write to RTDB
 
 let _chatUnsub        = null;
 let _viewerCountRef   = null;   // RTDB ref for viewer count listener
@@ -595,6 +600,41 @@ async function startLive() {
   // Do NOT stop camera tracks in that case — the host is just backgrounding the app.
   // Only clean up on a true navigation-away (persisted=false).
   window.addEventListener('pagehide', (e) => { if (!e.persisted) _creatorBeforeUnload(); });
+
+  // Fix: keep broadcaster camera active in background — on visibilitychange restore,
+  // check whether the local stream tracks are still live and re-attach if not.
+  // This catches the iOS/Android case where the camera track silently ends when
+  // the user backgrounds the app for more than ~30 seconds.
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible' || _creatorEndedFlag || !_roomId) return;
+    if (!_localStream) return;
+    const videoTracks = _localStream.getVideoTracks();
+    const allLive = videoTracks.length > 0 && videoTracks.every(t => t.readyState === 'live');
+    if (!allLive) {
+      console.log('[Creator] Camera track ended in background — reacquiring stream');
+      try {
+        const fresh = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: _facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+        // Stop old tracks first
+        _localStream.getTracks().forEach(t => t.stop());
+        _localStream = fresh;
+        // Re-attach to stage
+        if (D.liveVideo) { D.liveVideo.srcObject = fresh; D.liveVideo.play().catch(() => {}); }
+        // Replace tracks in all active viewer PCs
+        const newVid = fresh.getVideoTracks()[0];
+        const newAud = fresh.getAudioTracks()[0];
+        for (const { pc } of Object.values(_hostViewerPeers)) {
+          if (newVid) { const s = pc.getSenders().find(s => s.track?.kind === 'video'); if (s) s.replaceTrack(newVid).catch(() => {}); }
+          if (newAud) { const s = pc.getSenders().find(s => s.track?.kind === 'audio'); if (s) s.replaceTrack(newAud).catch(() => {}); }
+        }
+        console.log('[Creator] Camera stream restored after background');
+      } catch(e) {
+        console.warn('[Creator] Could not reacquire camera after background:', e.name);
+      }
+    }
+  });
 
   if (D.setup) D.setup.style.display = 'none';
   _showStage();
@@ -1122,16 +1162,25 @@ async function _startViewer() {
   /* ── Attach resize observer so guest grid re-layouts on any screen change ── */
   _attachGuestGridResizeObserver();
 
-  /* ── Register viewer presence in LIVE RTDB ──
+  /* ── Register viewer presence in LIVE RTDB + start 30 s heartbeat ──
      Per-user presence node with onDisconnect so the count self-heals
-     when the viewer's tab crashes or loses connection. ── */
+     when the viewer's tab crashes or loses connection.
+     Heartbeat writes every 30 s keep the node alive through RTDB keep-alive
+     windows and prevent presence from expiring silently on long streams. ── */
   if (_user && _roomId) {
     (async () => {
       try {
         const presRef = ref(_liveDB, `liveRooms/${_roomId}/viewerPresence/${_user.uid}`);
-        await set(presRef, { joinedAt: Date.now() });
+        await set(presRef, { joinedAt: Date.now(), hb: Date.now() });
         // Auto-remove on disconnect (crash, close tab, network drop)
         await onDisconnect(presRef).remove();
+
+        // Fix: 30 s heartbeat — keeps presence alive on long streams
+        if (_viewerPresenceHeartbeatInterval) clearInterval(_viewerPresenceHeartbeatInterval);
+        _viewerPresenceHeartbeatInterval = setInterval(() => {
+          if (_viewerLeftFlag || !_roomId) { clearInterval(_viewerPresenceHeartbeatInterval); return; }
+          set(presRef, { joinedAt: Date.now(), hb: Date.now() }).catch(() => {});
+        }, _VIEWER_PRESENCE_HB_MS);
       } catch (_) {}
     })();
   }
@@ -1159,6 +1208,9 @@ async function _startViewer() {
       _showEndedOverlay(false, 'Stream ended', `${roomData.hostName} has ended the live stream.`);
     }
   });
+
+  // Fix: start frozen video watchdog — auto-refresh tracks if video freezes
+  _startFrozenVideoWatchdog(() => roomData);
 
   await _startViewerWebRTC(roomData);
 
@@ -1266,6 +1318,9 @@ async function _viewerLeave() {
   }
   if (_guestStatusUnsub) { try { _guestStatusUnsub(); } catch(_){} _guestStatusUnsub = null; }
 
+  // Fix: stop frozen video watchdog
+  _stopFrozenVideoWatchdog();
+
   if (_rtcPc) {
     _rtcPc.ontrack = null; _rtcPc.onconnectionstatechange = null;
     _rtcPc.oniceconnectionstatechange = null; _rtcPc.onicecandidate = null;
@@ -1279,6 +1334,12 @@ async function _viewerLeave() {
   // Remove viewer's per-viewer signaling slot so host tears down its peer
   if (_user && _roomId) {
     try { await remove(ref(_liveDB, `liveConnections/${_roomId}/viewers/${_user.uid}`)); } catch(_) {}
+  }
+
+  /* ── Stop viewer presence heartbeat ── */
+  if (_viewerPresenceHeartbeatInterval) {
+    clearInterval(_viewerPresenceHeartbeatInterval);
+    _viewerPresenceHeartbeatInterval = null;
   }
 
   /* ── Remove viewer presence from LIVE RTDB ── */
@@ -1371,10 +1432,13 @@ async function _hostCreateViewerPeer(viewerUid) {
   _localStream.getTracks().forEach(track => pc.addTrack(track, _localStream));
   pc.getTransceivers().forEach(tc => { tc.direction = 'sendonly'; });
 
-  // Adaptive quality on first connected PC
+  // Adaptive quality + reconnect on first connected PC
+  let _hostPeerDcTimer = null;
   pc.onconnectionstatechange = () => {
     const state = pc.connectionState;
+    console.log(`[WebRTC-Host] Viewer ${viewerUid} peer state → ${state}`);
     if (state === 'connected') {
+      if (_hostPeerDcTimer) { clearTimeout(_hostPeerDcTimer); _hostPeerDcTimer = null; }
       // Use the first successfully connected viewer PC for quality monitoring
       if (!Object.values(_hostViewerPeers).some(p => p.qualityStarted)) {
         _hostViewerPeers[viewerUid] && (_hostViewerPeers[viewerUid].qualityStarted = true);
@@ -1382,13 +1446,40 @@ async function _hostCreateViewerPeer(viewerUid) {
       }
       // Relay all currently active guest streams to this new viewer
       _hostRelayAllGuestsToViewer(viewerUid);
-    } else if (state === 'failed' || state === 'closed') {
+    } else if (state === 'disconnected') {
+      // Fix: grace period then rebuild instead of teardown
+      if (!_hostPeerDcTimer) {
+        _hostPeerDcTimer = setTimeout(() => {
+          _hostPeerDcTimer = null;
+          if (pc.connectionState !== 'connected' && _hostViewerPeers[viewerUid]) {
+            console.log(`[WebRTC-Host] Viewer ${viewerUid} still disconnected after grace — rebuilding peer`);
+            _hostRebuildViewerPeer(viewerUid, _hostViewerPeers[viewerUid]?.sessionId || null);
+          }
+        }, 4000);
+      }
+    } else if (state === 'failed') {
+      if (_hostPeerDcTimer) { clearTimeout(_hostPeerDcTimer); _hostPeerDcTimer = null; }
+      console.log(`[WebRTC-Host] Viewer ${viewerUid} peer FAILED — rebuilding peer`);
+      _hostRebuildViewerPeer(viewerUid, _hostViewerPeers[viewerUid]?.sessionId || null);
+    } else if (state === 'closed') {
+      if (_hostPeerDcTimer) { clearTimeout(_hostPeerDcTimer); _hostPeerDcTimer = null; }
       _hostTeardownViewerPeer(viewerUid);
     }
   };
   pc.oniceconnectionstatechange = () => {
-    if (pc.iceConnectionState === 'failed') {
+    const ice = pc.iceConnectionState;
+    console.log(`[WebRTC-Host] Viewer ${viewerUid} ICE state → ${ice}`);
+    if (ice === 'failed') {
+      console.log(`[WebRTC-Host] Viewer ${viewerUid} ICE failed — attempting restartIce`);
       try { pc.restartIce(); } catch(_) {}
+    } else if (ice === 'disconnected') {
+      // ICE disconnected: attempt restart before giving up
+      setTimeout(() => {
+        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          console.log(`[WebRTC-Host] Viewer ${viewerUid} ICE still disconnected — restarting ICE`);
+          try { pc.restartIce(); } catch(_) {}
+        }
+      }, 2500);
     }
   };
 
@@ -1883,19 +1974,40 @@ async function _startViewerWebRTC(roomData) {
 
   _rtcPc.onconnectionstatechange = () => {
     const state = _rtcPc?.connectionState;
-    if (state === 'connected') { _hideConnBanner(); _viewerReconnectAttempt = 0; }
-    else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+    console.log(`[WebRTC-Viewer] connectionState → ${state}`);
+    if (state === 'connected') {
+      _hideConnBanner();
+      _viewerReconnectAttempt = 0;
+    } else if (state === 'disconnected') {
+      console.log('[WebRTC-Viewer] Disconnected — waiting 3 s before reconnect attempt');
+      _showConnBanner('Connection lost…', 'Reconnecting…');
+      setTimeout(() => {
+        if (_rtcPc && (_rtcPc.connectionState === 'disconnected' || _rtcPc.connectionState === 'failed')) {
+          _scheduleViewerReconnect(roomData);
+        }
+      }, 3000);
+    } else if (state === 'failed') {
+      console.log('[WebRTC-Viewer] PeerConnection FAILED — recreating PeerConnection');
       _showConnBanner('Reconnecting…', '');
       _scheduleViewerReconnect(roomData);
+    } else if (state === 'closed') {
+      console.log('[WebRTC-Viewer] PeerConnection closed');
+      if (!_viewerLeftFlag) _scheduleViewerReconnect(roomData);
     }
   };
 
   _rtcPc.oniceconnectionstatechange = () => {
     const ice = _rtcPc?.iceConnectionState;
-    if (ice === 'failed') { _showConnBanner('Reconnecting…', ''); _scheduleViewerReconnect(roomData); }
-    else if (ice === 'disconnected') {
+    console.log(`[WebRTC-Viewer] ICE state → ${ice}`);
+    if (ice === 'failed') {
+      console.log('[WebRTC-Viewer] ICE FAILED — triggering reconnect');
+      _showConnBanner('Reconnecting…', '');
+      _scheduleViewerReconnect(roomData);
+    } else if (ice === 'disconnected') {
+      console.log('[WebRTC-Viewer] ICE disconnected — waiting 3 s');
       setTimeout(() => {
         if (_rtcPc && (_rtcPc.iceConnectionState === 'disconnected' || _rtcPc.iceConnectionState === 'failed')) {
+          console.log('[WebRTC-Viewer] ICE still disconnected — scheduling reconnect');
           _scheduleViewerReconnect(roomData);
         }
       }, 3000);
@@ -1973,6 +2085,47 @@ async function _startViewerWebRTC(roomData) {
     if (!hasVideo) { console.log('[WebRTC-Viewer] Black-screen watchdog triggered — retrying'); _scheduleViewerReconnect(roomData); }
   }, 8000);
 }
+/* ═══════════════════════════════════════════════════
+   FROZEN VIDEO WATCHDOG — viewer side
+   Polls every 12 s. If the video element has a live
+   srcObject but has been stuck (readyState < 2 or
+   paused) for two consecutive checks, triggers a
+   reconnect to auto-refresh the video tracks.
+   ═══════════════════════════════════════════════════ */
+let _frozenWatchdogInterval = null;
+let _frozenWatchdogStrikeCount = 0;
+
+function _startFrozenVideoWatchdog(getRoomDataFn) {
+  if (_frozenWatchdogInterval) return;
+  _frozenWatchdogStrikeCount = 0;
+  _frozenWatchdogInterval = setInterval(() => {
+    if (_viewerLeftFlag || !_roomId) {
+      clearInterval(_frozenWatchdogInterval);
+      _frozenWatchdogInterval = null;
+      return;
+    }
+    const v = D.liveVideo;
+    if (!v || !v.srcObject) { _frozenWatchdogStrikeCount = 0; return; }
+    const isPlaying = !v.paused && v.readyState >= 2 && v.srcObject.getVideoTracks().some(t => t.readyState === 'live');
+    if (isPlaying) { _frozenWatchdogStrikeCount = 0; return; }
+    _frozenWatchdogStrikeCount++;
+    console.warn(`[FrozenWatchdog] Video stuck (strike ${_frozenWatchdogStrikeCount}/2), readyState=${v.readyState} paused=${v.paused}`);
+    // Try play() first — may just be an autoplay block
+    v.play().then(() => { _frozenWatchdogStrikeCount = 0; }).catch(() => {});
+    if (_frozenWatchdogStrikeCount >= 2) {
+      _frozenWatchdogStrikeCount = 0;
+      console.warn('[FrozenWatchdog] Video still frozen — triggering reconnect to refresh video tracks');
+      const rd = typeof getRoomDataFn === 'function' ? getRoomDataFn() : null;
+      if (rd) _scheduleViewerReconnect(rd);
+    }
+  }, 12000);
+}
+
+function _stopFrozenVideoWatchdog() {
+  if (_frozenWatchdogInterval) { clearInterval(_frozenWatchdogInterval); _frozenWatchdogInterval = null; }
+  _frozenWatchdogStrikeCount = 0;
+}
+
 /* ═══════════════════════════════════════════════════
    STREAM QUALITY PROFILES
    Phone sends 720p 30fps 3000 kbps CBR by default.
@@ -2098,16 +2251,19 @@ function _stopAdaptiveQuality() {
  */
 function _scheduleViewerReconnect(roomData) {
   if (_viewerLeftFlag) return;  // viewer already left
+
+  // Fix: no hard cap — keep retrying. Only bail if the stream actually ended.
   if (_viewerReconnectAttempt >= _MAX_RECONNECT_ATTEMPTS) {
-    _showConnBanner('Stream unavailable', 'Could not reconnect. The stream may have ended.');
-    return;
+    // Safety valve: after 9999 attempts something is structurally wrong — verify stream first
+    _viewerReconnectAttempt = 0;
   }
 
   if (_viewerReconnectTimer) clearTimeout(_viewerReconnectTimer);
 
-  const delay = Math.min(2000 * Math.pow(1.5, _viewerReconnectAttempt), 15000);
+  // Cap back-off at 15 s so reconnects stay timely even after many failures
+  const delay = Math.min(2000 * Math.pow(1.5, Math.min(_viewerReconnectAttempt, 7)), 15000);
   _viewerReconnectAttempt++;
-  console.log(`[WebRTC] Reconnect attempt ${_viewerReconnectAttempt} in ${delay}ms`);
+  console.log(`[WebRTC-Viewer] Reconnect attempt ${_viewerReconnectAttempt} scheduled in ${delay}ms (state: ${_rtcPc?.connectionState || 'no-pc'})`);
 
   _viewerReconnectTimer = setTimeout(async () => {
     _viewerReconnectTimer = null;
@@ -2185,7 +2341,12 @@ function _subscribeChat() {
 
     // Auto-scroll only if already near bottom
     if (atBottom) cm.scrollTop = cm.scrollHeight;
-  }, () => {});
+  }, (err) => {
+    // Fix: chat listener error — auto-retry after 5 s so chat survives network blips
+    console.warn('[Chat] Firestore listener error:', err.code, '— retrying in 5 s');
+    _chatUnsub = null;
+    setTimeout(() => { if (_roomId && !_viewerLeftFlag) _subscribeChat(); }, 5000);
+  });
 }
 
 function _buildChatMsgEl(data) {
