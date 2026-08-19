@@ -588,9 +588,10 @@ async function snxgSendGift() {
   const creatorCoins  = Math.floor(coinPrice * 0.9);
   const platformCoins = coinPrice - creatorCoins;
 
-  const txId            = _snxgGenTxId();
-  const senderWalletRef = doc(db, 'wallets',         senderId);
-  const creatorEarnRef  = doc(db, 'creatorEarnings', creatorId);
+  const txId              = _snxgGenTxId();
+  const senderWalletRef   = doc(db, 'wallets',         senderId);
+  const recipientWalletRef = doc(db, 'wallets',        creatorId);  // recipient's spendable balance
+  const creatorEarnRef    = doc(db, 'creatorEarnings', creatorId);
   // Use txId as the document ID — this makes the transaction idempotent.
   // If the same txId is committed twice (network retry), Firestore will
   // reject the second write on the giftTxRef with 'already-exists', but
@@ -598,7 +599,7 @@ async function snxgSendGift() {
   // at the balance check (insufficient_coins).  The client _snxgSending lock
   // prevents double-clicks within the same tab; txId uniqueness protects
   // against multi-tab or network-retry duplicates.
-  const giftTxRef       = doc(db, 'giftTransactions', txId);
+  const giftTxRef         = doc(db, 'giftTransactions', txId);
 
   try {
     console.log('[GIFT DEBUG] transaction starting — txId:', txId);
@@ -666,6 +667,13 @@ async function snxgSendGift() {
       const newLifetime  = (typeof earnData.lifetimeCoins  === 'number' ? earnData.lifetimeCoins  : 0) + verifiedCreatorCoins;
       const newPlatform  = (typeof earnData.platformCoins  === 'number' ? earnData.platformCoins  : 0) + verifiedPlatformCoins;
 
+      // ── READ 3: recipient wallet (needed to compute new balance before writing) ──
+      const recipientWalletSnap = await tx.get(recipientWalletRef);
+      const recipientWalletData = recipientWalletSnap.exists() ? recipientWalletSnap.data() : {};
+      const recipientCurrentCoins = typeof recipientWalletData.shadowCoins === 'number' ? recipientWalletData.shadowCoins : 0;
+      const recipientNewBalance   = recipientCurrentCoins + verifiedCreatorCoins;
+      console.log('[GIFT DEBUG] recipient wallet exists:', recipientWalletSnap.exists(), '| current balance:', recipientCurrentCoins, '→', recipientNewBalance);
+
       // ── WRITE 1: deduct sender wallet ──────────────────────────────────────
       // Use update() when doc exists, set() when it doesn't — avoids the
       // create-rule path for update operations on existing wallets.
@@ -686,7 +694,7 @@ async function snxgSendGift() {
         });
       }
 
-      // ── WRITE 2: credit creator earnings ──────────────────────────────────
+      // ── WRITE 2: credit creator earnings (monetization ledger) ────────────
       tx.set(creatorEarnRef, {
         uid:            creatorId,
         pendingCoins:   newPending,
@@ -695,6 +703,26 @@ async function snxgSendGift() {
         platformCoins:  newPlatform,
         lastGiftAt:     serverTimestamp(),
       }, { merge: true });
+
+      // ── WRITE 2b: credit recipient's spendable wallet ─────────────────────
+      // This makes gifted coins immediately available in the recipient's Shadow
+      // Coin balance (wallets/{uid}.shadowCoins), matching the same field that
+      // the test-coin grant and coin-purchase flows credit.
+      // Rule: giftCreditOnly — only shadowCoins and lastGiftReceivedAt change,
+      //       new shadowCoins > existing shadowCoins (never a deduction).
+      if (recipientWalletSnap.exists()) {
+        tx.update(recipientWalletRef, {
+          shadowCoins:        recipientNewBalance,
+          lastGiftReceivedAt: serverTimestamp(),
+        });
+      } else {
+        // Recipient has no wallet yet — create one.
+        tx.set(recipientWalletRef, {
+          uid:                creatorId,
+          shadowCoins:        recipientNewBalance,
+          lastGiftReceivedAt: serverTimestamp(),
+        });
+      }
 
       // ── WRITE 3: immutable gift transaction record ─────────────────────────
       tx.set(giftTxRef, {

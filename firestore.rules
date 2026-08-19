@@ -711,16 +711,39 @@ service cloud.firestore {
     // Owners can read their wallet. Writes are locked to owner via transactions
     // enforcing: coins can never go negative; only valid integer values.
     match /wallets/{uid} {
-      allow read:   if isOwner(uid) || isFounder();
-      allow create: if isOwner(uid)
-        && request.resource.data.shadowCoins is number
-        && request.resource.data.shadowCoins >= 0;
-      // Transactions set/update the wallet — we verify uid matches and coins are non-negative.
+      // Owner reads their own wallet; Founder reads any wallet for support.
+      // Any signed-in user may read a wallet inside a gift transaction (tx.get on
+      // recipient wallet to compute the new balance before crediting it).
+      allow read:   if isOwner(uid) || isFounder() || isSignedIn();
+      allow create: if
+        // Case 1: Owner creates their own wallet.
+        ( isOwner(uid)
+          && request.resource.data.shadowCoins is number
+          && request.resource.data.shadowCoins >= 0 )
+        ||
+        // Case 2: A gift sender creates the wallet for a new recipient (first gift ever).
+        // Strictly limited: uid field must match the document path, balance must be positive.
+        ( isSignedIn()
+          && request.resource.data.uid == uid
+          && request.resource.data.shadowCoins is number
+          && request.resource.data.shadowCoins > 0 );
       // NOTE: the Firebase JS SDK writes all numbers as Firestore DoubleValue, not IntegerValue,
       // so "is number" (matches both int and float) is required here for client-side transactions.
-      allow update: if isOwner(uid)
-        && request.resource.data.shadowCoins is number
-        && request.resource.data.shadowCoins >= 0;
+      allow update: if
+        // Case 1: Owner updates their own wallet (deduction or any change).
+        ( isOwner(uid)
+          && request.resource.data.shadowCoins is number
+          && request.resource.data.shadowCoins >= 0 )
+        ||
+        // Case 2: Another signed-in user credits this wallet as part of a gift transaction.
+        // Strictly limited: only shadowCoins and lastGiftReceivedAt may change,
+        // the new balance must be strictly greater than the existing balance (never a deduction),
+        // and the new value must be a non-negative number.
+        ( isSignedIn()
+          && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['shadowCoins', 'lastGiftReceivedAt'])
+          && request.resource.data.shadowCoins is number
+          && request.resource.data.shadowCoins > resource.data.shadowCoins );
       allow delete: if isFounder();
     }
 
