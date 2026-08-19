@@ -517,7 +517,11 @@ async function snxgSendGift() {
   const fs = _snxgDb();
   console.log('[GIFT DEBUG] Firestore available:', !!fs);
   if (!fs) {
-    _snxgToast('Gift could not be sent. Please try again.');
+    // _snxFirestore was not set by the page's module script.
+    // This can happen if Firebase failed to initialize or if snx-gifts.js
+    // loaded before the inline Firebase module script finished running.
+    console.error('[GIFT ERROR] window._snxFirestore is null — Firebase not initialized yet.');
+    _snxgToast('Gift could not be sent (Firestore unavailable). Please reload and try again.');
     return;
   }
 
