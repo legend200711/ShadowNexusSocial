@@ -713,11 +713,13 @@ service cloud.firestore {
     match /wallets/{uid} {
       allow read:   if isOwner(uid) || isFounder();
       allow create: if isOwner(uid)
-        && request.resource.data.shadowCoins is int
+        && request.resource.data.shadowCoins is number
         && request.resource.data.shadowCoins >= 0;
-      // Transactions set/update the wallet — we verify uid matches and coins are non-negative
+      // Transactions set/update the wallet — we verify uid matches and coins are non-negative.
+      // NOTE: the Firebase JS SDK writes all numbers as Firestore DoubleValue, not IntegerValue,
+      // so "is number" (matches both int and float) is required here for client-side transactions.
       allow update: if isOwner(uid)
-        && request.resource.data.shadowCoins is int
+        && request.resource.data.shadowCoins is number
         && request.resource.data.shadowCoins >= 0;
       allow delete: if isFounder();
     }
@@ -749,7 +751,7 @@ service cloud.firestore {
     match /giftTransactions/{txId} {
       allow create: if isSignedIn()
         && request.resource.data.senderId == request.auth.uid
-        && request.resource.data.coinAmount is int
+        && request.resource.data.coinAmount is number
         && request.resource.data.coinAmount > 0
         && request.resource.data.creatorPct == 90
         && request.resource.data.platformPct == 10;
@@ -769,25 +771,27 @@ service cloud.firestore {
     match /creatorEarnings/{uid} {
       allow read:   if isOwner(uid) || isFounder();
       // Any authenticated sender may create the doc (first gift ever received by creator)
+      // NOTE: the Firebase JS SDK writes numbers as Firestore DoubleValue, not IntegerValue,
+      // so "is number" (matches both int and float) is required for client-side writes.
       allow create: if isSignedIn()
-        && request.resource.data.uid          == uid
-        && request.resource.data.pendingCoins  is int
-        && request.resource.data.pendingCoins  >= 0
-        && request.resource.data.availableCoins is int
+        && request.resource.data.uid            == uid
+        && request.resource.data.pendingCoins   is number
+        && request.resource.data.pendingCoins   >= 0
+        && request.resource.data.availableCoins is number
         && request.resource.data.availableCoins >= 0
-        && request.resource.data.lifetimeCoins  is int
+        && request.resource.data.lifetimeCoins  is number
         && request.resource.data.lifetimeCoins  >= 0;
       // Any authenticated user may update (gift senders credit earnings).
       // Validate non-negative values and that uid cannot be changed.
       allow update: if isSignedIn()
         && request.resource.data.uid             == resource.data.uid  // uid is immutable
-        && request.resource.data.pendingCoins    is int
+        && request.resource.data.pendingCoins    is number
         && request.resource.data.pendingCoins    >= 0
-        && request.resource.data.availableCoins  is int
+        && request.resource.data.availableCoins  is number
         && request.resource.data.availableCoins  >= 0
-        && request.resource.data.lifetimeCoins   is int
+        && request.resource.data.lifetimeCoins   is number
         && request.resource.data.lifetimeCoins   >= 0
-        && request.resource.data.platformCoins   is int
+        && request.resource.data.platformCoins   is number
         && request.resource.data.platformCoins   >= 0;
       allow delete: if false;
     }
