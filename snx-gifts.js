@@ -458,19 +458,81 @@ function _snxgShowReloadStrip() {
 async function snxgSendGift() {
   if (_snxgSending) return;
 
+  // ── [GIFT DEBUG] START ─────────────────────────────────────────────────────
+  console.log('[GIFT DEBUG] START snxgSendGift()');
+
+  // ── 1. Auth check ──
   const user = _snxgUser();
+  console.log('[GIFT DEBUG] authenticated user:', user ? user.uid : 'NONE');
   if (!user) { _snxgToast('Please sign in to send gifts.'); return; }
 
+  // ── 2. Gift selection ──
   const gift = _snxgSelectedGift;
+  console.log('[GIFT DEBUG] gift ID:',    gift ? gift.id    : 'NONE');
+  console.log('[GIFT DEBUG] gift name:',  gift ? gift.name  : 'NONE');
+  console.log('[GIFT DEBUG] gift price:', gift ? gift.coins : 'NONE');
   if (!gift) { _snxgToast('Please select a gift first.'); return; }
+
+  // ── 3. Recipient ──
+  console.log('[GIFT DEBUG] recipient ID:', _snxgTargetUid || 'NONE');
   if (!_snxgTargetUid) { _snxgToast('Invalid recipient.'); return; }
 
-  // Client-side balance guard — only block when we KNOW the balance is loaded
-  // and it's definitely insufficient.  _snxgWalletUnsub being set means the
-  // snapshot listener is active; if balance is still 0 AND the listener fired
-  // at least once (snap would have updated it), we block.  If the listener
-  // hasn't fired yet we let the server transaction be the authority.
-  if (_snxgWalletUnsub && _snxgCoinBalance < gift.coins) {
+  // ── 4. Content context ──
+  const postId   = _snxgTargetPostId || null;
+  const isLive   = _snxgLiveMode;
+  const contentType = isLive ? 'live' : (postId ? 'post' : 'feed');
+  const contentId   = postId || null;
+  console.log('[GIFT DEBUG] content type:', contentType);
+  console.log('[GIFT DEBUG] content ID:',   contentId || '(none)');
+
+  // ── 5. Gifting feature flag — read from siteSettings/config ──
+  // Checks the Founder Control Panel gifting setting.
+  // No flag = gifting is enabled by default.
+  let giftingEnabled = true;
+  try {
+    const fs0 = _snxgDb();
+    if (fs0) {
+      const cfgSnap = await fs0.getDoc(fs0.doc(fs0.db, 'siteSettings', 'config'));
+      const cfg = cfgSnap.exists() ? cfgSnap.data() : {};
+      // giftingEnabled defaults true unless explicitly set false
+      giftingEnabled = cfg.giftingEnabled !== false;
+    }
+  } catch (flagErr) {
+    console.warn('[GIFT DEBUG] could not read siteSettings — defaulting gifting to enabled:', flagErr.message);
+  }
+  console.log('[GIFT DEBUG] gifting enabled:', giftingEnabled);
+  if (!giftingEnabled) {
+    _snxgToast('Gifting is currently disabled.');
+    return;
+  }
+
+  // ── 6. Firestore availability ──
+  const fs = _snxgDb();
+  console.log('[GIFT DEBUG] Firestore available:', !!fs);
+  if (!fs) {
+    _snxgToast('Gift could not be sent. Please try again.');
+    return;
+  }
+
+  const { db, doc, collection, getDoc: fsGetDoc, runTransaction, serverTimestamp } = fs;
+
+  // ── 7. Wallet pre-check (UX only — server is authoritative) ──
+  const walletRef0 = doc(db, 'wallets', user.uid);
+  let walletFound  = false;
+  let currentBalance = 0;
+  try {
+    const wSnap = await fsGetDoc(walletRef0);
+    walletFound    = wSnap.exists() ? true : false;
+    currentBalance = (wSnap.exists() && typeof wSnap.data().shadowCoins === 'number')
+      ? wSnap.data().shadowCoins : 0;
+  } catch (wErr) {
+    console.warn('[GIFT DEBUG] wallet pre-read error:', wErr.code, wErr.message);
+  }
+  console.log('[GIFT DEBUG] wallet found:', walletFound);
+  console.log('[GIFT DEBUG] current balance:', currentBalance, '| gift costs:', gift.coins);
+
+  // Only block early if we know the balance and it's truly insufficient
+  if (walletFound && currentBalance < gift.coins) {
     _snxgToast('Not enough Shadow Coins. 🪙 Reload Coins to continue.');
     _snxgShowReloadStrip();
     return;
@@ -480,80 +542,71 @@ async function snxgSendGift() {
   const sendBtn = document.getElementById('giftConfirmSend');
   if (sendBtn) { sendBtn.disabled = true; sendBtn.innerHTML = '<span class="snxg-processing">Sending…</span>'; }
 
-  const fs = _snxgDb();
-  if (!fs) {
-    _snxgSending = false;
-    _snxgToast('Gift could not be sent. Please try again.');
-    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send 🎁'; }
-    return;
-  }
-
-  const { db, doc, collection, runTransaction, serverTimestamp } = fs;
-
-  // Snapshot the gift fields we need — avoids closure over mutable state
+  // Snapshot all fields needed by the transaction
   const giftId       = gift.id;
   const giftName     = gift.name;
   const giftArt      = gift.art;
-  // Price is always taken from the trusted local catalog — never from UI input
-  const coinPrice    = gift.coins;
+  const coinPrice    = gift.coins;   // always from trusted local catalog
   const creatorId    = _snxgTargetUid;
-  const postId       = _snxgTargetPostId || null;
-  const isLive       = _snxgLiveMode;
   const senderId     = user.uid;
   const senderName   = user.displayName || 'Shadow User';
   const senderAvatar = user.photoURL    || '';
 
-  // 90 / 10 split — platform fee is the remainder so no floating-point drift
+  // 90/10 split — remainder avoids float drift
   const creatorCoins  = Math.floor(coinPrice * 0.9);
   const platformCoins = coinPrice - creatorCoins;
 
-  const txId             = _snxgGenTxId();
-  const senderWalletRef  = doc(db, 'wallets',          senderId);
-  const creatorEarnRef   = doc(db, 'creatorEarnings',  creatorId);
-  const giftTxRef        = doc(collection(db, 'giftTransactions'));  // auto-ID ref
+  const txId            = _snxgGenTxId();
+  const senderWalletRef = doc(db, 'wallets',         senderId);
+  const creatorEarnRef  = doc(db, 'creatorEarnings', creatorId);
+  const giftTxRef       = doc(collection(db, 'giftTransactions'));
 
   try {
-    // ── Single atomic Firestore transaction ──────────────────────────────────
-    //  Reads:  sender wallet (balance check)
-    //          creator earnings (current totals, to increment correctly)
-    //  Writes: sender wallet  — deduct coins
-    //          creatorEarnings — credit creator share
-    //          giftTransactions — immutable audit record
-    //  All succeed together or all roll back.
-    // ─────────────────────────────────────────────────────────────────────────
+    console.log('[GIFT DEBUG] transaction starting — txId:', txId);
+
     await runTransaction(db, async (tx) => {
 
-      // ── 1. Read sender wallet ──
-      const senderSnap   = await tx.get(senderWalletRef);
-      const senderData   = senderSnap.exists() ? senderSnap.data() : {};
-      const currentCoins = typeof senderData.shadowCoins === 'number'
-        ? senderData.shadowCoins : 0;
+      // ── READ 1: sender wallet ──────────────────────────────────────────────
+      const senderSnap = await tx.get(senderWalletRef);
+      const senderData = senderSnap.exists() ? senderSnap.data() : {};
+      const txCoins    = typeof senderData.shadowCoins === 'number' ? senderData.shadowCoins : 0;
+      console.log('[GIFT DEBUG] tx wallet balance:', txCoins, '| wallet doc exists:', senderSnap.exists());
 
-      // Server-authoritative balance check
-      if (currentCoins < coinPrice) {
+      if (txCoins < coinPrice) {
         throw new Error('insufficient_coins');
       }
 
-      const newBalance = currentCoins - coinPrice;
+      const newBalance = txCoins - coinPrice;
       const totalSpent = (typeof senderData.totalSpent === 'number' ? senderData.totalSpent : 0) + coinPrice;
 
-      // ── 2. Read creator earnings (required to compute correct new totals) ──
+      // ── READ 2: creator earnings ───────────────────────────────────────────
       const earnSnap = await tx.get(creatorEarnRef);
       const earnData = earnSnap.exists() ? earnSnap.data() : {};
+      console.log('[GIFT DEBUG] creator earnings doc exists:', earnSnap.exists());
 
       const newPending   = (typeof earnData.pendingCoins   === 'number' ? earnData.pendingCoins   : 0) + creatorCoins;
       const newAvailable = (typeof earnData.availableCoins === 'number' ? earnData.availableCoins : 0) + creatorCoins;
       const newLifetime  = (typeof earnData.lifetimeCoins  === 'number' ? earnData.lifetimeCoins  : 0) + creatorCoins;
       const newPlatform  = (typeof earnData.platformCoins  === 'number' ? earnData.platformCoins  : 0) + platformCoins;
 
-      // ── 3. Write: deduct sender wallet ──
-      tx.set(senderWalletRef, {
-        shadowCoins: newBalance,
-        totalSpent,
-        lastGiftAt:  serverTimestamp(),
-      }, { merge: true });
+      // ── WRITE 1: deduct sender wallet ──────────────────────────────────────
+      // Use update() when doc exists, set() when it doesn't — avoids the
+      // create-rule path for update operations on existing wallets.
+      if (senderSnap.exists()) {
+        tx.update(senderWalletRef, {
+          shadowCoins: newBalance,
+          totalSpent,
+          lastGiftAt:  serverTimestamp(),
+        });
+      } else {
+        tx.set(senderWalletRef, {
+          shadowCoins: newBalance,
+          totalSpent,
+          lastGiftAt:  serverTimestamp(),
+        });
+      }
 
-      // ── 4. Write: credit creator earnings ──
+      // ── WRITE 2: credit creator earnings ──────────────────────────────────
       tx.set(creatorEarnRef, {
         uid:            creatorId,
         pendingCoins:   newPending,
@@ -563,15 +616,7 @@ async function snxgSendGift() {
         lastGiftAt:     serverTimestamp(),
       }, { merge: true });
 
-      // ── 5. Write: immutable gift transaction record ──
-      // contentType / contentId are set only for the relevant context.
-      // transactionType is TEST_GIFT for test coins (identified by
-      // the wallet's testCoinsGranted field being non-zero), but we
-      // conservatively mark all sends as TEST_GIFT / sandbox since
-      // real PayPal purchases are not yet live.
-      const contentType = isLive ? 'live' : (postId ? 'post' : 'feed');
-      const contentId   = postId || null;  // postId doubles as liveId when isLive=true
-
+      // ── WRITE 3: immutable gift transaction record ─────────────────────────
       tx.set(giftTxRef, {
         txId,
         senderId,
@@ -581,7 +626,7 @@ async function snxgSendGift() {
         creatorId,
         contentType,
         contentId,
-        postId:          contentId,   // keep for back-compat
+        postId:          contentId,
         isLive,
         giftId,
         giftName,
@@ -598,24 +643,27 @@ async function snxgSendGift() {
       });
     });
 
-    // ── Transaction committed — only NOW update the UI ──
+    console.log('[GIFT DEBUG] transaction committed ✓');
+
+    // ── Only after commit: update UI ──
     snxgCloseGiftTray();
     _snxgToast(`🎁 ${giftName} sent!`);
     _snxgPlayGiftAnimation(gift, senderName);
-
-    if (isLive) {
-      _snxgShowLiveGiftToast(senderName, gift);
-    }
+    if (isLive) _snxgShowLiveGiftToast(senderName, gift);
 
   } catch (err) {
-    // Always log the full technical error for developer diagnosis
-    console.error('[SNX-GIFTS] sendGift failed — code:', err.code, '| message:', err.message, err);
+    // Full technical error — ALWAYS visible in console regardless of user-facing message
+    console.error('[GIFT ERROR] sendGift transaction failed');
+    console.error('[GIFT ERROR] error.code:',    err.code    || '(none)');
+    console.error('[GIFT ERROR] error.message:', err.message || '(none)');
+    console.error('[GIFT ERROR] error.stack:',   err.stack   || '(none)');
+    console.error('[GIFT ERROR] full error object:', err);
 
     let msg = 'Gift could not be sent. Please try again.';
     if (err.message === 'insufficient_coins') {
       msg = 'Not enough Shadow Coins. 🪙';
     } else if (err.code === 'permission-denied') {
-      msg = 'Gift could not be sent. (Permission denied — check console for details.)';
+      msg = 'Gift could not be sent. (Permission denied — see console for details.)';
     } else if (err.code === 'unavailable' || err.code === 'deadline-exceeded') {
       msg = 'Network issue — your gift was not sent. Please try again.';
     }
