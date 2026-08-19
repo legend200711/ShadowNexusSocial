@@ -103,7 +103,13 @@ let _snxgSending      = false;
    ══════════════════════════════════════════════════ */
 function snxgInit() {
   const user = _snxgUser();
-  if (!user) return;
+  console.log('[SHADOW COINS] snxgInit — auth.currentUser:', user ? user.uid : 'null/undefined');
+  if (!user) {
+    console.warn('[SHADOW COINS] snxgInit: no authenticated user — skipping wallet subscription');
+    return;
+  }
+  const fs = _snxgDb();
+  console.log('[SHADOW COINS] snxgInit — _snxFirestore defined:', fs !== null);
   _snxgSubscribeWallet(user.uid);
   _snxgRenderCoinPill();
 }
@@ -114,22 +120,36 @@ window.snxgInit = snxgInit;
    ══════════════════════════════════════════════════ */
 function _snxgSubscribeWallet(uid) {
   const fs = _snxgDb();
-  if (!fs) return;
+  if (!fs) {
+    console.error('[SHADOW COINS] _snxgSubscribeWallet: window._snxFirestore is null — Firebase not ready');
+    return;
+  }
   const { db, doc, onSnapshot } = fs;
 
   if (_snxgWalletUnsub) { try { _snxgWalletUnsub(); } catch(_) {} }
 
+  const walletPath = `wallets/${uid}`;
+  console.log('[SHADOW COINS] Auth UID:', uid);
+  console.log('[SHADOW COINS] Firebase path:', walletPath);
+
   const walletRef = doc(db, 'wallets', uid);
   _snxgWalletUnsub = onSnapshot(walletRef, snap => {
-    const data = snap.exists() ? snap.data() : {};
-    _snxgCoinBalance = data.shadowCoins || 0;
+    const exists = snap.exists();
+    const data   = exists ? snap.data() : {};
+    console.log('[SHADOW COINS] Document exists:', exists);
+    console.log('[SHADOW COINS] Document data:', JSON.stringify(data));
+    console.log('[SHADOW COINS] Balance field (shadowCoins):', data.shadowCoins);
+    _snxgCoinBalance = (typeof data.shadowCoins === 'number') ? data.shadowCoins : (data.shadowCoins || 0);
+    console.log('[SHADOW COINS] Balance value (assigned):', _snxgCoinBalance);
     window._snxgCoinBalance = _snxgCoinBalance; // expose to non-module polling in index.html
     _snxgRenderCoinPill();
     _snxgRefreshGiftAffordability();
-    // Sync all nav coin displays
-    if (typeof window._snxgSyncNavCoins === 'function') window._snxgSyncNavCoins(_snxgCoinBalance);
+    // Sync all nav coin displays — always force-update so any DOM reset is corrected
+    if (typeof window._snxgSyncNavCoins === 'function') {
+      window._snxgSyncNavCoins(_snxgCoinBalance);
+    }
   }, err => {
-    console.warn('[SNX-GIFTS] Wallet snapshot error:', err.code);
+    console.error('[SHADOW COINS] Firebase error:', err.code, err.message);
   });
 }
 
