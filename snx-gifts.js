@@ -123,6 +123,7 @@ function _snxgSubscribeWallet(uid) {
   _snxgWalletUnsub = onSnapshot(walletRef, snap => {
     const data = snap.exists() ? snap.data() : {};
     _snxgCoinBalance = data.shadowCoins || 0;
+    window._snxgCoinBalance = _snxgCoinBalance; // expose to non-module polling in index.html
     _snxgRenderCoinPill();
     _snxgRefreshGiftAffordability();
     // Sync all nav coin displays
