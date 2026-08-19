@@ -137,15 +137,18 @@
     });
   }
 
-  // Attempt to get Firebase auth token
-  // If running in popup, try opener; if redirect, try to get from a mini-Firebase init
+  // Attempt to get Firebase auth token.
+  // Strategy: sessionStorage first (stored before redirect), then opener window,
+  // then full Firebase re-auth as fallback.
+  // NOTE: do NOT delete the sessionStorage token until AFTER the capture fetch
+  // succeeds, so the page can retry on network error.
   let idToken = null;
 
   // Try to get token from session storage (stored before redirect by snx-gifts.js)
   const storedToken = sessionStorage.getItem('snxg_paypal_idtoken');
   if (storedToken) {
     idToken = storedToken;
-    sessionStorage.removeItem('snxg_paypal_idtoken');
+    // Keep the token in sessionStorage until capture succeeds (removed after success below)
   }
 
   if (!idToken) {
@@ -154,7 +157,8 @@
   }
 
   if (!idToken) {
-    // Fallback: initialize Firebase and get token
+    // Fallback: initialize Firebase and get a fresh token.
+    // Use a longer timeout (20s) to accommodate slow auth state restoration.
     try {
       const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
       const { getAuth, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
@@ -173,7 +177,7 @@
           if (user) { resolve(await user.getIdToken()); }
           else { resolve(null); }
         });
-        setTimeout(() => resolve(null), 8000);
+        setTimeout(() => resolve(null), 20000); // increased from 8s to 20s
       });
     } catch (e) {
       console.error('Firebase init error:', e);
@@ -198,13 +202,16 @@
     const data = await res.json();
 
     if (data.success) {
+      // Capture succeeded — safe to clear the stored token now
+      sessionStorage.removeItem('snxg_paypal_idtoken');
       showSuccess(data.coins, data.newBalance);
     } else {
       showError(data.error || 'Payment could not be confirmed.');
     }
   } catch (err) {
     console.error('Capture error:', err);
-    showError('Network error while confirming payment. Please check your coin balance in Shadow Nexus.');
+    // Do NOT remove the sessionStorage token — keep it so a manual reload can retry
+    showError('Network error while confirming payment. Please refresh this page to retry, or check your coin balance in Shadow Nexus.');
   }
 })();
 </script>

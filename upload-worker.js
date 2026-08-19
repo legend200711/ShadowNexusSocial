@@ -857,6 +857,8 @@ async function handlePaypalCaptureOrder(req, env, cors, sec) {
   try { body = await req.json(); } catch { return _ppErr('Invalid JSON', 400, cors, sec); }
 
   const { orderId, purchaseId, idToken } = body;
+  console.log(`[SHADOW COINS PURCHASE] orderId: ${orderId} purchaseId: ${purchaseId}`);
+
   if (!idToken)              return _ppErr('Authentication required', 401, cors, sec);
   if (!orderId || !purchaseId) return _ppErr('Missing orderId or purchaseId', 400, cors, sec);
 
@@ -864,99 +866,198 @@ async function handlePaypalCaptureOrder(req, env, cors, sec) {
   if (cfgErr) return _ppErr(cfgErr, 503, cors, sec);
 
   let uid;
-  try { uid = await _fbVerifyToken(env, idToken); }
-  catch { return _ppErr('Authentication failed', 401, cors, sec); }
+  try {
+    uid = await _fbVerifyToken(env, idToken);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Token verification failed: ${err.message}`);
+    return _ppErr('Authentication failed', 401, cors, sec);
+  }
+  console.log(`[SHADOW COINS PURCHASE] UID: ${uid}`);
 
-  // Try Firestore if available — not required to capture the payment
-  const hasFirestore = !!env.FIREBASE_SERVICE_KEY;
-  let fbToken = null;
-  if (hasFirestore) {
-    try { fbToken = await _fbGetAdminToken(env); } catch (e) {
-      console.error('[SNX-PAYPAL] Firestore token error:', e.message);
-    }
+  // Firestore is required — if service key is missing, fail with clear message
+  if (!env.FIREBASE_SERVICE_KEY) {
+    console.error('[SHADOW COINS PURCHASE] FIREBASE_SERVICE_KEY secret is not set — cannot credit coins');
+    return _ppErr('Payment service configuration error. Please contact support.', 503, cors, sec);
   }
 
-  // Idempotency — check if already processed (only if Firestore available)
-  if (fbToken) {
-    const existing = await _fbGet(fbToken, 'coinPurchases', purchaseId);
-    if (existing?.status === 'completed') {
-      return _ppJson({
-        success: true, alreadyProcessed: true,
-        coins: existing.coinsRequested || 0,
-        message: 'Your purchase is still being verified.',
-      }, 200, cors, sec);
+  let fbToken;
+  try {
+    fbToken = await _fbGetAdminToken(env);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Firebase service account token error: ${err.message}`);
+    return _ppErr('Internal auth error. Please contact support.', 500, cors, sec);
+  }
+
+  // Load and validate the existing purchase record
+  let existing;
+  try {
+    existing = await _fbGet(fbToken, 'coinPurchases', purchaseId);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] fbGet coinPurchases error: ${err.message}`);
+    return _ppErr('Could not load purchase record. Please contact support.', 500, cors, sec);
+  }
+  console.log(`[SHADOW COINS PURCHASE] Purchase record: ${JSON.stringify(existing)}`);
+
+  if (existing && existing.uid !== uid) {
+    console.error(`[SHADOW COINS PURCHASE] UID mismatch: purchase.uid=${existing.uid} auth.uid=${uid}`);
+    return _ppErr('Purchase does not belong to this account', 403, cors, sec);
+  }
+
+  // Idempotency — already completed: return success immediately
+  if (existing?.status === 'completed') {
+    const coins = existing.coinsCredited || existing.coinsRequested || 0;
+    console.log(`[SHADOW COINS PURCHASE] Already completed — idempotent return. coins: ${coins}`);
+    return _ppJson({ success: true, alreadyProcessed: true, coins }, 200, cors, sec);
+  }
+
+  if (existing?.status === 'wallet_write_failed') {
+    // Payment captured but wallet write failed previously — block re-capture (already charged)
+    console.error(`[SHADOW COINS PURCHASE] Purchase in wallet_write_failed state — manual review required`);
+    return _ppErr('Your payment was captured but coin credit failed. Please contact support — reference: ' + purchaseId, 500, cors, sec);
+  }
+
+  // Stale capturing lock: if captureStart is older than 2 minutes, allow retry
+  if (existing?.status === 'capturing') {
+    const startMs = existing.captureStart instanceof Date ? existing.captureStart.getTime()
+                  : existing.captureStart ? new Date(existing.captureStart).getTime() : 0;
+    const ageMs = Date.now() - startMs;
+    if (ageMs < 2 * 60 * 1000) {
+      console.warn(`[SHADOW COINS PURCHASE] Capture lock fresh (${Math.round(ageMs/1000)}s) — returning 409`);
+      return _ppErr('Payment is already being processed. Please wait.', 409, cors, sec);
     }
-    if (existing && existing.uid !== uid)
-      return _ppErr('Purchase does not belong to this account', 403, cors, sec);
+    console.warn(`[SHADOW COINS PURCHASE] Stale capture lock (${Math.round(ageMs/1000)}s) — resetting for retry`);
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      status: 'pending_payment', captureStart: null, staleReset: _fbTs(),
+    }).catch(() => {});
+    existing.status = 'pending_payment';
+  }
+
+  // Allow retry from capture_failed or pending_payment
+  if (existing?.status === 'capture_failed' || existing?.status === 'pending_payment' || !existing) {
+    console.log(`[SHADOW COINS PURCHASE] Proceeding with capture. Status: ${existing?.status || 'no record'}`);
+  } else {
+    console.error(`[SHADOW COINS PURCHASE] Unexpected status: ${existing?.status}`);
+    return _ppErr(`Purchase is in state: ${existing?.status}`, 400, cors, sec);
+  }
+
+  if (existing) {
+    console.log(`[SHADOW COINS PURCHASE] Package: $${existing.usdAmount} USD`);
+    console.log(`[SHADOW COINS PURCHASE] Coins: ${existing.coinsRequested}`);
+  }
+
+  // Set capturing lock before calling PayPal
+  try {
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      uid, purchaseId, status: 'capturing', captureStart: _fbTs(),
+    });
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Failed to set capturing lock: ${err.message}`);
+    return _ppErr('Database error. Please try again.', 500, cors, sec);
   }
 
   // Capture the PayPal order — this is the authoritative payment step
   let capture;
-  try { capture = await _ppCaptureOrder(env, orderId); }
-  catch (err) {
-    console.error('[SNX-PAYPAL] capture:', err.message);
+  try {
+    capture = await _ppCaptureOrder(env, orderId);
+    console.log(`[SHADOW COINS PURCHASE] PayPal capture response status: ${capture.status}`);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] PayPal captureOrder error: ${err.message}`);
+    // Reset to pending_payment so the user can retry (PayPal capture is idempotent)
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      status: 'pending_payment', captureError: err.message, captureAt: _fbTs(),
+    }).catch(e => console.error('[SHADOW COINS PURCHASE] Failed to reset after capture error:', e.message));
     return _ppErr('Payment capture failed. Please try again.', 502, cors, sec);
   }
 
   const captureStatus = capture.status;
+  console.log(`[SHADOW COINS PURCHASE] Payment status: ${captureStatus}`);
+
   if (captureStatus !== 'COMPLETED') {
-    if (fbToken) {
-      await _fbSet(fbToken, 'coinPurchases', purchaseId, {
-        status: 'failed', paypalStatus: captureStatus, failedAt: _fbTs(),
-      }).catch(() => {});
-    }
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      status: 'capture_failed', paypalStatus: captureStatus,
+      captureResult: JSON.stringify(capture).slice(0, 500), failedAt: _fbTs(),
+    }).catch(() => {});
     return _ppErr(`Payment not completed (status: ${captureStatus})`, 400, cors, sec);
   }
 
-  // Verify amount server-side — NEVER trust the client-supplied amount
-  const capturedAmount = parseFloat(
-    capture.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value || '0'
-  );
+  // Extract verified capture details — NEVER trust client-supplied amounts
+  const captureUnit   = capture.purchase_units?.[0];
+  const captureData   = captureUnit?.payments?.captures?.[0];
+  const capturedAmount = parseFloat(captureData?.amount?.value || '0');
+  const captureId      = captureData?.id || '';
+
+  console.log(`[SHADOW COINS PURCHASE] Payment ID (captureId): ${captureId}`);
+  console.log(`[SHADOW COINS PURCHASE] Captured amount: $${capturedAmount}`);
+
+  // Compute coins from the captured amount — NEVER from the client or purchase record alone
   const expectedCoins = Math.floor(capturedAmount * _PP_COINS_PER_DOLLAR);
-  const captureId     = capture.purchase_units?.[0]?.payments?.captures?.[0]?.id || '';
+  console.log(`[SHADOW COINS PURCHASE] Coins to credit: ${expectedCoins}`);
+  console.log(`[SHADOW COINS PURCHASE] Credit operation: wallets/${uid} += ${expectedCoins} shadowCoins`);
 
-  // Credit coins and record transaction in Firestore (when available)
-  let newBalance = expectedCoins; // fallback if no Firestore
-  if (fbToken) {
-    try {
-      const walletData   = await _fbGet(fbToken, 'wallets', uid) || {};
-      const currentCoins = walletData.shadowCoins || 0;
-      newBalance         = currentCoins + expectedCoins;
-
-      await _fbSet(fbToken, 'wallets', uid, {
-        uid, shadowCoins: newBalance,
-        totalPurchased: (walletData.totalPurchased || 0) + expectedCoins,
-        lastPurchaseAt: _fbTs(),
-      });
-      await _fbSet(fbToken, 'coinPurchases', purchaseId, {
-        uid, purchaseId, usdAmount: capturedAmount, coinsRequested: expectedCoins,
-        status: 'completed', paypalOrderId: orderId, paypalCaptureId: captureId,
-        paypalEnv: env.PAYPAL_ENV || 'live', completedAt: _fbTs(),
-      });
-      await _fbAdd(fbToken, 'financialAuditLog', {
-        type: 'COIN_PURCHASE', uid, purchaseId, orderId,
-        usdAmount: capturedAmount, coinsAdded: expectedCoins, newBalance,
-        environment: env.PAYPAL_ENV || 'live', timestamp: _fbTs(),
-      });
-    } catch (err) {
-      // Payment was captured — log the error but don't fail the response.
-      // Coins will need to be manually reconciled from PayPal dashboard.
-      console.error('[SNX-PAYPAL] Firestore write after capture FAILED:', err.message,
-        'orderId:', orderId, 'purchaseId:', purchaseId, 'uid:', uid,
-        'amount:', capturedAmount, 'captureId:', captureId);
-    }
-  } else {
-    // Firestore not configured — payment captured but coins cannot be credited yet.
-    // Log everything needed for manual reconciliation.
-    console.warn('[SNX-PAYPAL] PAYMENT CAPTURED but Firestore not configured.',
-      'orderId:', orderId, 'purchaseId:', purchaseId, 'uid:', uid,
-      'amount:', capturedAmount, 'coins:', expectedCoins, 'captureId:', captureId);
+  // Read existing wallet balance
+  let walletData = {};
+  try {
+    walletData = await _fbGet(fbToken, 'wallets', uid) || {};
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] fbGet wallets error: ${err.message}`);
+    // Reset to pending so user can retry — payment hasn't been credited yet
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      status: 'pending_payment', captureError: 'wallet_read_failed: ' + err.message, captureAt: _fbTs(),
+    }).catch(() => {});
+    return _ppErr('Could not read wallet. Please try again.', 500, cors, sec);
   }
+
+  const existingBalance = (typeof walletData.shadowCoins === 'number') ? walletData.shadowCoins : 0;
+  const newBalance      = existingBalance + expectedCoins;
+  console.log(`[SHADOW COINS PURCHASE] Existing balance: ${existingBalance}`);
+  console.log(`[SHADOW COINS PURCHASE] New balance: ${newBalance}`);
+
+  // Write new balance to Firestore wallet
+  try {
+    await _fbSet(fbToken, 'wallets', uid, {
+      uid,
+      shadowCoins:    newBalance,
+      totalPurchased: (typeof walletData.totalPurchased === 'number' ? walletData.totalPurchased : 0) + expectedCoins,
+      lastPurchaseAt: _fbTs(),
+    });
+    console.log(`[SHADOW COINS PURCHASE] Firebase result: wallets/${uid}.shadowCoins = ${newBalance}`);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Error writing wallet: ${err.message}`);
+    // Payment captured but wallet write failed — mark for manual review.
+    // Do NOT reset to pending (already captured — re-capturing would double-charge).
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      status: 'wallet_write_failed', captureId, capturedAmount,
+      walletWriteError: err.message, requiresManualCredit: true, captureAt: _fbTs(),
+    }).catch(() => {});
+    await _fbAdd(fbToken, 'financialAuditLog', {
+      type: 'WALLET_WRITE_FAILED', uid, purchaseId, orderId,
+      usdAmount: capturedAmount, coinsOwed: expectedCoins, captureId,
+      error: err.message, timestamp: _fbTs(), severity: 'CRITICAL',
+    }).catch(() => {});
+    return _ppErr('Payment captured but balance update failed. Please contact support — your coins will be credited manually.', 500, cors, sec);
+  }
+
+  // Mark purchase as completed (after wallet write succeeds)
+  await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+    uid, purchaseId, usdAmount: capturedAmount, coinsRequested: expectedCoins,
+    coinsCredited: expectedCoins,
+    status: 'completed', paypalOrderId: orderId, paypalCaptureId: captureId,
+    paypalEnv: env.PAYPAL_ENV || 'live', completedAt: _fbTs(),
+  }).catch(e => console.error('[SHADOW COINS PURCHASE] Failed to write completed status:', e.message));
+
+  // Write financial audit log
+  await _fbAdd(fbToken, 'financialAuditLog', {
+    type: 'COIN_PURCHASE', uid, purchaseId, orderId,
+    usdAmount: capturedAmount, coinsAdded: expectedCoins,
+    previousBalance: existingBalance, newBalance,
+    captureId, environment: env.PAYPAL_ENV || 'live', timestamp: _fbTs(),
+  }).catch(() => {});
+
+  console.log(`[SHADOW COINS PURCHASE] Complete. UID: ${uid} | Package: $${capturedAmount} | Coins: ${expectedCoins} | Payment ID: ${captureId} | New balance: ${newBalance}`);
 
   return _ppJson({
     success: true, coins: expectedCoins,
     newBalance, usdAmount: capturedAmount,
-    firestoreRecorded: !!fbToken,
     message: `${expectedCoins} Shadow Coins added to your wallet!`,
   }, 200, cors, sec);
 }

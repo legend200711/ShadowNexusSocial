@@ -627,57 +627,117 @@ async function handleCaptureOrder(req, env, origin) {
   try { body = await req.json(); } catch { return errResp('Invalid JSON', 400, origin, env); }
 
   const { orderId, purchaseId, idToken } = body;
+  console.log(`[SHADOW COINS PURCHASE] orderId: ${orderId} purchaseId: ${purchaseId}`);
+
   if (!idToken) return errResp('Authentication required', 401, origin, env);
   if (!orderId || !purchaseId) return errResp('Missing orderId or purchaseId', 400, origin, env);
 
   let uid;
-  try { uid = await fbVerifyToken(idToken); }
-  catch { return errResp('Authentication failed', 401, origin, env); }
+  try {
+    uid = await fbVerifyToken(idToken);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Token verification failed: ${err.message}`);
+    return errResp('Authentication failed', 401, origin, env);
+  }
+  console.log(`[SHADOW COINS PURCHASE] UID: ${uid}`);
 
-  const fbToken = await fbGetToken(env);
+  let fbToken;
+  try {
+    fbToken = await fbGetToken(env);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Firebase service account token error: ${err.message}`);
+    return errResp('Internal auth error. Please contact support.', 500, origin, env);
+  }
 
   // Load the purchase record
-  const purchaseDoc = await fbGetDoc(fbToken, 'coinPurchases', purchaseId);
-  const purchase    = fromFirestoreDoc(purchaseDoc);
+  let purchaseDoc;
+  try {
+    purchaseDoc = await fbGetDoc(fbToken, 'coinPurchases', purchaseId);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] fbGetDoc coinPurchases error: ${err.message}`);
+    return errResp('Could not load purchase record. Please contact support.', 500, origin, env);
+  }
+  const purchase = fromFirestoreDoc(purchaseDoc);
+  console.log(`[SHADOW COINS PURCHASE] Purchase record: ${JSON.stringify(purchase)}`);
 
   if (!purchase) return errResp('Purchase not found', 404, origin, env);
-  if (purchase.uid !== uid) return errResp('Purchase does not belong to this user', 403, origin, env);
+  if (purchase.uid !== uid) {
+    console.error(`[SHADOW COINS PURCHASE] UID mismatch: purchase.uid=${purchase.uid} auth.uid=${uid}`);
+    return errResp('Purchase does not belong to this user', 403, origin, env);
+  }
 
-  // Idempotency: already completed
+  console.log(`[SHADOW COINS PURCHASE] Package: $${purchase.usdAmount} USD`);
+  console.log(`[SHADOW COINS PURCHASE] Coins: ${purchase.coinsRequested}`);
+
+  // Idempotency: already completed — return success so the UI shows the credited amount
   if (purchase.status === 'completed') {
-    return jsonResp({ success: true, alreadyCompleted: true, coins: purchase.coinsRequested }, 200, origin, env);
+    console.log(`[SHADOW COINS PURCHASE] Already completed — idempotent return. coinsCredited: ${purchase.coinsCredited || purchase.coinsRequested}`);
+    return jsonResp({ success: true, alreadyCompleted: true, coins: purchase.coinsCredited || purchase.coinsRequested }, 200, origin, env);
   }
 
-  // Prevent double-processing
+  // Stale capturing lock: if captureStart is older than 2 minutes, allow retry.
+  // This handles the case where the Worker crashed between locking and crediting.
   if (purchase.status === 'capturing') {
-    return errResp('Payment is already being processed. Please wait.', 409, origin, env);
+    const captureStart = purchase.captureStart;
+    const staleLimitMs = 2 * 60 * 1000; // 2 minutes
+    const startMs = captureStart instanceof Date ? captureStart.getTime()
+                  : captureStart ? new Date(captureStart).getTime()
+                  : 0;
+    const ageMs = Date.now() - startMs;
+    if (ageMs < staleLimitMs) {
+      console.warn(`[SHADOW COINS PURCHASE] Capture lock is fresh (${Math.round(ageMs/1000)}s old) — returning 409`);
+      return errResp('Payment is already being processed. Please wait.', 409, origin, env);
+    }
+    // Stale lock — reset to pending so we can retry capture
+    console.warn(`[SHADOW COINS PURCHASE] Stale capture lock detected (${Math.round(ageMs/1000)}s old) — resetting to pending_payment for retry`);
+    await fbSetDoc(fbToken, 'coinPurchases', purchaseId, {
+      status:       'pending_payment',
+      captureStart: null,
+      staleReset:   serverTs(),
+    });
+    purchase.status = 'pending_payment';
   }
 
-  if (purchase.status !== 'pending_payment') {
+  // Allow retry from capture_failed state — payment may still be capturable
+  // (network error on our side does not mean PayPal failed; retry is safe because
+  //  PayPal's capture endpoint is idempotent given the same PayPal-Request-Id header)
+  if (purchase.status === 'capture_failed' || purchase.status === 'pending_payment') {
+    // Both states allow proceeding — fall through to capture attempt
+    console.log(`[SHADOW COINS PURCHASE] Proceeding with capture. Current status: ${purchase.status}`);
+  } else {
+    console.error(`[SHADOW COINS PURCHASE] Unexpected status: ${purchase.status}`);
     return errResp(`Purchase is in state: ${purchase.status}`, 400, origin, env);
   }
 
   // Mark as capturing (lock against duplicate calls)
-  await fbSetDoc(fbToken, 'coinPurchases', purchaseId, {
-    status:        'capturing',
-    captureStart:  serverTs(),
-  });
+  try {
+    await fbSetDoc(fbToken, 'coinPurchases', purchaseId, {
+      status:        'capturing',
+      captureStart:  serverTs(),
+    });
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Failed to set capturing lock: ${err.message}`);
+    return errResp('Database error. Please try again.', 500, origin, env);
+  }
 
   // Capture the PayPal order
   let captureResult;
   try {
     captureResult = await ppCaptureOrder(env, orderId);
+    console.log(`[SHADOW COINS PURCHASE] PayPal capture response status: ${captureResult.status}`);
   } catch (err) {
-    console.error('[SNX-PAYPAL] captureOrder error:', err.message);
+    console.error(`[SHADOW COINS PURCHASE] PayPal captureOrder error: ${err.message}`);
+    // Reset to pending_payment so the user can retry (PayPal capture is idempotent)
     await fbSetDoc(fbToken, 'coinPurchases', purchaseId, {
-      status:       'capture_failed',
+      status:       'pending_payment',
       captureError: err.message,
       captureAt:    serverTs(),
-    });
+    }).catch(e => console.error('[SHADOW COINS PURCHASE] Failed to reset status after capture error:', e.message));
     return errResp('Payment capture failed. Please try again or contact support.', 502, origin, env);
   }
 
   const captureStatus = captureResult.status;
+  console.log(`[SHADOW COINS PURCHASE] Payment status: ${captureStatus}`);
 
   if (captureStatus !== 'COMPLETED') {
     await fbSetDoc(fbToken, 'coinPurchases', purchaseId, {
@@ -685,7 +745,7 @@ async function handleCaptureOrder(req, env, origin) {
       paypalStatus:   captureStatus,
       captureAt:      serverTs(),
       captureResult:  JSON.stringify(captureResult).slice(0, 500),
-    });
+    }).catch(e => console.error('[SHADOW COINS PURCHASE] Failed to write capture_failed status:', e.message));
     return errResp(`Payment not completed. Status: ${captureStatus}`, 400, origin, env);
   }
 
@@ -696,6 +756,9 @@ async function handleCaptureOrder(req, env, origin) {
   const captureId    = captureData?.id || '';
   const payerId      = captureResult.payer?.payer_id || '';
 
+  console.log(`[SHADOW COINS PURCHASE] Payment ID (captureId): ${captureId}`);
+  console.log(`[SHADOW COINS PURCHASE] Captured amount: $${capturedAmt}`);
+
   // Verify captured amount matches expected amount (within $0.01 tolerance)
   if (Math.abs(capturedAmt - purchase.usdAmount) > 0.01) {
     await fbSetDoc(fbToken, 'coinPurchases', purchaseId, {
@@ -704,7 +767,7 @@ async function handleCaptureOrder(req, env, origin) {
       expectedAmount:  purchase.usdAmount,
       captureId,
       captureAt:       serverTs(),
-    });
+    }).catch(e => console.error('[SHADOW COINS PURCHASE] Failed to write amount_mismatch status:', e.message));
     // Log for admin review
     await fbAddDoc(fbToken, 'financialAuditLog', {
       type:           'AMOUNT_MISMATCH',
@@ -715,24 +778,71 @@ async function handleCaptureOrder(req, env, origin) {
       captureId,
       timestamp:      serverTs(),
       severity:       'HIGH',
-    });
+    }).catch(() => {});
     return errResp('Payment amount mismatch. Transaction flagged for review.', 400, origin, env);
   }
 
   const coins = purchase.coinsRequested;
+  console.log(`[SHADOW COINS PURCHASE] Credit operation: wallets/${uid} += ${coins} shadowCoins`);
 
-  // Credit coins to wallet (Firestore transaction via REST)
-  // We use a simple read-then-write with the capturing lock preventing races
-  const walletDoc = await fbGetDoc(fbToken, 'wallets', uid);
-  const wallet    = fromFirestoreDoc(walletDoc) || {};
-  const newBalance = (wallet.shadowCoins || 0) + coins;
+  // Credit coins to wallet.
+  // Read current balance, add purchased coins, write back.
+  // The capturing lock (set above) prevents concurrent duplicate credits for the same purchase.
+  let wallet = {};
+  try {
+    const walletDoc = await fbGetDoc(fbToken, 'wallets', uid);
+    wallet = fromFirestoreDoc(walletDoc) || {};
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] fbGetDoc wallets error: ${err.message}`);
+    // Reset to pending so user can retry
+    await fbSetDoc(fbToken, 'coinPurchases', purchaseId, {
+      status:       'pending_payment',
+      captureError: 'wallet_read_failed: ' + err.message,
+      captureAt:    serverTs(),
+    }).catch(() => {});
+    return errResp('Could not read wallet. Please try again.', 500, origin, env);
+  }
 
-  await fbSetDoc(fbToken, 'wallets', uid, {
-    uid,
-    shadowCoins:       newBalance,
-    totalPurchasedCoins: (wallet.totalPurchasedCoins || 0) + coins,
-    lastPurchaseAt:    serverTs(),
-  });
+  const existingBalance = (typeof wallet.shadowCoins === 'number') ? wallet.shadowCoins : 0;
+  const newBalance = existingBalance + coins;
+  console.log(`[SHADOW COINS PURCHASE] Existing balance: ${existingBalance}`);
+  console.log(`[SHADOW COINS PURCHASE] New balance: ${newBalance}`);
+
+  try {
+    await fbSetDoc(fbToken, 'wallets', uid, {
+      uid,
+      shadowCoins:         newBalance,
+      totalPurchasedCoins: (typeof wallet.totalPurchasedCoins === 'number' ? wallet.totalPurchasedCoins : 0) + coins,
+      lastPurchaseAt:      serverTs(),
+    });
+    console.log(`[SHADOW COINS PURCHASE] Firebase result: wallets/${uid}.shadowCoins = ${newBalance}`);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Error writing wallet: ${err.message}`);
+    // PayPal payment was captured but wallet write failed — mark for manual review.
+    // Do NOT reset to pending_payment (payment is already captured; re-capturing would double-charge).
+    await fbSetDoc(fbToken, 'coinPurchases', purchaseId, {
+      status:            'wallet_write_failed',
+      captureId,
+      payerId,
+      capturedAmount:    capturedAmt,
+      walletWriteError:  err.message,
+      requiresManualCredit: true,
+      captureAt:         serverTs(),
+    }).catch(() => {});
+    await fbAddDoc(fbToken, 'financialAuditLog', {
+      type:            'WALLET_WRITE_FAILED',
+      purchaseId,
+      uid,
+      usdAmount:       capturedAmt,
+      coinsOwed:       coins,
+      captureId,
+      paypalOrderId:   orderId,
+      error:           err.message,
+      timestamp:       serverTs(),
+      severity:        'CRITICAL',
+    }).catch(() => {});
+    return errResp('Payment captured but balance update failed. Please contact support — your coins will be credited manually.', 500, origin, env);
+  }
 
   // Mark purchase as completed
   await fbSetDoc(fbToken, 'coinPurchases', purchaseId, {
@@ -742,7 +852,7 @@ async function handleCaptureOrder(req, env, origin) {
     capturedAmount: capturedAmt,
     coinsCredited:  coins,
     completedAt:    serverTs(),
-  });
+  }).catch(e => console.error('[SHADOW COINS PURCHASE] Failed to write completed status:', e.message));
 
   // Write financial audit log
   await fbAddDoc(fbToken, 'financialAuditLog', {
@@ -754,10 +864,13 @@ async function handleCaptureOrder(req, env, origin) {
     captureId,
     paypalOrderId:  orderId,
     payerId,
+    previousBalance: existingBalance,
     newBalance,
     timestamp:      serverTs(),
     environment:    env.PAYPAL_ENV || 'sandbox',
-  });
+  }).catch(() => {});
+
+  console.log(`[SHADOW COINS PURCHASE] Complete. UID: ${uid} | Package: $${capturedAmt} | Coins: ${coins} | Payment ID: ${captureId} | New balance: ${newBalance}`);
 
   return jsonResp({
     success:       true,
