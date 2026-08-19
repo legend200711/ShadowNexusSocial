@@ -765,11 +765,14 @@ service cloud.firestore {
 
     // creatorEarnings/{uid}
     // Creator reads their own earnings.
+    // Any authenticated user can READ a creator's earnings — this is required so that
+    // the gift-send Firestore transaction (run by the sender) can tx.get() the doc to
+    // compute the correct incremented totals before writing.  Coin counts are not
+    // sensitive; write rules below still enforce all validation constraints.
     // Any authenticated user can increment a creator's earnings (when sending a gift).
-    // The increment amounts are validated: must be positive integers.
-    // The creator's own payouts can lock/release available coins.
+    // The increment amounts are validated: must be positive numbers.
     match /creatorEarnings/{uid} {
-      allow read:   if isOwner(uid) || isFounder();
+      allow read:   if isSignedIn();
       // Any authenticated sender may create the doc (first gift ever received by creator)
       // NOTE: the Firebase JS SDK writes numbers as Firestore DoubleValue, not IntegerValue,
       // so "is number" (matches both int and float) is required for client-side writes.
