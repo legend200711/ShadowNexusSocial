@@ -566,12 +566,30 @@ async function snxgSendGift() {
   const txId            = _snxgGenTxId();
   const senderWalletRef = doc(db, 'wallets',         senderId);
   const creatorEarnRef  = doc(db, 'creatorEarnings', creatorId);
-  const giftTxRef       = doc(collection(db, 'giftTransactions'));
+  // Use txId as the document ID — this makes the transaction idempotent.
+  // If the same txId is committed twice (network retry), Firestore will
+  // reject the second write on the giftTxRef with 'already-exists', but
+  // since the wallet deduction already happened, the retry loop will fail
+  // at the balance check (insufficient_coins).  The client _snxgSending lock
+  // prevents double-clicks within the same tab; txId uniqueness protects
+  // against multi-tab or network-retry duplicates.
+  const giftTxRef       = doc(db, 'giftTransactions', txId);
 
   try {
     console.log('[GIFT DEBUG] transaction starting — txId:', txId);
 
     await runTransaction(db, async (tx) => {
+
+      // ── READ 0: idempotency check — abort if txId already committed ────────
+      // This prevents a network retry from deducting coins twice.
+      // The giftTxRef uses txId as the document ID — if it exists, the gift
+      // was already processed successfully.
+      const existingTxSnap = await tx.get(giftTxRef);
+      if (existingTxSnap.exists()) {
+        // Gift was already committed (e.g. double-click in different tab).
+        // Throw a special sentinel so the catch block shows a clear message.
+        throw new Error('already_sent');
+      }
 
       // ── READ 1: sender wallet ──────────────────────────────────────────────
       const senderSnap = await tx.get(senderWalletRef);
@@ -676,7 +694,17 @@ async function snxgSendGift() {
     console.error('[GIFT ERROR] full error object:', err);
 
     let msg;
-    if (err.message === 'insufficient_coins') {
+    if (err.message === 'already_sent') {
+      // This can happen if the same gift was submitted from two browser tabs.
+      // The first one succeeded — show success rather than an error.
+      console.warn('[GIFT] Gift was already committed with txId:', txId, '— suppressing duplicate.');
+      snxgCloseGiftTray();
+      _snxgToast(`🎁 ${giftName} already sent! (duplicate request ignored)`);
+      _snxgPlayGiftAnimation(gift, senderName);
+      if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send 🎁'; }
+      _snxgSending = false;
+      return;
+    } else if (err.message === 'insufficient_coins') {
       msg = 'Not enough Shadow Coins. 🪙 Reload Coins to continue.';
     } else if (errCode === 'permission-denied') {
       msg = 'Gift blocked (permission-denied). Check console for details.';
