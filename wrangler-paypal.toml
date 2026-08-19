@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "snx-paypal-worker",
+  "main": "paypal-worker.js",
+  "compatibility_date": "2024-09-23",
+  "account_id": "f276c4406b82d3c1e35efed1ef486235",
+
+  "vars": {
+    "PAYPAL_ENV": "sandbox",
+    "SNX_ORIGIN": "https://shadownexussocial.online"
+  },
+
+  "routes": [
+    {
+      "pattern": "shadownexussocial.online/paypal/*",
+      "zone_name": "shadownexussocial.online"
+    }
+  ]
+}

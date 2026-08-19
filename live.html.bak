@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shadow Nexus Live 🔴</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0B1F3A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="stylesheet" href="live.css">
+<!-- Co-Host feature — remove these two lines to disable entirely -->
+<link rel="stylesheet" href="cohost.css">
+
+<!-- TIKTOK-STYLE: Preconnect to Firebase so the WebSocket connection
+     is warm before live.js even loads. Shaves ~100-200ms off
+     time-to-first-frame by establishing TLS + WebSocket handshake
+     in parallel with page rendering. -->
+<link rel="preconnect" href="https://horr-a08f4-default-rtdb.firebaseio.com">
+<link rel="preconnect" href="https://horr-a08f4.firebaseapp.com">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="dns-prefetch" href="https://horr-a08f4-default-rtdb.firebaseio.com">
+<link rel="dns-prefetch" href="https://firestore.googleapis.com">
+
+<!-- ── AUTH FAST-PATH: preconnect to the token refresh + installations
+     endpoints so the TLS handshake completes in parallel with the
+     Firebase SDK download. Without these, onAuthStateChanged waits
+     for a cold TLS connection to securetoken.googleapis.com AFTER the
+     SDK finishes loading — adding 2-5s to the loading spinner. ── -->
+<link rel="preconnect" href="https://securetoken.googleapis.com">
+<link rel="preconnect" href="https://firebaseinstallations.googleapis.com">
+<link rel="dns-prefetch" href="https://securetoken.googleapis.com">
+<link rel="dns-prefetch" href="https://firebaseinstallations.googleapis.com">
+
+<!-- ── MODULE PRELOAD: kick off all four Firebase SDK ESM module
+     downloads the instant the <head> parses, in parallel, instead of
+     waiting for live.js to download + parse + hit each sequential
+     `import` statement. This is the single biggest load-time win:
+     the four SDK modules (app, auth, firestore, database) otherwise
+     download one-after-another, each blocking the next. Preloading
+     them all at once collapses ~4 sequential round-trips into ~1.
+
+     CRITICAL: the version here (10.8.0) MUST match the version in
+     live.js AND index.html. When all three agree, the browser serves
+     the SDK from its HTTP cache instantly — no download at all for
+     users coming from the main site. ── -->
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js">
+
+<!-- ── Preload live.js itself so it starts downloading immediately,
+     in parallel with the Firebase modules above, rather than waiting
+     for the browser to reach the <script> tag at the bottom of <body>. ── -->
+<link rel="modulepreload" href="live.js">
+<link rel="preload" href="snx-net.js" as="script">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     LOADING — shown while Firebase auth resolves
+     ══════════════════════════════════════════════ -->
+<div id="liveLoading">
+  <div class="ll-spinner"></div>
+  <div class="ll-text">Connecting to Shadow Nexus Live…</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     CREATOR SETUP — camera preview + Go Live button
+     ══════════════════════════════════════════════ -->
+<div id="liveSetup" aria-label="Live Setup Screen">
+  <div class="setup-inner">
+
+    <!-- Logo / brand -->
+    <div class="setup-logo">🌑</div>
+    <h1 class="setup-title">Shadow Nexus Live</h1>
+    <p class="setup-sub">Preview your camera before going live</p>
+
+    <!-- Camera preview -->
+    <div class="setup-preview-wrap">
+      <video id="setupPreview" autoplay muted playsinline></video>
+      <div class="setup-preview-off" id="setupPreviewOff">
+        <div class="setup-preview-off-icon">📷</div>
+        <span>Camera is off</span>
+      </div>
+    </div>
+
+    <!-- Camera / Mic / Flip controls -->
+    <div class="setup-controls">
+
+      <button class="setup-ctrl-btn" id="setupBtnCam" aria-label="Toggle camera">
+        <span class="setup-ctrl-icon">📷</span>
+        <span>Cam</span>
+      </button>
+
+      <button class="setup-ctrl-btn" id="setupBtnMic" aria-label="Toggle microphone">
+        <span class="setup-ctrl-icon">🎤</span>
+        <span>Mic</span>
+      </button>
+
+      <button class="setup-ctrl-btn" id="setupBtnFlip" aria-label="Flip camera">
+        <span class="setup-ctrl-icon">🔄</span>
+        <span>Flip</span>
+      </button>
+
+    </div>
+
+    <!-- Live title -->
+    <input
+      id="setupTitleInput"
+      class="setup-input"
+      type="text"
+      placeholder="What are you streaming today? (optional)"
+      maxlength="80"
+    >
+
+    <!-- Go Live -->
+    <button id="btnGoLive" class="setup-go-live-btn" aria-label="Start live stream">
+      <span class="go-live-dot"></span>
+      Start Live
+    </button>
+
+    <!-- Back link -->
+    <a href="index.html" style="font-size:13px;color:#3a6a9a;text-decoration:none;margin-top:-8px;">
+      ← Back to Feed
+    </a>
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     LIVE STAGE — fullscreen video + overlay controls
+     Shared by creator and viewer.
+     ══════════════════════════════════════════════ -->
+<div id="liveStage" role="main" aria-label="Live Stream">
+
+  <!-- Main video -->
+  <div class="live-video-wrap">
+
+    <video
+      id="liveVideo"
+      autoplay
+      playsinline
+      muted
+      aria-label="Live stream video"
+    ></video>
+
+    <!-- Tap-to-unmute prompt (viewer only, shown until user taps) -->
+    <div id="liveUnmutePrompt" style="
+      display:none;position:absolute;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,0.72);border:1px solid rgba(255,255,255,0.2);
+      border-radius:14px;padding:14px 24px;text-align:center;
+      font-size:14px;color:#fff;cursor:pointer;z-index:25;
+      backdrop-filter:blur(6px);white-space:nowrap;
+    ">
+      🔊 Tap to unmute
+    </div>
+
+    <!-- Camera-off overlay (creator only) -->
+    <div id="liveCamOffOverlay" class="live-cam-off-overlay">
+      <div class="live-cam-off-icon">📷</div>
+      <span style="font-size:13px;color:#3a5a7a;">Camera is paused</span>
+    </div>
+
+    <!-- Connection status banner (viewer only) -->
+    <div id="liveConnBanner" class="live-conn-banner">
+      <div id="liveConnTitle" class="live-conn-title">Connecting…</div>
+      <div id="liveConnSub"   class="live-conn-sub"></div>
+    </div>
+
+    <!-- ── Top overlay bar ── -->
+    <div id="liveTopBar" class="live-top-bar">
+
+      <!-- LIVE badge -->
+      <div class="live-badge" id="liveBadge">
+        <span class="live-badge-dot"></span>
+        LIVE
+      </div>
+
+      <!-- Creator info pill -->
+      <div class="live-creator-pill">
+        <div id="liveCreatorAvatar" class="live-creator-avatar"></div>
+        <div id="liveCreatorName"   class="live-creator-name">Shadow Nexus</div>
+      </div>
+
+      <!-- Viewer count -->
+      <div class="live-viewer-count" id="liveViewerCount">👁 0</div>
+
+      <!-- Live Timer (host only) -->
+      <div id="liveTimerDisplay" aria-label="Live duration timer">
+        <span class="live-timer-dot"></span>
+        <span id="liveTimerText">00:00:00</span>
+      </div>
+
+      <!-- AI Safety active badge (host only) -->
+      <div id="aiSafetyBadge" aria-label="AI Safety active">🛡 AI</div>
+
+      <!-- Internet Quality badge (host only) -->
+      <div id="iqBadge" aria-label="Internet quality status"></div>
+
+      <!-- Shadow Bot active badge (host only) -->
+      <div id="shadowBotBadge" aria-label="Shadow Bot active">🤖 Bot</div>
+
+      <!-- Close / End button -->
+      <button
+        id="liveCloseBtn"
+        class="live-close-btn"
+        aria-label="End / Leave stream"
+      >✕</button>
+
+    </div>
+
+    <!-- ── Stats ribbon (likes) ── -->
+    <div class="live-stats-ribbon">
+      <div class="live-stat-pill" id="liveLikeCount">❤️ 0</div>
+    </div>
+
+    <!-- ── Chat panel (both creator and viewer) ── -->
+    <div class="live-chat-panel" aria-label="Live Chat">
+      <div id="liveChatMessages" class="live-chat-messages" aria-live="polite"></div>
+      <div class="live-chat-input-row">
+        <input
+          id="liveChatInput"
+          class="live-chat-input"
+          type="text"
+          placeholder="Say something…"
+          maxlength="200"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+        >
+        <button id="liveChatSend" class="live-chat-send" aria-label="Send chat message">➤</button>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         GUEST VIDEO GRID — host video + guest boxes
+         Shown on top of (or replacing) the main video
+         ═══════════════════════════════════ -->
+    <div id="guestGrid" class="guest-grid"></div>
+
+    <!-- ═══════════════════════════════════
+         HOST: incoming request notifications
+         ═══════════════════════════════════ -->
+    <div id="guestRequestQueue" class="guest-request-queue"></div>
+
+    <!-- ═══════════════════════════════════
+         CREATOR CONTROLS (bottom bar)
+         Hidden for viewers via CSS
+         ═══════════════════════════════════ -->
+    <div class="live-bottom-bar">
+
+      <button id="btnToggleCam" class="live-ctrl-btn" aria-label="Toggle camera" title="Camera">📷</button>
+      <button id="btnToggleMic" class="live-ctrl-btn" aria-label="Toggle microphone" title="Mic">🎤</button>
+      <button id="btnFlipCam"   class="live-ctrl-btn" aria-label="Flip camera" title="Flip">🔄</button>
+      <button id="btnFullscreen" class="live-ctrl-btn" aria-label="Fullscreen" title="Fullscreen">⛶</button>
+      <button id="btnShareLiveCreator" class="live-ctrl-btn" aria-label="Share live stream" title="Share">📤</button>
+
+      <!-- Layout button (host only) — one button that opens all layout settings -->
+      <button id="btnLayoutSettings" class="live-ctrl-btn guest-layout-btn" aria-label="Layout settings" title="Layout">⊞</button>
+
+      <!-- Live Settings button (host only) -->
+      <button id="btnLiveSettings" class="live-ctrl-btn" aria-label="Live settings" title="Settings">⚙️</button>
+
+      <button id="btnEndLive"   class="live-ctrl-btn" aria-label="End live stream">END LIVE</button>
+
+    </div>
+
+    <!-- ═══════════════════════════════════
+         LAYOUT SETTINGS PANEL (host only)
+         ═══════════════════════════════════ -->
+    <div id="layoutSettingsPanel" class="layout-settings-panel" style="display:none;">
+      <div class="layout-panel-title">Layout Settings</div>
+
+      <!-- Live guest count indicator -->
+      <div style="text-align:center;margin-bottom:10px;">
+        <span id="_guestCountIndicator" style="
+          font-size:11px;font-weight:700;color:#00AEEF;
+          background:rgba(0,174,239,0.1);border:1px solid rgba(0,174,239,0.3);
+          border-radius:20px;padding:3px 12px;letter-spacing:0.4px;
+        ">0 / 9 guests</span>
+      </div>
+
+      <div class="layout-panel-grid">
+        <button class="layout-option-btn active" data-layout="auto" title="Auto">
+          <span class="layout-icon">✦</span>
+          <span>Auto</span>
+        </button>
+        <button class="layout-option-btn" data-layout="host-full" title="Host Full">
+          <span class="layout-icon">⬛</span>
+          <span>Host Full</span>
+        </button>
+        <button class="layout-option-btn" data-layout="split" title="Split">
+          <span class="layout-icon">⬜⬜</span>
+          <span>Split</span>
+        </button>
+        <button class="layout-option-btn" data-layout="host-big" title="Host Big">
+          <span class="layout-icon">▬▪</span>
+          <span>Host Big</span>
+        </button>
+        <button class="layout-option-btn" data-layout="grid" title="Grid">
+          <span class="layout-icon">▦</span>
+          <span>Grid</span>
+        </button>
+        <button class="layout-option-btn" data-layout="float" title="Floating">
+          <span class="layout-icon">◈</span>
+          <span>Float</span>
+        </button>
+      </div>
+      <div class="layout-panel-section">Box Size</div>
+      <div class="layout-size-row">
+        <button class="layout-size-btn active" data-size="sm">S</button>
+        <button class="layout-size-btn" data-size="md">M</button>
+        <button class="layout-size-btn" data-size="lg">L</button>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         LIVE SETTINGS PANEL (host only)
+         3 separate ON/OFF switches
+         ═══════════════════════════════════ -->
+    <div id="liveSettingsPanel" class="live-settings-panel" style="display:none;">
+      <div class="live-settings-title">⚙️ Live Settings</div>
+
+      <!-- AI Safety System -->
+      <div class="lsp-row">
+        <div class="lsp-label">
+          <div class="lsp-label-name">🛡 AI Safety System</div>
+          <div class="lsp-label-desc">Monitor chat &amp; warn host of violations</div>
+        </div>
+        <label class="lsp-toggle" aria-label="AI Safety System toggle">
+          <input type="checkbox" id="toggleAISafety">
+          <span class="lsp-slider"></span>
+        </label>
+      </div>
+
+      <!-- Shadow Bot -->
+      <div class="lsp-row">
+        <div class="lsp-label">
+          <div class="lsp-label-name">🤖 Shadow Bot</div>
+          <div class="lsp-label-desc">Friendly welcome &amp; community messages</div>
+        </div>
+        <label class="lsp-toggle" aria-label="Shadow Bot toggle">
+          <input type="checkbox" id="toggleShadowBot">
+          <span class="lsp-slider"></span>
+        </label>
+      </div>
+
+      <!-- Live Timer -->
+      <div class="lsp-row">
+        <div class="lsp-label">
+          <div class="lsp-label-name">⏱ Live Timer</div>
+          <div class="lsp-label-desc">Show live duration in top bar</div>
+        </div>
+        <label class="lsp-toggle" aria-label="Live Timer toggle">
+          <input type="checkbox" id="toggleLiveTimer">
+          <span class="lsp-slider"></span>
+        </label>
+      </div>
+
+      <!-- Internet Quality -->
+      <div class="lsp-row">
+        <div class="lsp-label">
+          <div class="lsp-label-name">📶 Auto Internet Quality</div>
+          <div class="lsp-label-desc">Auto-adjust quality to your connection</div>
+        </div>
+        <label class="lsp-toggle" aria-label="Auto Internet Quality toggle">
+          <input type="checkbox" id="toggleInternetQuality">
+          <span class="lsp-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         VIEWER ACTIONS — right side column
+         TikTok-style circular buttons
+         Hidden for creator via CSS
+         ═══════════════════════════════════ -->
+    <div class="live-viewer-actions">
+
+      <!-- Like ❤️ -->
+      <button id="btnLike" class="live-like-btn" aria-label="Like stream">
+        <span class="live-like-icon">❤️</span>
+        <span id="likeBtnCount" style="display:none;">Like</span>
+      </button>
+
+      <!-- Request a Box 📺 -->
+      <button id="btnRequestBox" class="live-request-box-btn" aria-label="Request a guest box">
+        <span>📺</span>
+        <span id="btnRequestBoxLabel">Request a Box</span>
+      </button>
+
+      <!-- Share 📤 -->
+      <button id="btnShareLive" class="live-share-btn" aria-label="Share live stream">
+        <span class="live-share-icon">📤</span>
+        Share
+      </button>
+
+      <!-- Profile 👤 (sits below share) -->
+      <button id="btnCreatorProfile" class="live-profile-btn" aria-label="View creator profile">
+        <span class="live-profile-icon">👤</span>
+        Profile
+      </button>
+
+      <!-- Guest cam/mic controls (shown only when viewer is in a guest box) -->
+      <button id="btnGuestCam" class="live-request-box-btn" aria-label="Toggle guest camera" style="display:none;">
+        <span>📷</span>
+        <span id="btnGuestCamLabel">Cam</span>
+      </button>
+      <button id="btnGuestMic" class="live-request-box-btn" aria-label="Toggle guest microphone" style="display:none;">
+        <span>🎤</span>
+        <span id="btnGuestMicLabel">Mic</span>
+      </button>
+
+      <!-- Leave Box button (shown only when viewer is in a guest box) -->
+      <button id="btnLeaveBox" class="live-leave-box-btn" aria-label="Leave guest box" style="display:none;">
+        <span>🚪</span>
+        <span>Leave Box</span>
+      </button>
+
+    </div>
+
+  </div><!-- .live-video-wrap -->
+
+</div><!-- #liveStage -->
+
+
+<!-- ══════════════════════════════════════════════
+     STREAM ENDED OVERLAY
+     ══════════════════════════════════════════════ -->
+<div id="liveEndedOverlay">
+  <div class="ended-icon">🌑</div>
+  <h2 id="endedTitle" class="ended-title">Stream Ended</h2>
+  <p  id="endedSub"   class="ended-sub">This live stream has ended.</p>
+  <button id="endedBackBtn" class="ended-back-btn">← Back to Feed</button>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     TOAST NOTIFICATION
+     ══════════════════════════════════════════════ -->
+<div id="liveToast" role="alert" aria-live="assertive"></div>
+
+
+<!-- ══════════════════════════════════════════════
+     GLOBAL INTERNET MANAGER (plain script — loads before live.js)
+     ══════════════════════════════════════════════ -->
+<script src="snx-net.js"></script>
+
+<!-- ══════════════════════════════════════════════
+     LIVE ENGINE (ES module)
+     ══════════════════════════════════════════════ -->
+<script type="module" src="live.js"></script>
+
+<!-- Co-Host add-on (ES module) — remove to disable entirely -->
+<script type="module" src="cohost.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,455 @@
+/* ══════════════════════════════════════════════════════════════
+   Shadow Nexus Social — Profile Theme System Styles
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Tab Content Container ──────────────────────────────────── */
+#tabContentThemes {
+  display: none;
+  padding: 12px 0;
+}
+
+/* ── Theme Editor Layout ────────────────────────────────────── */
+.snx-theme-editor {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 14px;
+  min-height: 400px;
+}
+@media (max-width: 600px) {
+  .snx-theme-editor { grid-template-columns: 1fr; }
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+.snx-theme-sidebar {
+  background: #0d2444;
+  border: 1px solid #1a3a5c;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.snx-theme-nav-btn {
+  background: transparent;
+  border: none;
+  color: #6a90b8;
+  font-size: 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.snx-theme-nav-btn:hover { background: rgba(0,174,239,0.07); color: #fff; }
+.snx-theme-nav-btn.active { background: rgba(0,174,239,0.12); color: #00AEEF; }
+
+/* ── Main Panel ─────────────────────────────────────────────── */
+.snx-theme-main {
+  background: #0d2444;
+  border: 1px solid #1a3a5c;
+  border-radius: 12px;
+  padding: 16px;
+  overflow-y: auto;
+  max-height: 620px;
+}
+.snx-theme-panel { display: none; }
+.snx-theme-panel.active { display: block; }
+.snx-theme-panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #1a3a5c;
+}
+
+/* ── Field Groups ────────────────────────────────────────────── */
+.snx-theme-field-group {
+  margin-bottom: 18px;
+}
+.snx-theme-field-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #00AEEF;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+.snx-theme-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.snx-theme-row.tri { grid-template-columns: 1fr 1fr 1fr; }
+.snx-theme-row.full { grid-template-columns: 1fr; }
+.snx-theme-field label {
+  font-size: 11px;
+  color: #6a90b8;
+  display: block;
+  margin-bottom: 4px;
+}
+.snx-theme-field input[type="text"],
+.snx-theme-field input[type="number"],
+.snx-theme-field input[type="range"],
+.snx-theme-field select,
+.snx-theme-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: #071428;
+  border: 1px solid #1a3a5c;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 12px;
+  padding: 7px 10px;
+}
+.snx-theme-field input[type="range"] {
+  padding: 4px 0;
+  cursor: pointer;
+}
+.snx-theme-field input[type="color"] {
+  width: 100%;
+  height: 34px;
+  padding: 2px;
+  background: #071428;
+  border: 1px solid #1a3a5c;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.snx-theme-field input[type="file"] {
+  width: 100%;
+  font-size: 11px;
+  color: #6a90b8;
+}
+.snx-range-value {
+  font-size: 11px;
+  color: #00AEEF;
+  text-align: right;
+  display: block;
+  margin-top: 2px;
+}
+
+/* ── Color Grid ──────────────────────────────────────────────── */
+.snx-color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+.snx-color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.snx-color-field label {
+  font-size: 10px;
+  color: #6a90b8;
+}
+.snx-color-field input[type="color"] {
+  width: 100%;
+  height: 30px;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #1a3a5c;
+  background: #071428;
+  cursor: pointer;
+}
+
+/* ── Button Style Grid ───────────────────────────────────────── */
+.snx-style-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+.snx-style-option {
+  border: 2px solid #1a3a5c;
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.18s;
+  background: #071428;
+}
+.snx-style-option:hover { border-color: rgba(0,174,239,0.5); }
+.snx-style-option.selected { border-color: #00AEEF; background: rgba(0,174,239,0.08); }
+.snx-style-option-label { font-size: 11px; color: #b8d4f0; margin-top: 6px; display: block; }
+.snx-style-option-preview {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Button preview shapes */
+.snx-btn-preview {
+  font-size: 10px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: none;
+  background: #00AEEF;
+  color: #071428;
+  pointer-events: none;
+}
+.snx-btn-preview.rounded { border-radius: 20px; }
+.snx-btn-preview.square  { border-radius: 2px; }
+.snx-btn-preview.outline { background: transparent; border: 1.5px solid #00AEEF; color: #00AEEF; }
+.snx-btn-preview.glow    { box-shadow: 0 0 8px rgba(0,174,239,0.7); }
+
+/* ── Animation Toggles ───────────────────────────────────────── */
+.snx-anim-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.snx-anim-toggle {
+  background: #071428;
+  border: 2px solid #1a3a5c;
+  border-radius: 10px;
+  padding: 10px 10px 8px;
+  cursor: pointer;
+  transition: all 0.18s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.snx-anim-toggle:hover { border-color: rgba(0,174,239,0.4); }
+.snx-anim-toggle.on { border-color: #00AEEF; background: rgba(0,174,239,0.07); }
+.snx-anim-toggle .snx-anim-icon { font-size: 18px; flex-shrink: 0; }
+.snx-anim-toggle .snx-anim-label { font-size: 11px; color: #b8d4f0; }
+.snx-anim-toggle.on .snx-anim-label { color: #00AEEF; }
+
+/* ── Built-in Theme Cards ────────────────────────────────────── */
+.snx-builtin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+.snx-builtin-card {
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.18s, transform 0.18s;
+  position: relative;
+}
+.snx-builtin-card:hover { transform: translateY(-2px); }
+.snx-builtin-card.active { border-color: #00AEEF; }
+.snx-builtin-preview {
+  height: 70px;
+  width: 100%;
+}
+.snx-builtin-name {
+  font-size: 11px;
+  text-align: center;
+  padding: 6px 4px;
+  background: #071428;
+  color: #b8d4f0;
+}
+.snx-builtin-card.active .snx-builtin-name { color: #00AEEF; }
+
+/* ── Theme Manager ───────────────────────────────────────────── */
+.snx-theme-save-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.snx-theme-save-input {
+  flex: 1;
+  min-width: 140px;
+  background: #071428;
+  border: 1px solid #1a3a5c;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 12px;
+  padding: 7px 10px;
+}
+.snx-theme-save-btn {
+  background: #00AEEF;
+  border: none;
+  border-radius: 8px;
+  color: #071428;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.snx-saved-theme-list { display: flex; flex-direction: column; gap: 6px; }
+.snx-saved-theme-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #071428;
+  border: 1px solid #1a3a5c;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.18s;
+}
+.snx-saved-theme-item:hover { border-color: rgba(0,174,239,0.3); }
+.snx-saved-theme-item.active { border-color: #00AEEF; }
+.snx-saved-theme-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.snx-saved-theme-name {
+  flex: 1;
+  font-size: 12px;
+  color: #b8d4f0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.snx-saved-theme-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.snx-saved-theme-btn {
+  background: transparent;
+  border: none;
+  color: #6a90b8;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 5px;
+  transition: color 0.15s;
+}
+.snx-saved-theme-btn:hover { color: #00AEEF; }
+.snx-saved-theme-btn.danger:hover { color: #ff4757; }
+.snx-theme-import-export {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.snx-theme-io-btn {
+  flex: 1;
+  min-width: 100px;
+  background: transparent;
+  border: 1px solid #1a3a5c;
+  border-radius: 8px;
+  color: #6a90b8;
+  font-size: 12px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: all 0.18s;
+  text-align: center;
+}
+.snx-theme-io-btn:hover { border-color: #00AEEF; color: #00AEEF; }
+
+/* ── Profile Theme Preview Overlay ─────────────────────────── */
+/* Applied as inline style overrides on .profile-header by JS  */
+
+/* ── Animations Applied to Profile ──────────────────────────── */
+.snx-anim-floating { animation: snx-anim-float 3s ease-in-out infinite; }
+@keyframes snx-anim-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+.snx-anim-pulse-glow { animation: snx-pulse-glow 2s ease-in-out infinite; }
+@keyframes snx-pulse-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(0,174,239,0.3); }
+  50%       { box-shadow: 0 0 30px rgba(0,174,239,0.8); }
+}
+.snx-anim-neon-border { animation: snx-neon-border 2s linear infinite; }
+@keyframes snx-neon-border {
+  0%   { border-color: #00AEEF; }
+  33%  { border-color: #7c5cd8; }
+  66%  { border-color: #00AEEF; }
+  100% { border-color: #7c5cd8; }
+}
+.snx-anim-moving-grad { animation: snx-moving-grad 4s linear infinite; }
+@keyframes snx-moving-grad {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Particle Canvas (Rain/Snow/Sparks) ─────────────────────── */
+.snx-profile-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+/* ── Owner-only badge for Themes tab ────────────────────────── */
+.snx-theme-owner-note {
+  font-size: 11px;
+  color: #4a6a8a;
+  padding: 8px 10px;
+  background: rgba(0,174,239,0.04);
+  border: 1px dashed rgba(0,174,239,0.2);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+/* ── View-only mode — disable all inputs/controls for visitors ── */
+.snx-theme-readonly .snx-theme-main {
+  position: relative;
+}
+/* Overlay that captures pointer events over the entire editor */
+.snx-theme-readonly .snx-theme-main::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  border-radius: 12px;
+  cursor: not-allowed;
+}
+/* Visually dim interactive elements so it's clear they are inactive */
+.snx-theme-readonly input,
+.snx-theme-readonly select,
+.snx-theme-readonly textarea,
+.snx-theme-readonly button,
+.snx-theme-readonly .snx-builtin-card,
+.snx-theme-readonly .snx-style-option,
+.snx-theme-readonly .snx-anim-toggle {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+/* ── Save/Apply Toolbar ─────────────────────────────────────── */
+.snx-theme-toolbar {
+  display: flex;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid #1a3a5c;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.snx-theme-btn {
+  flex: 1;
+  min-width: 80px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.18s;
+  border: 1px solid #1a3a5c;
+  background: transparent;
+  color: #6a90b8;
+  text-align: center;
+}
+.snx-theme-btn:hover { border-color: #00AEEF; color: #00AEEF; }
+.snx-theme-btn.primary {
+  background: #00AEEF;
+  border-color: #00AEEF;
+  color: #071428;
+  font-weight: 700;
+}
+.snx-theme-btn.primary:hover { background: #33c8ff; border-color: #33c8ff; }
+.snx-theme-btn.danger { color: #ff4757; }
+.snx-theme-btn.danger:hover { border-color: #ff4757; }

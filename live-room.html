@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shadow Nexus — Live Room 🔴</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0B1F3A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="stylesheet" href="live.css">
+<style>
+/* ── Live Room page-specific overrides ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; background: #050e1f; color: #c8e4ff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+/* States */
+#lrLoading {
+  position: fixed; inset: 0; z-index: 9000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; background: #0B1F3A;
+}
+#lrError {
+  position: fixed; inset: 0; z-index: 8500;
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 32px 20px; text-align: center; background: #0B1F3A;
+}
+.lr-error-icon  { font-size: 52px; }
+.lr-error-title { font-size: 20px; font-weight: 800; color: #d8eeff; }
+.lr-error-sub   { font-size: 14px; color: #5a8aaa; line-height: 1.6; max-width: 300px; }
+.lr-back-btn {
+  display: inline-block; padding: 10px 28px;
+  background: rgba(0,174,239,0.12); border: 1px solid rgba(0,174,239,0.45);
+  border-radius: 24px; color: #00aeef; text-decoration: none;
+  font-size: 14px; font-weight: 600; transition: background 0.15s;
+}
+.lr-back-btn:hover { background: rgba(0,174,239,0.22); }
+
+/* Room wrapper */
+#lrRoom {
+  display: none; flex-direction: column; height: 100%; width: 100%;
+  position: fixed; inset: 0;
+}
+
+/* Top bar */
+.lr-topbar {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  padding: calc(env(safe-area-inset-top,0) + 10px) 14px 10px;
+  background: rgba(5,14,31,0.96); backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0,174,239,0.14); z-index: 100;
+}
+.lr-back-link {
+  font-size: 12px; font-weight: 700; color: #5a8aaa;
+  text-decoration: none; flex-shrink: 0; transition: color 0.15s;
+}
+.lr-back-link:hover { color: #00aeef; }
+.lr-live-badge {
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(255,30,60,0.9); border-radius: 7px;
+  padding: 3px 8px 3px 6px; flex-shrink: 0;
+  font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  box-shadow: 0 0 10px rgba(255,30,60,0.55);
+}
+.lr-live-dot {
+  width: 5px; height: 5px; border-radius: 50%; background: #fff; flex-shrink: 0;
+  animation: feedLivePulse 1.2s ease-in-out infinite;
+}
+.lr-room-title {
+  flex: 1; font-size: 13px; font-weight: 700; color: #d8eeff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lr-host-name  { font-size: 11px; color: #5a8aaa; flex-shrink: 0; }
+.lr-viewer-pill {
+  font-size: 11px; color: #88aacc; flex-shrink: 0;
+  background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px; padding: 2px 8px;
+}
+
+/* 4-box stage */
+.lr-stage {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 3px; background: #020913; overflow: hidden;
+}
+.lr-stage.full   { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.lr-stage.two    { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+.lr-stage.two-v  { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .lr-stage { grid-template-columns: 1fr 1fr 1fr 1fr; grid-template-rows: 1fr; }
+  .lr-stage.full  { grid-template-columns: 1fr; }
+  .lr-stage.two   { grid-template-columns: 1fr 1fr; }
+  .lr-stage.two-v { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+}
+
+/* Video box */
+.lr-box {
+  position: relative; overflow: hidden; background: #020913;
+}
+.lr-box video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; background: #020913;
+}
+.lr-box-label {
+  position: absolute; bottom: 6px; left: 8px; z-index: 5;
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+}
+.lr-box-host-badge {
+  font-size: 9px; font-weight: 800; letter-spacing: 0.5px;
+  color: #ff6677; background: rgba(0,0,0,0.6); border-radius: 4px; padding: 1px 4px;
+}
+.lr-box-empty {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(135deg, #050e20, #0a1a30);
+}
+.lr-box-empty-icon  { font-size: 28px; opacity: 0.2; }
+.lr-box-empty-label { font-size: 10px; color: #1e3a55; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.lr-cam-off {
+  position: absolute; inset: 0; z-index: 3;
+  display: none; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: #050e20;
+}
+.lr-cam-off.visible { display: flex; }
+.lr-cam-off-icon    { font-size: 30px; opacity: 0.45; }
+
+/* Connection banner inside box 1 */
+.lr-conn-banner {
+  position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%);
+  z-index: 10; display: none;
+  background: rgba(5,14,31,0.92); border: 1px solid rgba(0,174,239,0.45);
+  border-radius: 10px; padding: 8px 16px; text-align: center; white-space: nowrap;
+}
+.lr-conn-banner.visible { display: block; }
+.lr-conn-title { font-size: 13px; font-weight: 700; color: #d8eeff; }
+.lr-conn-sub   { font-size: 11px; color: #5a8aaa; margin-top: 3px; }
+
+/* Host controls */
+.lr-host-bar {
+  display: none; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px;
+  padding: 10px 14px calc(env(safe-area-inset-bottom,0) + 10px);
+  background: rgba(5,14,31,0.97); border-top: 1px solid rgba(0,174,239,0.12); flex-shrink: 0;
+}
+body.lr-is-host .lr-host-bar { display: flex; }
+.lr-ctrl-btn {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: rgba(0,30,80,0.7); border: 1.5px solid rgba(0,174,239,0.35);
+  color: #a0ccee; font-size: 17px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  touch-action: manipulation; flex-shrink: 0;
+}
+.lr-ctrl-btn:hover  { background: rgba(0,80,200,0.32); }
+.lr-ctrl-btn:active { transform: scale(0.92); }
+.lr-ctrl-btn.off    { background: rgba(255,30,50,0.22); border-color: rgba(255,50,70,0.6); color: #ff6677; }
+.lr-end-btn {
+  padding: 9px 22px; border-radius: 20px;
+  background: rgba(180,0,30,0.25); border: 1.5px solid rgba(220,0,40,0.5);
+  color: #ff5577; font-size: 12px; font-weight: 800;
+  letter-spacing: 0.8px; text-transform: uppercase; cursor: pointer;
+  transition: background 0.15s, color 0.15s; touch-action: manipulation;
+}
+.lr-end-btn:hover { background: rgba(220,0,40,0.7); color: #fff; }
+
+/* Viewer controls */
+.lr-viewer-bar {
+  display: none; align-items: center; justify-content: center; gap: 12px;
+  padding: 10px 14px calc(env(safe-area-inset-bottom,0) + 10px);
+  background: rgba(5,14,31,0.97); border-top: 1px solid rgba(0,174,239,0.12); flex-shrink: 0;
+}
+body.lr-is-viewer .lr-viewer-bar { display: flex; }
+.lr-like-btn {
+  padding: 8px 18px; border-radius: 20px;
+  background: rgba(80,0,30,0.3); border: 1.5px solid rgba(255,30,70,0.4);
+  color: #ff6688; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: background 0.15s; touch-action: manipulation;
+}
+.lr-like-btn:hover  { background: rgba(255,30,70,0.3); }
+.lr-like-btn.liked  { color: #ff4466; border-color: rgba(255,60,100,0.8); }
+.lr-share-btn {
+  padding: 8px 18px; border-radius: 20px;
+  background: rgba(0,40,100,0.3); border: 1.5px solid rgba(0,174,239,0.4);
+  color: #55aadd; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: background 0.15s; touch-action: manipulation;
+}
+.lr-share-btn:hover { background: rgba(0,174,239,0.22); }
+
+/* Chat panel */
+.lr-chat {
+  display: flex; flex-direction: column; flex-shrink: 0;
+  height: 200px; background: rgba(5,14,31,0.98);
+  border-top: 1px solid rgba(0,174,239,0.12);
+}
+.lr-chat-msgs {
+  flex: 1; overflow-y: auto; padding: 8px 10px 4px;
+  scroll-behavior: smooth; overscroll-behavior: contain;
+}
+.lr-chat-msgs::-webkit-scrollbar { display: none; }
+.lr-chat-msg {
+  font-size: 12px; line-height: 1.5; padding: 2px 0; color: #a8ccee;
+}
+.lr-chat-author { font-weight: 700; color: #55aadd; }
+.lr-chat-author.is-host { color: #ff6677; }
+.lr-chat-msg.sys .lr-chat-author { color: #5a8aaa; font-style: italic; }
+.lr-chat-row {
+  display: flex; gap: 6px; padding: 6px 8px calc(env(safe-area-inset-bottom,0) + 6px);
+  border-top: 1px solid rgba(0,174,239,0.08); flex-shrink: 0;
+}
+.lr-chat-input {
+  flex: 1; background: rgba(0,20,60,0.6); border: 1px solid rgba(0,174,239,0.25);
+  border-radius: 18px; color: #c8e4ff; font-size: 13px;
+  padding: 8px 14px; outline: none; min-width: 0;
+  -webkit-appearance: none;
+}
+.lr-chat-input::placeholder { color: rgba(80,140,200,0.45); }
+.lr-chat-input:focus { border-color: rgba(0,174,239,0.6); }
+.lr-chat-send {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(0,100,40,0.5); border: 1.5px solid rgba(0,200,80,0.4);
+  color: #44cc88; font-size: 15px; cursor: pointer; align-self: center;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s; touch-action: manipulation;
+}
+.lr-chat-send:hover { background: rgba(0,180,60,0.55); }
+
+/* Stream ended overlay */
+#lrEnded {
+  display: none; position: fixed; inset: 0; z-index: 9500;
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 32px 24px; text-align: center; background: #0B1F3A;
+}
+.lr-ended-icon  { font-size: 56px; }
+.lr-ended-title { font-size: 22px; font-weight: 800; color: #fff; }
+.lr-ended-sub   { font-size: 14px; color: #5a8aaa; line-height: 1.65; max-width: 290px; }
+
+/* Toast */
+#lrToast {
+  position: fixed; bottom: calc(20px + env(safe-area-inset-bottom,0));
+  left: 50%; transform: translateX(-50%) translateY(20px);
+  background: rgba(5,14,31,0.97); border: 1px solid rgba(0,174,239,0.55);
+  padding: 10px 20px; border-radius: 10px; z-index: 9800;
+  font-size: 13px; color: #c8e8ff;
+  white-space: nowrap; max-width: calc(100vw - 40px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+#lrToast.visible {
+  opacity: 1; transform: translateX(-50%) translateY(0);
+}
+
+/* Desktop: side-by-side layout */
+@media (min-width: 768px) {
+  #lrRoom { flex-direction: row; flex-wrap: wrap; }
+  .lr-topbar { width: 100%; flex-shrink: 0; }
+  .lr-stage { flex: 1; height: 0; }
+  .lr-chat {
+    width: 280px; height: auto; border-top: none;
+    border-left: 1px solid rgba(0,174,239,0.12);
+    align-self: stretch;
+  }
+  .lr-host-bar, .lr-viewer-bar { width: 100%; order: 10; }
+}
+/* Small phone adjustments */
+@media (max-width: 380px) {
+  .lr-ctrl-btn { width: 36px; height: 36px; font-size: 14px; }
+  .lr-host-bar { gap: 7px; }
+  .lr-end-btn  { padding: 7px 14px; font-size: 11px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Feature gate ─────────────────────────────────────────────────────────
+     2-Week Public Test: Live streaming is ENABLED by default.
+     The Founder can disable it globally via Firestore siteSettings/config
+     (liveEnabled: false) — that flag is checked inside the module below
+     after Firebase loads, and shows a clean error screen if off.
+     The old localStorage-based gate has been removed so the page loads for
+     all signed-in users during the public test period.
+──────────────────────────────────────────────────────────────────────────── -->
+
+<!-- ══════════════════════════════════════════════
+     LOADING STATE
+     ══════════════════════════════════════════════ -->
+<div id="lrLoading">
+  <div class="ll-spinner"></div>
+  <div class="ll-text">Connecting to live room…</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     ERROR STATE
+     ══════════════════════════════════════════════ -->
+<div id="lrError">
+  <div class="lr-error-icon">📡</div>
+  <div class="lr-error-title" id="lrErrorTitle">Room Not Found</div>
+  <div class="lr-error-sub"   id="lrErrorSub">This live room doesn't exist or has ended.</div>
+  <a href="live-hub.html" class="lr-back-btn">← Back to Live Hub</a>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MAIN ROOM
+     ══════════════════════════════════════════════ -->
+<div id="lrRoom">
+
+  <!-- Top bar -->
+  <div class="lr-topbar">
+    <a href="live-hub.html" class="lr-back-link" aria-label="Back to Live Hub">← Hub</a>
+    <div class="lr-live-badge" id="lrLiveBadge">
+      <span class="lr-live-dot"></span>LIVE
+    </div>
+    <div class="lr-room-title" id="lrRoomTitle">Shadow Nexus Live</div>
+    <div class="lr-host-name"  id="lrHostName"></div>
+    <div class="lr-viewer-pill">👁 <span id="lrViewerCount">0</span></div>
+  </div>
+
+  <!-- 4-Box Stage -->
+  <div class="lr-stage" id="lrStage">
+
+    <!-- Box 1: Host -->
+    <div class="lr-box" id="lrBox1">
+      <video id="lrVid1" autoplay playsinline muted></video>
+      <div class="lr-cam-off" id="lrCamOff1">
+        <span class="lr-cam-off-icon">📷</span>
+        <span style="font-size:11px;color:#2a4a6a;">Camera off</span>
+      </div>
+      <div class="lr-conn-banner" id="lrConnBanner">
+        <div class="lr-conn-title" id="lrConnTitle">Connecting…</div>
+        <div class="lr-conn-sub"   id="lrConnSub"></div>
+      </div>
+      <div class="lr-box-label">
+        <span id="lrBox1Name">Host</span>
+        <span class="lr-box-host-badge">🔴 HOST</span>
+      </div>
+    </div>
+
+    <!-- Box 2: Guest Slot -->
+    <div class="lr-box" id="lrBox2">
+      <div class="lr-box-empty" id="lrBox2Empty">
+        <div class="lr-box-empty-icon">👤</div>
+        <div class="lr-box-empty-label">Guest Slot 2</div>
+      </div>
+      <video id="lrVid2" autoplay playsinline style="display:none;"></video>
+      <div class="lr-cam-off" id="lrCamOff2">
+        <span class="lr-cam-off-icon">📷</span>
+        <span style="font-size:11px;color:#2a4a6a;">Camera off</span>
+      </div>
+      <div class="lr-box-label" id="lrBox2Label" style="display:none;">
+        <span id="lrBox2Name">Guest</span>
+      </div>
+    </div>
+
+    <!-- Box 3: Guest Slot -->
+    <div class="lr-box" id="lrBox3">
+      <div class="lr-box-empty" id="lrBox3Empty">
+        <div class="lr-box-empty-icon">👤</div>
+        <div class="lr-box-empty-label">Guest Slot 3</div>
+      </div>
+      <video id="lrVid3" autoplay playsinline style="display:none;"></video>
+      <div class="lr-cam-off" id="lrCamOff3">
+        <span class="lr-cam-off-icon">📷</span>
+        <span style="font-size:11px;color:#2a4a6a;">Camera off</span>
+      </div>
+      <div class="lr-box-label" id="lrBox3Label" style="display:none;">
+        <span id="lrBox3Name">Guest</span>
+      </div>
+    </div>
+
+    <!-- Box 4: Guest Slot -->
+    <div class="lr-box" id="lrBox4">
+      <div class="lr-box-empty" id="lrBox4Empty">
+        <div class="lr-box-empty-icon">👤</div>
+        <div class="lr-box-empty-label">Guest Slot 4</div>
+      </div>
+      <video id="lrVid4" autoplay playsinline style="display:none;"></video>
+      <div class="lr-cam-off" id="lrCamOff4">
+        <span class="lr-cam-off-icon">📷</span>
+        <span style="font-size:11px;color:#2a4a6a;">Camera off</span>
+      </div>
+      <div class="lr-box-label" id="lrBox4Label" style="display:none;">
+        <span id="lrBox4Name">Guest</span>
+      </div>
+    </div>
+
+  </div><!-- /.lr-stage -->
+
+  <!-- Host Controls -->
+  <div class="lr-host-bar">
+    <button class="lr-ctrl-btn" id="lrBtnCam"        aria-label="Toggle camera">📷</button>
+    <button class="lr-ctrl-btn" id="lrBtnMic"        aria-label="Toggle microphone">🎤</button>
+    <button class="lr-ctrl-btn" id="lrBtnFlip"       aria-label="Flip camera">🔄</button>
+    <button class="lr-ctrl-btn" id="lrBtnFullscreen" aria-label="Fullscreen">⛶</button>
+    <button class="lr-ctrl-btn" id="lrBtnShare"      aria-label="Share stream">📤</button>
+    <button class="lr-end-btn"  id="lrBtnEnd"        aria-label="End live stream">END LIVE</button>
+  </div>
+
+  <!-- Viewer Controls -->
+  <div class="lr-viewer-bar">
+    <button class="lr-like-btn"  id="lrBtnLike"   aria-label="Like stream">❤️ Like</button>
+    <button class="lr-share-btn" id="lrBtnShareV"  aria-label="Share stream">📤 Share</button>
+    <a href="live-hub.html" class="lr-back-btn" style="font-size:12px;padding:7px 16px;">← Hub</a>
+  </div>
+
+  <!-- Chat -->
+  <div class="lr-chat">
+    <div id="lrChatMsgs" class="lr-chat-msgs" aria-live="polite" aria-label="Live chat messages"></div>
+    <div class="lr-chat-row">
+      <input
+        type="text" id="lrChatInput" class="lr-chat-input"
+        placeholder="Say something…" maxlength="200"
+        autocomplete="off" autocorrect="off" spellcheck="false"
+        aria-label="Chat message"
+      >
+      <button id="lrChatSend" class="lr-chat-send" aria-label="Send message">➤</button>
+    </div>
+  </div>
+
+</div><!-- /#lrRoom -->
+
+<!-- ══════════════════════════════════════════════
+     STREAM ENDED OVERLAY
+     ══════════════════════════════════════════════ -->
+<div id="lrEnded">
+  <div class="lr-ended-icon">🌑</div>
+  <h2 class="lr-ended-title">Stream Ended</h2>
+  <p  class="lr-ended-sub">This live stream has ended. Thanks for watching!</p>
+  <a href="live-hub.html" class="lr-back-btn">← Back to Live Hub</a>
+</div>
+
+<!-- Toast -->
+<div id="lrToast" role="alert" aria-live="assertive"></div>
+
+
+<script type="module">
+/**
+ * Shadow Nexus — Live Room (inline module)
+ *
+ * URL params:
+ *   ?host=1            → start / resume as host (roomId = current user UID)
+ *   ?room=<roomId>     → join as viewer
+ *
+ * Architecture (Firebase only):
+ *   Firestore  /liveRooms/{roomId}                        — room metadata (status, title, viewers)
+ *   Firestore  /liveRooms/{roomId}/liveMessages/{msgId}   — real-time chat
+ *   RTDB       liveSignaling/{roomId}/viewers/{viewerUid}
+ *                → offer / answer / viewerIce / hostIce (WebRTC signaling)
+ *   RTDB       livePresence/{roomId}/host                 — host keep-alive
+ *   RTDB       livePresence/{roomId}/viewers/{uid}        — per-viewer presence
+ *
+ * WebRTC topology: 1-to-many. Host creates one RTCPeerConnection per viewer.
+ * Each viewer writes an offer; host answers; both exchange ICE candidates.
+ *
+ * Guest boxes 2–4 are scaffolded (DOM + empty state) for future co-host support.
+ */
+
+import { initializeApp, getApps, getApp }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, onAuthStateChanged }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import {
+  getFirestore,
+  doc, getDoc, setDoc, updateDoc, onSnapshot,
+  collection, addDoc, query, orderBy, limit,
+  serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getDatabase, ref, set, onValue, off, onDisconnect, remove }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+/* ── Firebase config ── */
+const _CFG = {
+  apiKey:            'AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y',
+  authDomain:        'horr-a08f4.firebaseapp.com',
+  databaseURL:       'https://horr-a08f4-default-rtdb.firebaseio.com',
+  projectId:         'horr-a08f4',
+  storageBucket:     'horr-a08f4.firebasestorage.app',
+  messagingSenderId: '933810617818',
+  appId:             '1:933810617818:web:efb24f123337dd987c14e3',
+};
+const _app  = getApps().length ? getApp() : initializeApp(_CFG);
+const _auth = getAuth(_app);
+const _db   = getFirestore(_app);
+const _rtdb = getDatabase(_app);
+
+/* ── STUN/TURN servers ── */
+const _ICE = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    // Public TURN (openrelay) — allows NAT traversal on restricted networks
+    { urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:openrelay.metered.ca:443',
+      username: 'openrelayproject', credential: 'openrelayproject' },
+  ],
+};
+
+/* ── DOM refs ── */
+const $ = id => document.getElementById(id);
+const D = {
+  loading:      $('lrLoading'),
+  error:        $('lrError'),
+  errorTitle:   $('lrErrorTitle'),
+  errorSub:     $('lrErrorSub'),
+  room:         $('lrRoom'),
+  ended:        $('lrEnded'),
+  toast:        $('lrToast'),
+  roomTitle:    $('lrRoomTitle'),
+  hostName:     $('lrHostName'),
+  viewerCount:  $('lrViewerCount'),
+  connBanner:   $('lrConnBanner'),
+  connTitle:    $('lrConnTitle'),
+  connSub:      $('lrConnSub'),
+  stage:        $('lrStage'),
+  // Boxes
+  box1: $('lrBox1'), vid1: $('lrVid1'), camOff1: $('lrCamOff1'), box1Name: $('lrBox1Name'),
+  box2: $('lrBox2'), vid2: $('lrVid2'), camOff2: $('lrCamOff2'), box2Empty: $('lrBox2Empty'), box2Label: $('lrBox2Label'), box2Name: $('lrBox2Name'),
+  box3: $('lrBox3'), vid3: $('lrVid3'), camOff3: $('lrCamOff3'), box3Empty: $('lrBox3Empty'), box3Label: $('lrBox3Label'), box3Name: $('lrBox3Name'),
+  box4: $('lrBox4'), vid4: $('lrVid4'), camOff4: $('lrCamOff4'), box4Empty: $('lrBox4Empty'), box4Label: $('lrBox4Label'), box4Name: $('lrBox4Name'),
+  // Host controls
+  btnCam:        $('lrBtnCam'),
+  btnMic:        $('lrBtnMic'),
+  btnFlip:       $('lrBtnFlip'),
+  btnFullscreen: $('lrBtnFullscreen'),
+  btnShare:      $('lrBtnShare'),
+  btnEnd:        $('lrBtnEnd'),
+  // Viewer controls
+  btnLike:   $('lrBtnLike'),
+  btnShareV: $('lrBtnShareV'),
+  // Chat
+  chatMsgs:  $('lrChatMsgs'),
+  chatInput: $('lrChatInput'),
+  chatSend:  $('lrChatSend'),
+};
+
+/* ── State ── */
+let _user        = null;
+let _userData    = null;
+let _mode        = null;   // 'host' | 'viewer'
+let _roomId      = null;
+let _localStream = null;
+let _camOn       = true;
+let _micOn       = true;
+let _facingMode  = 'user';
+let _hasLiked    = false;
+let _chatSending = false;
+let _toastTimer  = null;
+
+// Host: one RTCPeerConnection per viewer
+let _hostPeers       = {};  // viewerUid → { pc }
+let _hostViewersRef  = null;
+
+// Viewer: one RTCPeerConnection to host
+let _viewerPc       = null;
+let _reconnectTimer = null;
+let _reconnectCount = 0;
+const _MAX_RECONNECTS = 8;
+
+// Subscriptions
+let _roomUnsub     = null;
+let _chatUnsub     = null;
+let _presUnsub     = null;
+let _viewerPresRef = null;
+
+// Guards
+let _endedOnce  = false;
+let _staleTimer = null;
+
+/* ── Helpers ── */
+function _esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function toast(msg, dur = 3200) {
+  if (!D.toast) return;
+  D.toast.textContent = msg;
+  D.toast.classList.add('visible');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => D.toast.classList.remove('visible'), dur);
+}
+
+function _show(el)  { if (el) el.style.display = ''; }
+function _hide(el)  { if (el) el.style.display = 'none'; }
+function _flex(el)  { if (el) el.style.display = 'flex'; }
+
+function _showError(title, sub) {
+  _hide(D.loading);
+  _hide(D.room);
+  _hide(D.ended);
+  if (D.errorTitle) D.errorTitle.textContent = title || 'Error';
+  if (D.errorSub)   D.errorSub.textContent   = sub   || '';
+  _flex(D.error);
+}
+
+function _showEnded() {
+  _hide(D.loading);
+  _hide(D.room);
+  if (D.ended) _flex(D.ended);
+}
+
+function _setConnBanner(title, sub) {
+  if (!D.connBanner) return;
+  if (!title) { D.connBanner.classList.remove('visible'); return; }
+  if (D.connTitle) D.connTitle.textContent = title;
+  if (D.connSub)   D.connSub.textContent   = sub || '';
+  D.connBanner.classList.add('visible');
+}
+
+/* ── URL params ── */
+function _parseParams() {
+  const sp      = new URLSearchParams(location.search);
+  const hashRoom = location.hash.replace(/^#room=/, '').replace(/^#watch=/, '');
+  return {
+    roomId: sp.get('room') || (hashRoom ? decodeURIComponent(hashRoom) : null),
+    isHost: sp.get('host') === '1',
+  };
+}
+
+/* ── Founder kill-switch check (Firestore siteSettings/config.liveEnabled) ── */
+async function _checkLiveFeatureFlag() {
+  try {
+    const snap = await getDoc(doc(_db, 'siteSettings', 'config'));
+    if (snap.exists() && snap.data().liveEnabled === false) {
+      _showError('Live Streaming Unavailable',
+        'Live streaming is temporarily offline. Please check back soon.');
+      return false;
+    }
+  } catch (_e) {
+    // If siteSettings is unreachable, default to enabled
+  }
+  return true;
+}
+
+/* ── Auth gate ── */
+onAuthStateChanged(_auth, async user => {
+  if (!user) {
+    _showError('Sign in Required', 'You must be signed in to join a live room.');
+    return;
+  }
+  _user = user;
+  await _loadUserData();
+
+  // Check Firestore kill-switch
+  const enabled = await _checkLiveFeatureFlag();
+  if (!enabled) return;
+
+  const { roomId, isHost } = _parseParams();
+
+  if (isHost) {
+    _mode   = 'host';
+    _roomId = _user.uid;   // one room per user, keyed by uid
+    await _startHostSession();
+  } else if (roomId) {
+    _mode   = 'viewer';
+    _roomId = roomId;
+    await _startViewerSession();
+  } else {
+    _showError('No Room Specified', 'Open a live room from the Live Hub.');
+  }
+});
+
+async function _loadUserData() {
+  try {
+    const snap = await getDoc(doc(_db, 'users', _user.uid));
+    _userData = snap.exists() ? snap.data() : {};
+  } catch (_e) { _userData = {}; }
+}
+
+function _displayName() {
+  return _userData?.displayName || _userData?.username
+      || _user.displayName
+      || _user.email?.split('@')[0]
+      || 'User';
+}
+
+/* ══════════════════════════════════════════════════════════
+   HOST SESSION
+   ══════════════════════════════════════════════════════════ */
+async function _startHostSession() {
+  document.body.classList.add('lr-is-host');
+
+  // Guard: check for stale/conflicting existing room
+  try {
+    const existing = await getDoc(doc(_db, 'liveRooms', _roomId));
+    if (existing.exists()) {
+      const d = existing.data();
+      // Conflict: another user owns this room ID
+      if (d.status === 'live' && d.hostId !== _user.uid) {
+        _showError('Room Conflict', 'Another session is using this room ID.');
+        return;
+      }
+      // Stale: self-owned room older than 4 hours — auto-clean before creating new one
+      const age = Date.now() - (d.createdAt || 0);
+      if (d.hostId === _user.uid && age > 4 * 60 * 60 * 1000) {
+        await updateDoc(doc(_db, 'liveRooms', _roomId), {
+          status: 'ended', isLive: false, endedAt: Date.now()
+        }).catch(() => {});
+      }
+    }
+  } catch (_e) {}
+
+  // Request camera + mic
+  _setConnBanner('Accessing camera…');
+  try {
+    _localStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: _facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+  } catch (e) {
+    // Fallback: audio-only
+    console.warn('[LR] Camera error:', e.name);
+    try {
+      _localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      _camOn = false;
+      if (D.camOff1) D.camOff1.classList.add('visible');
+      toast('Camera unavailable — audio only mode');
+    } catch (_e) {
+      _showError('Camera / Mic Blocked',
+        'Allow camera & microphone in your browser settings, then reload this page.');
+      return;
+    }
+  }
+
+  // Preview host stream in Box 1
+  if (D.vid1) {
+    D.vid1.srcObject = _localStream;
+    D.vid1.muted = true;
+    D.vid1.play().catch(() => {});
+  }
+  if (D.box1Name) D.box1Name.textContent = _displayName();
+
+  // Write room doc to Firestore
+  const title = (_userData?.liveTitle || '').trim() || 'Shadow Nexus Live';
+  try {
+    await setDoc(doc(_db, 'liveRooms', _roomId), {
+      roomId:     _roomId,
+      hostId:     _user.uid,
+      hostName:   _displayName(),
+      hostAvatar: _userData?.profileImage || _userData?.avatar || '',
+      username:   _displayName(),
+      title,
+      status:     'live',
+      isLive:     true,
+      viewers:    0,
+      likes:      0,
+      createdAt:  Date.now(),
+    });
+  } catch (e) {
+    toast('Could not create room: ' + e.message);
+    _showError('Room Error', 'Could not create your live room. Try again.');
+    return;
+  }
+
+  // Update user doc
+  try {
+    await updateDoc(doc(_db, 'users', _user.uid), { isLive: true, liveRoomId: _roomId });
+  } catch (_e) {}
+
+  // Host presence keep-alive in RTDB
+  const hostPresRef = ref(_rtdb, `livePresence/${_roomId}/host`);
+  await set(hostPresRef, { uid: _user.uid, ts: Date.now() }).catch(() => {});
+  onDisconnect(hostPresRef).remove();
+
+  // Start listening for viewers
+  _hostListenViewers();
+
+  // Subscribe room metadata + viewer count
+  _subscribeRoomMeta();
+
+  // Subscribe chat
+  _subscribeChat();
+
+  // Show room
+  _hide(D.loading);
+  _flex(D.room);
+  _setConnBanner(null);
+  if (D.roomTitle) D.roomTitle.textContent = title;
+  if (D.hostName)  D.hostName.textContent  = _displayName();
+
+  toast('🔴 You are now live!');
+  _sysChat('Stream started — welcome to Shadow Nexus Live!');
+
+  // Wire host controls
+  _wireHostControls();
+
+  // Cleanup on page leave
+  const _unloadCleanup = () => _endLiveCleanup(false);
+  window.addEventListener('beforeunload', _unloadCleanup);
+  window.addEventListener('pagehide',    _unloadCleanup);
+}
+
+/* ── Host: wire UI controls ── */
+function _wireHostControls() {
+  D.btnCam?.addEventListener('click', () => {
+    _camOn = !_camOn;
+    _localStream?.getVideoTracks().forEach(t => { t.enabled = _camOn; });
+    D.btnCam.classList.toggle('off', !_camOn);
+    if (D.camOff1) D.camOff1.classList.toggle('visible', !_camOn);
+    toast(_camOn ? 'Camera on' : 'Camera off');
+  });
+
+  D.btnMic?.addEventListener('click', () => {
+    _micOn = !_micOn;
+    _localStream?.getAudioTracks().forEach(t => { t.enabled = _micOn; });
+    D.btnMic.classList.toggle('off', !_micOn);
+    toast(_micOn ? '🎤 Mic on' : '🔇 Mic muted');
+  });
+
+  D.btnFlip?.addEventListener('click', async () => {
+    if (!_localStream) return;
+    _facingMode = _facingMode === 'user' ? 'environment' : 'user';
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: _facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
+      const newTrack = newStream.getVideoTracks()[0];
+      if (!newTrack) return;
+      // Replace track in all peer connections
+      for (const { pc } of Object.values(_hostPeers)) {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) await sender.replaceTrack(newTrack).catch(() => {});
+      }
+      // Swap track in local stream
+      _localStream.getVideoTracks().forEach(t => { _localStream.removeTrack(t); t.stop(); });
+      _localStream.addTrack(newTrack);
+      if (D.vid1) D.vid1.srcObject = _localStream;
+    } catch (_e) { toast('Cannot flip camera on this device'); }
+  });
+
+  D.btnFullscreen?.addEventListener('click', () => {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) {
+      (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
+    } else {
+      (document.exitFullscreen || document.webkitExitFullscreen || (() => {})).call(document);
+    }
+  });
+
+  D.btnShare?.addEventListener('click', _shareStream);
+
+  D.btnEnd?.addEventListener('click', async () => {
+    if (!confirm('End your live stream? Everyone will be disconnected.')) return;
+    await _endLiveCleanup(true);
+    _showEnded();
+  });
+}
+
+/* ── Host: listen for incoming viewer connections ── */
+function _hostListenViewers() {
+  const viewersRef = ref(_rtdb, `liveSignaling/${_roomId}/viewers`);
+  onValue(viewersRef, async snap => {
+    if (!snap.exists()) return;
+    snap.forEach(child => {
+      const viewerUid = child.key;
+      const data = child.val();
+      // Only process new viewers that have submitted an offer
+      if (!data || !data.offer) return;
+      if (_hostPeers[viewerUid]) return;
+      _hostHandleOffer(viewerUid, data.offer);
+    });
+  });
+  _hostViewersRef = viewersRef;
+}
+
+async function _hostHandleOffer(viewerUid, offer) {
+  if (_hostPeers[viewerUid]) return;
+
+  const pc = new RTCPeerConnection(_ICE);
+  _hostPeers[viewerUid] = { pc };
+
+  // Add local stream to this peer
+  _localStream?.getTracks().forEach(t => pc.addTrack(t, _localStream));
+
+  // Send host ICE candidates to viewer via RTDB
+  pc.onicecandidate = e => {
+    if (e.candidate) {
+      const r = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}/hostIce/${Date.now()}`);
+      set(r, e.candidate.toJSON()).catch(() => {});
+    }
+  };
+
+  // Clean up failed/closed connections
+  pc.onconnectionstatechange = () => {
+    const s = pc.connectionState;
+    if (s === 'failed' || s === 'closed' || s === 'disconnected') {
+      _hostRemovePeer(viewerUid);
+    }
+  };
+
+  try {
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    // Write answer to RTDB
+    await set(ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}/answer`), {
+      type: answer.type, sdp: answer.sdp
+    });
+
+    // Watch for viewer ICE candidates
+    const viewerIceRef = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}/viewerIce`);
+    onValue(viewerIceRef, snap2 => {
+      if (!snap2.exists()) return;
+      snap2.forEach(c => {
+        pc.addIceCandidate(new RTCIceCandidate(c.val())).catch(() => {});
+      });
+    });
+  } catch (e) {
+    console.warn('[LR] Host offer handling error:', e);
+    _hostRemovePeer(viewerUid);
+  }
+}
+
+function _hostRemovePeer(viewerUid) {
+  const peer = _hostPeers[viewerUid];
+  if (!peer) return;
+  try { peer.pc.close(); } catch (_e) {}
+  delete _hostPeers[viewerUid];
+  // Clean up signaling node
+  remove(ref(_rtdb, `liveSignaling/${_roomId}/viewers/${viewerUid}`)).catch(() => {});
+}
+
+/* ── Host: end live cleanup ── */
+async function _endLiveCleanup(updateFirestore) {
+  if (_endedOnce) return;
+  _endedOnce = true;
+
+  // Stop local media
+  _localStream?.getTracks().forEach(t => t.stop());
+  _localStream = null;
+
+  // Close all peer connections
+  Object.keys(_hostPeers).forEach(uid => _hostRemovePeer(uid));
+  if (_hostViewersRef) { off(_hostViewersRef); _hostViewersRef = null; }
+
+  // Remove RTDB nodes
+  remove(ref(_rtdb, `liveSignaling/${_roomId}`)).catch(() => {});
+  remove(ref(_rtdb, `livePresence/${_roomId}`)).catch(() => {});
+
+  if (updateFirestore) {
+    try {
+      await updateDoc(doc(_db, 'liveRooms', _roomId), {
+        status: 'ended', isLive: false, endedAt: Date.now()
+      });
+    } catch (_e) {}
+    try {
+      await updateDoc(doc(_db, 'users', _user.uid), { isLive: false, liveRoomId: null });
+    } catch (_e) {}
+  }
+
+  // Unsub listeners
+  if (_roomUnsub) { try { _roomUnsub(); } catch (_e) {} _roomUnsub = null; }
+  if (_chatUnsub) { try { _chatUnsub(); } catch (_e) {} _chatUnsub = null; }
+  if (_presUnsub) { try { _presUnsub(); } catch (_e) {} _presUnsub = null; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   VIEWER SESSION
+   ══════════════════════════════════════════════════════════ */
+async function _startViewerSession() {
+  document.body.classList.add('lr-is-viewer');
+
+  // Verify room exists and is live
+  let roomData;
+  try {
+    const snap = await getDoc(doc(_db, 'liveRooms', _roomId));
+    if (!snap.exists()) {
+      _showError('Room Not Found', 'This live room does not exist or has already ended.');
+      return;
+    }
+    roomData = snap.data();
+    if (roomData.status === 'ended' || (roomData.status !== 'live' && !roomData.isLive)) {
+      _showError('Stream Ended', 'This live stream has already ended.');
+      return;
+    }
+  } catch (e) {
+    _showError('Connection Error', 'Could not load room: ' + e.message);
+    return;
+  }
+
+  // Update UI
+  if (D.roomTitle) D.roomTitle.textContent  = roomData.title    || 'Shadow Nexus Live';
+  if (D.hostName)  D.hostName.textContent   = roomData.hostName || roomData.username || '';
+  if (D.box1Name)  D.box1Name.textContent   = roomData.hostName || roomData.username || 'Host';
+
+  // Viewer presence in RTDB (auto-removed on disconnect)
+  _viewerPresRef = ref(_rtdb, `livePresence/${_roomId}/viewers/${_user.uid}`);
+  await set(_viewerPresRef, { uid: _user.uid, ts: Date.now() }).catch(() => {});
+  onDisconnect(_viewerPresRef).remove();
+
+  // Subscribe room meta (detect stream end)
+  _subscribeRoomMeta();
+
+  // Subscribe chat
+  _subscribeChat();
+
+  // Show room
+  _hide(D.loading);
+  _flex(D.room);
+
+  // Wire viewer buttons
+  D.btnLike?.addEventListener('click',   _handleLike);
+  D.btnShareV?.addEventListener('click', _shareStream);
+
+  // Start WebRTC connection to host
+  _setConnBanner('Connecting to stream…', 'Setting up peer connection…');
+  await _viewerConnect();
+}
+
+/* ── Viewer: WebRTC connection to host ── */
+async function _viewerConnect() {
+  // Teardown previous attempt
+  if (_viewerPc) {
+    try { _viewerPc.close(); } catch (_e) {}
+    _viewerPc = null;
+  }
+  clearTimeout(_reconnectTimer);
+
+  const pc = new RTCPeerConnection(_ICE);
+  _viewerPc = pc;
+
+  // Receive host video → Box 1
+  pc.ontrack = e => {
+    const stream = e.streams[0] || new MediaStream([e.track]);
+    if (D.vid1 && D.vid1.srcObject !== stream) {
+      D.vid1.srcObject = stream;
+      // Unmute-on-gesture for iOS
+      D.vid1.play().catch(() => {
+        document.addEventListener('click', function _tapPlay() {
+          D.vid1?.play().catch(() => {});
+          document.removeEventListener('click', _tapPlay);
+        }, { once: true });
+      });
+    }
+    _setConnBanner(null);
+  };
+
+  // Send viewer ICE candidates to RTDB
+  pc.onicecandidate = e => {
+    if (e.candidate) {
+      const r = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${_user.uid}/viewerIce/${Date.now()}`);
+      set(r, e.candidate.toJSON()).catch(() => {});
+    }
+  };
+
+  // Connection state changes
+  pc.onconnectionstatechange = () => {
+    const s = pc.connectionState;
+    if (s === 'connected') {
+      _setConnBanner(null);
+      _reconnectCount = 0;
+    } else if (s === 'disconnected') {
+      _setConnBanner('Connection lost…', 'Attempting to reconnect…');
+      _scheduleReconnect();
+    } else if (s === 'failed') {
+      _setConnBanner('Connection failed', 'Reconnecting…');
+      _scheduleReconnect();
+    }
+  };
+
+  // Declare intent to receive video + audio
+  pc.addTransceiver('video', { direction: 'recvonly' });
+  pc.addTransceiver('audio', { direction: 'recvonly' });
+
+  // Create and write offer
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  await set(ref(_rtdb, `liveSignaling/${_roomId}/viewers/${_user.uid}/offer`), {
+    type: offer.type, sdp: offer.sdp
+  });
+
+  // Watch for host answer
+  const answerRef = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${_user.uid}/answer`);
+  onValue(answerRef, async snap => {
+    if (!snap.exists()) return;
+    if (pc !== _viewerPc) return;  // stale PC guard
+    if (pc.remoteDescription) return;
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
+    } catch (_e) {}
+  });
+
+  // Watch for host ICE candidates
+  const hostIceRef = ref(_rtdb, `liveSignaling/${_roomId}/viewers/${_user.uid}/hostIce`);
+  onValue(hostIceRef, snap => {
+    if (!snap.exists()) return;
+    snap.forEach(c => {
+      pc.addIceCandidate(new RTCIceCandidate(c.val())).catch(() => {});
+    });
+  });
+
+  // Stale connection watchdog: if not connected in 12s, retry
+  clearTimeout(_staleTimer);
+  _staleTimer = setTimeout(() => {
+    if (_viewerPc?.connectionState !== 'connected') {
+      console.warn('[LR] Stale connection — retrying');
+      _scheduleReconnect();
+    }
+  }, 12000);
+}
+
+function _scheduleReconnect() {
+  if (_reconnectCount >= _MAX_RECONNECTS) {
+    _setConnBanner('Could not connect', 'Please go back and try again.');
+    return;
+  }
+  clearTimeout(_reconnectTimer);
+  const delay = Math.min(1500 * Math.pow(1.5, _reconnectCount), 20000);
+  _reconnectCount++;
+  _reconnectTimer = setTimeout(async () => {
+    if (_viewerPc?.connectionState !== 'connected') {
+      await _viewerConnect();
+    }
+  }, delay);
+}
+
+/* ── Viewer: like ── */
+async function _handleLike() {
+  if (_hasLiked) return;
+  _hasLiked = true;
+  D.btnLike?.classList.add('liked');
+  try {
+    const snap = await getDoc(doc(_db, 'liveRooms', _roomId));
+    if (snap.exists()) {
+      await updateDoc(doc(_db, 'liveRooms', _roomId), {
+        likes: (snap.data().likes || 0) + 1
+      });
+    }
+  } catch (_e) {}
+}
+
+/* ══════════════════════════════════════════════════════════
+   SHARED — Room metadata subscription
+   ══════════════════════════════════════════════════════════ */
+function _subscribeRoomMeta() {
+  if (_roomUnsub) { try { _roomUnsub(); } catch (_e) {} }
+
+  // Firestore room doc listener
+  _roomUnsub = onSnapshot(doc(_db, 'liveRooms', _roomId), snap => {
+    if (!snap.exists()) {
+      if (_mode === 'viewer') _showEnded();
+      return;
+    }
+    const d = snap.data();
+    if (D.viewerCount) D.viewerCount.textContent = d.viewers ?? 0;
+    if (D.roomTitle)   D.roomTitle.textContent   = d.title   || 'Shadow Nexus Live';
+
+    // Viewer: detect stream end
+    if (_mode === 'viewer') {
+      if (d.status === 'ended' || d.isLive === false) _showEnded();
+    }
+  });
+
+  // RTDB viewer presence counter (live viewer count)
+  const presRef = ref(_rtdb, `livePresence/${_roomId}/viewers`);
+  onValue(presRef, snap => {
+    const count = snap.exists() ? Object.keys(snap.val() || {}).length : 0;
+    if (D.viewerCount) D.viewerCount.textContent = count;
+    // Host writes count to Firestore so Live Hub cards show it
+    if (_mode === 'host') {
+      updateDoc(doc(_db, 'liveRooms', _roomId), { viewers: count }).catch(() => {});
+    }
+  });
+  _presUnsub = () => off(presRef);
+}
+
+/* ══════════════════════════════════════════════════════════
+   CHAT  (subcollection: liveMessages — matches Firestore rules)
+   ══════════════════════════════════════════════════════════ */
+function _subscribeChat() {
+  const chatRef = collection(_db, 'liveRooms', _roomId, 'liveMessages');
+  const q = query(chatRef, orderBy('timestamp', 'asc'), limit(120));
+  _chatUnsub = onSnapshot(q,
+    snap => {
+      snap.docChanges().forEach(change => {
+        if (change.type === 'added') _renderChatMsg(change.doc.data());
+      });
+    },
+    err => {
+      console.warn('[LR] Chat snapshot error:', err.code);
+      // Retry after 3s
+      setTimeout(_subscribeChat, 3000);
+    }
+  );
+
+  D.chatSend?.addEventListener('click',  _sendChat);
+  D.chatInput?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _sendChat(); }
+  });
+}
+
+async function _sendChat() {
+  const text = D.chatInput?.value.trim();
+  if (!text || _chatSending) return;
+  _chatSending = true;
+  if (D.chatInput) D.chatInput.value = '';
+  try {
+    await addDoc(collection(_db, 'liveRooms', _roomId, 'liveMessages'), {
+      username:  _displayName(),
+      userId:    _user.uid,
+      message:   text,
+      isHost:    _mode === 'host',
+      timestamp: serverTimestamp(),
+    });
+  } catch (e) {
+    toast('Message failed — try again');
+    if (D.chatInput) D.chatInput.value = text;
+  } finally {
+    _chatSending = false;
+  }
+}
+
+function _renderChatMsg(data) {
+  if (!D.chatMsgs) return;
+  const msg    = document.createElement('div');
+  msg.className = 'lr-chat-msg';
+
+  const author = document.createElement('span');
+  author.className = 'lr-chat-author' + (data.isHost ? ' is-host' : '');
+  author.textContent = _esc(data.username || 'User') + ':';
+
+  const text = document.createElement('span');
+  text.textContent = ' ' + (data.message || '');
+
+  msg.appendChild(author);
+  msg.appendChild(text);
+  D.chatMsgs.appendChild(msg);
+
+  // Auto-scroll if user is near bottom
+  const near = D.chatMsgs.scrollHeight - D.chatMsgs.clientHeight - D.chatMsgs.scrollTop < 100;
+  if (near) D.chatMsgs.scrollTop = D.chatMsgs.scrollHeight;
+}
+
+function _sysChat(text) {
+  if (!D.chatMsgs) return;
+  const msg = document.createElement('div');
+  msg.className = 'lr-chat-msg sys';
+  const author = document.createElement('span');
+  author.className = 'lr-chat-author';
+  author.textContent = '📡 System:';
+  const t = document.createElement('span');
+  t.textContent = ' ' + text;
+  msg.appendChild(author);
+  msg.appendChild(t);
+  D.chatMsgs.appendChild(msg);
+  D.chatMsgs.scrollTop = D.chatMsgs.scrollHeight;
+}
+
+/* ── Share ── */
+function _shareStream() {
+  const url = `${location.origin}/live-room.html?room=${encodeURIComponent(_roomId)}`;
+  if (navigator.share) {
+    navigator.share({ title: 'Watch me LIVE on Shadow Nexus!', url }).catch(() => {});
+  } else {
+    navigator.clipboard?.writeText(url)
+      .then(() => toast('📋 Link copied to clipboard!'))
+      .catch(() => toast('Share: ' + url));
+  }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shadow Nexus — Payment Return</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #0B1F3A;
+    color: #fff;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+  }
+  .card {
+    background: rgba(0,20,55,0.9);
+    border: 1px solid rgba(0,174,239,0.4);
+    border-radius: 18px;
+    padding: 36px 28px;
+    max-width: 400px;
+    width: calc(100vw - 32px);
+    box-shadow: 0 0 60px rgba(0,100,255,0.2);
+  }
+  .icon { font-size: 52px; margin-bottom: 16px; }
+  h1 { font-size: 20px; font-weight: 900; color: #fff; margin: 0 0 8px; letter-spacing: 0.5px; }
+  p  { font-size: 13px; color: #6a90b8; line-height: 1.6; margin: 0 0 20px; }
+  .spinner {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 3px solid rgba(0,174,239,0.25);
+    border-top-color: #00AEEF;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .balance-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(0,174,239,0.15);
+    border: 1px solid rgba(0,174,239,0.4);
+    border-radius: 20px;
+    padding: 8px 18px;
+    font-size: 16px; font-weight: 800; color: #00AEEF;
+    margin-bottom: 20px;
+  }
+  .btn {
+    display: block; width: 100%;
+    padding: 13px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #003d99, #0077dd);
+    border: 1px solid rgba(0,180,255,0.6);
+    color: #fff;
+    font-size: 14px; font-weight: 800;
+    cursor: pointer;
+    text-decoration: none;
+    transition: box-shadow 0.15s;
+  }
+  .btn:hover { box-shadow: 0 0 20px rgba(0,174,239,0.5); }
+  .status-warn { color: #ffcc44; }
+  .status-err  { color: #ff6677; }
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="spinner" id="spinner"></div>
+  <h1 id="title">Verifying Payment…</h1>
+  <p id="msg">Please wait while we confirm your purchase with PayPal.</p>
+</div>
+
+<script>
+(async function() {
+  const params     = new URLSearchParams(location.search);
+  const purchaseId = params.get('purchaseId');
+  const orderId    = params.get('token');       // PayPal appends ?token=ORDER_ID on return
+  const payerId    = params.get('PayerID');
+  const cancelled  = params.get('paypal_cancel');
+
+  const titleEl   = document.getElementById('title');
+  const msgEl     = document.getElementById('msg');
+  const spinnerEl = document.getElementById('spinner');
+  const cardEl    = document.getElementById('card');
+
+  function showSuccess(coins, balance) {
+    spinnerEl.style.display = 'none';
+    cardEl.innerHTML = `
+      <div class="icon">🪙</div>
+      <h1>Coins Added!</h1>
+      <div class="balance-badge">🪙 ${Number(coins).toLocaleString()} Shadow Coins</div>
+      <p>Your purchase is confirmed. Your new balance has been updated.</p>
+      <a class="btn" href="index.html">↩ Back to Shadow Nexus</a>
+    `;
+  }
+
+  function showError(msg) {
+    spinnerEl.style.display = 'none';
+    titleEl.textContent = 'Payment Issue';
+    titleEl.className = 'status-err';
+    msgEl.textContent = msg || 'Something went wrong. Please contact support.';
+    cardEl.insertAdjacentHTML('beforeend', `<a class="btn" href="index.html" style="margin-top:8px;">↩ Back to Shadow Nexus</a>`);
+  }
+
+  function showCancelled() {
+    spinnerEl.style.display = 'none';
+    titleEl.textContent = 'Payment Cancelled';
+    titleEl.className = 'status-warn';
+    msgEl.textContent = 'Your payment was cancelled. No coins were charged.';
+    cardEl.insertAdjacentHTML('beforeend', `<a class="btn" href="index.html" style="margin-top:8px;">↩ Back to Shadow Nexus</a>`);
+  }
+
+  if (cancelled) { showCancelled(); return; }
+
+  if (!purchaseId || !orderId) {
+    showError('Missing payment information. Please try purchasing coins again.');
+    return;
+  }
+
+  // Get the Firebase user's ID token for the capture call
+  // We use a polling approach because Firebase auth may not be loaded here
+  async function getIdToken() {
+    // Try to get auth from firebase loaded in an opener or parent
+    // If standalone page, try localStorage for cached auth state
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const poll = setInterval(() => {
+        attempts++;
+        if (window.opener && window.opener._snxCurrentUser?.getIdToken) {
+          window.opener._snxCurrentUser.getIdToken().then(resolve).catch(() => resolve(null));
+          clearInterval(poll);
+        } else if (attempts > 20) {
+          clearInterval(poll);
+          resolve(null);
+        }
+      }, 200);
+    });
+  }
+
+  // Attempt to get Firebase auth token
+  // If running in popup, try opener; if redirect, try to get from a mini-Firebase init
+  let idToken = null;
+
+  // Try to get token from session storage (stored before redirect by snx-gifts.js)
+  const storedToken = sessionStorage.getItem('snxg_paypal_idtoken');
+  if (storedToken) {
+    idToken = storedToken;
+    sessionStorage.removeItem('snxg_paypal_idtoken');
+  }
+
+  if (!idToken) {
+    // Try to get from opener window
+    idToken = await getIdToken();
+  }
+
+  if (!idToken) {
+    // Fallback: initialize Firebase and get token
+    try {
+      const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+      const { getAuth, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+      const cfg = {
+        apiKey: 'AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y',
+        authDomain: 'horr-a08f4.firebaseapp.com',
+        projectId: 'horr-a08f4',
+        messagingSenderId: '933810617818',
+        appId: '1:933810617818:web:efb24f123337dd987c14e3',
+      };
+      const app  = getApps().length ? getApp() : initializeApp(cfg);
+      const auth = getAuth(app);
+      idToken = await new Promise((resolve) => {
+        const unsub = onAuthStateChanged(auth, async (user) => {
+          unsub();
+          if (user) { resolve(await user.getIdToken()); }
+          else { resolve(null); }
+        });
+        setTimeout(() => resolve(null), 8000);
+      });
+    } catch (e) {
+      console.error('Firebase init error:', e);
+    }
+  }
+
+  if (!idToken) {
+    showError('Session expired. Please go back and sign in to Shadow Nexus Social, then check your coin balance.');
+    return;
+  }
+
+  // Call the paypal worker to capture the order.
+  // Must be absolute — the worker is at yellow-term-11e6.nthntjrn.workers.dev,
+  // not the same origin as shadownexussocial.online.
+  try {
+    const workerUrl = 'https://yellow-term-11e6.nthntjrn.workers.dev/paypal/capture-order';
+    const res = await fetch(workerUrl, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, purchaseId, idToken }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showSuccess(data.coins, data.newBalance);
+    } else {
+      showError(data.error || 'Payment could not be confirmed.');
+    }
+  } catch (err) {
+    console.error('Capture error:', err);
+    showError('Network error while confirming payment. Please check your coin balance in Shadow Nexus.');
+  }
+})();
+</script>
+</body>
+</html>
