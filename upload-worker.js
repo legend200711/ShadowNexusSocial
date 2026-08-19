@@ -55,10 +55,12 @@ function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.some(o => origin && origin.startsWith(o))
     ? origin : ALLOWED_ORIGINS[0];
   return {
-    'Access-Control-Allow-Origin':  allowed,
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-User-UID, Upload-Offset, Upload-Length, Tus-Resumable',
-    'Access-Control-Max-Age':       '86400',
+    'Access-Control-Allow-Origin':   allowed,
+    'Access-Control-Allow-Methods':  'GET, POST, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers':  'Content-Type, X-User-UID, Upload-Offset, Upload-Length, Tus-Resumable, Range',
+    // Expose byte-range headers so audio/video elements can read them cross-origin
+    'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges, ETag',
+    'Access-Control-Max-Age':        '86400',
   };
 }
 
@@ -2266,6 +2268,61 @@ export default {
       }
 
       try {
+        const rangeHeader = request.headers.get('Range');
+
+        // Range request (audio/video seeking) — fetch only the requested byte slice.
+        // R2 getRange() returns a partial object so we never stream the whole file.
+        if (rangeHeader) {
+          // Parse "bytes=start-end" — end is optional (means "to EOF")
+          const m = rangeHeader.match(/^bytes=(\d+)-(\d*)$/);
+          if (!m) {
+            return new Response('Invalid Range header', {
+              status: 416,
+              headers: mergeHeaders(cors, sec, { 'Content-Type': 'text/plain' })
+            });
+          }
+
+          // First, fetch the object HEAD to get total size.
+          const head = await env.BUCKET.head(key);
+          if (!head) {
+            return new Response('Not found', { status: 404, headers: mergeHeaders(cors, sec) });
+          }
+          const totalSize = head.size;
+          const start = parseInt(m[1], 10);
+          const end   = m[2] !== '' ? parseInt(m[2], 10) : totalSize - 1;
+
+          if (start > end || start >= totalSize) {
+            return new Response('Range Not Satisfiable', {
+              status: 416,
+              headers: mergeHeaders(cors, sec, {
+                'Content-Range': `bytes */${totalSize}`,
+                'Content-Type': 'text/plain',
+              })
+            });
+          }
+
+          const clampedEnd = Math.min(end, totalSize - 1);
+          const chunkSize  = clampedEnd - start + 1;
+
+          const obj = await env.BUCKET.get(key, { range: { offset: start, length: chunkSize } });
+          if (!obj) {
+            return new Response('Not found', { status: 404, headers: mergeHeaders(cors, sec) });
+          }
+
+          const mime = head.httpMetadata?.contentType || 'application/octet-stream';
+          const headers = new Headers(mergeHeaders(cors, sec));
+          headers.set('Content-Type',   mime);
+          headers.set('Content-Range',  `bytes ${start}-${clampedEnd}/${totalSize}`);
+          headers.set('Content-Length', String(chunkSize));
+          headers.set('Accept-Ranges',  'bytes');
+          headers.set('Cache-Control',  'public, max-age=31536000, immutable');
+          if (head.httpEtag) headers.set('ETag', head.httpEtag);
+          headers.set('X-Robots-Tag',  'noindex, nofollow');
+
+          return new Response(obj.body, { status: 206, headers });
+        }
+
+        // Full-file request (no Range header)
         const obj = await env.BUCKET.get(key);
         if (!obj) {
           return new Response('Not found', {
@@ -2274,11 +2331,13 @@ export default {
           });
         }
 
+        const mime = obj.httpMetadata?.contentType || 'application/octet-stream';
         const headers = new Headers(mergeHeaders(cors, sec));
-        headers.set('Content-Type', obj.httpMetadata?.contentType || 'application/octet-stream');
+        headers.set('Content-Type', mime);
         // Long-lived immutable cache for media files (files are content-addressed)
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');
         headers.set('Accept-Ranges', 'bytes');
+        if (obj.size != null) headers.set('Content-Length', String(obj.size));
         if (obj.httpEtag) headers.set('ETag', obj.httpEtag);
         // Bot protection hint (actual blocking via Cloudflare Bot Management)
         headers.set('X-Robots-Tag', 'noindex, nofollow');

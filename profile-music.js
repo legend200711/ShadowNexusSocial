@@ -165,9 +165,56 @@
       _audio.addEventListener('timeupdate', onTimeUpdate);
       _audio.addEventListener('ended', onEnded);
       _audio.addEventListener('loadedmetadata', onMetaLoaded);
-      _audio.addEventListener('error', () => toNext());
+      _audio.addEventListener('error', onAudioError);
     }
     return _audio;
+  }
+
+  function onAudioError() {
+    const a = _audio;
+    const err = a && a.error;
+    const src = a && a.src ? a.src : '(none)';
+    const songIdx = state.currentIdx;
+    const song = activeSongs()[songIdx];
+    const songTitle = song ? (song.title || song.fileName || song.id) : '(unknown)';
+
+    // Decode MediaError code into a human-readable reason
+    let reason = 'unknown error';
+    let hint   = '';
+    if (err) {
+      switch (err.code) {
+        case 1: reason = 'MEDIA_ERR_ABORTED — playback aborted by the user or page'; break;
+        case 2: reason = 'MEDIA_ERR_NETWORK — network failure while fetching audio'; hint = 'Check that the R2 URL is reachable and CORS is set.'; break;
+        case 3: reason = 'MEDIA_ERR_DECODE — audio could not be decoded'; hint = 'The file may be corrupt or the MIME type is wrong (e.g. mp4 served as octet-stream).'; break;
+        case 4: reason = 'MEDIA_ERR_SRC_NOT_SUPPORTED — format or URL not supported'; hint = 'The URL may be empty, a gs:// path, or the MIME type is unsupported.'; break;
+        default: reason = `MediaError code ${err.code}: ${err.message || ''}`;
+      }
+    } else if (!src || src === window.location.href) {
+      reason = 'no src set on audio element';
+    }
+
+    console.error('[SNX Music] ── Audio playback error ────────────────────────');
+    console.error('[SNX Music]   song title :', songTitle);
+    console.error('[SNX Music]   song index :', songIdx);
+    console.error('[SNX Music]   audio src  :', src);
+    console.error('[SNX Music]   error code :', err ? err.code : '(no MediaError)');
+    console.error('[SNX Music]   reason     :', reason);
+    if (hint) console.error('[SNX Music]   hint       :', hint);
+    if (err && err.message) console.error('[SNX Music]   message    :', err.message);
+    console.error('[SNX Music] ──────────────────────────────────────────────────');
+
+    // Show the error on the player UI so the user knows what happened
+    const titleEl = document.getElementById('snxPlayerTitle');
+    if (titleEl) titleEl.textContent = `⚠ ${reason.split('—')[0].trim()}`;
+
+    // Only advance to next track if there is a next track and this isn't a repeat-one
+    const list = activeSongs();
+    if (list.length > 1 && !state.settings.repeatOne) {
+      toNext();
+    } else {
+      // Update play button so it doesn't show ⏸ on a broken track
+      updatePlayBtn();
+    }
   }
 
   // ── Firebase helpers ──────────────────────────────────────────
@@ -478,15 +525,33 @@
     state.currentIdx = idx;
     const a = getAudio();
     const prev = a.src;
-    // Prefer the R2 downloadURL; fall back to legacy `url` field for old records
-    const streamUrl = s.downloadURL || s.url || '';
+
+    // Resolve the playable URL — check every field the upload path may have written.
+    // Priority: musicUrl (canonical) > downloadURL (alias) > url (legacy)
+    // Guard against Firebase Storage gs:// paths that cannot play in a browser.
+    const rawUrl = s.musicUrl || s.downloadURL || s.url || '';
+    const streamUrl = (rawUrl && !rawUrl.startsWith('gs://')) ? rawUrl : '';
+
     if (!streamUrl) {
       updatePlayerUI(s);
       const titleEl = document.getElementById('snxPlayerTitle');
-      if (titleEl) titleEl.textContent = 'File unavailable';
+      if (titleEl) {
+        titleEl.textContent = rawUrl.startsWith('gs://')
+          ? '⚠ Storage path not playable — re-upload track'
+          : '⚠ File unavailable';
+      }
+      console.error(
+        '[SNX Music] loadTrack — no playable URL for track', idx,
+        '| title:', s.title || s.fileName || s.id,
+        '| musicUrl:', s.musicUrl || '(missing)',
+        '| downloadURL:', s.downloadURL || '(missing)',
+        '| url:', s.url || '(missing)'
+      );
       document.querySelectorAll('.snx-song-item').forEach((el, i) => el.classList.toggle('playing', i === idx));
       return;
     }
+
+    console.log('[SNX Music] loadTrack', idx, '→', streamUrl);
     a.src = streamUrl;
     if (state.resumeTime && prev === streamUrl) { a.currentTime = state.resumeTime; state.resumeTime = 0; }
     updatePlayerUI(s);
