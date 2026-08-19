@@ -8704,6 +8704,10 @@ body.arcade-fs-ios body::after { display:none !important; }
             <div class="settings-label">Posts<small>Allow new posts</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="togglePosts" class="notif-toggle-cb" checked onchange="adminToggleFeature('postsEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
         </div>
+        <div class="settings-row">
+            <div class="settings-label">🎁 Gifting System<small>Allow users to send gifts to creators</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="toggleGifting" class="notif-toggle-cb" checked onchange="adminToggleFeature('giftingEnabled',this.checked)"><span class="notif-toggle-slider"></span></label>
+        </div>
         <div class="settings-row" style="border-bottom:none;">
             <div class="settings-label">Messages Tab<small>Legacy toggle — Inbox removed; no visible effect</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="toggleMessagesTab" class="notif-toggle-cb" checked onchange="snxSetMessagesTab(this.checked)"><span class="notif-toggle-slider"></span></label>
@@ -9493,6 +9497,10 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="settings-row">
             <div class="settings-label">🏠 Home Feed<small>Allow users to post &amp; view feed</small></div>
             <label class="notif-toggle-wrap"><input type="checkbox" id="esFeed" class="notif-toggle-cb" checked onchange="emergencyToggle('postsEnabled',this.checked,'Feed')"><span class="notif-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+            <div class="settings-label">🎁 Gifting<small>Allow users to send gifts to creators</small></div>
+            <label class="notif-toggle-wrap"><input type="checkbox" id="esGifting" class="notif-toggle-cb" checked onchange="emergencyToggle('giftingEnabled',this.checked,'Gifting')"><span class="notif-toggle-slider"></span></label>
         </div>
         <div class="settings-row">
             <div class="settings-label">💬 Messaging<small>Legacy toggle — Inbox removed; DMs use Profile → Message</small></div>
@@ -11500,6 +11508,15 @@ body.arcade-fs-ios body::after { display:none !important; }
           _fc.liveHubEnabled = _liveHubOn;
           localStorage.setItem('founderFeatureControls', JSON.stringify(_fc));
       } catch(_) {}
+
+      // ── Gifting feature flag — live sync ──
+      // Defaults true when absent. Sync admin panel toggles if panel is open.
+      const _giftOn = cfg.giftingEnabled !== false;
+      window._snxGiftingEnabled = _giftOn;
+      const _cbGift  = document.getElementById('toggleGifting');
+      const _cbGift2 = document.getElementById('esGifting');
+      if (_cbGift)  _cbGift.checked  = _giftOn;
+      if (_cbGift2) _cbGift2.checked = _giftOn;
   });
 
   /* ── Firebase connection loss detection + auto-reconnect ──────────────
@@ -17647,6 +17664,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           const _cb=(id,k)=>{const el=document.getElementById(id);if(el)el.checked=cfg[k]!==false;};
           _cb('toggleRegistration','registrationEnabled'); _cb('toggleMaintenance','maintenanceMode');
           _cb('toggleStormRooms','stormRoomsEnabled'); _cb('togglePosts','postsEnabled');
+          _cb('toggleGifting','giftingEnabled');
           const n=document.getElementById('siteSettingAppName'); if(n&&cfg.appName)n.value=cfg.appName;
           const r=document.getElementById('siteSettingRulesUrl'); if(r&&cfg.rulesUrl)r.value=cfg.rulesUrl;
           // Sync AI moderation toggle state
@@ -17903,6 +17921,7 @@ body.arcade-fs-ios body::after { display:none !important; }
               { label: 'Maintenance',   on: cfg.maintenanceMode === true,    onColor: '#ff5566', offColor: '#39FF14', onIcon: '🔴', offIcon: '🟢' },
               { label: 'Registration',  on: cfg.registrationEnabled !== false, onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
               { label: 'Posts',         on: cfg.postsEnabled !== false,        onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
+              { label: '🎁 Gifting',    on: cfg.giftingEnabled  !== false,     onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
               { label: 'Storm Rooms',   on: cfg.stormRoomsEnabled !== false,   onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
               { label: 'Arcade',        on: cfg.arcadeEnabled !== false,       onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
               { label: 'AI Moderation', on: cfg.aiModerationEnabled !== false, onColor: '#39FF14', offColor: '#ff9966', onIcon: '✅', offIcon: '⛔' },
@@ -17922,6 +17941,8 @@ body.arcade-fs-ios body::after { display:none !important; }
           _set('esStorm',        cfg.stormRoomsEnabled !== false);
           _set('esArcade',       cfg.arcadeEnabled !== false);
           _set('esRegistration', cfg.registrationEnabled !== false);
+          _set('toggleGifting',  cfg.giftingEnabled !== false);
+          _set('esGifting',      cfg.giftingEnabled !== false);
            _set('esAI',           cfg.aiModerationEnabled !== false);
            _set('esBot',          cfg.shadowBotEnabled !== false);
            _set('esWelcomePopup', cfg.welcomePopupEnabled !== false);

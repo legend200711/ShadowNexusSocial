@@ -538,6 +538,13 @@
     }
   };
 
+  // Gifting feature flag — live sync with siteSettings/config
+  // Keeps _snxGiftingEnabled in sync so snxgSendGift uses the real-time value.
+  onSnapshot(doc(_db, 'siteSettings', 'config'), snap => {
+    const cfg = snap.exists() ? snap.data() : {};
+    window._snxGiftingEnabled = cfg.giftingEnabled !== false;
+  });
+
   // Watch for incoming gifts on live room and show toasts
   let _liveGiftUnsub = null;
   window._snxgStartLiveGiftWatch = function(roomId) {

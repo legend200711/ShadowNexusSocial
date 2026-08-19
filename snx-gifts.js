@@ -486,23 +486,30 @@ async function snxgSendGift() {
   console.log('[GIFT DEBUG] content ID:',   contentId || '(none)');
 
   // ── 5. Gifting feature flag — read from siteSettings/config ──
-  // Checks the Founder Control Panel gifting setting.
+  // Prefer the cached value set by the siteSettings onSnapshot listener in index.html.
+  // Fall back to a direct Firestore read when the cache isn't available (e.g. live.html).
   // No flag = gifting is enabled by default.
   let giftingEnabled = true;
-  try {
-    const fs0 = _snxgDb();
-    if (fs0) {
-      const cfgSnap = await fs0.getDoc(fs0.doc(fs0.db, 'siteSettings', 'config'));
-      const cfg = cfgSnap.exists() ? cfgSnap.data() : {};
-      // giftingEnabled defaults true unless explicitly set false
-      giftingEnabled = cfg.giftingEnabled !== false;
+  if (typeof window._snxGiftingEnabled === 'boolean') {
+    // Use the real-time cached value — already synced by the siteSettings onSnapshot.
+    giftingEnabled = window._snxGiftingEnabled;
+    console.log('[GIFT DEBUG] gifting enabled (cached):', giftingEnabled);
+  } else {
+    // Cache miss — read Firestore directly (live.html or first load before snapshot fires).
+    try {
+      const fs0 = _snxgDb();
+      if (fs0) {
+        const cfgSnap = await fs0.getDoc(fs0.doc(fs0.db, 'siteSettings', 'config'));
+        const cfg = cfgSnap.exists() ? cfgSnap.data() : {};
+        giftingEnabled = cfg.giftingEnabled !== false;
+      }
+    } catch (flagErr) {
+      console.warn('[GIFT DEBUG] could not read siteSettings — defaulting gifting to enabled:', flagErr.message);
     }
-  } catch (flagErr) {
-    console.warn('[GIFT DEBUG] could not read siteSettings — defaulting gifting to enabled:', flagErr.message);
+    console.log('[GIFT DEBUG] gifting enabled (live read):', giftingEnabled);
   }
-  console.log('[GIFT DEBUG] gifting enabled:', giftingEnabled);
   if (!giftingEnabled) {
-    _snxgToast('Gifting is currently disabled.');
+    _snxgToast('Gifting is currently disabled by the platform.');
     return;
   }
 
@@ -599,7 +606,10 @@ async function snxgSendGift() {
           lastGiftAt:  serverTimestamp(),
         });
       } else {
+        // Wallet doesn't exist yet (edge case) — create it.
+        // The create rule requires: isOwner(uid) && shadowCoins is number >= 0.
         tx.set(senderWalletRef, {
+          uid:         senderId,
           shadowCoins: newBalance,
           totalSpent,
           lastGiftAt:  serverTimestamp(),
@@ -653,19 +663,36 @@ async function snxgSendGift() {
 
   } catch (err) {
     // Full technical error — ALWAYS visible in console regardless of user-facing message
+    const errCode    = err.code    || '(none)';
+    const errMessage = err.message || '(none)';
     console.error('[GIFT ERROR] sendGift transaction failed');
-    console.error('[GIFT ERROR] error.code:',    err.code    || '(none)');
-    console.error('[GIFT ERROR] error.message:', err.message || '(none)');
-    console.error('[GIFT ERROR] error.stack:',   err.stack   || '(none)');
+    console.error('[GIFT ERROR] error.code:',    errCode);
+    console.error('[GIFT ERROR] error.message:', errMessage);
+    console.error('[GIFT ERROR] error.stack:',   err.stack || '(none)');
+    console.error('[GIFT ERROR] txId:', txId);
+    console.error('[GIFT ERROR] giftId:', giftId, '| coinPrice:', coinPrice);
+    console.error('[GIFT ERROR] senderId:', senderId, '| creatorId:', creatorId);
+    console.error('[GIFT ERROR] contentType:', contentType, '| contentId:', contentId || '(none)');
     console.error('[GIFT ERROR] full error object:', err);
 
-    let msg = 'Gift could not be sent. Please try again.';
+    let msg;
     if (err.message === 'insufficient_coins') {
-      msg = 'Not enough Shadow Coins. 🪙';
-    } else if (err.code === 'permission-denied') {
-      msg = 'Gift could not be sent. (Permission denied — see console for details.)';
-    } else if (err.code === 'unavailable' || err.code === 'deadline-exceeded') {
+      msg = 'Not enough Shadow Coins. 🪙 Reload Coins to continue.';
+    } else if (errCode === 'permission-denied') {
+      msg = 'Gift blocked (permission-denied). Check console for details.';
+    } else if (errCode === 'unavailable' || errCode === 'deadline-exceeded') {
       msg = 'Network issue — your gift was not sent. Please try again.';
+    } else if (errCode === 'aborted') {
+      msg = 'Gift could not be sent (transaction conflict). Please try again.';
+    } else if (errCode === 'not-found') {
+      msg = 'Gift could not be sent (document not found). Please try again.';
+    } else if (errCode === 'invalid-argument') {
+      msg = `Gift could not be sent (invalid data: ${errMessage}). See console.`;
+    } else if (errCode === 'unauthenticated') {
+      msg = 'Gift blocked — please sign out and sign in again.';
+    } else {
+      // Show the actual error code so it can be reported — never hides the real cause
+      msg = `Gift failed [${errCode}]: ${errMessage.slice(0, 80)}`;
     }
     _snxgToast(msg);
     if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send 🎁'; }
