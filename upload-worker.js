@@ -1297,11 +1297,11 @@ async function handlePaypalOnboardCreator(req, env, cors, sec) {
 //
 // A non-founder or any other role receives 403 Permission denied.
 
-const _FOUNDER_EMAIL         = 'christijerina46@gmail.com';
-const _TEST_GRANT_COINS      = 500;  // hardcoded — never trusted from client
+const _FOUNDER_EMAIL    = 'christijerina46@gmail.com';
+const _TEST_GRANT_COINS = 500;  // hardcoded — never trusted from client
 
 async function handleGrantTestCoins(req, env, cors, sec) {
-  // ── 0. Feature flag — must be explicitly enabled in wrangler vars ──
+  // ── 0. Feature flag ──
   if (env.ENABLE_TEST_COIN_GRANTS !== 'true') {
     return _ppErr('Test coin grants are not enabled.', 403, cors, sec);
   }
@@ -1316,102 +1316,153 @@ async function handleGrantTestCoins(req, env, cors, sec) {
 
   // ── 2. Verify caller's Firebase ID token ──
   let callerUid;
-  try { callerUid = await _fbVerifyToken(env, idToken); }
-  catch { return _ppErr('Authentication failed', 401, cors, sec); }
+  try {
+    callerUid = await _fbVerifyToken(env, idToken);
+  } catch (err) {
+    console.error('[TEST COINS] Token verification failed:', err.message);
+    return _ppErr('Authentication failed', 401, cors, sec);
+  }
+  console.log('[TEST COINS] Founder UID:', callerUid);
+  console.log('[TEST COINS] Recipient UID:', recipientUid);
 
-  // ── 3. Firestore is required for this operation ──
-  if (!env.FIREBASE_SERVICE_KEY)
+  // ── 3. Firestore service account required ──
+  if (!env.FIREBASE_SERVICE_KEY) {
+    console.error('[TEST COINS] FIREBASE_SERVICE_KEY not set');
     return _ppErr('Server configuration error.', 503, cors, sec);
+  }
 
-  const fbToken = await _fbGetAdminToken(env);
+  let fbToken;
+  try {
+    fbToken = await _fbGetAdminToken(env);
+  } catch (err) {
+    console.error('[TEST COINS] Firebase admin token error:', err.message);
+    return _ppErr('Internal auth error. Please try again.', 500, cors, sec);
+  }
 
-  // ── 4. Server-side Founder verification — read users/{callerUid} from Firestore ──
-  // This is independent of anything the frontend sends.
-  // A user cannot spoof this by modifying their own document (Firestore rules protect it).
-  const callerDoc = await _fbGet(fbToken, 'users', callerUid);
+  // ── 4. Server-side Founder verification ──
+  let callerDoc;
+  try {
+    callerDoc = await _fbGet(fbToken, 'users', callerUid);
+  } catch (err) {
+    console.error('[TEST COINS] Failed to read caller user doc:', err.message);
+    return _ppErr('Could not verify caller identity.', 500, cors, sec);
+  }
   if (!callerDoc) {
+    console.warn('[TEST COINS] Caller user doc not found for uid:', callerUid);
     return _ppErr('Permission denied', 403, cors, sec);
   }
 
   const callerRole  = callerDoc.role  || '';
   const callerEmail = callerDoc.email || '';
 
-  // Role must be 'founder' AND email must match the designated Founder email
   if (callerRole !== 'founder' || callerEmail.toLowerCase() !== _FOUNDER_EMAIL.toLowerCase()) {
-    console.warn('[SNX-GRANT] Permission denied for uid:', callerUid,
+    console.warn('[TEST COINS] Permission denied — uid:', callerUid,
       'role:', callerRole, 'email:', callerEmail);
     return _ppErr('Permission denied', 403, cors, sec);
   }
 
   // ── 5. Verify recipient exists ──
-  const recipientDoc = await _fbGet(fbToken, 'users', recipientUid);
+  let recipientDoc;
+  try {
+    recipientDoc = await _fbGet(fbToken, 'users', recipientUid);
+  } catch (err) {
+    console.error('[TEST COINS] Failed to read recipient user doc:', err.message);
+    return _ppErr('Could not verify recipient.', 500, cors, sec);
+  }
   if (!recipientDoc) {
+    console.warn('[TEST COINS] Recipient not found:', recipientUid);
     return _ppErr('Recipient user not found', 404, cors, sec);
   }
-  // Cannot grant to self (prevents Founder inflating their own balance)
   if (recipientUid === callerUid) {
     return _ppErr('Cannot grant test coins to yourself', 400, cors, sec);
   }
-  // Cannot grant to another founder (keep test grants for regular test users)
   if (recipientDoc.role === 'founder') {
     return _ppErr('Cannot grant test coins to a Founder account', 400, cors, sec);
   }
 
-  // ── 6. Atomic wallet update ──
-  // Amount is HARDCODED here — the request body amount is never used.
-  const grantCoins    = _TEST_GRANT_COINS;  // always 500
-  const walletData    = await _fbGet(fbToken, 'wallets', recipientUid) || {};
-  const currentCoins  = walletData.shadowCoins || 0;
-  const newBalance    = currentCoins + grantCoins;
+  // ── 6. Read existing wallet balance ──
+  const grantCoins = _TEST_GRANT_COINS;  // always 500, never from request
+  let walletData = {};
+  try {
+    walletData = await _fbGet(fbToken, 'wallets', recipientUid) || {};
+  } catch (err) {
+    console.error('[TEST COINS] Firebase error reading wallet:', err.message);
+    return _ppErr('Could not read recipient wallet. Please try again.', 500, cors, sec);
+  }
 
-  await _fbSet(fbToken, 'wallets', recipientUid, {
-    uid:          recipientUid,
-    shadowCoins:  newBalance,
-    lastGrantAt:  _fbTs(),
-  });
+  const currentCoins = (typeof walletData.shadowCoins === 'number') ? walletData.shadowCoins : 0;
+  const newBalance   = currentCoins + grantCoins;
 
-  // ── 7. Write immutable test transaction record ──
+  console.log('[TEST COINS] Amount:', grantCoins);
+  console.log('[TEST COINS] Firebase path: wallets/' + recipientUid);
+  console.log('[TEST COINS] Balance field: shadowCoins');
+  console.log('[TEST COINS] Previous balance:', currentCoins);
+  console.log('[TEST COINS] New balance:', newBalance);
+
+  // ── 7. Write wallet — this is the critical step ──
+  try {
+    await _fbSet(fbToken, 'wallets', recipientUid, {
+      uid:         recipientUid,
+      shadowCoins: newBalance,
+      lastGrantAt: _fbTs(),
+    });
+    console.log('[TEST COINS] Firebase result: wallets/' + recipientUid + '.shadowCoins = ' + newBalance);
+  } catch (err) {
+    console.error('[TEST COINS] Firebase error writing wallet:', err.message);
+    return _ppErr('Failed to credit coins. Please try again. Error: ' + err.message, 500, cors, sec);
+  }
+
+  // ── 8. Write immutable test transaction record (non-fatal if it fails) ──
   const txId = `snxtg_${callerUid.slice(0,6)}_${recipientUid.slice(0,6)}_${Date.now().toString(36)}`;
-  await _fbAdd(fbToken, 'testCoinGrants', {
-    txId,
-    transactionType:  'TEST_GRANT',
-    amount:           grantCoins,            // always 500
-    environment:      'sandbox',
-    recipientUserId:  recipientUid,
-    recipientName:    recipientDoc.displayName || '',
-    grantedBy:        callerUid,
-    grantedByEmail:   callerEmail,
-    reason:           reason || 'LIVE gifting test',
-    noRealCashValue:  true,
-    earningsWithdrawable: false,
-    timestamp:        _fbTs(),
-  });
+  try {
+    await _fbAdd(fbToken, 'testCoinGrants', {
+      txId,
+      transactionType:      'TEST_GRANT',
+      amount:               grantCoins,
+      environment:          'sandbox',
+      recipientUserId:      recipientUid,
+      recipientName:        recipientDoc.displayName || '',
+      grantedBy:            callerUid,
+      grantedByEmail:       callerEmail,
+      reason:               reason || 'LIVE gifting test',
+      noRealCashValue:      true,
+      earningsWithdrawable: false,
+      timestamp:            _fbTs(),
+    });
+  } catch (err) {
+    // Non-fatal: wallet was already credited. Log and continue.
+    console.error('[TEST COINS] testCoinGrants write failed (non-fatal):', err.message);
+  }
 
-  // ── 8. Audit log ──
-  await _fbAdd(fbToken, 'financialAuditLog', {
-    type:            'TEST_COIN_GRANT',
-    txId,
-    grantedBy:       callerUid,
-    recipientUid,
-    amount:          grantCoins,
-    environment:     'sandbox',
-    noRealCashValue: true,
-    timestamp:       _fbTs(),
-  });
+  // ── 9. Audit log (non-fatal if it fails) ──
+  try {
+    await _fbAdd(fbToken, 'financialAuditLog', {
+      type:            'TEST_COIN_GRANT',
+      txId,
+      grantedBy:       callerUid,
+      recipientUid,
+      amount:          grantCoins,
+      environment:     'sandbox',
+      noRealCashValue: true,
+      timestamp:       _fbTs(),
+    });
+  } catch (err) {
+    console.error('[TEST COINS] financialAuditLog write failed (non-fatal):', err.message);
+  }
 
-  console.log('[SNX-GRANT] Founder', callerUid, 'granted', grantCoins,
-    'test coins to', recipientUid, '(', recipientDoc.displayName, ')');
+  console.log('[TEST COINS] Complete — Founder:', callerUid, '→ Recipient:', recipientUid,
+    '| Amount:', grantCoins, '| New balance:', newBalance);
 
   return _ppJson({
-    success:       true,
+    success:        true,
     txId,
-    amount:        grantCoins,
+    amount:         grantCoins,
     recipientUid,
-    recipientName: recipientDoc.displayName || '',
+    recipientName:  recipientDoc.displayName || '',
     newBalance,
-    environment:   'sandbox',
+    environment:    'sandbox',
     noRealCashValue: true,
-    message:       `✅ ${grantCoins} test coins granted to ${recipientDoc.displayName || recipientUid}`,
+    message:        `✅ ${grantCoins} test coins granted to ${recipientDoc.displayName || recipientUid}`,
   }, 200, cors, sec);
 }
 
