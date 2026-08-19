@@ -1220,6 +1220,86 @@ async function handlePayout(req, env, origin) {
   }, 200, origin, env);
 }
 
+/**
+ * POST /paypal/grant-test-coins
+ * Body: { idToken, recipientUid, reason? }
+ *
+ * Founder-only: grants exactly 500 test Shadow Coins to a user for testing.
+ * These coins carry NO real cash value and CANNOT trigger PayPal payouts.
+ * The wallet write uses integerValue so Firestore type rules are satisfied.
+ */
+async function handleGrantTestCoins(req, env, origin) {
+  let body;
+  try { body = await req.json(); } catch { return errResp('Invalid JSON', 400, origin, env); }
+
+  const { idToken, recipientUid, reason } = body;
+  if (!idToken)      return errResp('Authentication required', 401, origin, env);
+  if (!recipientUid) return errResp('recipientUid is required', 400, origin, env);
+
+  // Verify the caller's Firebase ID token
+  let callerUid;
+  try { callerUid = await fbVerifyToken(idToken); }
+  catch { return errResp('Authentication failed', 401, origin, env); }
+
+  const fbToken = await fbGetToken(env);
+
+  // Verify caller is a Founder (role == 'founder' in /users/{uid})
+  const callerDoc  = await fbGetDoc(fbToken, 'users', callerUid);
+  const callerData = fromFirestoreDoc(callerDoc) || {};
+  if (callerData.role !== 'founder') {
+    return errResp('Permission denied — Founders only.', 403, origin, env);
+  }
+
+  // Verify recipient exists
+  const recipientDoc  = await fbGetDoc(fbToken, 'users', recipientUid);
+  const recipientData = fromFirestoreDoc(recipientDoc) || {};
+  if (!recipientDoc) {
+    return errResp('Recipient user not found.', 404, origin, env);
+  }
+  const recipientName = recipientData.displayName || recipientData.username || recipientUid;
+
+  const TEST_GRANT_AMOUNT = 500;  // fixed test amount
+
+  // Read current wallet balance
+  const walletDoc  = await fbGetDoc(fbToken, 'wallets', recipientUid);
+  const walletData = fromFirestoreDoc(walletDoc) || {};
+  const newBalance = (walletData.shadowCoins || 0) + TEST_GRANT_AMOUNT;
+
+  // Write updated wallet (integer so Firestore type rules pass)
+  await fbSetDoc(fbToken, 'wallets', recipientUid, {
+    uid:              recipientUid,
+    shadowCoins:      newBalance,
+    testCoinsGranted: ((walletData.testCoinsGranted || 0) + TEST_GRANT_AMOUNT),
+    lastGrantAt:      serverTs(),
+  });
+
+  // Write immutable grant log record
+  const txId = `snxt_${callerUid.slice(0, 6)}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  await fbSetDoc(fbToken, 'testCoinGrants', txId, {
+    txId,
+    grantedBy:       callerUid,
+    recipientUid,
+    recipientName,
+    amount:          TEST_GRANT_AMOUNT,
+    reason:          reason || 'Test grant',
+    newBalance,
+    environment:     env.PAYPAL_ENV || 'sandbox',
+    cashValue:       0,
+    isTestOnly:      true,
+    grantedAt:       serverTs(),
+  });
+
+  return jsonResp({
+    success:       true,
+    txId,
+    amount:        TEST_GRANT_AMOUNT,
+    recipientUid,
+    recipientName,
+    newBalance,
+    note:          'Test coins only — no cash value, cannot be paid out.',
+  }, 200, origin, env);
+}
+
 // ─── Main Fetch Handler ───────────────────────────────────────────────────────
 
 export default {
@@ -1248,12 +1328,13 @@ export default {
 
     // Route dispatch
     try {
-      if (path === '/paypal/create-order'   && req.method === 'POST') return handleCreateOrder(req, env, origin);
-      if (path === '/paypal/capture-order'  && req.method === 'POST') return handleCaptureOrder(req, env, origin);
-      if (path === '/paypal/webhook'        && req.method === 'POST') return handleWebhook(req, env, origin);
-      if (path === '/paypal/onboard-creator'&& req.method === 'POST') return handleOnboardCreator(req, env, origin);
-      if (path === '/paypal/creator-status' && req.method === 'GET')  return handleCreatorStatus(req, env, origin);
-      if (path === '/paypal/payout'         && req.method === 'POST') return handlePayout(req, env, origin);
+      if (path === '/paypal/create-order'    && req.method === 'POST') return handleCreateOrder(req, env, origin);
+      if (path === '/paypal/capture-order'   && req.method === 'POST') return handleCaptureOrder(req, env, origin);
+      if (path === '/paypal/webhook'         && req.method === 'POST') return handleWebhook(req, env, origin);
+      if (path === '/paypal/onboard-creator' && req.method === 'POST') return handleOnboardCreator(req, env, origin);
+      if (path === '/paypal/creator-status'  && req.method === 'GET')  return handleCreatorStatus(req, env, origin);
+      if (path === '/paypal/payout'          && req.method === 'POST') return handlePayout(req, env, origin);
+      if (path === '/paypal/grant-test-coins'&& req.method === 'POST') return handleGrantTestCoins(req, env, origin);
 
       return errResp('Not found', 404, origin, env);
     } catch (err) {

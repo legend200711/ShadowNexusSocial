@@ -468,91 +468,122 @@ async function snxgSendGift() {
     return;
   }
 
-  const { db, doc, collection, runTransaction, addDoc, serverTimestamp, increment } = fs;
+  const { db, doc, collection, runTransaction, serverTimestamp } = fs;
+
+  // Snapshot the gift fields we need — avoids closure over mutable state
+  const giftId    = gift.id;
+  const giftName  = gift.name;
+  const giftArt   = gift.art;
+  const coinPrice = gift.coins;  // always a plain integer from SNX_GIFT_CATALOG
+  const creatorId = _snxgTargetUid;
+  const postId    = _snxgTargetPostId || null;
+  const isLive    = _snxgLiveMode;
+  const senderId  = user.uid;
+  const senderName  = user.displayName || 'Shadow User';
+  const senderAvatar= user.photoURL    || '';
+
+  const creatorCoins  = Math.floor(coinPrice * 0.9);
+  const platformCoins = coinPrice - creatorCoins;
+
+  const txId          = _snxgGenTxId();
+  const senderWalletRef  = doc(db, 'wallets',          senderId);
+  const creatorEarnRef   = doc(db, 'creatorEarnings',  creatorId);
+  const giftTxRef        = doc(collection(db, 'giftTransactions'));  // auto-id ref
 
   try {
-    // ── Atomic transaction: deduct coins + create audit record ──
-    const senderWalletRef   = doc(db, 'wallets', user.uid);
-    const creatorEarnRef    = doc(db, 'creatorEarnings', _snxgTargetUid);
-    const txId = _snxgGenTxId();
-
+    // ── Single atomic Firestore transaction:
+    //    1. Verify sender balance
+    //    2. Deduct coins from sender
+    //    3. Credit creator earnings
+    //    4. Write the immutable gift transaction record
+    //    All four writes succeed or all roll back. ──
     await runTransaction(db, async (tx) => {
       const senderSnap   = await tx.get(senderWalletRef);
       const senderData   = senderSnap.exists() ? senderSnap.data() : {};
-      const currentCoins = senderData.shadowCoins || 0;
+      const currentCoins = typeof senderData.shadowCoins === 'number'
+        ? senderData.shadowCoins : 0;
 
-      // Server-side balance check
-      if (currentCoins < gift.coins) {
+      // Balance check (server-authoritative — client cached value is only a hint)
+      if (currentCoins < coinPrice) {
         throw new Error('insufficient_coins');
       }
 
-      // Prevent replay: check if this txId was already used
-      // (txId is unique per attempt so replay is structurally impossible,
-      //  but we record it for audit)
+      const newBalance   = currentCoins - coinPrice;
+      const totalSpent   = (typeof senderData.totalSpent === 'number' ? senderData.totalSpent : 0) + coinPrice;
 
-      // Deduct from sender
+      // 1. Deduct from sender wallet
       tx.set(senderWalletRef, {
-        shadowCoins:    currentCoins - gift.coins,
-        totalSpent:     (senderData.totalSpent || 0) + gift.coins,
-        lastGiftAt:     serverTimestamp(),
+        shadowCoins:  newBalance,
+        totalSpent,
+        lastGiftAt:   serverTimestamp(),
       }, { merge: true });
 
-      // Credit creator earnings (90%) — platform keeps 10%
-      // Amount stored in coins; conversion to USD happens at payout
-      const creatorCoins  = Math.floor(gift.coins * 0.9);
-      const platformCoins = gift.coins - creatorCoins;
-
+      // 2. Credit creator earnings (read first for current totals)
       const earnSnap  = await tx.get(creatorEarnRef);
       const earnData  = earnSnap.exists() ? earnSnap.data() : {};
 
+      const newPending    = (typeof earnData.pendingCoins   === 'number' ? earnData.pendingCoins   : 0) + creatorCoins;
+      const newAvailable  = (typeof earnData.availableCoins === 'number' ? earnData.availableCoins : 0) + creatorCoins;
+      const newLifetime   = (typeof earnData.lifetimeCoins  === 'number' ? earnData.lifetimeCoins  : 0) + creatorCoins;
+      const newPlatform   = (typeof earnData.platformCoins  === 'number' ? earnData.platformCoins  : 0) + platformCoins;
+
       tx.set(creatorEarnRef, {
-        uid:                _snxgTargetUid,
-        pendingCoins:       (earnData.pendingCoins  || 0) + creatorCoins,
-        availableCoins:     (earnData.availableCoins|| 0) + creatorCoins,
-        lifetimeCoins:      (earnData.lifetimeCoins || 0) + creatorCoins,
-        platformCoins:      (earnData.platformCoins || 0) + platformCoins,
-        lastGiftAt:         serverTimestamp(),
+        uid:            creatorId,
+        pendingCoins:   newPending,
+        availableCoins: newAvailable,
+        lifetimeCoins:  newLifetime,
+        platformCoins:  newPlatform,
+        lastGiftAt:     serverTimestamp(),
       }, { merge: true });
+
+      // 3. Write immutable gift transaction record (inside the same tx so it's atomic)
+      tx.set(giftTxRef, {
+        txId,
+        senderId,
+        senderName,
+        senderAvatar,
+        recipientId:  creatorId,
+        creatorId,
+        contentType:  isLive ? 'live' : (postId ? 'post' : 'unknown'),
+        contentId:    postId,
+        postId,
+        isLive,
+        giftId,
+        giftName,
+        giftArt,
+        coinAmount:   coinPrice,
+        creatorCoins,
+        platformCoins,
+        creatorPct:   90,
+        platformPct:  10,
+        transactionType: 'GIFT',
+        environment:  'live',
+        status:       'completed',
+        createdAt:    serverTimestamp(),
+      });
     });
 
-    // ── Write gift transaction record (outside atomic tx to avoid contention) ──
-    await addDoc(collection(db, 'giftTransactions'), {
-      txId,
-      senderId:         user.uid,
-      senderName:       user.displayName || 'Shadow User',
-      senderAvatar:     user.photoURL    || '',
-      creatorId:        _snxgTargetUid,
-      postId:           _snxgTargetPostId || null,
-      isLive:           _snxgLiveMode,
-      giftId:           gift.id,
-      giftName:         gift.name,
-      giftArt:          gift.art,
-      coinAmount:       gift.coins,
-      creatorCoins:     Math.floor(gift.coins * 0.9),
-      platformCoins:    gift.coins - Math.floor(gift.coins * 0.9),
-      creatorPct:       90,
-      platformPct:      10,
-      status:           'completed',
-      createdAt:        serverTimestamp(),
-    });
-
-    // ── UI feedback ──
+    // ── Transaction committed — now safe to update UI ──
     snxgCloseGiftTray();
-    _snxgToast(`🎁 ${gift.name} sent!`);
+    _snxgToast(`🎁 ${giftName} sent!`);
 
-    // Trigger animation
-    _snxgPlayGiftAnimation(gift, user.displayName || 'Shadow User');
+    // Trigger animation only after confirmed commit
+    _snxgPlayGiftAnimation(gift, senderName);
 
     // If LIVE: show live gift toast
-    if (_snxgLiveMode) {
-      _snxgShowLiveGiftToast(user.displayName || 'Shadow User', gift);
+    if (isLive) {
+      _snxgShowLiveGiftToast(senderName, gift);
     }
 
   } catch (err) {
-    console.error('[SNX-GIFTS] sendGift error:', err);
+    console.error('[SNX-GIFTS] sendGift error:', err.code || err.message, err);
     let msg = 'Gift could not be sent. Please try again.';
     if (err.message === 'insufficient_coins') {
-      msg = 'Not enough Shadow Coins. Please reload your wallet.';
+      msg = 'Not enough Shadow Coins. 🪙';
+    } else if (err.code === 'permission-denied') {
+      msg = 'Gift could not be sent. Please sign in again or contact support.';
+    } else if (err.code === 'unavailable' || err.code === 'deadline-exceeded') {
+      msg = 'Network issue — your gift was not sent. Please try again.';
     }
     _snxgToast(msg);
     if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send 🎁'; }
