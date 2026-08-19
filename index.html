@@ -29585,26 +29585,26 @@ document.addEventListener('click', function(e) {
 <script>
 (function() {
   'use strict';
-  // After auth resolves, keep coin badge elements in all nav synced
-  var _prevBal = 0;
+  // After auth resolves, keep coin badge elements in all nav synced.
+  // No equality guard here — always write to DOM so any page re-render
+  // that resets elements to "0" is corrected on the next sync call.
   function _updateAllCoinDisplays(bal) {
-    if (bal === _prevBal) return;
-    _prevBal = bal;
-    var fmt = bal.toLocaleString ? bal.toLocaleString() : String(bal);
-    var scAmt  = document.getElementById('scNavCoinAmt');
-    var ncmAmt = document.getElementById('ncmCoinAmt');
+    var n   = (typeof bal === 'number' && !isNaN(bal)) ? bal : 0;
+    var fmt = n.toLocaleString ? n.toLocaleString() : String(n);
+    var scAmt   = document.getElementById('scNavCoinAmt');
+    var ncmAmt  = document.getElementById('ncmCoinAmt');
     var sbBadge = document.getElementById('sidebarCoinBadge');
-    var csWal  = document.getElementById('csWalletCoinBal');
-    if (scAmt)   scAmt.textContent  = fmt;
-    if (ncmAmt)  ncmAmt.textContent = fmt;
+    var csWal   = document.getElementById('csWalletCoinBal');
+    if (scAmt)   scAmt.textContent   = fmt;
+    if (ncmAmt)  ncmAmt.textContent  = fmt;
     if (sbBadge) sbBadge.textContent = fmt;
-    if (csWal)   csWal.textContent  = fmt;
+    if (csWal)   csWal.textContent   = fmt;
   }
 
   // Poll _snxgCoinBalance (set by snx-gifts.js) every second
   setInterval(function() {
     if (typeof window._snxgCoinBalance !== 'undefined') {
-      _updateAllCoinDisplays(window._snxgCoinBalance || 0);
+      _updateAllCoinDisplays(window._snxgCoinBalance);
     }
   }, 1000);
 

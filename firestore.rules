@@ -862,5 +862,70 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ─── SHADOW FIRE LIVE — Video Collections ──────────────────────────────────
+    //
+    // /videos/{videoId}  — uploaded video metadata
+    //   creatorId, title, description, videoUrl, thumbnailUrl, status, visibility,
+    //   views, likes, duration, tags, category, r2Key, cloudflareVideoId, createdAt
+    //
+    // Visibility model:
+    //   "public"    — published videos readable by any signed-in user
+    //   "followers" — client-enforced; Firestore allows any signed-in user to read
+    //   "private"   — only the creator can read
+    //   status=="uploading"/"processing"/"failed" — only creator can read
+
+    match /videos/{videoId} {
+      // Creator always can read their own videos (all statuses).
+      // Signed-in users can read published videos that are public or followers.
+      allow read: if isSignedIn()
+        && (
+          resource.data.creatorId == request.auth.uid
+          || (resource.data.status == 'published'
+              && resource.data.visibility in ['public', 'followers'])
+          || isFounder()
+        );
+
+      // Only signed-in, non-anonymous users can create their own video docs.
+      allow create: if isSignedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && request.resource.data.creatorId == request.auth.uid;
+
+      // Creator can update their own video (status transitions, metadata edits).
+      // Any signed-in user may increment view/like counters on published videos.
+      allow update: if isSignedIn()
+        && (
+          resource.data.creatorId == request.auth.uid
+          || isFounder()
+          || (resource.data.status == 'published'
+              && request.resource.data.diff(resource.data)
+                   .affectedKeys().hasOnly(['views', 'likes']))
+        );
+
+      allow delete: if isSignedIn()
+        && (resource.data.creatorId == request.auth.uid || isFounder());
+
+      // /videos/{videoId}/comments/{commentId}
+      match /comments/{commentId} {
+        allow read:   if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.authorId == request.auth.uid;
+        allow delete: if isSignedIn()
+          && (resource.data.authorId == request.auth.uid
+              || get(/databases/$(database)/documents/videos/$(videoId)).data.creatorId == request.auth.uid
+              || isFounder());
+        allow update: if false;
+      }
+    }
+
+    // /videoLikes/{uid_videoId}  — tracking who liked what (optional flat index)
+    match /videoLikes/{likeId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn()
+        && (resource.data.userId == request.auth.uid || isFounder());
+      allow update: if false;
+    }
+
   }
 }

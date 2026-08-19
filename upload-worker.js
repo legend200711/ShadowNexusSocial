@@ -21,13 +21,19 @@
  *   - Rate-limit hint headers (enforce limits in Cloudflare dashboard)
  */
 
-const MAX_SIZE_IMAGE = 10  * 1024 * 1024;  // 10 MB  — images
-const MAX_SIZE_VIDEO = 100 * 1024 * 1024;  // 100 MB — video
-const MAX_SIZE_AUDIO = 200 * 1024 * 1024;  // 200 MB — audio / music
-const MAX_SIZE       = MAX_SIZE_AUDIO;     // absolute upper bound (used by music endpoint)
+const MAX_SIZE_IMAGE = 10   * 1024 * 1024;        // 10 MB  — images
+const MAX_SIZE_VIDEO = 2048 * 1024 * 1024;        // 2 GB   — video (SFL allows 2 GB)
+const MAX_SIZE_AUDIO = 200  * 1024 * 1024;        // 200 MB — audio / music
+const MAX_SIZE       = MAX_SIZE_VIDEO;            // absolute upper bound
 
 const ALLOWED_ORIGINS = [
   'https://shadownexussocial.online',
+  'https://www.shadownexussocial.online',
+  'https://shadowfirelive.com',
+  'https://www.shadowfirelive.com',
+  'https://horr-a08f4.web.app',
+  'https://horr-a08f4.firebaseapp.com',
+  'https://legend200711.github.io',
   'http://localhost',
   'http://127.0.0.1'
 ];
@@ -50,8 +56,8 @@ function corsHeaders(origin) {
     ? origin : ALLOWED_ORIGINS[0];
   return {
     'Access-Control-Allow-Origin':  allowed,
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-User-UID',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-User-UID, Upload-Offset, Upload-Length, Tus-Resumable',
     'Access-Control-Max-Age':       '86400',
   };
 }
@@ -417,6 +423,622 @@ async function handleUploadComplete(request, env, cors, sec) {
     status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SHADOW FIRE LIVE — VIDEO UPLOAD HANDLERS
+//
+//  Routes (SFL video upload pipeline — shares this worker with SNS):
+//    GET  /upload-health         — health/capability check (r2, stream configured?)
+//    POST /stream/upload-url     — Cloudflare Stream direct-upload URL
+//    GET  /stream/status         — Cloudflare Stream processing status
+//    POST /stream/delete         — Cloudflare Stream video delete (auth-verified)
+//    POST /r2/delete             — R2 video file delete (auth-verified, owner-scoped)
+//    POST /mpu/create            — R2 multipart upload: create
+//    POST /mpu/presign           — R2 multipart upload: presigned part URL
+//    POST /mpu/part              — R2 multipart upload: upload one part (proxy)
+//    POST /mpu/complete          — R2 multipart upload: complete
+//    POST /mpu/abort             — R2 multipart upload: abort
+//
+//  These routes are used exclusively by Shadow Fire Live (sfl-upload.html).
+//  All SNS routes (PayPal, LiveKit, media upload, music) are unaffected.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── R2 Multipart Upload — video upload without loading file into Worker memory ─
+//
+//   POST /mpu/create    → BUCKET.createMultipartUpload()  → { r2UploadId, key }
+//   POST /mpu/part      → BUCKET.resumeMultipartUpload().uploadPart(stream)  → { partNumber, etag }
+//   POST /mpu/presign   → signed URL for PUT directly to R2 (bypasses Worker CPU)
+//   POST /mpu/complete  → BUCKET.resumeMultipartUpload().complete(parts)     → { url, key }
+//   POST /mpu/abort     → BUCKET.resumeMultipartUpload().abort()
+//
+// Minimum part size enforced by R2: 5 MiB (except final part).
+
+async function handleMpuCreate(request, env, cors, sec) {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+  let body;
+  try { body = await request.json(); }
+  catch(e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const uid      = (body.uid      || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  const fileName = (body.fileName || 'upload').slice(0, 200);
+  let   fileType =  body.fileType || 'application/octet-stream';
+  const fileSize = parseInt(body.fileSize || '0', 10);
+
+  if (!uid) {
+    return new Response(JSON.stringify({ error: 'uid is required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const extMime = mimeFromExt(fileName);
+  if (!fileType || fileType === 'application/octet-stream') fileType = extMime || fileType;
+  else if (extMime && fileType.startsWith('video/') && extMime.startsWith('audio/')) fileType = extMime;
+  if (!isAllowedType(fileType)) {
+    return new Response(JSON.stringify({ error: `File type not supported: ${fileType}` }), {
+      status: 415, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const sizeLimit = fileType.startsWith('image/') ? MAX_SIZE_IMAGE
+                  : fileType.startsWith('video/') ? MAX_SIZE_VIDEO
+                  : MAX_SIZE_AUDIO;
+  if (fileSize > sizeLimit) {
+    const limitMB = Math.round(sizeLimit / 1024 / 1024);
+    return new Response(JSON.stringify({ error: `File too large (max ${limitMB} MB)` }), {
+      status: 413, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const ext = (fileName.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const key = `videos/${uid}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const cleanMime = fileType.split(';')[0].trim();
+
+  let mpu;
+  try {
+    mpu = await env.BUCKET.createMultipartUpload(key, {
+      httpMetadata:   { contentType: cleanMime },
+      customMetadata: { uploaderUid: uid, originalName: fileName },
+    });
+  } catch(e) {
+    return new Response(JSON.stringify({ error: 'Failed to create multipart upload: ' + e.message }), {
+      status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  console.log(`[MPU] Created. key=${key} r2UploadId=${mpu.uploadId} uid=${uid}`);
+  return new Response(JSON.stringify({ r2UploadId: mpu.uploadId, key }), {
+    status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+  });
+}
+
+async function handleMpuPresign(request, env, cors, sec) {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY) {
+    // Gracefully fall back to proxy path — browser will use /mpu/part instead
+    return new Response(JSON.stringify({ error: 'R2 presign not configured — use /mpu/part instead', fallback: true }), {
+      status: 503, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  let body;
+  try { body = await request.json(); }
+  catch(e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const key        = (body.key        || '').replace(/\.\./g, '');
+  const r2UploadId =  body.r2UploadId || '';
+  const partNumber = parseInt(body.partNumber || '0', 10);
+
+  if (!key || !r2UploadId || partNumber < 1 || partNumber > 10000) {
+    return new Response(JSON.stringify({ error: 'key, r2UploadId, and partNumber (1–10000) are required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const bucketName = env.BUCKET_NAME || 'legend';
+  const accountId  = env.CLOUDFLARE_ACCOUNT_ID;
+  if (!accountId) {
+    return new Response(JSON.stringify({ error: 'CLOUDFLARE_ACCOUNT_ID not set' }), {
+      status: 503, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const s3Endpoint = `https://${accountId}.r2.cloudflarestorage.com`;
+  const partUrl    = `${s3Endpoint}/${bucketName}/${encodeURIComponent(key)}?partNumber=${partNumber}&uploadId=${encodeURIComponent(r2UploadId)}`;
+  const expires    = 3600;
+  const now        = new Date();
+  const dateStamp  = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const amzDate    = now.toISOString().replace(/[:\-]|\.\d{3}/g, '').slice(0, 16) + 'Z';
+  const method     = 'PUT';
+  const service    = 's3';
+  const region     = 'auto';
+  const credScope  = `${dateStamp}/${region}/${service}/aws4_request`;
+  const signedHeaders = 'host';
+  const host       = `${accountId}.r2.cloudflarestorage.com`;
+
+  const urlObj = new URL(partUrl);
+  urlObj.searchParams.set('X-Amz-Algorithm',     'AWS4-HMAC-SHA256');
+  urlObj.searchParams.set('X-Amz-Credential',    `${env.R2_ACCESS_KEY_ID}/${credScope}`);
+  urlObj.searchParams.set('X-Amz-Date',          amzDate);
+  urlObj.searchParams.set('X-Amz-Expires',       String(expires));
+  urlObj.searchParams.set('X-Amz-SignedHeaders', signedHeaders);
+  urlObj.searchParams.sort();
+  const canonicalQueryString = urlObj.searchParams.toString();
+
+  const canonicalRequest = [
+    method,
+    `/${bucketName}/${key}`,
+    canonicalQueryString,
+    `host:${host}\n`,
+    signedHeaders,
+    'UNSIGNED-PAYLOAD',
+  ].join('\n');
+
+  const enc     = s => new TextEncoder().encode(s);
+  const hashHex = async data => {
+    const buf = await crypto.subtle.digest('SHA-256', typeof data === 'string' ? enc(data) : data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+  const hmacKey = async (key, data) => {
+    const k = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    return new Uint8Array(await crypto.subtle.sign('HMAC', k, enc(data)));
+  };
+
+  const hashedCanonical = await hashHex(canonicalRequest);
+  const stringToSign    = ['AWS4-HMAC-SHA256', amzDate, credScope, hashedCanonical].join('\n');
+
+  const kDate    = await hmacKey(enc('AWS4' + env.R2_SECRET_ACCESS_KEY), dateStamp);
+  const kRegion  = await hmacKey(kDate,    region);
+  const kService = await hmacKey(kRegion,  service);
+  const kSigning = await hmacKey(kService, 'aws4_request');
+
+  const sigBuffer  = await crypto.subtle.sign('HMAC',
+    await crypto.subtle.importKey('raw', kSigning, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']),
+    enc(stringToSign));
+  const signature  = Array.from(new Uint8Array(sigBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+  urlObj.searchParams.set('X-Amz-Signature', signature);
+
+  console.log(`[MPU Presign] key=${key} part=${partNumber}`);
+  return new Response(JSON.stringify({ presignedUrl: urlObj.toString() }), {
+    status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+  });
+}
+
+async function handleMpuPart(request, env, cors, sec) {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const url2       = new URL(request.url);
+  const key        = decodeURIComponent(url2.searchParams.get('key')        || '').replace(/\.\./g, '');
+  const r2UploadId = url2.searchParams.get('r2UploadId') || '';
+  const partNumber = parseInt(url2.searchParams.get('partNumber') || '0', 10);
+
+  if (!key || !r2UploadId || partNumber < 1 || partNumber > 10000) {
+    return new Response(JSON.stringify({ error: 'key, r2UploadId, and partNumber (1-10000) are required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+  if (!request.body) {
+    return new Response(JSON.stringify({ error: 'Request body (part bytes) is required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const upload = env.BUCKET.resumeMultipartUpload(key, r2UploadId);
+  let uploadedPart;
+  try {
+    uploadedPart = await upload.uploadPart(partNumber, request.body);
+  } catch(e) {
+    return new Response(JSON.stringify({ error: 'Part upload failed: ' + e.message }), {
+      status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  return new Response(JSON.stringify({ partNumber: uploadedPart.partNumber, etag: uploadedPart.etag }), {
+    status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+  });
+}
+
+async function handleMpuComplete(request, env, cors, sec) {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+  let body;
+  try { body = await request.json(); }
+  catch(e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const key        = (body.key        || '').replace(/\.\./g, '');
+  const r2UploadId =  body.r2UploadId || '';
+  const parts      =  body.parts;
+
+  if (!key || !r2UploadId || !Array.isArray(parts) || parts.length === 0) {
+    return new Response(JSON.stringify({ error: 'key, r2UploadId, and parts[] are required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const upload = env.BUCKET.resumeMultipartUpload(key, r2UploadId);
+  try {
+    await upload.complete(parts);
+  } catch(e) {
+    return new Response(JSON.stringify({ error: 'Multipart complete failed: ' + e.message }), {
+      status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const publicUrl = `https://yellow-term-11e6.nthntjrn.workers.dev/${key}`;
+  console.log(`[MPU] Complete. key=${key} parts=${parts.length}`);
+  return new Response(JSON.stringify({ url: publicUrl, key }), {
+    status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+  });
+}
+
+async function handleMpuAbort(request, env, cors, sec) {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+  let body;
+  try { body = await request.json(); }
+  catch(e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const key        = (body.key        || '').replace(/\.\./g, '');
+  const r2UploadId =  body.r2UploadId || '';
+  if (!key || !r2UploadId) {
+    return new Response(JSON.stringify({ error: 'key and r2UploadId are required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const upload = env.BUCKET.resumeMultipartUpload(key, r2UploadId);
+  try { await upload.abort(); } catch(e) { /* best-effort */ }
+  return new Response(JSON.stringify({ aborted: true }), {
+    status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+  });
+}
+
+// ── Cloudflare Stream: create a direct-upload URL ────────────────────────────
+// POST /stream/upload-url   body: { uid, maxDurationSeconds?, title? }
+// Requires secrets: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN
+async function handleStreamUploadUrl(request, env, cors, sec) {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) {
+    console.error('[Stream] Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN secrets');
+    return new Response(JSON.stringify({ error: 'Stream service not configured' }), {
+      status: 503, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  let body;
+  try { body = await request.json(); }
+  catch(e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const uid    = (body.uid   || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  const title  = (body.title || '').slice(0, 255);
+  const maxSec = Math.min(Math.max(parseInt(body.maxDurationSeconds || '10800', 10), 1), 36000);
+  if (!uid) {
+    return new Response(JSON.stringify({ error: 'uid is required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const expiry  = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+  const payload = {
+    maxDurationSeconds: maxSec, expiry, creator: uid,
+    meta: title ? { name: title } : {},
+    allowedOrigins: [
+      'shadowfirelive.com', '*.shadowfirelive.com',
+      'shadownexussocial.online', '*.shadownexussocial.online',
+      'localhost', '127.0.0.1',
+    ],
+    requireSignedURLs: false,
+  };
+
+  let cfRes;
+  try {
+    cfRes = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/stream/direct_upload`,
+      {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${env.CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    );
+  } catch(e) {
+    return new Response(JSON.stringify({ error: 'Failed to reach Cloudflare Stream API' }), {
+      status: 502, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  let cfData;
+  try { cfData = await cfRes.json(); } catch(e) {
+    return new Response(JSON.stringify({ error: 'Invalid response from Cloudflare Stream API' }), {
+      status: 502, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  if (!cfRes.ok || !cfData.success) {
+    const msg      = cfData.errors?.[0]?.message || `Cloudflare API error ${cfRes.status}`;
+    const isQuota  = /quota|capacity|storage|minutes|limit/i.test(msg);
+    const status   = isQuota ? 503 : (cfRes.status >= 500 ? 502 : 400);
+    console.error('[Stream] API error:', msg);
+    return new Response(JSON.stringify({ error: msg, fallback: isQuota }), {
+      status, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const streamId  = cfData.result.uid;
+  const uploadURL = cfData.result.uploadURL;
+  console.log(`[Stream] Direct upload URL created. streamId=${streamId} uid=${uid}`);
+  return new Response(JSON.stringify({ uploadURL, streamId }), {
+    status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+  });
+}
+
+// GET /stream/status?id=<streamId>
+// Requires secrets: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN
+async function handleStreamStatus(request, env, cors, sec) {
+  if (request.method !== 'GET') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+  if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) {
+    return new Response(JSON.stringify({ error: 'Stream service not configured' }), {
+      status: 503, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const streamId = (new URL(request.url).searchParams.get('id') || '').replace(/[^a-zA-Z0-9]/g, '');
+  if (!streamId) {
+    return new Response(JSON.stringify({ error: 'id is required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  let cfRes;
+  try {
+    cfRes = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/stream/${streamId}`,
+      { method: 'GET', headers: { 'Authorization': `Bearer ${env.CLOUDFLARE_API_TOKEN}` } }
+    );
+  } catch(e) {
+    return new Response(JSON.stringify({ error: 'Failed to reach Cloudflare Stream API' }), {
+      status: 502, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  let cfData;
+  try { cfData = await cfRes.json(); } catch(e) {
+    return new Response(JSON.stringify({ error: 'Invalid response from Cloudflare Stream API' }), {
+      status: 502, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  if (!cfRes.ok || !cfData.success) {
+    const msg = cfData.errors?.[0]?.message || `Cloudflare API error ${cfRes.status}`;
+    return new Response(JSON.stringify({ error: msg }), {
+      status: cfRes.ok ? 200 : 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const r       = cfData.result;
+  const hlsUrl  = r.playback?.hls  || `https://videodelivery.net/${r.uid}/manifest/video.m3u8`;
+  const thumbUrl = r.thumbnail     || `https://videodelivery.net/${r.uid}/thumbnails/thumbnail.jpg`;
+
+  return new Response(JSON.stringify({
+    streamId:        r.uid,
+    status:          r.status?.state       || 'unknown',
+    readyToStream:   r.readyToStream       || false,
+    playbackUrl:     hlsUrl,
+    dashUrl:         r.playback?.dash      || null,
+    thumbnailUrl:    thumbUrl,
+    duration:        r.duration            || null,
+    pctComplete:     r.status?.pctComplete || null,
+    errorReasonCode: r.status?.errorReasonCode || null,
+    errorReasonText: r.status?.errorReasonText || null,
+  }), {
+    status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+  });
+}
+
+// POST /stream/delete   body: { idToken, streamId, ownerId }
+// Verifies Firebase ID token then deletes the Cloudflare Stream video.
+async function handleStreamDelete(request, env, cors, sec) {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+  if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) {
+    return new Response(JSON.stringify({ error: 'Stream service not configured' }), {
+      status: 503, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  let body;
+  try { body = await request.json(); } catch(e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const { idToken, streamId, ownerId } = body || {};
+  if (!idToken || !streamId || !ownerId) {
+    return new Response(JSON.stringify({ error: 'idToken, streamId, and ownerId are required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  // Verify Firebase ID token
+  let verifiedUid;
+  try {
+    const tokenRes  = await fetch(
+      `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${env.FIREBASE_WEB_API_KEY || ''}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken }) }
+    );
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok || !tokenData.users?.[0]?.localId) {
+      console.error('[stream/delete] Token verification failed:', tokenData?.error?.message);
+      return new Response(JSON.stringify({ error: 'Unauthorized: invalid or expired token' }), {
+        status: 401, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+      });
+    }
+    verifiedUid = tokenData.users[0].localId;
+  } catch(e) {
+    return new Response(JSON.stringify({ error: 'Token verification failed' }), {
+      status: 502, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  if (verifiedUid !== ownerId.replace(/[^a-zA-Z0-9_-]/g, '')) {
+    return new Response(JSON.stringify({ error: 'Forbidden: you do not own this video' }), {
+      status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const safeStreamId = streamId.replace(/[^a-zA-Z0-9]/g, '');
+  if (!safeStreamId) {
+    return new Response(JSON.stringify({ error: 'Invalid streamId' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  try {
+    const delRes = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/stream/${safeStreamId}`,
+      { method: 'DELETE', headers: { 'Authorization': `Bearer ${env.CLOUDFLARE_API_TOKEN}` } }
+    );
+    if (delRes.status === 204 || delRes.status === 404) {
+      console.log(`[stream/delete] Deleted streamId=${safeStreamId} uid=${verifiedUid}`);
+      return new Response(JSON.stringify({ deleted: true, streamId: safeStreamId }), {
+        status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+      });
+    }
+    const errData = await delRes.json().catch(() => ({}));
+    const msg     = errData?.errors?.[0]?.message || `Cloudflare API error ${delRes.status}`;
+    return new Response(JSON.stringify({ error: msg }), {
+      status: 502, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  } catch(e) {
+    return new Response(JSON.stringify({ error: 'Failed to reach Cloudflare Stream API' }), {
+      status: 502, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+}
+
+// POST /r2/delete   body: { idToken, r2Key, ownerId }
+// Verifies Firebase ID token, confirms key is owned by caller, then deletes from R2.
+async function handleR2Delete(request, env, cors, sec) {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  let body;
+  try { body = await request.json(); } catch(e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const { idToken, r2Key, ownerId } = body || {};
+  if (!idToken || !r2Key || !ownerId) {
+    return new Response(JSON.stringify({ error: 'idToken, r2Key, and ownerId are required' }), {
+      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  // Verify Firebase ID token
+  let verifiedUid;
+  try {
+    const tokenRes  = await fetch(
+      `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${env.FIREBASE_WEB_API_KEY || ''}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken }) }
+    );
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok || !tokenData.users?.[0]?.localId) {
+      return new Response(JSON.stringify({ error: 'Unauthorized: invalid or expired token' }), {
+        status: 401, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+      });
+    }
+    verifiedUid = tokenData.users[0].localId;
+  } catch(e) {
+    return new Response(JSON.stringify({ error: 'Token verification failed' }), {
+      status: 502, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const safeOwnerId = ownerId.replace(/[^a-zA-Z0-9_-]/g, '');
+  if (verifiedUid !== safeOwnerId) {
+    return new Response(JSON.stringify({ error: 'Forbidden: you do not own this file' }), {
+      status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const safeKey = r2Key.replace(/\.\./g, '');
+  const ownsKey = safeKey.startsWith(`${safeOwnerId}/`)
+               || safeKey.startsWith(`profiles/${safeOwnerId}/`)
+               || safeKey.startsWith(`videos/${safeOwnerId}/`);
+  if (!ownsKey) {
+    return new Response(JSON.stringify({ error: 'Forbidden: key does not belong to owner' }), {
+      status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  try {
+    await env.BUCKET.delete(safeKey);
+    console.log(`[r2/delete] Deleted key=${safeKey} uid=${safeOwnerId}`);
+    return new Response(JSON.stringify({ deleted: true, key: safeKey }), {
+      status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  } catch(e) {
+    return new Response(JSON.stringify({ error: 'R2 delete failed: ' + e.message }), {
+      status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+}
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  PAYPAL COIN-PURCHASE + CREATOR-PAYOUT HANDLERS
@@ -857,6 +1479,8 @@ async function handlePaypalCaptureOrder(req, env, cors, sec) {
   try { body = await req.json(); } catch { return _ppErr('Invalid JSON', 400, cors, sec); }
 
   const { orderId, purchaseId, idToken } = body;
+  console.log(`[SHADOW COINS PURCHASE] orderId: ${orderId} purchaseId: ${purchaseId}`);
+
   if (!idToken)              return _ppErr('Authentication required', 401, cors, sec);
   if (!orderId || !purchaseId) return _ppErr('Missing orderId or purchaseId', 400, cors, sec);
 
@@ -864,99 +1488,198 @@ async function handlePaypalCaptureOrder(req, env, cors, sec) {
   if (cfgErr) return _ppErr(cfgErr, 503, cors, sec);
 
   let uid;
-  try { uid = await _fbVerifyToken(env, idToken); }
-  catch { return _ppErr('Authentication failed', 401, cors, sec); }
+  try {
+    uid = await _fbVerifyToken(env, idToken);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Token verification failed: ${err.message}`);
+    return _ppErr('Authentication failed', 401, cors, sec);
+  }
+  console.log(`[SHADOW COINS PURCHASE] UID: ${uid}`);
 
-  // Try Firestore if available — not required to capture the payment
-  const hasFirestore = !!env.FIREBASE_SERVICE_KEY;
-  let fbToken = null;
-  if (hasFirestore) {
-    try { fbToken = await _fbGetAdminToken(env); } catch (e) {
-      console.error('[SNX-PAYPAL] Firestore token error:', e.message);
-    }
+  // Firestore is required — if service key is missing, fail with clear message
+  if (!env.FIREBASE_SERVICE_KEY) {
+    console.error('[SHADOW COINS PURCHASE] FIREBASE_SERVICE_KEY secret is not set — cannot credit coins');
+    return _ppErr('Payment service configuration error. Please contact support.', 503, cors, sec);
   }
 
-  // Idempotency — check if already processed (only if Firestore available)
-  if (fbToken) {
-    const existing = await _fbGet(fbToken, 'coinPurchases', purchaseId);
-    if (existing?.status === 'completed') {
-      return _ppJson({
-        success: true, alreadyProcessed: true,
-        coins: existing.coinsRequested || 0,
-        message: 'Your purchase is still being verified.',
-      }, 200, cors, sec);
+  let fbToken;
+  try {
+    fbToken = await _fbGetAdminToken(env);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Firebase service account token error: ${err.message}`);
+    return _ppErr('Internal auth error. Please contact support.', 500, cors, sec);
+  }
+
+  // Load and validate the existing purchase record
+  let existing;
+  try {
+    existing = await _fbGet(fbToken, 'coinPurchases', purchaseId);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] fbGet coinPurchases error: ${err.message}`);
+    return _ppErr('Could not load purchase record. Please contact support.', 500, cors, sec);
+  }
+  console.log(`[SHADOW COINS PURCHASE] Purchase record: ${JSON.stringify(existing)}`);
+
+  if (existing && existing.uid !== uid) {
+    console.error(`[SHADOW COINS PURCHASE] UID mismatch: purchase.uid=${existing.uid} auth.uid=${uid}`);
+    return _ppErr('Purchase does not belong to this account', 403, cors, sec);
+  }
+
+  // Idempotency — already completed: return success immediately
+  if (existing?.status === 'completed') {
+    const coins = existing.coinsCredited || existing.coinsRequested || 0;
+    console.log(`[SHADOW COINS PURCHASE] Already completed — idempotent return. coins: ${coins}`);
+    return _ppJson({ success: true, alreadyProcessed: true, coins }, 200, cors, sec);
+  }
+
+  if (existing?.status === 'wallet_write_failed') {
+    // Payment captured but wallet write failed previously — block re-capture (already charged)
+    console.error(`[SHADOW COINS PURCHASE] Purchase in wallet_write_failed state — manual review required`);
+    return _ppErr('Your payment was captured but coin credit failed. Please contact support — reference: ' + purchaseId, 500, cors, sec);
+  }
+
+  // Stale capturing lock: if captureStart is older than 2 minutes, allow retry
+  if (existing?.status === 'capturing') {
+    const startMs = existing.captureStart instanceof Date ? existing.captureStart.getTime()
+                  : existing.captureStart ? new Date(existing.captureStart).getTime() : 0;
+    const ageMs = Date.now() - startMs;
+    if (ageMs < 2 * 60 * 1000) {
+      console.warn(`[SHADOW COINS PURCHASE] Capture lock fresh (${Math.round(ageMs/1000)}s) — returning 409`);
+      return _ppErr('Payment is already being processed. Please wait.', 409, cors, sec);
     }
-    if (existing && existing.uid !== uid)
-      return _ppErr('Purchase does not belong to this account', 403, cors, sec);
+    console.warn(`[SHADOW COINS PURCHASE] Stale capture lock (${Math.round(ageMs/1000)}s) — resetting for retry`);
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      status: 'pending_payment', captureStart: null, staleReset: _fbTs(),
+    }).catch(() => {});
+    existing.status = 'pending_payment';
+  }
+
+  // Allow retry from capture_failed or pending_payment
+  if (existing?.status === 'capture_failed' || existing?.status === 'pending_payment' || !existing) {
+    console.log(`[SHADOW COINS PURCHASE] Proceeding with capture. Status: ${existing?.status || 'no record'}`);
+  } else {
+    console.error(`[SHADOW COINS PURCHASE] Unexpected status: ${existing?.status}`);
+    return _ppErr(`Purchase is in state: ${existing?.status}`, 400, cors, sec);
+  }
+
+  if (existing) {
+    console.log(`[SHADOW COINS PURCHASE] Package: $${existing.usdAmount} USD`);
+    console.log(`[SHADOW COINS PURCHASE] Coins: ${existing.coinsRequested}`);
+  }
+
+  // Set capturing lock before calling PayPal
+  try {
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      uid, purchaseId, status: 'capturing', captureStart: _fbTs(),
+    });
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Failed to set capturing lock: ${err.message}`);
+    return _ppErr('Database error. Please try again.', 500, cors, sec);
   }
 
   // Capture the PayPal order — this is the authoritative payment step
   let capture;
-  try { capture = await _ppCaptureOrder(env, orderId); }
-  catch (err) {
-    console.error('[SNX-PAYPAL] capture:', err.message);
+  try {
+    capture = await _ppCaptureOrder(env, orderId);
+    console.log(`[SHADOW COINS PURCHASE] PayPal capture response status: ${capture.status}`);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] PayPal captureOrder error: ${err.message}`);
+    // Reset to pending_payment so the user can retry (PayPal capture is idempotent)
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      status: 'pending_payment', captureError: err.message, captureAt: _fbTs(),
+    }).catch(e => console.error('[SHADOW COINS PURCHASE] Failed to reset after capture error:', e.message));
     return _ppErr('Payment capture failed. Please try again.', 502, cors, sec);
   }
 
   const captureStatus = capture.status;
+  console.log(`[SHADOW COINS PURCHASE] Payment status: ${captureStatus}`);
+
   if (captureStatus !== 'COMPLETED') {
-    if (fbToken) {
-      await _fbSet(fbToken, 'coinPurchases', purchaseId, {
-        status: 'failed', paypalStatus: captureStatus, failedAt: _fbTs(),
-      }).catch(() => {});
-    }
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      status: 'capture_failed', paypalStatus: captureStatus,
+      captureResult: JSON.stringify(capture).slice(0, 500), failedAt: _fbTs(),
+    }).catch(() => {});
     return _ppErr(`Payment not completed (status: ${captureStatus})`, 400, cors, sec);
   }
 
-  // Verify amount server-side — NEVER trust the client-supplied amount
-  const capturedAmount = parseFloat(
-    capture.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value || '0'
-  );
+  // Extract verified capture details — NEVER trust client-supplied amounts
+  const captureUnit   = capture.purchase_units?.[0];
+  const captureData   = captureUnit?.payments?.captures?.[0];
+  const capturedAmount = parseFloat(captureData?.amount?.value || '0');
+  const captureId      = captureData?.id || '';
+
+  console.log(`[SHADOW COINS PURCHASE] Payment ID (captureId): ${captureId}`);
+  console.log(`[SHADOW COINS PURCHASE] Captured amount: $${capturedAmount}`);
+
+  // Compute coins from the captured amount — NEVER from the client or purchase record alone
   const expectedCoins = Math.floor(capturedAmount * _PP_COINS_PER_DOLLAR);
-  const captureId     = capture.purchase_units?.[0]?.payments?.captures?.[0]?.id || '';
+  console.log(`[SHADOW COINS PURCHASE] Coins to credit: ${expectedCoins}`);
+  console.log(`[SHADOW COINS PURCHASE] Credit operation: wallets/${uid} += ${expectedCoins} shadowCoins`);
 
-  // Credit coins and record transaction in Firestore (when available)
-  let newBalance = expectedCoins; // fallback if no Firestore
-  if (fbToken) {
-    try {
-      const walletData   = await _fbGet(fbToken, 'wallets', uid) || {};
-      const currentCoins = walletData.shadowCoins || 0;
-      newBalance         = currentCoins + expectedCoins;
-
-      await _fbSet(fbToken, 'wallets', uid, {
-        uid, shadowCoins: newBalance,
-        totalPurchased: (walletData.totalPurchased || 0) + expectedCoins,
-        lastPurchaseAt: _fbTs(),
-      });
-      await _fbSet(fbToken, 'coinPurchases', purchaseId, {
-        uid, purchaseId, usdAmount: capturedAmount, coinsRequested: expectedCoins,
-        status: 'completed', paypalOrderId: orderId, paypalCaptureId: captureId,
-        paypalEnv: env.PAYPAL_ENV || 'live', completedAt: _fbTs(),
-      });
-      await _fbAdd(fbToken, 'financialAuditLog', {
-        type: 'COIN_PURCHASE', uid, purchaseId, orderId,
-        usdAmount: capturedAmount, coinsAdded: expectedCoins, newBalance,
-        environment: env.PAYPAL_ENV || 'live', timestamp: _fbTs(),
-      });
-    } catch (err) {
-      // Payment was captured — log the error but don't fail the response.
-      // Coins will need to be manually reconciled from PayPal dashboard.
-      console.error('[SNX-PAYPAL] Firestore write after capture FAILED:', err.message,
-        'orderId:', orderId, 'purchaseId:', purchaseId, 'uid:', uid,
-        'amount:', capturedAmount, 'captureId:', captureId);
-    }
-  } else {
-    // Firestore not configured — payment captured but coins cannot be credited yet.
-    // Log everything needed for manual reconciliation.
-    console.warn('[SNX-PAYPAL] PAYMENT CAPTURED but Firestore not configured.',
-      'orderId:', orderId, 'purchaseId:', purchaseId, 'uid:', uid,
-      'amount:', capturedAmount, 'coins:', expectedCoins, 'captureId:', captureId);
+  // Read existing wallet balance
+  let walletData = {};
+  try {
+    walletData = await _fbGet(fbToken, 'wallets', uid) || {};
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] fbGet wallets error: ${err.message}`);
+    // Reset to pending so user can retry — payment hasn't been credited yet
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      status: 'pending_payment', captureError: 'wallet_read_failed: ' + err.message, captureAt: _fbTs(),
+    }).catch(() => {});
+    return _ppErr('Could not read wallet. Please try again.', 500, cors, sec);
   }
+
+  const existingBalance = (typeof walletData.shadowCoins === 'number') ? walletData.shadowCoins : 0;
+  const newBalance      = existingBalance + expectedCoins;
+  console.log(`[SHADOW COINS PURCHASE] Existing balance: ${existingBalance}`);
+  console.log(`[SHADOW COINS PURCHASE] New balance: ${newBalance}`);
+
+  // Write new balance to Firestore wallet
+  try {
+    await _fbSet(fbToken, 'wallets', uid, {
+      uid,
+      shadowCoins:    newBalance,
+      totalPurchased: (typeof walletData.totalPurchased === 'number' ? walletData.totalPurchased : 0) + expectedCoins,
+      lastPurchaseAt: _fbTs(),
+    });
+    console.log(`[SHADOW COINS PURCHASE] Firebase result: wallets/${uid}.shadowCoins = ${newBalance}`);
+  } catch (err) {
+    console.error(`[SHADOW COINS PURCHASE] Error writing wallet: ${err.message}`);
+    // Payment captured but wallet write failed — mark for manual review.
+    // Do NOT reset to pending (already captured — re-capturing would double-charge).
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      status: 'wallet_write_failed', captureId, capturedAmount,
+      walletWriteError: err.message, requiresManualCredit: true, captureAt: _fbTs(),
+    }).catch(() => {});
+    await _fbAdd(fbToken, 'financialAuditLog', {
+      type: 'WALLET_WRITE_FAILED', uid, purchaseId, orderId,
+      usdAmount: capturedAmount, coinsOwed: expectedCoins, captureId,
+      error: err.message, timestamp: _fbTs(), severity: 'CRITICAL',
+    }).catch(() => {});
+    return _ppErr('Payment captured but balance update failed. Please contact support — your coins will be credited manually.', 500, cors, sec);
+  }
+
+  // Mark purchase as completed (after wallet write succeeds)
+  await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+    uid, purchaseId, usdAmount: capturedAmount, coinsRequested: expectedCoins,
+    coinsCredited: expectedCoins,
+    status: 'completed', paypalOrderId: orderId, paypalCaptureId: captureId,
+    paypalEnv: env.PAYPAL_ENV || 'live', completedAt: _fbTs(),
+  }).catch(e => console.error('[SHADOW COINS PURCHASE] Failed to write completed status:', e.message));
+
+  // Write financial audit log
+  await _fbAdd(fbToken, 'financialAuditLog', {
+    type: 'COIN_PURCHASE', uid, purchaseId, orderId,
+    usdAmount: capturedAmount, coinsAdded: expectedCoins,
+    previousBalance: existingBalance, newBalance,
+    captureId, environment: env.PAYPAL_ENV || 'live', timestamp: _fbTs(),
+  }).catch(() => {});
+
+  console.log(`[SHADOW COINS PURCHASE] Complete. UID: ${uid} | Package: $${capturedAmount} | Coins: ${expectedCoins} | Payment ID: ${captureId} | New balance: ${newBalance}`);
 
   return _ppJson({
     success: true, coins: expectedCoins,
     newBalance, usdAmount: capturedAmount,
-    firestoreRecorded: !!fbToken,
     message: `${expectedCoins} Shadow Coins added to your wallet!`,
   }, 200, cors, sec);
 }
@@ -1196,11 +1919,11 @@ async function handlePaypalOnboardCreator(req, env, cors, sec) {
 //
 // A non-founder or any other role receives 403 Permission denied.
 
-const _FOUNDER_EMAIL         = 'christijerina46@gmail.com';
-const _TEST_GRANT_COINS      = 500;  // hardcoded — never trusted from client
+const _FOUNDER_EMAIL    = 'christijerina46@gmail.com';
+const _TEST_GRANT_COINS = 500;  // hardcoded — never trusted from client
 
 async function handleGrantTestCoins(req, env, cors, sec) {
-  // ── 0. Feature flag — must be explicitly enabled in wrangler vars ──
+  // ── 0. Feature flag ──
   if (env.ENABLE_TEST_COIN_GRANTS !== 'true') {
     return _ppErr('Test coin grants are not enabled.', 403, cors, sec);
   }
@@ -1215,102 +1938,153 @@ async function handleGrantTestCoins(req, env, cors, sec) {
 
   // ── 2. Verify caller's Firebase ID token ──
   let callerUid;
-  try { callerUid = await _fbVerifyToken(env, idToken); }
-  catch { return _ppErr('Authentication failed', 401, cors, sec); }
+  try {
+    callerUid = await _fbVerifyToken(env, idToken);
+  } catch (err) {
+    console.error('[TEST COINS] Token verification failed:', err.message);
+    return _ppErr('Authentication failed', 401, cors, sec);
+  }
+  console.log('[TEST COINS] Founder UID:', callerUid);
+  console.log('[TEST COINS] Recipient UID:', recipientUid);
 
-  // ── 3. Firestore is required for this operation ──
-  if (!env.FIREBASE_SERVICE_KEY)
+  // ── 3. Firestore service account required ──
+  if (!env.FIREBASE_SERVICE_KEY) {
+    console.error('[TEST COINS] FIREBASE_SERVICE_KEY not set');
     return _ppErr('Server configuration error.', 503, cors, sec);
+  }
 
-  const fbToken = await _fbGetAdminToken(env);
+  let fbToken;
+  try {
+    fbToken = await _fbGetAdminToken(env);
+  } catch (err) {
+    console.error('[TEST COINS] Firebase admin token error:', err.message);
+    return _ppErr('Internal auth error. Please try again.', 500, cors, sec);
+  }
 
-  // ── 4. Server-side Founder verification — read users/{callerUid} from Firestore ──
-  // This is independent of anything the frontend sends.
-  // A user cannot spoof this by modifying their own document (Firestore rules protect it).
-  const callerDoc = await _fbGet(fbToken, 'users', callerUid);
+  // ── 4. Server-side Founder verification ──
+  let callerDoc;
+  try {
+    callerDoc = await _fbGet(fbToken, 'users', callerUid);
+  } catch (err) {
+    console.error('[TEST COINS] Failed to read caller user doc:', err.message);
+    return _ppErr('Could not verify caller identity.', 500, cors, sec);
+  }
   if (!callerDoc) {
+    console.warn('[TEST COINS] Caller user doc not found for uid:', callerUid);
     return _ppErr('Permission denied', 403, cors, sec);
   }
 
   const callerRole  = callerDoc.role  || '';
   const callerEmail = callerDoc.email || '';
 
-  // Role must be 'founder' AND email must match the designated Founder email
   if (callerRole !== 'founder' || callerEmail.toLowerCase() !== _FOUNDER_EMAIL.toLowerCase()) {
-    console.warn('[SNX-GRANT] Permission denied for uid:', callerUid,
+    console.warn('[TEST COINS] Permission denied — uid:', callerUid,
       'role:', callerRole, 'email:', callerEmail);
     return _ppErr('Permission denied', 403, cors, sec);
   }
 
   // ── 5. Verify recipient exists ──
-  const recipientDoc = await _fbGet(fbToken, 'users', recipientUid);
+  let recipientDoc;
+  try {
+    recipientDoc = await _fbGet(fbToken, 'users', recipientUid);
+  } catch (err) {
+    console.error('[TEST COINS] Failed to read recipient user doc:', err.message);
+    return _ppErr('Could not verify recipient.', 500, cors, sec);
+  }
   if (!recipientDoc) {
+    console.warn('[TEST COINS] Recipient not found:', recipientUid);
     return _ppErr('Recipient user not found', 404, cors, sec);
   }
-  // Cannot grant to self (prevents Founder inflating their own balance)
   if (recipientUid === callerUid) {
     return _ppErr('Cannot grant test coins to yourself', 400, cors, sec);
   }
-  // Cannot grant to another founder (keep test grants for regular test users)
   if (recipientDoc.role === 'founder') {
     return _ppErr('Cannot grant test coins to a Founder account', 400, cors, sec);
   }
 
-  // ── 6. Atomic wallet update ──
-  // Amount is HARDCODED here — the request body amount is never used.
-  const grantCoins    = _TEST_GRANT_COINS;  // always 500
-  const walletData    = await _fbGet(fbToken, 'wallets', recipientUid) || {};
-  const currentCoins  = walletData.shadowCoins || 0;
-  const newBalance    = currentCoins + grantCoins;
+  // ── 6. Read existing wallet balance ──
+  const grantCoins = _TEST_GRANT_COINS;  // always 500, never from request
+  let walletData = {};
+  try {
+    walletData = await _fbGet(fbToken, 'wallets', recipientUid) || {};
+  } catch (err) {
+    console.error('[TEST COINS] Firebase error reading wallet:', err.message);
+    return _ppErr('Could not read recipient wallet. Please try again.', 500, cors, sec);
+  }
 
-  await _fbSet(fbToken, 'wallets', recipientUid, {
-    uid:          recipientUid,
-    shadowCoins:  newBalance,
-    lastGrantAt:  _fbTs(),
-  });
+  const currentCoins = (typeof walletData.shadowCoins === 'number') ? walletData.shadowCoins : 0;
+  const newBalance   = currentCoins + grantCoins;
 
-  // ── 7. Write immutable test transaction record ──
+  console.log('[TEST COINS] Amount:', grantCoins);
+  console.log('[TEST COINS] Firebase path: wallets/' + recipientUid);
+  console.log('[TEST COINS] Balance field: shadowCoins');
+  console.log('[TEST COINS] Previous balance:', currentCoins);
+  console.log('[TEST COINS] New balance:', newBalance);
+
+  // ── 7. Write wallet — this is the critical step ──
+  try {
+    await _fbSet(fbToken, 'wallets', recipientUid, {
+      uid:         recipientUid,
+      shadowCoins: newBalance,
+      lastGrantAt: _fbTs(),
+    });
+    console.log('[TEST COINS] Firebase result: wallets/' + recipientUid + '.shadowCoins = ' + newBalance);
+  } catch (err) {
+    console.error('[TEST COINS] Firebase error writing wallet:', err.message);
+    return _ppErr('Failed to credit coins. Please try again. Error: ' + err.message, 500, cors, sec);
+  }
+
+  // ── 8. Write immutable test transaction record (non-fatal if it fails) ──
   const txId = `snxtg_${callerUid.slice(0,6)}_${recipientUid.slice(0,6)}_${Date.now().toString(36)}`;
-  await _fbAdd(fbToken, 'testCoinGrants', {
-    txId,
-    transactionType:  'TEST_GRANT',
-    amount:           grantCoins,            // always 500
-    environment:      'sandbox',
-    recipientUserId:  recipientUid,
-    recipientName:    recipientDoc.displayName || '',
-    grantedBy:        callerUid,
-    grantedByEmail:   callerEmail,
-    reason:           reason || 'LIVE gifting test',
-    noRealCashValue:  true,
-    earningsWithdrawable: false,
-    timestamp:        _fbTs(),
-  });
+  try {
+    await _fbAdd(fbToken, 'testCoinGrants', {
+      txId,
+      transactionType:      'TEST_GRANT',
+      amount:               grantCoins,
+      environment:          'sandbox',
+      recipientUserId:      recipientUid,
+      recipientName:        recipientDoc.displayName || '',
+      grantedBy:            callerUid,
+      grantedByEmail:       callerEmail,
+      reason:               reason || 'LIVE gifting test',
+      noRealCashValue:      true,
+      earningsWithdrawable: false,
+      timestamp:            _fbTs(),
+    });
+  } catch (err) {
+    // Non-fatal: wallet was already credited. Log and continue.
+    console.error('[TEST COINS] testCoinGrants write failed (non-fatal):', err.message);
+  }
 
-  // ── 8. Audit log ──
-  await _fbAdd(fbToken, 'financialAuditLog', {
-    type:            'TEST_COIN_GRANT',
-    txId,
-    grantedBy:       callerUid,
-    recipientUid,
-    amount:          grantCoins,
-    environment:     'sandbox',
-    noRealCashValue: true,
-    timestamp:       _fbTs(),
-  });
+  // ── 9. Audit log (non-fatal if it fails) ──
+  try {
+    await _fbAdd(fbToken, 'financialAuditLog', {
+      type:            'TEST_COIN_GRANT',
+      txId,
+      grantedBy:       callerUid,
+      recipientUid,
+      amount:          grantCoins,
+      environment:     'sandbox',
+      noRealCashValue: true,
+      timestamp:       _fbTs(),
+    });
+  } catch (err) {
+    console.error('[TEST COINS] financialAuditLog write failed (non-fatal):', err.message);
+  }
 
-  console.log('[SNX-GRANT] Founder', callerUid, 'granted', grantCoins,
-    'test coins to', recipientUid, '(', recipientDoc.displayName, ')');
+  console.log('[TEST COINS] Complete — Founder:', callerUid, '→ Recipient:', recipientUid,
+    '| Amount:', grantCoins, '| New balance:', newBalance);
 
   return _ppJson({
-    success:       true,
+    success:        true,
     txId,
-    amount:        grantCoins,
+    amount:         grantCoins,
     recipientUid,
-    recipientName: recipientDoc.displayName || '',
+    recipientName:  recipientDoc.displayName || '',
     newBalance,
-    environment:   'sandbox',
+    environment:    'sandbox',
     noRealCashValue: true,
-    message:       `✅ ${grantCoins} test coins granted to ${recipientDoc.displayName || recipientUid}`,
+    message:        `✅ ${grantCoins} test coins granted to ${recipientDoc.displayName || recipientUid}`,
   }, 200, cors, sec);
 }
 
@@ -1330,6 +2104,34 @@ export default {
         headers: mergeHeaders(cors, sec)
       });
     }
+
+    // ── Shadow Fire Live: upload health check ──
+    if (request.method === 'GET' && url.pathname === '/upload-health') {
+      return new Response(JSON.stringify({
+        ok:     true,
+        worker: 'ok',
+        r2:     !!env.BUCKET,
+        stream: (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN) ? 'configured' : 'not_configured',
+      }), {
+        status: 200,
+        headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+      });
+    }
+
+    // ── Shadow Fire Live: Cloudflare Stream endpoints ──
+    if (url.pathname === '/stream/upload-url') return handleStreamUploadUrl(request, env, cors, sec);
+    if (url.pathname === '/stream/status')     return handleStreamStatus(request, env, cors, sec);
+    if (url.pathname === '/stream/delete')     return handleStreamDelete(request, env, cors, sec);
+
+    // ── Shadow Fire Live: secure R2 video delete ──
+    if (url.pathname === '/r2/delete')         return handleR2Delete(request, env, cors, sec);
+
+    // ── Shadow Fire Live: R2 multipart upload endpoints ──
+    if (url.pathname === '/mpu/create')   return handleMpuCreate(request, env, cors, sec);
+    if (url.pathname === '/mpu/presign')  return handleMpuPresign(request, env, cors, sec);
+    if (url.pathname === '/mpu/part')     return handleMpuPart(request, env, cors, sec);
+    if (url.pathname === '/mpu/complete') return handleMpuComplete(request, env, cors, sec);
+    if (url.pathname === '/mpu/abort')    return handleMpuAbort(request, env, cors, sec);
 
     // ── PayPal endpoints ──
     if (url.pathname === '/paypal/create-order'    && request.method === 'POST') return handlePaypalCreateOrder(request, env, cors, sec);
