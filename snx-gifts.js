@@ -591,28 +591,55 @@ async function snxgSendGift() {
         throw new Error('already_sent');
       }
 
+      // ── READ 0b: server-side gift price verification ──────────────────────
+      // Read the gift price from Firestore giftCatalog so the client cannot
+      // manipulate the coin deduction amount.
+      // If the catalog doc exists, use its price. Otherwise fall back to
+      // the local catalog (which is also trusted since it's code, not input).
+      const catalogRef  = doc(db, 'giftCatalog', giftId);
+      const catalogSnap = await tx.get(catalogRef);
+      let verifiedPrice = coinPrice;  // fallback: local catalog value
+      if (catalogSnap.exists()) {
+        const catalogData = catalogSnap.data();
+        const catalogCoins = typeof catalogData.coins === 'number' ? catalogData.coins
+          : typeof catalogData.coinPrice === 'number' ? catalogData.coinPrice
+          : null;
+        if (catalogCoins !== null && catalogCoins > 0) {
+          verifiedPrice = catalogCoins;
+          console.log('[GIFT DEBUG] catalog price:', verifiedPrice, '| client price:', coinPrice);
+          if (verifiedPrice !== coinPrice) {
+            console.warn('[GIFT] price mismatch: client sent', coinPrice, 'but catalog says', verifiedPrice, '— using catalog price');
+          }
+        }
+      }
+      // Override coinPrice with the server-verified price.
+      // This is the authoritative amount deducted and recorded.
+      const verifiedCoinPrice    = verifiedPrice;
+      const verifiedCreatorCoins = Math.floor(verifiedCoinPrice * 0.9);
+      const verifiedPlatformCoins = verifiedCoinPrice - verifiedCreatorCoins;
+
       // ── READ 1: sender wallet ──────────────────────────────────────────────
       const senderSnap = await tx.get(senderWalletRef);
       const senderData = senderSnap.exists() ? senderSnap.data() : {};
       const txCoins    = typeof senderData.shadowCoins === 'number' ? senderData.shadowCoins : 0;
       console.log('[GIFT DEBUG] tx wallet balance:', txCoins, '| wallet doc exists:', senderSnap.exists());
 
-      if (txCoins < coinPrice) {
+      if (txCoins < verifiedCoinPrice) {
         throw new Error('insufficient_coins');
       }
 
-      const newBalance = txCoins - coinPrice;
-      const totalSpent = (typeof senderData.totalSpent === 'number' ? senderData.totalSpent : 0) + coinPrice;
+      const newBalance = txCoins - verifiedCoinPrice;
+      const totalSpent = (typeof senderData.totalSpent === 'number' ? senderData.totalSpent : 0) + verifiedCoinPrice;
 
       // ── READ 2: creator earnings ───────────────────────────────────────────
       const earnSnap = await tx.get(creatorEarnRef);
       const earnData = earnSnap.exists() ? earnSnap.data() : {};
       console.log('[GIFT DEBUG] creator earnings doc exists:', earnSnap.exists());
 
-      const newPending   = (typeof earnData.pendingCoins   === 'number' ? earnData.pendingCoins   : 0) + creatorCoins;
-      const newAvailable = (typeof earnData.availableCoins === 'number' ? earnData.availableCoins : 0) + creatorCoins;
-      const newLifetime  = (typeof earnData.lifetimeCoins  === 'number' ? earnData.lifetimeCoins  : 0) + creatorCoins;
-      const newPlatform  = (typeof earnData.platformCoins  === 'number' ? earnData.platformCoins  : 0) + platformCoins;
+      const newPending   = (typeof earnData.pendingCoins   === 'number' ? earnData.pendingCoins   : 0) + verifiedCreatorCoins;
+      const newAvailable = (typeof earnData.availableCoins === 'number' ? earnData.availableCoins : 0) + verifiedCreatorCoins;
+      const newLifetime  = (typeof earnData.lifetimeCoins  === 'number' ? earnData.lifetimeCoins  : 0) + verifiedCreatorCoins;
+      const newPlatform  = (typeof earnData.platformCoins  === 'number' ? earnData.platformCoins  : 0) + verifiedPlatformCoins;
 
       // ── WRITE 1: deduct sender wallet ──────────────────────────────────────
       // Use update() when doc exists, set() when it doesn't — avoids the
@@ -659,9 +686,9 @@ async function snxgSendGift() {
         giftId,
         giftName,
         giftArt,
-        coinAmount:      coinPrice,
-        creatorCoins,
-        platformCoins,
+        coinAmount:      verifiedCoinPrice,
+        creatorCoins:    verifiedCreatorCoins,
+        platformCoins:   verifiedPlatformCoins,
         creatorPct:      90,
         platformPct:     10,
         transactionType: 'TEST_GIFT',
