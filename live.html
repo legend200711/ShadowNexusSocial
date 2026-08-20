@@ -504,19 +504,27 @@
     }
   });
 
-  // Capture room/host info from live.js snxLiveReady event
+  // Capture room/host info from live.js snxLiveReady event.
+  // IMPORTANT: live.js (<script type="module" src="live.js">) is declared BEFORE this
+  // inline module in the HTML, so it executes first.  When live.js dispatches
+  // snxLiveReady and immediately calls window._snxgStartLiveGiftWatch(_roomId),
+  // this inline module has NOT yet run — the function does not exist yet and the
+  // live.js guard ("typeof === 'function'") silently skips it.
+  // Fix: start the watcher HERE (inside the inline module where the function IS
+  // defined) whenever snxLiveReady fires, regardless of whether live.js already
+  // tried.  _snxgStartLiveGiftWatch tears down any previous listener first, so
+  // calling it twice for the same roomId is safe and deduplicated.
   window.addEventListener('snxLiveReady', (e) => {
-    if (e.detail) {
-      window._liveRoomId  = e.detail.roomId  || null;
-      // Host UID: if viewer, use roomId prefix (uid part); live.js provides hostId in roomData
-      // We'll get it from the event or from watching RTDB
-      if (!e.detail.isHost) {
-        // Viewer: get host from room data — try to read from RTDB via existing live.js state
-        // live.js exposes _roomHostId; we'll read it from the event if available
-      } else {
-        // Creator: host is the current user
-        window._liveHostUid = e.detail.user?.uid || null;
-      }
+    if (!e.detail) return;
+    window._liveRoomId  = e.detail.roomId  || null;
+    if (e.detail.isHost) {
+      // Creator: host is the current user
+      window._liveHostUid = e.detail.user?.uid || null;
+    }
+    // Start (or restart) the gift watcher for this session.
+    const roomId = e.detail.roomId || null;
+    if (roomId && typeof window._snxgStartLiveGiftWatch === 'function') {
+      window._snxgStartLiveGiftWatch(roomId);
     }
   });
 
@@ -545,29 +553,99 @@
     window._snxGiftingEnabled = cfg.giftingEnabled !== false;
   });
 
-  // Watch for incoming gifts on live room and show toasts
+  // Watch for incoming gifts on live room and show toasts/animations on the host/viewer screen.
+  //
+  // Design:
+  //   - seenTxIds Set: docs present at watcher-start are seeded so we never replay old gifts.
+  //   - Only genuinely new 'added' docChanges (after bootstrap) trigger a popup.
+  //   - Pending queue: if snx-gifts.js hasn't exposed snxgShowLiveGiftToast yet (rare timing
+  //     edge), gift events are queued and flushed once the function becomes available.
+  //   - Prevents duplicate popups from the same Firebase event via seenTxIds.
+  //   - Reconnects to the CURRENT roomId whenever called — call again if host re-enters.
   let _liveGiftUnsub = null;
+  let _liveGiftPendingQueue = [];   // holds {senderName, giftId, giftName, giftArt} until snx-gifts.js ready
+
+  // Flush pending queue as soon as snxgShowLiveGiftToast is available.
+  function _flushLiveGiftQueue() {
+    if (typeof window.snxgShowLiveGiftToast !== 'function') return;
+    const pending = _liveGiftPendingQueue.splice(0);
+    pending.forEach(item => {
+      try { window.snxgShowLiveGiftToast(item.senderName, item.giftId, item.giftName, item.giftArt); } catch(e) {
+        console.warn('[SNX GIFT WATCH] flush error:', e);
+      }
+    });
+  }
+
+  // Poll until snx-gifts.js is ready, then flush.
+  function _waitForGiftModule() {
+    if (typeof window.snxgShowLiveGiftToast === 'function') { _flushLiveGiftQueue(); return; }
+    setTimeout(_waitForGiftModule, 100);
+  }
+
   window._snxgStartLiveGiftWatch = function(roomId) {
     if (_liveGiftUnsub) { try { _liveGiftUnsub(); } catch(_) {} }
+    _liveGiftUnsub = null;
+    _liveGiftPendingQueue = [];   // discard any pending from a previous session
     if (!roomId) return;
-    let initialized = false;
+
+    console.log('[SNX GIFT WATCH] starting listener for roomId:', roomId);
+
+    const seenTxIds = new Set();
+    let bootstrapped = false;
     const q = query(
       collection(_db, 'giftTransactions'),
       where('postId', '==', roomId),
       where('isLive', '==', true),
       orderBy('createdAt', 'desc'),
-      limit(1)
+      limit(20)
     );
-    _liveGiftUnsub = onSnapshot(q, snap => {
-      if (!initialized) { initialized = true; return; }
-      snap.docChanges().forEach(change => {
-        if (change.type !== 'added') return;
-        const g = change.doc.data();
-        if (typeof window.snxgShowLiveGiftToast === 'function') {
-          window.snxgShowLiveGiftToast(g.senderName || 'Someone', g.giftId);
+    _liveGiftUnsub = onSnapshot(q,
+      snap => {
+        if (!bootstrapped) {
+          // First snapshot: seed seenTxIds with already-existing docs so they are never
+          // replayed.  Gifts that arrive AFTER this snapshot are the ones we will show.
+          snap.docs.forEach(d => seenTxIds.add(d.id));
+          bootstrapped = true;
+          console.log('[SNX GIFT WATCH] bootstrapped — seeded', seenTxIds.size, 'existing docs for roomId:', roomId);
+          return;
         }
-      });
-    });
+        snap.docChanges().forEach(change => {
+          if (change.type !== 'added') return;
+          const txId = change.doc.id;
+          if (seenTxIds.has(txId)) return;
+          seenTxIds.add(txId);
+          const g = change.doc.data();
+          const senderName = g.senderName || 'Someone';
+          const giftId     = g.giftId    || '';
+          const giftName   = g.giftName  || '';
+          const giftArt    = g.giftArt   || '🎁';
+
+          console.log('[SNX GIFT WATCH] new gift received — txId:', txId, '| giftId:', giftId, '| sender:', senderName);
+
+          if (typeof window.snxgShowLiveGiftToast === 'function') {
+            try { window.snxgShowLiveGiftToast(senderName, giftId, giftName, giftArt); } catch(e) {
+              console.warn('[SNX GIFT WATCH] snxgShowLiveGiftToast threw:', e);
+            }
+          } else {
+            // snx-gifts.js not ready yet — queue the gift and wait.
+            console.warn('[SNX GIFT WATCH] snxgShowLiveGiftToast not ready — queuing gift:', giftId);
+            _liveGiftPendingQueue.push({ senderName, giftId, giftName, giftArt });
+            _waitForGiftModule();
+          }
+        });
+      },
+      err => {
+        console.error('[SNX GIFT WATCH] onSnapshot error — gifts will not appear:', err.code, err.message);
+        // Retry after 5 s on transient errors (network blip, token refresh).
+        if (err.code === 'unavailable' || err.code === 'deadline-exceeded') {
+          setTimeout(() => {
+            if (typeof window._snxgStartLiveGiftWatch === 'function') {
+              window._snxgStartLiveGiftWatch(roomId);
+            }
+          }, 5000);
+        }
+      }
+    );
   };
 </script>
 

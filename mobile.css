@@ -47,7 +47,14 @@ input[type="submit"], input[type="reset"] {
 }
 
 /* Fluid images — never bleed past their container */
-img, video, canvas, svg, audio {
+img, video, svg, audio {
+  max-width: 100%;
+  height: auto;
+}
+/* Canvas elements that are positioned full-screen (gift animations, particles) must
+   NOT have height:auto — they are sized explicitly by JavaScript. Only apply fluid
+   sizing to canvases that are inline content (not position:fixed/absolute). */
+canvas:not(.snxp-canvas):not(#sloCanvas):not(#bg-canvas) {
   max-width: 100%;
   height: auto;
 }
