@@ -1000,15 +1000,22 @@ function _snxgStartSloCanvas() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
+  // HiDPI / retina fix — render at device pixel resolution for sharp output on mobile
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);  // cap at 2× to protect perf
+  const lw  = window.innerWidth;
+  const lh  = window.innerHeight;
+  canvas.width  = Math.round(lw * dpr);
+  canvas.height = Math.round(lh * dpr);
+  canvas.style.width  = lw + 'px';
+  canvas.style.height = lh + 'px';
+  ctx.scale(dpr, dpr);
 
   // Seed particles
   _sloParticles.length = 0;
   for (let i = 0; i < 80; i++) {
     _sloParticles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
+      x: Math.random() * lw,
+      y: Math.random() * lh,
       r: 1 + Math.random() * 3,
       vx: (Math.random() - 0.5) * 1.5,
       vy: -(0.5 + Math.random() * 1.5),
@@ -1018,14 +1025,15 @@ function _snxgStartSloCanvas() {
   }
 
   function tick() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // use logical dimensions (lw/lh) — ctx is already scaled by dpr
+    ctx.clearRect(0, 0, lw, lh);
     for (const p of _sloParticles) {
       p.x += p.vx;
       p.y += p.vy;
       p.alpha -= 0.003;
       if (p.y < -10 || p.alpha <= 0) {
-        p.x = Math.random() * canvas.width;
-        p.y = canvas.height + 5;
+        p.x = Math.random() * lw;
+        p.y = lh + 5;
         p.alpha = 0.4 + Math.random() * 0.6;
       }
       ctx.beginPath();
@@ -1043,7 +1051,11 @@ function _snxgStartSloCanvas() {
 function _snxgStopSloCanvas() {
   if (_sloRafId) { cancelAnimationFrame(_sloRafId); _sloRafId = null; }
   const canvas = document.getElementById('sloCanvas');
-  if (canvas) { const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    // clear at physical size since we don't have lw/lh here
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
 }
 
 
@@ -1242,23 +1254,29 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
   // Trigger open animation on next frame
   requestAnimationFrame(() => overlay.classList.add('active'));
 
-  // Start canvas particle system
+  // Start canvas particle system — HiDPI / retina fix for sharp mobile rendering
   const canvas = overlay.querySelector('.snxp-canvas');
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);  // cap at 2× to protect perf
+  const lw  = window.innerWidth;
+  const lh  = window.innerHeight;
+  canvas.width  = Math.round(lw * dpr);
+  canvas.height = Math.round(lh * dpr);
+  canvas.style.width  = lw + 'px';
+  canvas.style.height = lh + 'px';
   const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
 
   const particles = [];
   const count = window.innerWidth < 500 ? 60 : 100;  // fewer on mobile
   for (let i = 0; i < count; i++) {
-    particles.push(_snxpMakeParticle(canvas, cfg.particleColors));
+    particles.push(_snxpMakeParticle(lw, lh, cfg.particleColors));
   }
 
   // Extra lightning streaks if configured
   const bolts = [];
   if (cfg.lightning) {
     for (let i = 0; i < 6; i++) {
-      bolts.push({ x: Math.random() * canvas.width, y: 0, h: 60 + Math.random() * 150,
+      bolts.push({ x: Math.random() * lw, y: 0, h: 60 + Math.random() * 150,
                    timer: Math.random() * 60, interval: 10 + Math.floor(Math.random() * 20),
                    color: cfg.particleColors[0] });
     }
@@ -1330,7 +1348,7 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
   }
 
   // ── SHADOW DRAGON state ─────────────────────────────────────────────────────
-  let _drX = canvas.width + 200;
+  let _drX = lw + 200;
   let _drY = 0;
   let _drPhase = 0;         // 0=fly-in, 1=hover+breathe, 2=fly-out
   let _drPhaseEnter = 0;    // frame when current phase started
@@ -1345,9 +1363,9 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
     const flockCount = window.innerWidth < 500 ? 3 : 4;
     for (let f = 0; f < flockCount; f++) {
       const birds = [];
-      const flockY  = 80 + f * (canvas.height * 0.18);
+      const flockY  = 80 + f * (lh * 0.18);
       const flockDir = f % 2 === 0 ? 1 : -1;
-      const startX   = flockDir > 0 ? -200 : canvas.width + 200;
+      const startX   = flockDir > 0 ? -200 : lw + 200;
       const bCount = 3 + Math.floor(Math.random() * 4);
       for (let b = 0; b < bCount; b++) {
         birds.push({
@@ -2015,11 +2033,12 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
   //  MAIN TICK
   // ════════════════════════════════════════════════════════
   function tick() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // ctx already scaled by dpr — use logical dimensions (lw/lh) for all drawing
+    ctx.clearRect(0, 0, lw, lh);
     _frame++;
-    const cx = canvas.width  * 0.5;
-    const cy = canvas.height * 0.5;
-    const isMobile = canvas.width < 500;
+    const cx = lw * 0.5;
+    const cy = lh * 0.5;
+    const isMobile = lw < 500;
     const scale = isMobile ? 0.72 : 1.0;
 
     // ── Background particles ──────────────────────────────
@@ -2028,7 +2047,7 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
       p.y  += p.vy;
       p.alpha -= 0.004;
       if (p.y < -10 || p.alpha <= 0) {
-        Object.assign(p, _snxpMakeParticle(canvas, cfg.particleColors));
+        Object.assign(p, _snxpMakeParticle(lw, lh, cfg.particleColors));
       }
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
@@ -2043,7 +2062,7 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
       b.timer--;
       if (b.timer <= 0) {
         b.timer = b.interval + Math.floor(Math.random() * 15);
-        b.x = Math.random() * canvas.width;
+        b.x = Math.random() * lw;
         b.h = 60 + Math.random() * 150;
         _drawBolt(ctx, b.x, 0, b.x + (Math.random() - 0.5) * 40, b.h, b.color, 1.5, 0.8, 5);
       }
@@ -2053,7 +2072,7 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
     //  SHADOW CAT  full animated scene
     // ════════════════════════════════════════
     if (cfg.shadowCat) {
-      const baseY  = cy + canvas.height * 0.18;
+      const baseY  = cy + lh * 0.18;
       const fps60  = cfg.duration / 1000 * 60;
 
       // Ground flames — always present
@@ -2077,7 +2096,7 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
         _scCatX  += 3.2 * scale;
         _scCatVY -= 0.9;
         _scCatY  += _scCatVY;
-        if (_scCatY < -canvas.height * 0.12) _scCatVY = 1.2;
+        if (_scCatY < -lh * 0.12) _scCatVY = 1.2;
         if (_scCatY >= 0 && _scCatVY > 0) { _scCatY = 0; _scCatVY = 0; _scCatPhase = 3; }
         _scCatDir = 1;
       }
@@ -2085,18 +2104,18 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
       else if (_scCatPhase === 3) {
         _scCatX += 6.5 * scale;
         _scCatDir = 1;
-        if (_scCatX > canvas.width * 0.85) { _scCatPhase = 4; _scBurstAlpha = 0; }
+        if (_scCatX > lw * 0.85) { _scCatPhase = 4; _scBurstAlpha = 0; }
       }
       // Phase 4: energy burst fills screen
       else if (_scCatPhase === 4) {
         _scBurstAlpha = Math.min(1, _scBurstAlpha + 0.04);
         // flash + glow burst
-        const bGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, canvas.width * 0.8);
+        const bGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, lw * 0.8);
         bGrad.addColorStop(0,   `rgba(0,200,255,${_scBurstAlpha * 0.55})`);
         bGrad.addColorStop(0.4, `rgba(0,80,200,${_scBurstAlpha * 0.3})`);
         bGrad.addColorStop(1,   'rgba(0,0,0,0)');
         ctx.beginPath();
-        ctx.arc(cx, cy, canvas.width * 0.8, 0, Math.PI * 2);
+        ctx.arc(cx, cy, lw * 0.8, 0, Math.PI * 2);
         ctx.fillStyle = bGrad;
         ctx.globalAlpha = 1;
         ctx.fill();
@@ -2105,8 +2124,8 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
           for (let r = 0; r < 6; r++) {
             const ba = (r / 6) * Math.PI * 2 + _frame * 0.04;
             _drawBolt(ctx, cx, cy,
-              cx + Math.cos(ba) * canvas.width * 0.5,
-              cy + Math.sin(ba) * canvas.height * 0.5,
+              cx + Math.cos(ba) * lw * 0.5,
+              cy + Math.sin(ba) * lh * 0.5,
               '#00eeff', 1.5, 0.7 * _scBurstAlpha, 7);
           }
         }
@@ -2115,8 +2134,8 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
       // Draw periodic lightning around the scene
       if ((_scCatPhase >= 1) && _frame % 22 === 0) {
         _drawBolt(ctx,
-          cx + (Math.random() - 0.5) * canvas.width * 0.7, cy - canvas.height * 0.3,
-          cx + (Math.random() - 0.5) * canvas.width * 0.5, cy + canvas.height * 0.1,
+          cx + (Math.random() - 0.5) * lw * 0.7, cy - lh * 0.3,
+          cx + (Math.random() - 0.5) * lw * 0.5, cy + lh * 0.1,
           '#00ccff', 2, 0.9, 6);
       }
 
@@ -2127,7 +2146,7 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
         crow.angle += crow.speed;
         crow.flap  += crow.flapSpd;
         const bx = cx + Math.cos(crow.angle) * crow.orbitW;
-        const by = (cy - canvas.height * 0.04)
+        const by = (cy - lh * 0.04)
                    + Math.sin(crow.angle) * crow.orbitH
                    + crow.yOffset;
         const flip = crow.speed > 0 ? (Math.cos(crow.angle) < 0 ? -1 : 1)
@@ -2175,7 +2194,7 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
         crow.angle += crow.speed;
         crow.flap  += crow.flapSpd;
         const bx = cx + Math.cos(crow.angle) * crow.orbitW;
-        const by = (cy - canvas.height * 0.04)
+        const by = (cy - lh * 0.04)
                    + Math.sin(crow.angle) * crow.orbitH
                    + crow.yOffset;
         const flip = crow.speed > 0 ? (Math.cos(crow.angle) < 0 ? -1 : 1)
@@ -2196,7 +2215,7 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
     //  SHADOW WOLF  full animated scene
     // ════════════════════════════════════════
     if (cfg.wolf || cfg.shadowWolf) {
-      const baseY = cy + canvas.height * 0.2;
+      const baseY = cy + lh * 0.2;
       const wolfScale = 44 * scale;
 
       // Scene progression
@@ -2320,7 +2339,7 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
     // ════════════════════════════════════════
     if (cfg.dragon || cfg.shadowDragon) {
       const dragonScale = 52 * scale;
-      const centerY     = cy - canvas.height * 0.06;
+      const centerY     = cy - lh * 0.06;
 
       // Phase 0: dragon flies in from right
       // Phase 1: hover at center, breathe fire, lightning
@@ -2386,8 +2405,8 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
           bird.flap += bird.flapSpd;
           bird.y    += Math.sin(_frame * 0.04 + bird.waveOff) * 0.8;  // undulating flight
           // reset when off screen
-          if (bird.speed > 0 && bird.x > canvas.width + 100) bird.x = -100;
-          if (bird.speed < 0 && bird.x < -100)               bird.x = canvas.width + 100;
+          if (bird.speed > 0 && bird.x > lw + 100) bird.x = -100;
+          if (bird.speed < 0 && bird.x < -100)     bird.x = lw + 100;
 
           const wO = (Math.sin(bird.flap) + 1) * 0.5;
           const flip = bird.speed > 0 ? 1 : -1;
@@ -2415,10 +2434,10 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
   }, cfg.duration);
 }
 
-function _snxpMakeParticle(canvas, colors) {
+function _snxpMakeParticle(w, h, colors) {
   return {
-    x: Math.random() * canvas.width,
-    y: canvas.height + Math.random() * 20,
+    x: Math.random() * w,
+    y: h + Math.random() * 20,
     r: 1 + Math.random() * 3.5,
     vx: (Math.random() - 0.5) * 2,
     vy: -(0.6 + Math.random() * 2),

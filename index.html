@@ -720,6 +720,52 @@ input:focus, textarea:focus, select:focus {
     from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
 }
+/* ── Real-time new-post entrance animation (neon blue flash) ── */
+@keyframes snxNewPostIn {
+    0%   { opacity:0; transform:translateY(-14px) scale(0.97); box-shadow:0 0 0 rgba(0,174,239,0); }
+    40%  { opacity:1; transform:translateY(2px)   scale(1.01); box-shadow:0 0 22px rgba(0,174,239,0.55); }
+    70%  { box-shadow:0 0 14px rgba(0,174,239,0.30); }
+    100% { opacity:1; transform:translateY(0)     scale(1);    box-shadow:0 0 0 rgba(0,174,239,0); }
+}
+.snx-rt-new {
+    animation: snxNewPostIn 0.38s cubic-bezier(0.22,1,0.36,1) both !important;
+    border-color: rgba(0,174,239,0.55) !important;
+}
+/* ── "New Posts" floating pill ── */
+#snxNewPostPill {
+    position: fixed;
+    top: 72px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-12px);
+    z-index: 9900;
+    background: linear-gradient(135deg, #003d99, #0077dd);
+    border: 1px solid rgba(0,174,239,0.70);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    padding: 8px 20px;
+    border-radius: 99px;
+    box-shadow: 0 4px 24px rgba(0,120,255,0.45), 0 0 14px rgba(0,174,239,0.30);
+    cursor: pointer;
+    pointer-events: auto;
+    white-space: nowrap;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+#snxNewPostPill.visible {
+    display: block;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+#snxNewPostPill:hover {
+    background: linear-gradient(135deg, #004dbf, #0088ff);
+    box-shadow: 0 4px 28px rgba(0,150,255,0.55), 0 0 18px rgba(0,174,239,0.45);
+}
+#snxNewPostPill:active { transform: translateX(-50%) scale(0.96); }
 .post-header-row {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 8px; flex-wrap: wrap; gap: 4px;
@@ -7021,6 +7067,9 @@ body.arcade-fs-ios body::after { display:none !important; }
         <button id="btnBroadcast" style="margin-top:10px; width:100%; border-radius:10px; padding:11px; background:linear-gradient(135deg,#003d99,#0077dd); border-color:rgba(0,174,239,0.65); color:#fff; font-size:14px; box-shadow:0 0 20px rgba(0,174,239,0.40);">⚡ Post to the Eclipse</button>
     </div>
 
+    <!-- ── Real-time "New Posts" pill — shown when new posts arrive while scrolled down ── -->
+    <div id="snxNewPostPill" role="button" tabindex="0" aria-label="New posts available — tap to view" onclick="snxScrollToNewPosts()"></div>
+
     <div id="feedPosts"></div>
     <div id="infiniteLoadTrigger" style="text-align:center;padding:20px;color:#334;font-size:12px;"></div>
 </div>
@@ -10563,6 +10612,10 @@ body.arcade-fs-ios body::after { display:none !important; }
   let userDataUnsubscribe  = null;    // current user's own doc (settings + notifs + push)
   // Track post IDs already in the DOM to prevent duplicates
   const _renderedPostIds = new Set();
+  // Real-time feed: true once the initial snapshot has been rendered
+  let _feedInitialized   = false;
+  // Count of new posts queued while the user is scrolled down
+  let _pendingNewPosts   = 0;
 
   /* ACCOUNT MANAGEMENT */
 
@@ -11942,6 +11995,10 @@ body.arcade-fs-ios body::after { display:none !important; }
 
       // Clear duplicate-prevention set when re-subscribing
       _renderedPostIds.clear();
+      // Reset init flag — next snapshot is a full initial load, not a live update
+      _feedInitialized = false;
+      // Dismiss any pending new-posts pill on re-subscribe
+      _snxHideNewPostPill();
 
       // Show a loading skeleton while the first snapshot is in flight
       const _feedContainer = document.getElementById("feedPosts");
@@ -11961,6 +12018,42 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Clear loading state on first real snapshot
           const loadingEl = container.querySelector('#feedLoadingState');
           if (loadingEl) loadingEl.remove();
+
+          // ── Real-time: detect brand-new posts (added after the initial load) ──
+          // docChanges() only lists documents that actually changed in this snapshot.
+          // On the very first snapshot fromCache / fromServer every doc has type='added',
+          // so we only act on this after _feedInitialized is true.
+          if (_feedInitialized) {
+              const addedIds = new Set();
+              snapshot.docChanges().forEach(change => {
+                  if (change.type !== 'added') return;
+                  const p = change.doc.data();
+                  if (p.type === 'live' || p.type === 'live_share') return;
+                  if (p.expiresAt && p.expiresAt < nowMs) return;
+                  if (_renderedPostIds.has(change.doc.id)) return; // already in DOM
+                  addedIds.add(change.doc.id);
+              });
+              if (addedIds.size > 0) {
+                  // Only apply animation/pill when the user is on the feed page
+                  const _feedPage = document.getElementById('feed');
+                  const _feedActive = _feedPage && _feedPage.classList.contains('active');
+                  // Determine if the user is near the top of the page
+                  const _atTop = (window.scrollY || document.documentElement.scrollTop) < 300;
+                  if (_feedActive && _atTop) {
+                      // Will be rendered immediately below — mark as "real-time new"
+                      window._snxRtNewIds = window._snxRtNewIds || new Set();
+                      addedIds.forEach(id => window._snxRtNewIds.add(id));
+                  } else if (_feedActive && !_atTop) {
+                      // User is scrolled down — queue in the pill instead
+                      _pendingNewPosts += addedIds.size;
+                      _snxShowNewPostPill(_pendingNewPosts);
+                      // Still let the posts get rendered below (they go into the DOM
+                      // at their ordered position — user just won't see them yet)
+                  }
+                  // If not on the feed page: posts are still rendered silently in the DOM;
+                  // when user returns to the feed, they see the new posts normally.
+              }
+          }
 
           // Filter out expired posts (48h TTL) and live-session posts.
           // Live sessions are shown only in the story bar and Live Hub —
@@ -12171,6 +12264,15 @@ body.arcade-fs-ios body::after { display:none !important; }
                   div.className = "postBox";
                   div.id = `post-${pDoc.id}`;
                   if (post.expiresAt) div.dataset.expiresAt = post.expiresAt;
+                  // Apply real-time entrance animation only to posts that arrived live
+                  // (not during the initial page load batch)
+                  if (window._snxRtNewIds && window._snxRtNewIds.has(pDoc.id)) {
+                      div.classList.add('snx-rt-new');
+                      window._snxRtNewIds.delete(pDoc.id);
+                      // Remove the animation class after it plays so it doesn't
+                      // re-trigger if the element is ever reflowed
+                      div.addEventListener('animationend', () => div.classList.remove('snx-rt-new'), { once: true });
+                  }
 
                   // ── LIVE / LIVE_SHARE card ─────────────────────────────────────
                   // Skip ended streams — only render active live cards
@@ -12306,6 +12408,8 @@ body.arcade-fs-ios body::after { display:none !important; }
                   if (cb) cb.dataset.count = (post.comments || []).length;
               }
           });
+          // Mark the feed as initialized so subsequent snapshots are treated as live updates
+          _feedInitialized = true;
       }, (feedErr) => {
           // ── Firestore error handler ──
           // Fires on permission denial, missing index, or network failure.
@@ -12330,6 +12434,54 @@ body.arcade-fs-ios body::after { display:none !important; }
           }
       });
   }
+
+  /* ── Real-time New Posts pill helpers ─────────────────────────────────────
+     _snxShowNewPostPill(n) — show/update the pill with n pending posts
+     _snxHideNewPostPill()  — hide and reset the pill
+     snxScrollToNewPosts()  — called when the user taps the pill; scrolls to top
+     ─────────────────────────────────────────────────────────────────────── */
+  function _snxShowNewPostPill(n) {
+      // Only show the pill when the user is actually on the feed page
+      const feedPage = document.getElementById('feed');
+      if (!feedPage || !feedPage.classList.contains('active')) return;
+      const pill = document.getElementById('snxNewPostPill');
+      if (!pill) return;
+      pill.textContent = n === 1 ? '⬆ 1 New Post' : `⬆ ${n} New Posts`;
+      // Trigger display before adding .visible so the CSS transition fires
+      pill.style.display = 'block';
+      requestAnimationFrame(() => pill.classList.add('visible'));
+  }
+  function _snxHideNewPostPill() {
+      _pendingNewPosts = 0;
+      const pill = document.getElementById('snxNewPostPill');
+      if (!pill) return;
+      pill.classList.remove('visible');
+      // Remove from layout after transition completes
+      setTimeout(() => { if (!pill.classList.contains('visible')) pill.style.display = 'none'; }, 250);
+  }
+  window.snxScrollToNewPosts = function () {
+      _snxHideNewPostPill();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  // Keyboard support for the pill
+  document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+          const pill = document.getElementById('snxNewPostPill');
+          if (pill && pill === document.activeElement) {
+              e.preventDefault();
+              window.snxScrollToNewPosts();
+          }
+      }
+  });
+  // Hide the pill when the user scrolls back to the top manually
+  window.addEventListener('scroll', function _snxPillScrollWatcher() {
+      if ((window.scrollY || document.documentElement.scrollTop) < 150) {
+          const pill = document.getElementById('snxNewPostPill');
+          if (pill && pill.classList.contains('visible')) {
+              _snxHideNewPostPill();
+          }
+      }
+  }, { passive: true });
 
   // XSS escape for feed content
   function escFeed(str) {
