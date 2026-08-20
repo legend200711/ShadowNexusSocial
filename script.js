@@ -5,7 +5,7 @@
  * Responsibilities:
  *  1. Register the app service worker (sw.js)
  *  2. Register the FCM messaging service worker (firebase-messaging-sw.js)
- *  3. Handle SW update notifications (new version available toast)
+ *  3. Handle SW update notifications — auto-reload on new version
  *  4. Capture the PWA install prompt and show the install banner
  *  5. Online/offline status handling
  *  6. Misc global utilities used across pages
@@ -14,24 +14,49 @@
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════
+   3. SW UPDATE HANDLER
+   Called whenever a new SW version is ready (waiting state).
+   Strategy: auto-apply immediately (sw.js already calls skipWaiting
+   in its install event, so this just triggers the reload after the
+   controller has changed).  We never prompt the user — the reload
+   is silent and fast.
+   ═══════════════════════════════════════════════════════════ */
+function showUpdateToast(worker) {
+  // The SW's own install handler already called skipWaiting(), so
+  // the worker is either already active or will activate momentarily.
+  // Sending SKIP_WAITING is a belt-and-suspenders safety signal for
+  // any edge case where the SW did not call skipWaiting itself.
+  if (worker && worker.state !== 'activated') {
+    try { worker.postMessage({ type: 'SKIP_WAITING' }); } catch (_) {}
+  }
+  // The controllerchange listener below handles the actual reload.
+  console.log('[SW] New version ready — reload pending after controller change.');
+}
+
+/* ═══════════════════════════════════════════════════════════
    1 & 2. SERVICE WORKER REGISTRATION
    App is served from the root of shadownexussocial.online.
    ═══════════════════════════════════════════════════════════ */
 (function registerSW() {
   if (!('serviceWorker' in navigator)) return;
 
-  const base    = './';
-  const swPath  = base + 'sw.js';
-  const fcmPath = base + 'firebase-messaging-sw.js';
+  const base   = './';
+  const swPath = base + 'sw.js';
+
+  // Clear the reload-guard flag at the start of each new page load
+  // so a subsequent controllerchange in the same session can still reload.
+  sessionStorage.removeItem('snx-sw-reloading');
 
   window.addEventListener('load', async () => {
 
+    let reg;
+
     // ── Register main app service worker ──
     try {
-      const reg = await navigator.serviceWorker.register(swPath, { scope: base });
+      reg = await navigator.serviceWorker.register(swPath, { scope: base });
       console.log('[SW] Registered, scope:', reg.scope);
 
-      // If a new SW is already waiting on first load, show the update toast now
+      // If a new SW is already waiting on first load, activate it now
       if (reg.waiting) {
         showUpdateToast(reg.waiting);
       }
@@ -42,19 +67,48 @@
         if (!newWorker) return;
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New version ready — prompt user to reload
+            // New version installed and ready — trigger activation
             showUpdateToast(newWorker);
           }
         });
       });
 
-      // When the new SW takes control, reload so the fresh files are used
+      // When the new SW takes control, reload so fresh cached files are used
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!sessionStorage.getItem('snx-sw-reloading')) {
           sessionStorage.setItem('snx-sw-reloading', '1');
+          console.log('[SW] Controller changed — reloading for new version.');
           window.location.reload();
         }
       });
+
+      // ── Foreground update check ──
+      // Browsers only check for a new SW on navigation. For a PWA that stays
+      // open (e.g. an installed Android app), we must call reg.update() manually
+      // so long-lived sessions detect a new deployment without a page load.
+      //
+      // Strategy:
+      //   • On visibilitychange (app brought to foreground from background)
+      //   • Throttled to at most once every 5 minutes to avoid hammering the server
+      let _lastUpdateCheck = 0;
+      const _SW_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+      function _checkForSwUpdate() {
+        if (!navigator.onLine) return; // don't bother if offline
+        const now = Date.now();
+        if (now - _lastUpdateCheck < _SW_CHECK_INTERVAL) return;
+        _lastUpdateCheck = now;
+        reg.update().catch(() => {}); // non-fatal if the network is unavailable
+      }
+
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) _checkForSwUpdate();
+      });
+
+      // Also run once shortly after registration (catches deploys that happened
+      // while the device was offline or the page was already open)
+      setTimeout(_checkForSwUpdate, 10_000);
+
     } catch (err) {
       console.warn('[SW] Registration failed:', err);
     }
