@@ -987,10 +987,21 @@ function _snxgShowLiveGiftToast(senderName, gift) {
   setTimeout(() => toast.remove(), 4200);
 }
 
-// Exposed so live.js can call it when receiving gift events via Firestore
-window.snxgShowLiveGiftToast = function(senderName, giftId) {
-  const gift = SNX_GIFT_CATALOG.find(g => g.id === giftId);
-  if (!gift) return;
+// Exposed so the live.html gift-watch listener can call it when a new gift arrives.
+// Accepts an optional giftName + giftArt fallback so the popup still works even
+// if the giftId doesn't match the local catalog (e.g. a catalog update was deployed
+// between when the gift was sent and when the host's page loaded).
+window.snxgShowLiveGiftToast = function(senderName, giftId, fallbackName, fallbackArt) {
+  let gift = SNX_GIFT_CATALOG.find(g => g.id === giftId);
+  if (!gift) {
+    // Catalog lookup failed — build a minimal gift object from the stored transaction data.
+    if (!fallbackName && !fallbackArt) {
+      console.warn('[SNX GIFT] catalog miss for giftId:', giftId, '— no fallback data, skipping popup');
+      return;
+    }
+    gift = { id: giftId, name: fallbackName || giftId, art: fallbackArt || '🎁', coins: 0 };
+    console.warn('[SNX GIFT] catalog miss for giftId:', giftId, '— using fallback art:', gift.art);
+  }
   if (gift.id === 'stay_legendary') {
     snxgPlayStayLegendary(senderName);
     return;
@@ -1149,8 +1160,9 @@ function snxgSwitchCreatorTab(tab) {
   if (activeTab)  activeTab.classList.add('active');
   if (activePanel) activePanel.style.display = 'block';
 
-  if (tab === 'history') snxgLoadGiftHistory();
-  if (tab === 'payouts') snxgLoadPayoutHistory();
+  if (tab === 'history')  snxgLoadGiftHistory();
+  if (tab === 'payouts')  snxgLoadPayoutHistory();
+  if (tab === 'exchange') snxgLoadExchangeTab();
 }
 window.snxgSwitchCreatorTab = snxgSwitchCreatorTab;
 
@@ -1448,6 +1460,204 @@ async function snxgLoadPayoutHistory() {
   }
 }
 window.snxgLoadPayoutHistory = snxgLoadPayoutHistory;
+
+/* ══════════════════════════════════════════════════
+   EXCHANGE TAB — convert earned coins → shadow coins
+   ══════════════════════════════════════════════════ */
+
+/**
+ * Load the exchange tab: fetch current availableCoins (earned) and shadowCoins balances
+ * and display them so the user can see how much they have to convert.
+ */
+async function snxgLoadExchangeTab() {
+  const user = _snxgUser();
+  if (!user) return;
+  const fs = _snxgDb();
+  if (!fs) return;
+
+  const { db, doc, getDoc } = fs;
+  const earnedEl = document.getElementById('csExchangeEarnedBal');
+  const shadowEl = document.getElementById('csExchangeShadowBal');
+  const btn      = document.getElementById('csExchangeBtn');
+  const note     = document.getElementById('csExchangeNote');
+
+  if (earnedEl) earnedEl.textContent = '…';
+  if (shadowEl) shadowEl.textContent = '…';
+  if (note) note.style.display = 'none';
+
+  try {
+    const [earnSnap, walletSnap] = await Promise.all([
+      getDoc(doc(db, 'creatorEarnings', user.uid)),
+      getDoc(doc(db, 'wallets',         user.uid)),
+    ]);
+
+    const earn   = earnSnap.exists()   ? earnSnap.data()   : {};
+    const wallet = walletSnap.exists() ? walletSnap.data() : {};
+
+    const available   = typeof earn.availableCoins   === 'number' ? earn.availableCoins   : 0;
+    const shadowCoins = typeof wallet.shadowCoins     === 'number' ? wallet.shadowCoins    : 0;
+
+    if (earnedEl) earnedEl.textContent = available.toLocaleString();
+    if (shadowEl) shadowEl.textContent = shadowCoins.toLocaleString();
+
+    // Disable convert button if nothing to convert
+    if (btn) btn.disabled = (available <= 0);
+    if (available <= 0 && note) {
+      note.className    = 'cs-status-msg info';
+      note.textContent  = 'You have no earned coins available to convert yet. Earn coins by receiving gifts!';
+      note.style.display = 'block';
+    }
+  } catch (err) {
+    console.error('[SNX-EXCHANGE] loadExchangeTab error:', err);
+    if (earnedEl) earnedEl.textContent = '—';
+    if (shadowEl) shadowEl.textContent = '—';
+    if (note) {
+      note.className = 'cs-status-msg error';
+      note.textContent = 'Could not load balances. Please try again.';
+      note.style.display = 'block';
+    }
+  }
+}
+window.snxgLoadExchangeTab = snxgLoadExchangeTab;
+
+/**
+ * Set the conversion amount input to the user's full available balance.
+ */
+function snxgExchangeSetMax() {
+  const earnedEl = document.getElementById('csExchangeEarnedBal');
+  const input    = document.getElementById('csExchangeAmount');
+  if (!earnedEl || !input) return;
+  const available = parseInt(earnedEl.textContent.replace(/,/g, ''), 10) || 0;
+  input.value = available > 0 ? available : '';
+}
+window.snxgExchangeSetMax = snxgExchangeSetMax;
+
+/**
+ * Atomically convert earned coins → shadow coins.
+ *
+ * Security:
+ *  - Reads both balances inside a Firestore transaction (server-authoritative).
+ *  - Verifies actual availableCoins on the server before deducting.
+ *  - Both writes (deduct earned, credit shadow) succeed together or neither does.
+ *  - In-flight lock (_snxgConverting) prevents double-clicks within the same tab.
+ *  - Firestore transaction serialization prevents concurrent multi-tab races.
+ */
+let _snxgConverting = false;
+
+async function snxgConvertEarnedCoins() {
+  if (_snxgConverting) return;
+
+  const user = _snxgUser();
+  if (!user) { _snxgToast('Please sign in first.'); return; }
+
+  const fs = _snxgDb();
+  if (!fs) { _snxgToast('Firebase not ready. Please reload.'); return; }
+
+  const input  = document.getElementById('csExchangeAmount');
+  const btn    = document.getElementById('csExchangeBtn');
+  const note   = document.getElementById('csExchangeNote');
+
+  const rawVal = input ? parseInt(input.value, 10) : NaN;
+  if (!rawVal || rawVal <= 0 || !Number.isFinite(rawVal)) {
+    if (note) { note.className = 'cs-status-msg error'; note.textContent = 'Enter a valid number of coins to convert.'; note.style.display = 'block'; }
+    return;
+  }
+  const amount = Math.floor(rawVal);  // integer only
+
+  _snxgConverting = true;
+  if (btn)  { btn.disabled = true; btn.textContent = '🔄 Converting…'; }
+  if (note) { note.className = 'cs-status-msg info'; note.textContent = 'Processing conversion…'; note.style.display = 'block'; }
+
+  const { db, doc, runTransaction, serverTimestamp } = fs;
+
+  const earnRef   = doc(db, 'creatorEarnings', user.uid);
+  const walletRef = doc(db, 'wallets',         user.uid);
+
+  try {
+    await runTransaction(db, async (tx) => {
+
+      // ── READ 1: earned coins (server-authoritative) ──
+      const earnSnap = await tx.get(earnRef);
+      const earn     = earnSnap.exists() ? earnSnap.data() : {};
+      const available = typeof earn.availableCoins === 'number' ? earn.availableCoins : 0;
+
+      if (amount > available) {
+        throw new Error('insufficient_earned');
+      }
+      if (available <= 0) {
+        throw new Error('insufficient_earned');
+      }
+
+      // ── READ 2: wallet ──
+      const walletSnap  = await tx.get(walletRef);
+      const walletData  = walletSnap.exists() ? walletSnap.data() : {};
+      const currentShadow = typeof walletData.shadowCoins === 'number' ? walletData.shadowCoins : 0;
+
+      const newAvailable = available - amount;         // may be 0, never negative
+      const newShadow    = currentShadow + amount;     // always increases
+
+      // ── WRITE 1: deduct availableCoins from creatorEarnings ──
+      // Use update() — only change availableCoins and lastConversionAt.
+      // All other fields (pendingCoins, lifetimeCoins, platformCoins, uid) remain unchanged.
+      // The doc must exist here because we verified available > 0 above.
+      tx.update(earnRef, {
+        availableCoins:   newAvailable,
+        lastConversionAt: serverTimestamp(),
+      });
+
+      // ── WRITE 2: credit shadowCoins in wallet ──
+      if (walletSnap.exists()) {
+        tx.update(walletRef, {
+          shadowCoins:       newShadow,
+          lastConversionAt:  serverTimestamp(),
+        });
+      } else {
+        // Wallet doesn't exist yet — create it.
+        tx.set(walletRef, {
+          uid:              user.uid,
+          shadowCoins:      newShadow,
+          lastConversionAt: serverTimestamp(),
+        });
+      }
+    });
+
+    // Transaction committed — update the UI
+    console.log('[SNX-EXCHANGE] converted', amount, 'earned coins → shadow coins for uid:', user.uid);
+
+    if (note) {
+      note.className = 'cs-status-msg success';
+      note.textContent = `✅ Converted ${amount.toLocaleString()} coins! Your Shadow Coin balance has been updated.`;
+      note.style.display = 'block';
+    }
+    if (input) input.value = '';
+    _snxgToast(`🔄 ${amount.toLocaleString()} Shadow Coins added to your balance!`);
+
+    // Refresh the displayed balances
+    await snxgLoadExchangeTab();
+
+  } catch (err) {
+    console.error('[SNX-EXCHANGE] conversion failed:', err.code, err.message);
+
+    let msg;
+    if (err.message === 'insufficient_earned') {
+      msg = 'Not enough earned coins to convert. Earn more by receiving gifts!';
+    } else if (err.code === 'permission-denied') {
+      msg = 'Conversion blocked (permission-denied). Please reload and try again.';
+    } else if (err.code === 'unavailable' || err.code === 'deadline-exceeded') {
+      msg = 'Network issue — conversion was not completed. Please try again.';
+    } else if (err.code === 'aborted') {
+      msg = 'Transaction conflict — please try again.';
+    } else {
+      msg = `Conversion failed [${err.code || 'error'}]: ${(err.message || '').slice(0, 80)}`;
+    }
+
+    if (note) { note.className = 'cs-status-msg error'; note.textContent = msg; note.style.display = 'block'; }
+  } finally {
+    _snxgConverting = false;
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Convert to Shadow Coins'; }
+  }
+}
+window.snxgConvertEarnedCoins = snxgConvertEarnedCoins;
 
 /* ══════════════════════════════════════════════════
    NAVIGATION HOOK — show Creator Studio page

@@ -822,6 +822,11 @@ service cloud.firestore {
         && request.resource.data.lifetimeCoins  >= 0;
       // Any authenticated user may update (gift senders credit earnings).
       // Validate non-negative values and that uid cannot be changed.
+      //
+      // platformCoins is backward-compatible: older docs that pre-date the field are
+      // allowed to omit it (treated as 0). The gift-send transaction always writes it;
+      // the earned-coin conversion only touches availableCoins + lastConversionAt so
+      // platformCoins may legitimately be absent in the merged result.
       allow update: if isSignedIn()
         && request.resource.data.uid             == resource.data.uid  // uid is immutable
         && request.resource.data.pendingCoins    is number
@@ -830,8 +835,9 @@ service cloud.firestore {
         && request.resource.data.availableCoins  >= 0
         && request.resource.data.lifetimeCoins   is number
         && request.resource.data.lifetimeCoins   >= 0
-        && request.resource.data.platformCoins   is number
-        && request.resource.data.platformCoins   >= 0;
+        && (!('platformCoins' in request.resource.data)
+            || (request.resource.data.platformCoins is number
+                && request.resource.data.platformCoins >= 0));
       allow delete: if false;
     }
 
