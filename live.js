@@ -132,7 +132,10 @@ const _VIEWER_PRESENCE_HB_MS = 30000; // 30 s keep-alive write to RTDB
 let _chatUnsub        = null;
 let _viewerCountRef   = null;   // RTDB ref for viewer count listener
 let _viewerCountUnsub = null;
+let _hostLikeCountRef = null;   // RTDB ref for host like-count listener
+let _hostLikeCountUnsub = null; // unsubscribe fn for host like-count listener
 let _roomWatchRef     = null;   // saved RTDB ref so we can call off() on it
+let _offerWaitUnsub   = null;   // viewer: unsubscribe for offer-arrival watcher (must survive _viewerLeave)
 let _toastTimer       = null;
 let _viewerLeftFlag   = false;  // guard: prevent double-decrement on mobile
 let _creatorEndedFlag = false;  // guard: prevent beforeunload re-running endLive cleanup
@@ -685,6 +688,12 @@ async function startLive() {
     roomId: _roomId, isHost: true,
   }}));
 
+  // FIX 3: Start the live gift watcher for the HOST so incoming gifts show
+  // the notification/animation on the host screen in real time.
+  if (typeof window._snxgStartLiveGiftWatch === 'function') {
+    window._snxgStartLiveGiftWatch(_roomId);
+  }
+
   // ── Start optional systems (respects their individual ON/OFF state) ──
   _liveTimerOnLiveStart();
   _shadowBotOnLiveStart();
@@ -810,6 +819,14 @@ function _subscribeViewerCount() {
       updateDoc(doc(_db, 'liveRooms', _user.uid), { viewers: v }).catch(() => {});
     }
   });
+
+  // FIX 1: Host like-count listener — update D.likeCount in real time as viewers send likes.
+  if (_hostLikeCountRef) { try { off(_hostLikeCountRef); } catch(_) {} }
+  _hostLikeCountRef   = ref(_liveDB, `liveRooms/${_roomId}/likes`);
+  _hostLikeCountUnsub = onValue(_hostLikeCountRef, snap => {
+    const l = snap.val() || 0;
+    if (D.likeCount) D.likeCount.textContent = '❤️ ' + l;
+  });
 }
 
 /* ═══════════════════════════════════════════════════
@@ -934,6 +951,7 @@ async function endLive() {
   _hostTeardownAllRelayPeers();
   if (_chatUnsub)        { _chatUnsub();         _chatUnsub        = null; }
   if (_viewerCountUnsub) { try { _viewerCountUnsub(); } catch(_) {} _viewerCountRef = null; _viewerCountUnsub = null; }
+  if (_hostLikeCountRef) { try { off(_hostLikeCountRef); } catch(_) {} _hostLikeCountRef = null; _hostLikeCountUnsub = null; }
 
   /* ── Remove WebRTC signaling from LIVE RTDB ── */
   if (_roomId) {
@@ -1331,6 +1349,11 @@ async function _viewerLeave() {
 
   // Fix: stop frozen video watchdog
   _stopFrozenVideoWatchdog();
+
+  // FIX 2: Cancel offer-arrival watcher so a stale callback cannot re-enter _startViewerWebRTC
+  // after the viewer has left. Without this, the listener fires after re-entry and launches a
+  // second concurrent WebRTC setup, causing a black screen.
+  if (_offerWaitUnsub) { try { _offerWaitUnsub(); } catch(_) {} _offerWaitUnsub = null; }
 
   if (_rtcPc) {
     _rtcPc.ontrack = null; _rtcPc.onconnectionstatechange = null;
@@ -1946,10 +1969,13 @@ async function _startViewerWebRTC(roomData) {
 
   if (!slotSnap) {
     _showConnBanner('Waiting for stream…', '');
-    let _offerWaitUnsub;
+    // FIX 2: Use module-level _offerWaitUnsub so _viewerLeave() can cancel this listener
+    // and prevent a stale callback from re-starting WebRTC after the viewer has left.
+    if (_offerWaitUnsub) { try { _offerWaitUnsub(); } catch(_) {} _offerWaitUnsub = null; }
     _offerWaitUnsub = onValue(slotRef, async snap => {
       if (!snap.exists() || !snap.val().offer) return;
       if (_offerWaitUnsub) { try { _offerWaitUnsub(); } catch(_) {} _offerWaitUnsub = null; }
+      if (_viewerLeftFlag) return;  // viewer left while waiting — do not reconnect
       _startViewerWebRTC(roomData);
     });
     return;

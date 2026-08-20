@@ -744,8 +744,7 @@ async function snxgSendGift() {
         platformCoins:   verifiedPlatformCoins,
         creatorPct:      90,
         platformPct:     10,
-        transactionType: 'TEST_GIFT',
-        environment:     'sandbox',
+        transactionType: 'GIFT',
         status:          'completed',
         createdAt:       serverTimestamp(),
       });
