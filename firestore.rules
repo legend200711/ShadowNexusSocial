@@ -915,7 +915,10 @@ service cloud.firestore {
     //
     match /shadowXP/{uid} {
       // Owner reads/writes their own XP (snxf_awardXP, snxf_loadXPStrip).
-      allow read:   if isOwner(uid) || isFounder();
+      // Any signed-in user may also read — required so that a gift-send transaction
+      // can tx.get() the recipient's XP doc to compute the incremented value before
+      // writing it (the Firestore transaction reads all docs before any writes).
+      allow read:   if isSignedIn();
       allow create: if
         // Case 1: Owner creates their own XP doc.
         ( isOwner(uid)

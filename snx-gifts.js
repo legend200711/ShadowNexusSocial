@@ -877,8 +877,12 @@ function _snxgGenTxId() {
 /* ══════════════════════════════════════════════════
    GIFT ANIMATIONS
    ══════════════════════════════════════════════════ */
-// Premium gift IDs that get the full-screen animated overlay
+// All gift IDs that use the full-screen premium overlay animation.
+// Every gift except stay_legendary (which has its own dedicated system) is listed here.
 const _SNX_PREMIUM_ANIM_IDS = new Set([
+  // Base gifts (upgraded to premium overlay)
+  'black_cat', 'shadow_lightning', 'blue_flame', 'wolf', 'grim_reaper',
+  // Original premium animated gifts
   'shadow_eclipse', 'nexus_lightning', 'shadow_inferno', 'legendary_crown',
   'shadow_cat',     'shadow_dragon',   'nexus_diamond',  'galaxy_portal',
   'reapers_gift',   'shadow_wolf',     'eclipse_nexus',
@@ -889,33 +893,8 @@ function _snxgPlayGiftAnimation(gift, senderName) {
     snxgPlayStayLegendary(senderName);
     return;
   }
-  if (_SNX_PREMIUM_ANIM_IDS.has(gift.id)) {
-    _snxgPlayPremiumAnimation(gift, senderName);
-    return;
-  }
-
-  // General pop animation (existing gifts)
-  const el = document.createElement('div');
-  el.className = 'snxg-gift-pop';
-
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  el.style.left = (vw * 0.5 - 50) + 'px';
-  el.style.top  = (vh * 0.35) + 'px';
-
-  let artContent = gift.art;
-  if (gift.id === 'grim_reaper') {
-    el.style.left = (vw * 0.5 - 60) + 'px';
-    el.style.top  = (vh * 0.25) + 'px';
-  }
-
-  el.innerHTML = `
-    <span class="snxg-gift-pop-art">${artContent}</span>
-    <div class="snxg-gift-pop-name">${gift.name}</div>
-    <div class="snxg-gift-pop-sender">from ${senderName}</div>
-  `;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3600);
+  // All other gifts route through the premium overlay system
+  _snxgPlayPremiumAnimation(gift, senderName);
 }
 
 /* ══════════════════════════════════════════════════
@@ -1042,6 +1021,59 @@ function _snxgStopSloCanvas() {
 
 // Config per gift: { bg, particleColors, title, titleColor, tagline, duration }
 const _SNX_PREMIUM_CONFIGS = {
+
+  // ── Base gifts — upgraded to full-screen legendary overlay ──────────────────
+
+  black_cat: {
+    bg: 'radial-gradient(ellipse at center, #0a0018 0%, #020008 70%)',
+    particleColors: ['#9933ff', '#cc66ff', '#3300aa', '#ffffff', '#00aaff'],
+    title: 'BLACK CAT',
+    titleColor: 'linear-gradient(90deg, #9933ff, #cc66ff, #00aaff, #9933ff)',
+    tagline: '— Nine Lives of Shadow —',
+    duration: 4500,
+  },
+
+  shadow_lightning: {
+    bg: 'radial-gradient(ellipse at center, #1a1400 0%, #060500 70%)',
+    particleColors: ['#ffee00', '#ffcc00', '#ff9900', '#ffffff'],
+    title: 'SHADOW LIGHTNING',
+    titleColor: 'linear-gradient(90deg, #ffee00, #ffffff, #ffcc00, #ffee00)',
+    tagline: '— Strike from the Dark —',
+    duration: 4000,
+    lightning: true,
+  },
+
+  blue_flame: {
+    bg: 'radial-gradient(ellipse at center, #001a3a 0%, #000510 70%)',
+    particleColors: ['#0088ff', '#00ccff', '#0044cc', '#44aaff', '#ffffff'],
+    title: 'BLUE FLAME',
+    titleColor: 'linear-gradient(90deg, #0088ff, #00ccff, #44aaff, #0088ff)',
+    tagline: '— Burns Coldest —',
+    duration: 4500,
+    flames: true,
+  },
+
+  wolf: {
+    bg: 'radial-gradient(ellipse at center, #0a1020 0%, #020508 70%)',
+    particleColors: ['#aaccee', '#778899', '#ddeeff', '#ffffff', '#5577aa'],
+    title: 'WOLF',
+    titleColor: 'linear-gradient(90deg, #aaccee, #ffffff, #778899, #aaccee)',
+    tagline: '— Howl at the Moon —',
+    duration: 4500,
+    wolf: true,
+  },
+
+  grim_reaper: {
+    bg: 'radial-gradient(ellipse at center, #001800 0%, #000300 70%)',
+    particleColors: ['#00dd44', '#009922', '#003300', '#55ff99', '#ffffff'],
+    title: 'GRIM REAPER',
+    titleColor: 'linear-gradient(90deg, #00dd44, #55ff99, #009922, #00dd44)',
+    tagline: '— The Final Gift —',
+    duration: 5000,
+  },
+
+  // ── Original premium animated gifts ────────────────────────────────────────
+
   shadow_eclipse: {
     bg: 'radial-gradient(ellipse at center, #1a004a 0%, #05000f 70%)',
     particleColors: ['#6600cc', '#aa44ff', '#330066', '#ffffff'],
@@ -1457,17 +1489,10 @@ window.snxgShowLiveGiftToast = function(senderName, giftId, fallbackName, fallba
     gift = { id: giftId, name: fallbackName || giftId, art: fallbackArt || '🎁', coins: 0 };
     console.warn('[SNX GIFT] catalog miss for giftId:', giftId, '— using fallback art:', gift.art);
   }
-  if (gift.id === 'stay_legendary') {
-    snxgPlayStayLegendary(senderName);
-    return;
-  }
-  if (_SNX_PREMIUM_ANIM_IDS.has(gift.id)) {
-    _snxgShowLiveGiftToast(senderName, gift);
-    _snxgPlayPremiumAnimation(gift, senderName);
-    return;
-  }
+  // Always show the live toast banner, then trigger the full animation overlay.
+  // stay_legendary uses its own dedicated system; all other gifts use the premium overlay.
   _snxgShowLiveGiftToast(senderName, gift);
-  _snxgPlayGiftAnimation(gift, senderName);
+  _snxgPlayGiftAnimation(gift, senderName);   // routes to snxgPlayStayLegendary or _snxgPlayPremiumAnimation
 };
 
 /* ══════════════════════════════════════════════════
