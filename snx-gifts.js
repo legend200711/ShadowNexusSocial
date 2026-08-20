@@ -1062,7 +1062,8 @@ const _SNX_PREMIUM_CONFIGS = {
     title: 'BLACK CAT',
     titleColor: 'linear-gradient(90deg, #9933ff, #cc66ff, #00aaff, #9933ff)',
     tagline: '— Nine Lives of Shadow —',
-    duration: 4500,
+    duration: 5500,
+    blackCrows: true,
   },
 
   shadow_lightning: {
@@ -1146,7 +1147,7 @@ const _SNX_PREMIUM_CONFIGS = {
     title: 'SHADOW CAT',
     titleColor: 'linear-gradient(90deg, #00aaff, #88ccff, #0066ff, #00aaff)',
     tagline: '— The Darkness Purrs —',
-    duration: 6000,
+    duration: 7500,
     lightning: true,
     shadowCat: true,
   },
@@ -1156,8 +1157,9 @@ const _SNX_PREMIUM_CONFIGS = {
     title: 'SHADOW DRAGON',
     titleColor: 'linear-gradient(90deg, #8800ff, #cc44ff, #aa00ff, #8800ff)',
     tagline: '— The Dragon Awakens —',
-    duration: 5500,
+    duration: 7000,
     dragon: true,
+    shadowDragon: true,
   },
   nexus_diamond: {
     bg: 'radial-gradient(ellipse at center, #001830 0%, #000610 70%)',
@@ -1189,8 +1191,9 @@ const _SNX_PREMIUM_CONFIGS = {
     title: 'SHADOW WOLF',
     titleColor: 'linear-gradient(90deg, #00aaff, #88ccff, #0066ff, #00aaff)',
     tagline: '— The Pack Howls —',
-    duration: 5500,
+    duration: 7000,
     wolf: true,
+    shadowWolf: true,
   },
   eclipse_nexus: {
     bg: 'radial-gradient(ellipse at center, #0a0030 0%, #000008 70%)',
@@ -1261,41 +1264,765 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
     }
   }
 
-  // Shadow Cat: crows + blue flames state
-  let _scFrame = 0;
+  // ── Per-gift animated character state ───────────────────────────────────────
+  let _frame = 0;
+
+  // ── SHADOW CAT state ────────────────────────────────────────────────────────
   const _scCrows = [];
-  const _scFlames = [];
+  const _scGroundFlames = [];
+  let _scCatX = -120;          // cat starts off left edge
+  let _scCatPhase = 0;         // 0=run-in, 1=stop+look, 2=jump-flames, 3=run-out, 4=burst
+  let _scCatPhaseEnter = 0;    // frame when current phase started
+  let _scCatY = 0;             // vertical offset from baseline
+  let _scCatVY = 0;
+  let _scCatDir = 1;           // 1=right, -1=left
+  let _scBurstAlpha = 0;
+
   if (cfg.shadowCat) {
-    const crowCount = window.innerWidth < 500 ? 5 : 7;
+    const crowCount = window.innerWidth < 500 ? 5 : 8;
     for (let i = 0; i < crowCount; i++) {
-      const orbit = 90 + Math.random() * 60;
+      // Each crow has its own elliptical orbit of varying size and speed
+      const orbitW = 110 + Math.random() * 90;
+      const orbitH = orbitW * (0.3 + Math.random() * 0.25);
       _scCrows.push({
-        angle:  (i / crowCount) * Math.PI * 2,
-        speed:  0.022 + Math.random() * 0.014,
-        orbit,
-        flap:   Math.random() * Math.PI * 2,   // wing flap phase
-        flapSpd: 0.18 + Math.random() * 0.1,
-        size:   11 + Math.random() * 6,
+        angle:    (i / crowCount) * Math.PI * 2 + Math.random() * 0.5,
+        speed:    (0.018 + Math.random() * 0.016) * (Math.random() > 0.5 ? 1 : -1),
+        orbitW, orbitH,
+        flap:     Math.random() * Math.PI * 2,
+        flapSpd:  0.22 + Math.random() * 0.12,
+        size:     13 + Math.random() * 7,
+        yOffset:  (Math.random() - 0.5) * 60,  // vertical spread in scene
+        zLayer:   Math.random(),                // 0=back, 1=front
       });
     }
-    const flameCount = window.innerWidth < 500 ? 10 : 16;
-    for (let i = 0; i < flameCount; i++) {
-      _scFlames.push({
-        angle: (i / flameCount) * Math.PI * 2,
+    const fCount = window.innerWidth < 500 ? 8 : 14;
+    for (let i = 0; i < fCount; i++) {
+      _scGroundFlames.push({
+        x:     (Math.random() - 0.5) * 340,
         phase: Math.random() * Math.PI * 2,
-        h:     30 + Math.random() * 40,
+        h:     28 + Math.random() * 36,
+        w:     7  + Math.random() * 9,
+        speed: 0.06 + Math.random() * 0.05,
+      });
+    }
+    _scCatY = 0;
+  }
+
+  // ── SHADOW WOLF state ───────────────────────────────────────────────────────
+  let _wfX = -160;
+  let _wfPhase = 0;         // 0=run-in, 1=look, 2=run-through-flames, 3=howl, 4=run-out
+  let _wfPhaseEnter = 0;    // frame when current phase started
+  let _wfDir = 1;
+  const _wfGroundFlames = [];
+  const _wfShadowTrail = [];
+
+  if (cfg.wolf || cfg.shadowWolf) {
+    const fCount = window.innerWidth < 500 ? 7 : 12;
+    for (let i = 0; i < fCount; i++) {
+      _wfGroundFlames.push({
+        x:     (Math.random() - 0.5) * 380,
+        phase: Math.random() * Math.PI * 2,
+        h:     22 + Math.random() * 30,
         w:     6  + Math.random() * 8,
+        speed: 0.07 + Math.random() * 0.05,
       });
     }
   }
 
+  // ── SHADOW DRAGON state ─────────────────────────────────────────────────────
+  let _drX = canvas.width + 200;
+  let _drY = 0;
+  let _drPhase = 0;         // 0=fly-in, 1=hover+breathe, 2=fly-out
+  let _drPhaseEnter = 0;    // frame when current phase started
+  let _drDir = -1;          // starts flying left
+  let _drBodyWave = 0;
+  let _drFireLen = 0;
+  let _drWingFlap = 0;
+
+  // ── BLACK CROWS (standalone gift) state ─────────────────────────────────────
+  const _bcFlocks = [];
+  if (cfg.blackCrows) {
+    const flockCount = window.innerWidth < 500 ? 3 : 4;
+    for (let f = 0; f < flockCount; f++) {
+      const birds = [];
+      const flockY  = 80 + f * (canvas.height * 0.18);
+      const flockDir = f % 2 === 0 ? 1 : -1;
+      const startX   = flockDir > 0 ? -200 : canvas.width + 200;
+      const bCount = 3 + Math.floor(Math.random() * 4);
+      for (let b = 0; b < bCount; b++) {
+        birds.push({
+          x:       startX + (Math.random() - 0.5) * 60,
+          y:       flockY  + (Math.random() - 0.5) * 40,
+          flap:    Math.random() * Math.PI * 2,
+          flapSpd: 0.2 + Math.random() * 0.12,
+          size:    14 + Math.random() * 8,
+          speed:   (1.8 + Math.random() * 1.2) * flockDir,
+          waveOff: Math.random() * Math.PI * 2,
+        });
+      }
+      _bcFlocks.push({ birds, dir: flockDir, delay: f * 45 });
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  HELPER: draw a single crow at canvas-local (0,0), facing right
+  //  s = size scale, wingOpen = 0..1
+  // ══════════════════════════════════════════════════════════════════
+  function _drawCrow(ctx, s, wingOpen, glowColor) {
+    // Body
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.55, s * 0.28, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#080812';
+    ctx.fill();
+    // Tail feathers
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.5, 0);
+    ctx.bezierCurveTo(-s * 0.7, s * 0.1, -s * 0.85, s * 0.18, -s * 0.9, s * 0.08);
+    ctx.bezierCurveTo(-s * 0.85, -s * 0.04, -s * 0.65, -s * 0.06, -s * 0.5, 0);
+    ctx.fillStyle = '#060610';
+    ctx.fill();
+    // Head
+    ctx.beginPath();
+    ctx.arc(s * 0.42, -s * 0.16, s * 0.24, 0, Math.PI * 2);
+    ctx.fillStyle = '#0a0a16';
+    ctx.fill();
+    // Beak
+    ctx.beginPath();
+    ctx.moveTo(s * 0.62, -s * 0.16);
+    ctx.lineTo(s * 0.88, -s * 0.09);
+    ctx.lineTo(s * 0.62, -s * 0.06);
+    ctx.closePath();
+    ctx.fillStyle = '#1a1a2a';
+    ctx.fill();
+    // Left wing (up)
+    const wuL = wingOpen * s * 1.0;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.06);
+    ctx.bezierCurveTo(-s * 0.15, -wuL * 0.9, -s * 0.55, -wuL, -s * 0.75, -wuL * 0.4);
+    ctx.bezierCurveTo(-s * 0.55, s * 0.04, -s * 0.15, s * 0.08, 0, -s * 0.06);
+    ctx.fillStyle = '#07070f';
+    ctx.fill();
+    // Right wing (down mirror)
+    const wuR = (1 - wingOpen) * s * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(0, s * 0.02);
+    ctx.bezierCurveTo(-s * 0.1, wuR * 0.8, -s * 0.45, wuR, -s * 0.6, wuR * 0.3);
+    ctx.bezierCurveTo(-s * 0.4, s * 0.1, -s * 0.1, s * 0.12, 0, s * 0.02);
+    ctx.fillStyle = '#09090f';
+    ctx.fill();
+    // Eye
+    ctx.beginPath();
+    ctx.arc(s * 0.46, -s * 0.2, s * 0.075, 0, Math.PI * 2);
+    ctx.fillStyle = glowColor || '#00ccff';
+    ctx.globalAlpha = 0.95;
+    ctx.fill();
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  HELPER: draw 2D cat body at (0,0), legs animated by legPhase
+  //  scale = overall size, facing right
+  // ══════════════════════════════════════════════════════════════════
+  function _drawCat(ctx, scale, legPhase, tailPhase, headTilt, eyeColor, crouching) {
+    const s = scale;
+    const crouch = crouching ? 0.75 : 1.0;
+
+    // Shadow under cat
+    const shad = ctx.createRadialGradient(0, s * 0.55 * crouch, 2, 0, s * 0.55 * crouch, s * 0.7);
+    shad.addColorStop(0,   'rgba(0,0,20,0.35)');
+    shad.addColorStop(1,   'rgba(0,0,20,0)');
+    ctx.beginPath();
+    ctx.ellipse(0, s * 0.55 * crouch, s * 0.65, s * 0.12, 0, 0, Math.PI * 2);
+    ctx.fillStyle = shad;
+    ctx.globalAlpha = 0.5;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // LEGS — 4 legs with walking cycle
+    const legColors = ['#0a0a1e', '#0c0c22'];
+    const legPairs = [
+      { bx: -s * 0.22, frontLeg: true  },
+      { bx:  s * 0.18, frontLeg: false },
+    ];
+    legPairs.forEach((pair, pi) => {
+      // front and back leg for each side
+      [0, 1].forEach(li => {
+        const phase = legPhase + (pi === 0 ? 0 : Math.PI) + (li === 0 ? 0 : Math.PI * 0.5);
+        const swing = Math.sin(phase) * s * 0.22;
+        const stretch = Math.abs(Math.cos(phase)) * s * 0.08;
+        const lx = pair.bx + (li === 0 ? -s * 0.08 : s * 0.08);
+        const lyTop = s * 0.28 * crouch;
+        const lyBot = s * 0.52 * crouch + stretch;
+        ctx.beginPath();
+        ctx.moveTo(lx, lyTop);
+        ctx.bezierCurveTo(lx + swing * 0.4, lyTop + (lyBot - lyTop) * 0.5,
+                          lx + swing,       lyBot - s * 0.06,
+                          lx + swing,       lyBot);
+        // paw
+        ctx.arc(lx + swing, lyBot, s * 0.06, 0, Math.PI * 2);
+        ctx.fillStyle = legColors[li];
+        ctx.globalAlpha = 0.9;
+        ctx.fill();
+        ctx.strokeStyle = '#0d0d22';
+        ctx.lineWidth = s * 0.04;
+        ctx.stroke();
+      });
+    });
+
+    // TAIL
+    const tailCurve = Math.sin(tailPhase) * s * 0.4;
+    const tailBase = { x: -s * 0.45, y: s * 0.1 * crouch };
+    ctx.beginPath();
+    ctx.moveTo(tailBase.x, tailBase.y);
+    ctx.bezierCurveTo(
+      tailBase.x - s * 0.3, tailBase.y - s * 0.1 + tailCurve,
+      tailBase.x - s * 0.5, tailBase.y - s * 0.35 + tailCurve * 0.8,
+      tailBase.x - s * 0.35, tailBase.y - s * 0.6 + tailCurve
+    );
+    ctx.strokeStyle = '#0e0e20';
+    ctx.lineWidth = s * 0.1;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 1;
+    ctx.stroke();
+    // tail tip highlight
+    ctx.beginPath();
+    ctx.arc(tailBase.x - s * 0.35, tailBase.y - s * 0.6 + tailCurve, s * 0.07, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a1a40';
+    ctx.fill();
+
+    // BODY
+    const bodyGrad = ctx.createRadialGradient(0, 0, s * 0.05, 0, -s * 0.05, s * 0.45);
+    bodyGrad.addColorStop(0,   '#14142e');
+    bodyGrad.addColorStop(0.6, '#0a0a1c');
+    bodyGrad.addColorStop(1,   '#060610');
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.42, s * 0.28 * crouch, 0, 0, Math.PI * 2);
+    ctx.fillStyle = bodyGrad;
+    ctx.globalAlpha = 1;
+    ctx.fill();
+
+    // FUR highlight along back
+    ctx.beginPath();
+    ctx.ellipse(-s * 0.05, -s * 0.14 * crouch, s * 0.32, s * 0.08, -0.2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(30,30,70,0.4)';
+    ctx.fill();
+
+    // HEAD
+    const hx = s * 0.38;
+    const hy = -s * 0.22 * crouch + Math.sin(headTilt) * s * 0.06;
+    const headGrad = ctx.createRadialGradient(hx, hy, 0, hx, hy, s * 0.28);
+    headGrad.addColorStop(0,   '#16162e');
+    headGrad.addColorStop(1,   '#080818');
+    ctx.beginPath();
+    ctx.arc(hx, hy, s * 0.27, 0, Math.PI * 2);
+    ctx.fillStyle = headGrad;
+    ctx.fill();
+
+    // EARS
+    [[hx - s * 0.14, hy - s * 0.22], [hx + s * 0.14, hy - s * 0.22]].forEach(([ex, ey], ei) => {
+      ctx.beginPath();
+      ctx.moveTo(ex - s * 0.1, ey + s * 0.05);
+      ctx.lineTo(ex,           ey - s * 0.16);
+      ctx.lineTo(ex + s * 0.1, ey + s * 0.05);
+      ctx.closePath();
+      ctx.fillStyle = '#0c0c20';
+      ctx.fill();
+      // inner ear
+      ctx.beginPath();
+      ctx.moveTo(ex - s * 0.06, ey + s * 0.03);
+      ctx.lineTo(ex,            ey - s * 0.1);
+      ctx.lineTo(ex + s * 0.06, ey + s * 0.03);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(100,0,120,0.3)';
+      ctx.fill();
+    });
+
+    // EYES
+    const eyeGlow = eyeColor || '#00eeff';
+    [[-s * 0.1, -s * 0.04], [s * 0.1, -s * 0.04]].forEach(([edx, edy]) => {
+      const eg = ctx.createRadialGradient(hx + edx, hy + edy, 0, hx + edx, hy + edy, s * 0.14);
+      eg.addColorStop(0,   eyeGlow);
+      eg.addColorStop(0.3, 'rgba(0,220,255,0.55)');
+      eg.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.ellipse(hx + edx, hy + edy, s * 0.1, s * 0.07, 0, 0, Math.PI * 2);
+      ctx.fillStyle = eg;
+      ctx.globalAlpha = 0.95;
+      ctx.fill();
+      // pupil
+      ctx.beginPath();
+      ctx.ellipse(hx + edx, hy + edy, s * 0.04, s * 0.06, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#000';
+      ctx.globalAlpha = 1;
+      ctx.fill();
+    });
+
+    // NOSE
+    ctx.beginPath();
+    ctx.arc(hx + s * 0.16, hy + s * 0.04, s * 0.04, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(180,80,160,0.6)';
+    ctx.globalAlpha = 0.7;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  HELPER: draw 2D wolf at (0,0), legs animated, facing right
+  // ══════════════════════════════════════════════════════════════════
+  function _drawWolf(ctx, scale, legPhase, tailPhase, headTilt, howling) {
+    const s = scale;
+
+    // Shadow
+    const shad = ctx.createRadialGradient(0, s * 0.55, 2, 0, s * 0.55, s * 0.85);
+    shad.addColorStop(0,   'rgba(0,20,60,0.4)');
+    shad.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.ellipse(0, s * 0.55, s * 0.8, s * 0.14, 0, 0, Math.PI * 2);
+    ctx.fillStyle = shad;
+    ctx.globalAlpha = 0.55;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // LEGS — 4 legs running cycle
+    const legDefs = [
+      { bx: -s * 0.28, phase: 0 },
+      { bx: -s * 0.08, phase: Math.PI },
+      { bx:  s * 0.08, phase: Math.PI * 0.5 },
+      { bx:  s * 0.28, phase: Math.PI * 1.5 },
+    ];
+    legDefs.forEach(leg => {
+      const ph  = legPhase + leg.phase;
+      const swF = Math.sin(ph) * s * 0.28;
+      const swB = Math.cos(ph) * s * 0.1;
+      const yT  = s * 0.22;
+      const yB  = s * 0.55;
+      // upper leg
+      ctx.beginPath();
+      ctx.moveTo(leg.bx, yT);
+      ctx.lineTo(leg.bx + swF * 0.5, yT + (yB - yT) * 0.45);
+      ctx.strokeStyle = '#1a2040';
+      ctx.lineWidth = s * 0.1;
+      ctx.lineCap = 'round';
+      ctx.globalAlpha = 0.95;
+      ctx.stroke();
+      // lower leg
+      ctx.beginPath();
+      ctx.moveTo(leg.bx + swF * 0.5, yT + (yB - yT) * 0.45);
+      ctx.lineTo(leg.bx + swF, yB + swB);
+      ctx.strokeStyle = '#151a36';
+      ctx.lineWidth = s * 0.08;
+      ctx.stroke();
+      // paw
+      ctx.beginPath();
+      ctx.ellipse(leg.bx + swF, yB + swB, s * 0.07, s * 0.045, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#0e1228';
+      ctx.globalAlpha = 1;
+      ctx.fill();
+    });
+
+    // TAIL
+    const tc = Math.sin(tailPhase) * s * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.5, s * 0.05);
+    ctx.bezierCurveTo(-s * 0.7, -s * 0.1 + tc, -s * 0.85, -s * 0.3 + tc * 0.7, -s * 0.75, -s * 0.5 + tc);
+    ctx.strokeStyle = '#1e2250';
+    ctx.lineWidth = s * 0.13;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 1;
+    ctx.stroke();
+    // tail fur highlight
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.5, s * 0.04);
+    ctx.bezierCurveTo(-s * 0.68, -s * 0.08 + tc, -s * 0.82, -s * 0.28 + tc * 0.7, -s * 0.72, -s * 0.48 + tc);
+    ctx.strokeStyle = 'rgba(80,100,180,0.3)';
+    ctx.lineWidth = s * 0.06;
+    ctx.stroke();
+
+    // BODY
+    const bodyGrad = ctx.createRadialGradient(0, -s * 0.05, s * 0.05, 0, -s * 0.1, s * 0.55);
+    bodyGrad.addColorStop(0,   '#2a3060');
+    bodyGrad.addColorStop(0.5, '#1a2048');
+    bodyGrad.addColorStop(1,   '#0e1230');
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.52, s * 0.3, 0, 0, Math.PI * 2);
+    ctx.fillStyle = bodyGrad;
+    ctx.globalAlpha = 1;
+    ctx.fill();
+
+    // Fur ridgeline
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.4, -s * 0.18);
+    ctx.bezierCurveTo(-s * 0.1, -s * 0.32, s * 0.2, -s * 0.28, s * 0.42, -s * 0.12);
+    ctx.strokeStyle = 'rgba(100,120,220,0.25)';
+    ctx.lineWidth = s * 0.07;
+    ctx.stroke();
+
+    // NECK
+    ctx.beginPath();
+    ctx.moveTo(s * 0.38, -s * 0.12);
+    ctx.lineTo(s * 0.5,  -s * 0.22 + (howling ? -s * 0.15 : 0));
+    ctx.strokeStyle = '#202450';
+    ctx.lineWidth = s * 0.22;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // HEAD
+    const hx = s * 0.52;
+    const hy = -s * 0.28 + (howling ? -s * 0.2 : 0) + Math.sin(headTilt) * s * 0.06;
+    // snout elongation
+    const snoutLen = howling ? s * 0.12 : s * 0.32;
+    const snoutH   = howling ? s * 0.16 : s * 0.14;
+
+    const headGrad = ctx.createRadialGradient(hx, hy, 0, hx, hy, s * 0.32);
+    headGrad.addColorStop(0,   '#2e3468');
+    headGrad.addColorStop(1,   '#141836');
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, s * 0.3, s * 0.26, howling ? -0.4 : 0, 0, Math.PI * 2);
+    ctx.fillStyle = headGrad;
+    ctx.fill();
+
+    // Snout
+    ctx.beginPath();
+    ctx.ellipse(hx + snoutLen * 0.5, hy + (howling ? s * 0.05 : s * 0.03), snoutLen * 0.6, snoutH * 0.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a2042';
+    ctx.fill();
+
+    // EARS
+    const earTilt = howling ? -0.6 : 0.15;
+    [[-s * 0.12, -s * 0.22], [s * 0.1, -s * 0.26]].forEach(([edx, edy]) => {
+      ctx.save();
+      ctx.translate(hx + edx, hy + edy);
+      ctx.rotate(earTilt);
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.1, s * 0.07);
+      ctx.lineTo(0,         -s * 0.2);
+      ctx.lineTo(s * 0.1,   s * 0.07);
+      ctx.closePath();
+      ctx.fillStyle = '#202454';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.06, s * 0.04);
+      ctx.lineTo(0,          -s * 0.13);
+      ctx.lineTo(s * 0.06,   s * 0.04);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(0,60,160,0.4)';
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // EYES
+    const eyeAlpha = howling ? 0.5 : 1;
+    [[-s * 0.12, -s * 0.04], [s * 0.08, -s * 0.04]].forEach(([edx, edy]) => {
+      const eg = ctx.createRadialGradient(hx + edx, hy + edy, 0, hx + edx, hy + edy, s * 0.12);
+      eg.addColorStop(0,   '#88aaff');
+      eg.addColorStop(0.4, 'rgba(0,100,255,0.6)');
+      eg.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.ellipse(hx + edx, hy + edy, s * 0.1, s * 0.08, 0, 0, Math.PI * 2);
+      ctx.fillStyle = eg;
+      ctx.globalAlpha = eyeAlpha;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(hx + edx, hy + edy, s * 0.04, s * 0.06, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#000';
+      ctx.globalAlpha = 1;
+      ctx.fill();
+    });
+
+    // Nose
+    ctx.beginPath();
+    ctx.ellipse(hx + snoutLen * 0.9, hy + (howling ? s * 0.02 : s * 0.02), s * 0.06, s * 0.045, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#0a0a1c';
+    ctx.globalAlpha = 1;
+    ctx.fill();
+
+    // Howl mouth
+    if (howling) {
+      ctx.beginPath();
+      ctx.arc(hx + snoutLen * 0.5, hy + s * 0.1, s * 0.1, 0, Math.PI);
+      ctx.fillStyle = '#000';
+      ctx.fill();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  HELPER: draw dragon at (0,0), facing right if dir=1
+  // ══════════════════════════════════════════════════════════════════
+  function _drawDragon(ctx, scale, wingPhase, bodyWave, breathing) {
+    const s = scale;
+
+    // TAIL — serpentine
+    const tc1 = Math.sin(bodyWave) * s * 0.35;
+    const tc2 = Math.sin(bodyWave + 0.8) * s * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.45, s * 0.05);
+    ctx.bezierCurveTo(-s * 0.7, s * 0.1 + tc1, -s * 0.95, -s * 0.1 + tc1, -s * 1.1, s * 0.2 + tc2);
+    ctx.strokeStyle = '#4400aa';
+    ctx.lineWidth = s * 0.14;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 1;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.45, s * 0.04);
+    ctx.bezierCurveTo(-s * 0.68, s * 0.09 + tc1, -s * 0.92, -s * 0.1 + tc1, -s * 1.08, s * 0.18 + tc2);
+    ctx.strokeStyle = 'rgba(140,0,255,0.3)';
+    ctx.lineWidth = s * 0.06;
+    ctx.stroke();
+
+    // HIND LEGS
+    [[-s * 0.22, 0], [-s * 0.08, 0]].forEach(([lx, lphOff]) => {
+      const lph = bodyWave * 2 + lphOff;
+      const sw  = Math.sin(lph) * s * 0.2;
+      ctx.beginPath();
+      ctx.moveTo(lx, s * 0.18);
+      ctx.lineTo(lx + sw, s * 0.42);
+      ctx.strokeStyle = '#3a0088';
+      ctx.lineWidth = s * 0.1;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(lx + sw, s * 0.44, s * 0.07, s * 0.04, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#300070';
+      ctx.fill();
+    });
+
+    // WINGS
+    const wO = (Math.sin(wingPhase) + 1) * 0.5;  // 0..1
+    const wingSpan = s * 1.6;
+    // Back wing (behind body)
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.08);
+    ctx.bezierCurveTo(-s * 0.3, -s * 0.2 - wingSpan * wO * 0.6,
+                      -s * 0.7, -s * 0.3 - wingSpan * wO,
+                      -s * 1.0, -s * 0.05 - wingSpan * wO * 0.3);
+    ctx.bezierCurveTo(-s * 0.7, s * 0.2, -s * 0.3, s * 0.15, 0, s * 0.04);
+    ctx.fillStyle = '#220055';
+    ctx.fill();
+    // Wing membrane veins
+    for (let v = 0; v < 3; v++) {
+      const vt = (v + 1) / 4;
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.04 + s * 0.08 * vt);
+      ctx.lineTo(-s * (0.5 + vt * 0.5), -s * 0.15 - wingSpan * wO * vt * 0.7);
+      ctx.strokeStyle = 'rgba(100,0,200,0.4)';
+      ctx.lineWidth = s * 0.02;
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Front wing
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.moveTo(s * 0.1, -s * 0.1);
+    ctx.bezierCurveTo(s * 0.35, -s * 0.25 - wingSpan * wO * 0.55,
+                      s * 0.75, -s * 0.35 - wingSpan * wO * 0.95,
+                      s * 1.05, -s * 0.08 - wingSpan * wO * 0.28);
+    ctx.bezierCurveTo(s * 0.72, s * 0.18, s * 0.32, s * 0.14, s * 0.08, s * 0.05);
+    ctx.fillStyle = '#2d006e';
+    ctx.fill();
+    // Veins
+    for (let v = 0; v < 3; v++) {
+      const vt = (v + 1) / 4;
+      ctx.beginPath();
+      ctx.moveTo(s * 0.1, 0);
+      ctx.lineTo(s * (0.5 + vt * 0.55), -s * 0.2 - wingSpan * wO * vt * 0.65);
+      ctx.strokeStyle = 'rgba(160,40,255,0.45)';
+      ctx.lineWidth = s * 0.022;
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // BODY
+    const bodyGrad = ctx.createLinearGradient(-s * 0.5, -s * 0.25, s * 0.5, s * 0.25);
+    bodyGrad.addColorStop(0,   '#3a0090');
+    bodyGrad.addColorStop(0.5, '#220055');
+    bodyGrad.addColorStop(1,   '#110030');
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.52, s * 0.28, 0, 0, Math.PI * 2);
+    ctx.fillStyle = bodyGrad;
+    ctx.globalAlpha = 1;
+    ctx.fill();
+
+    // Belly scales
+    const scaleGrad = ctx.createLinearGradient(0, -s * 0.1, 0, s * 0.2);
+    scaleGrad.addColorStop(0,   'rgba(80,0,180,0.5)');
+    scaleGrad.addColorStop(1,   'rgba(40,0,100,0.2)');
+    ctx.beginPath();
+    ctx.ellipse(s * 0.08, s * 0.08, s * 0.32, s * 0.15, 0.2, 0, Math.PI * 2);
+    ctx.fillStyle = scaleGrad;
+    ctx.fill();
+
+    // FRONT ARMS
+    [[ s * 0.24, 0], [s * 0.12, 0]].forEach(([lx, lphOff]) => {
+      const lph = bodyWave * 2 + Math.PI + lphOff;
+      const sw  = Math.sin(lph) * s * 0.16;
+      ctx.beginPath();
+      ctx.moveTo(lx, s * 0.08);
+      ctx.lineTo(lx + sw, s * 0.36);
+      ctx.strokeStyle = '#2e006a';
+      ctx.lineWidth = s * 0.09;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(lx + sw, s * 0.38, s * 0.065, s * 0.04, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#250058';
+      ctx.fill();
+    });
+
+    // NECK
+    ctx.beginPath();
+    ctx.moveTo(s * 0.4, -s * 0.1);
+    ctx.bezierCurveTo(s * 0.55, -s * 0.2 + Math.sin(bodyWave * 0.7) * s * 0.06,
+                      s * 0.6,  -s * 0.3,
+                      s * 0.58, -s * 0.4);
+    ctx.strokeStyle = '#3a0088';
+    ctx.lineWidth = s * 0.22;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // HEAD
+    const hx = s * 0.6;
+    const hy = -s * 0.46 + Math.sin(bodyWave * 0.5) * s * 0.04;
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, s * 0.28, s * 0.2, 0.2, 0, Math.PI * 2);
+    ctx.fillStyle = '#3a0095';
+    ctx.fill();
+
+    // Horns
+    [[hx - s * 0.1, hy - s * 0.17], [hx + s * 0.06, hy - s * 0.2]].forEach(([hox, hoy]) => {
+      ctx.beginPath();
+      ctx.moveTo(hox - s * 0.04, hoy + s * 0.06);
+      ctx.lineTo(hox + s * 0.02, hoy - s * 0.18);
+      ctx.lineTo(hox + s * 0.06, hoy + s * 0.04);
+      ctx.closePath();
+      ctx.fillStyle = '#7700cc';
+      ctx.fill();
+    });
+
+    // Snout
+    ctx.beginPath();
+    ctx.ellipse(hx + s * 0.28, hy + s * 0.04, s * 0.2, s * 0.1, 0.15, 0, Math.PI * 2);
+    ctx.fillStyle = '#2e0075';
+    ctx.fill();
+
+    // EYES
+    [[-s * 0.06, -s * 0.06], [s * 0.1, -s * 0.04]].forEach(([edx, edy]) => {
+      const eg = ctx.createRadialGradient(hx + edx, hy + edy, 0, hx + edx, hy + edy, s * 0.12);
+      eg.addColorStop(0,   '#ff66ff');
+      eg.addColorStop(0.35,'rgba(200,0,255,0.7)');
+      eg.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.ellipse(hx + edx, hy + edy, s * 0.1, s * 0.08, 0, 0, Math.PI * 2);
+      ctx.fillStyle = eg;
+      ctx.globalAlpha = breathing ? 1 : 0.85;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(hx + edx, hy + edy, s * 0.035, s * 0.055, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#000';
+      ctx.globalAlpha = 1;
+      ctx.fill();
+    });
+
+    // FIRE BREATH
+    if (breathing > 0) {
+      const fx = hx + s * 0.46;
+      const fy = hy + s * 0.06;
+      for (let fl = 0; fl < 5; fl++) {
+        const fLen = breathing * (s * 1.0 + fl * s * 0.3) * (0.7 + Math.random() * 0.3);
+        const fOff = (Math.random() - 0.5) * s * 0.18;
+        const fGrad = ctx.createLinearGradient(fx, fy, fx + fLen, fy + fOff);
+        fGrad.addColorStop(0,   'rgba(255,200,50,0.9)');
+        fGrad.addColorStop(0.3, 'rgba(255,80,0,0.7)');
+        fGrad.addColorStop(0.7, 'rgba(180,0,100,0.4)');
+        fGrad.addColorStop(1,   'rgba(100,0,200,0)');
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.bezierCurveTo(fx + fLen * 0.3, fy + fOff * 0.5,
+                          fx + fLen * 0.7, fy + fOff,
+                          fx + fLen,       fy + fOff * 1.5);
+        ctx.strokeStyle = fGrad;
+        ctx.lineWidth = (s * 0.22) * (1 - fl * 0.15) * (0.6 + Math.random() * 0.4);
+        ctx.lineCap = 'round';
+        ctx.globalAlpha = 0.85 - fl * 0.12;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  HELPER: draw ground flames across bottom of scene
+  // ══════════════════════════════════════════════════════════════════
+  function _drawGroundFlames(ctx, flames, cx, baseY, color1, color2) {
+    for (const f of flames) {
+      const flicker = Math.sin(_frame * f.speed + f.phase) * 0.35 + 0.65;
+      const rx = cx + f.x;
+      const fh = f.h * flicker;
+      const fw = f.w * (0.85 + Math.sin(_frame * f.speed * 1.3 + f.phase) * 0.15);
+      const grad = ctx.createLinearGradient(rx, baseY, rx, baseY - fh);
+      grad.addColorStop(0,   color1 || 'rgba(0,140,255,0.95)');
+      grad.addColorStop(0.45,'rgba(0,60,200,0.6)');
+      grad.addColorStop(1,   'rgba(0,0,40,0)');
+      ctx.beginPath();
+      ctx.ellipse(rx, baseY, fw * 0.5, fh * 0.55, 0, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = 0.75 * flicker;
+      ctx.fill();
+      // smoke wisp
+      if (_frame % 3 === 0) {
+        const smokeY = baseY - fh - Math.random() * 10;
+        const sg = ctx.createRadialGradient(rx, smokeY, 0, rx, smokeY, fw * 2);
+        sg.addColorStop(0,   'rgba(20,20,60,0.18)');
+        sg.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.beginPath();
+        ctx.arc(rx, smokeY, fw * 2, 0, Math.PI * 2);
+        ctx.fillStyle = sg;
+        ctx.globalAlpha = 0.22;
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  HELPER: draw jagged lightning bolt from (x1,y1) to (x2,y2)
+  // ══════════════════════════════════════════════════════════════════
+  function _drawBolt(ctx, x1, y1, x2, y2, color, width, alpha, segs) {
+    const n = segs || 6;
+    const dx = (x2 - x1) / n;
+    const dy = (y2 - y1) / n;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    let lx = x1, ly = y1;
+    for (let i = 0; i < n; i++) {
+      lx += dx + (Math.random() - 0.5) * 22;
+      ly += dy + (Math.random() - 0.5) * 10;
+      ctx.lineTo(lx, ly);
+    }
+    ctx.strokeStyle = color || '#00ccff';
+    ctx.lineWidth   = width || 2;
+    ctx.globalAlpha = alpha !== undefined ? alpha : 0.85;
+    ctx.shadowColor = color || '#00ccff';
+    ctx.shadowBlur  = 10;
+    ctx.stroke();
+    ctx.shadowBlur  = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  MAIN TICK
+  // ════════════════════════════════════════════════════════
   function tick() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    _scFrame++;
+    _frame++;
     const cx = canvas.width  * 0.5;
     const cy = canvas.height * 0.5;
+    const isMobile = canvas.width < 500;
+    const scale = isMobile ? 0.72 : 1.0;
 
-    // Particles
+    // ── Background particles ──────────────────────────────
     for (const p of particles) {
       p.x  += p.vx;
       p.y  += p.vy;
@@ -1309,154 +2036,371 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
       ctx.globalAlpha = Math.max(0, p.alpha);
       ctx.fill();
     }
+    ctx.globalAlpha = 1;
 
-    // ── Shadow Cat canvas elements ───────────────────
-    if (cfg.shadowCat) {
-      // Blue flames rising from a ring around the cat center
-      for (const f of _scFlames) {
-        const flicker = Math.sin(_scFrame * 0.07 + f.phase) * 0.3 + 0.7;
-        const rx = cx + Math.cos(f.angle) * 55;
-        const ry = cy + Math.sin(f.angle) * 55;
-        const fh  = f.h * flicker;
-        const grad = ctx.createLinearGradient(rx, ry, rx, ry - fh);
-        grad.addColorStop(0,   'rgba(0,120,255,0.9)');
-        grad.addColorStop(0.4, 'rgba(0,60,180,0.6)');
-        grad.addColorStop(1,   'rgba(0,0,40,0)');
-        ctx.beginPath();
-        ctx.ellipse(rx, ry, f.w * 0.5 * flicker, fh * 0.5, 0, 0, Math.PI * 2);
-        ctx.fillStyle = grad;
-        ctx.globalAlpha = 0.7 * flicker;
-        ctx.fill();
-      }
-
-      // Periodic lightning bolts radiating outward from cat center
-      if (_scFrame % 18 === 0 || _scFrame % 18 === 1) {
-        const boltAngle = Math.random() * Math.PI * 2;
-        const boltLen   = 70 + Math.random() * 80;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        let bx = cx, by = cy;
-        const steps = 5;
-        for (let s = 0; s < steps; s++) {
-          bx += Math.cos(boltAngle) * (boltLen / steps) + (Math.random() - 0.5) * 18;
-          by += Math.sin(boltAngle) * (boltLen / steps) + (Math.random() - 0.5) * 18;
-          ctx.lineTo(bx, by);
-        }
-        ctx.strokeStyle = '#00ccff';
-        ctx.lineWidth   = _scFrame % 18 === 0 ? 2 : 1;
-        ctx.globalAlpha = _scFrame % 18 === 0 ? 0.95 : 0.5;
-        ctx.shadowColor = '#00aaff';
-        ctx.shadowBlur  = 8;
-        ctx.stroke();
-        ctx.shadowBlur  = 0;
-      }
-
-      // Glowing eye flashes — two small teal orbs just above center
-      const eyeGlow = 0.5 + Math.sin(_scFrame * 0.09) * 0.5;
-      const eyeR    = 4 + eyeGlow * 2;
-      [[-12, -12], [12, -12]].forEach(([dx, dy]) => {
-        const eg = ctx.createRadialGradient(cx + dx, cy + dy, 0, cx + dx, cy + dy, eyeR * 2.5);
-        eg.addColorStop(0,   `rgba(0,230,255,${0.9 * eyeGlow})`);
-        eg.addColorStop(0.5, `rgba(0,120,255,${0.5 * eyeGlow})`);
-        eg.addColorStop(1,   'rgba(0,0,0,0)');
-        ctx.beginPath();
-        ctx.arc(cx + dx, cy + dy, eyeR * 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = eg;
-        ctx.globalAlpha = eyeGlow;
-        ctx.fill();
-      });
-
-      // Crows circling
-      for (const crow of _scCrows) {
-        crow.angle += crow.speed;
-        crow.flap  += crow.flapSpd;
-        const bx = cx + Math.cos(crow.angle) * crow.orbit;
-        const by = cy + Math.sin(crow.angle) * crow.orbit * 0.45;
-        const flip = Math.cos(crow.angle) < 0 ? -1 : 1;
-        const wingOpen = Math.abs(Math.sin(crow.flap));
-        const s = crow.size;
-
-        ctx.save();
-        ctx.translate(bx, by);
-        ctx.scale(flip, 1);
-        ctx.globalAlpha = 0.88;
-
-        // Body
-        ctx.beginPath();
-        ctx.ellipse(0, 0, s * 0.55, s * 0.3, 0, 0, Math.PI * 2);
-        ctx.fillStyle = '#0a0a14';
-        ctx.fill();
-
-        // Head
-        ctx.beginPath();
-        ctx.arc(s * 0.45, -s * 0.18, s * 0.22, 0, Math.PI * 2);
-        ctx.fillStyle = '#0a0a14';
-        ctx.fill();
-
-        // Beak
-        ctx.beginPath();
-        ctx.moveTo(s * 0.65, -s * 0.18);
-        ctx.lineTo(s * 0.85, -s * 0.12);
-        ctx.lineTo(s * 0.65, -s * 0.08);
-        ctx.closePath();
-        ctx.fillStyle = '#334';
-        ctx.fill();
-
-        // Wings (flapping)
-        const wu = wingOpen * s * 0.9;
-        ctx.beginPath();
-        ctx.moveTo(0, -s * 0.08);
-        ctx.bezierCurveTo(-s * 0.2, -wu, -s * 0.7, -wu * 0.7, -s * 0.8, 0);
-        ctx.bezierCurveTo(-s * 0.5, s * 0.1, -s * 0.1, s * 0.05, 0, -s * 0.08);
-        ctx.fillStyle = '#080812';
-        ctx.fill();
-
-        // Eye glint
-        ctx.beginPath();
-        ctx.arc(s * 0.48, -s * 0.22, s * 0.07, 0, Math.PI * 2);
-        ctx.fillStyle = '#00ccff';
-        ctx.globalAlpha = 0.9;
-        ctx.fill();
-
-        ctx.restore();
-      }
-
-      // Shadow smoke ring around the cat
-      const smokeAlpha = 0.08 + Math.sin(_scFrame * 0.04) * 0.04;
-      const sg = ctx.createRadialGradient(cx, cy, 20, cx, cy, 80);
-      sg.addColorStop(0,   `rgba(0,40,100,0)`);
-      sg.addColorStop(0.5, `rgba(0,20,60,${smokeAlpha})`);
-      sg.addColorStop(1,   `rgba(0,0,20,0)`);
-      ctx.beginPath();
-      ctx.arc(cx, cy, 80, 0, Math.PI * 2);
-      ctx.fillStyle = sg;
-      ctx.globalAlpha = 1;
-      ctx.fill();
-    }
-    // ── End Shadow Cat canvas elements ───────────────
-
-    // Lightning (general, used by nexus_lightning & eclipse_nexus too)
+    // ── General lightning bolts (nexus_lightning, eclipse_nexus, etc.) ──
     for (const b of bolts) {
       b.timer--;
       if (b.timer <= 0) {
         b.timer = b.interval + Math.floor(Math.random() * 15);
         b.x = Math.random() * canvas.width;
         b.h = 60 + Math.random() * 150;
-        ctx.beginPath();
-        ctx.moveTo(b.x, 0);
-        // jagged bolt
-        let lx = b.x, ly = 0;
-        while (ly < b.h) {
-          lx += (Math.random() - 0.5) * 20;
-          ly += 12 + Math.random() * 16;
-          ctx.lineTo(lx, ly);
-        }
-        ctx.strokeStyle = b.color;
-        ctx.lineWidth   = 1.5;
-        ctx.globalAlpha = 0.8;
-        ctx.stroke();
+        _drawBolt(ctx, b.x, 0, b.x + (Math.random() - 0.5) * 40, b.h, b.color, 1.5, 0.8, 5);
       }
     }
+
+    // ════════════════════════════════════════
+    //  SHADOW CAT  full animated scene
+    // ════════════════════════════════════════
+    if (cfg.shadowCat) {
+      const baseY  = cy + canvas.height * 0.18;
+      const fps60  = cfg.duration / 1000 * 60;
+
+      // Ground flames — always present
+      _drawGroundFlames(ctx, _scGroundFlames, cx, baseY + 10, 'rgba(0,140,255,0.9)', null);
+
+      // Scene phases (each ~20% of total duration at 60fps)
+      const phaseLen = fps60 / 5;
+
+      // Phase 0: cat runs in from left
+      if (_scCatPhase === 0) {
+        _scCatX += 5.5 * scale;
+        if (_scCatX >= cx - 60 * scale) { _scCatPhase = 1; _scCatPhaseEnter = _frame; }
+        _scCatDir = 1;
+      }
+      // Phase 1: stops, looks around (head tilts) — pause ~50 frames then leap
+      else if (_scCatPhase === 1) {
+        if (_frame - _scCatPhaseEnter >= 50) { _scCatPhase = 2; _scCatPhaseEnter = _frame; }
+      }
+      // Phase 2: crouches and leaps through the flames
+      else if (_scCatPhase === 2) {
+        _scCatX  += 3.2 * scale;
+        _scCatVY -= 0.9;
+        _scCatY  += _scCatVY;
+        if (_scCatY < -canvas.height * 0.12) _scCatVY = 1.2;
+        if (_scCatY >= 0 && _scCatVY > 0) { _scCatY = 0; _scCatVY = 0; _scCatPhase = 3; }
+        _scCatDir = 1;
+      }
+      // Phase 3: lands and runs right, off screen
+      else if (_scCatPhase === 3) {
+        _scCatX += 6.5 * scale;
+        _scCatDir = 1;
+        if (_scCatX > canvas.width * 0.85) { _scCatPhase = 4; _scBurstAlpha = 0; }
+      }
+      // Phase 4: energy burst fills screen
+      else if (_scCatPhase === 4) {
+        _scBurstAlpha = Math.min(1, _scBurstAlpha + 0.04);
+        // flash + glow burst
+        const bGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, canvas.width * 0.8);
+        bGrad.addColorStop(0,   `rgba(0,200,255,${_scBurstAlpha * 0.55})`);
+        bGrad.addColorStop(0.4, `rgba(0,80,200,${_scBurstAlpha * 0.3})`);
+        bGrad.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.beginPath();
+        ctx.arc(cx, cy, canvas.width * 0.8, 0, Math.PI * 2);
+        ctx.fillStyle = bGrad;
+        ctx.globalAlpha = 1;
+        ctx.fill();
+        // radial lightning burst
+        if (_frame % 3 === 0) {
+          for (let r = 0; r < 6; r++) {
+            const ba = (r / 6) * Math.PI * 2 + _frame * 0.04;
+            _drawBolt(ctx, cx, cy,
+              cx + Math.cos(ba) * canvas.width * 0.5,
+              cy + Math.sin(ba) * canvas.height * 0.5,
+              '#00eeff', 1.5, 0.7 * _scBurstAlpha, 7);
+          }
+        }
+      }
+
+      // Draw periodic lightning around the scene
+      if ((_scCatPhase >= 1) && _frame % 22 === 0) {
+        _drawBolt(ctx,
+          cx + (Math.random() - 0.5) * canvas.width * 0.7, cy - canvas.height * 0.3,
+          cx + (Math.random() - 0.5) * canvas.width * 0.5, cy + canvas.height * 0.1,
+          '#00ccff', 2, 0.9, 6);
+      }
+
+      // Draw BACK-LAYER crows (zLayer < 0.5) before cat
+      const sortedCrows = [..._scCrows].sort((a, b) => a.zLayer - b.zLayer);
+      for (const crow of sortedCrows) {
+        if (crow.zLayer >= 0.5) continue;
+        crow.angle += crow.speed;
+        crow.flap  += crow.flapSpd;
+        const bx = cx + Math.cos(crow.angle) * crow.orbitW;
+        const by = (cy - canvas.height * 0.04)
+                   + Math.sin(crow.angle) * crow.orbitH
+                   + crow.yOffset;
+        const flip = crow.speed > 0 ? (Math.cos(crow.angle) < 0 ? -1 : 1)
+                                     : (Math.cos(crow.angle) < 0 ? 1 : -1);
+        const wO = (Math.sin(crow.flap) + 1) * 0.5;
+        const scaleFactor = (0.6 + crow.zLayer * 0.5) * scale;
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.scale(flip * scaleFactor, scaleFactor);
+        ctx.globalAlpha = 0.65 + crow.zLayer * 0.25;
+        _drawCrow(ctx, crow.size, wO, '#0088cc');
+        ctx.restore();
+      }
+
+      // Draw CAT
+      if (_scCatPhase < 4) {
+        const legPh    = _frame * 0.28;
+        const tailPh   = _frame * 0.12;
+        const headTilt = _scCatPhase === 1
+          ? Math.sin(_frame * 0.07) * 0.5   // looking around
+          : Math.sin(_frame * 0.18) * 0.15;
+        const crouching = _scCatPhase === 2 && _scCatY < -10;
+        const catScale  = 38 * scale;
+
+        ctx.save();
+        ctx.translate(_scCatX, baseY + _scCatY);
+        ctx.scale(_scCatDir, 1);
+        // glow aura around cat
+        const aura = ctx.createRadialGradient(0, 0, 10, 0, 0, 80 * scale);
+        aura.addColorStop(0,   'rgba(0,140,255,0.18)');
+        aura.addColorStop(1,   'rgba(0,0,50,0)');
+        ctx.beginPath();
+        ctx.arc(0, 0, 80 * scale, 0, Math.PI * 2);
+        ctx.fillStyle = aura;
+        ctx.globalAlpha = 1;
+        ctx.fill();
+        _drawCat(ctx, catScale, legPh, tailPh, headTilt, '#00eeff', crouching);
+        ctx.restore();
+      }
+
+      // Draw FRONT-LAYER crows (zLayer >= 0.5) after cat
+      for (const crow of sortedCrows) {
+        if (crow.zLayer < 0.5) continue;
+        // front-layer crows were skipped in back-layer loop, advance them now
+        crow.angle += crow.speed;
+        crow.flap  += crow.flapSpd;
+        const bx = cx + Math.cos(crow.angle) * crow.orbitW;
+        const by = (cy - canvas.height * 0.04)
+                   + Math.sin(crow.angle) * crow.orbitH
+                   + crow.yOffset;
+        const flip = crow.speed > 0 ? (Math.cos(crow.angle) < 0 ? -1 : 1)
+                                     : (Math.cos(crow.angle) < 0 ? 1 : -1);
+        const wO = (Math.sin(crow.flap) + 1) * 0.5;
+        const scaleFactor = (0.6 + crow.zLayer * 0.5) * scale;
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.scale(flip * scaleFactor, scaleFactor);
+        ctx.globalAlpha = 0.75 + crow.zLayer * 0.2;
+        _drawCrow(ctx, crow.size, wO, '#00aaff');
+        ctx.restore();
+      }
+    }
+    // ── End Shadow Cat ────────────────────────────────────
+
+    // ════════════════════════════════════════
+    //  SHADOW WOLF  full animated scene
+    // ════════════════════════════════════════
+    if (cfg.wolf || cfg.shadowWolf) {
+      const baseY = cy + canvas.height * 0.2;
+      const wolfScale = 44 * scale;
+
+      // Scene progression
+      // Phase 0: wolf runs in from left (0→cx-80)
+      // Phase 1: wolf looks at viewer — pauses
+      // Phase 2: wolf runs through flames (cx-80 → cx+80)
+      // Phase 3: wolf stops, tilts head back, howls
+      // Phase 4: wolf runs off right edge
+      if (_wfPhase === 0) {
+        _wfX += 5.8 * scale;
+        _wfDir = 1;
+        if (_wfX >= cx - 80 * scale) { _wfPhase = 1; _wfPhaseEnter = _frame; }
+      } else if (_wfPhase === 1) {
+        // pause ~40 frames, look at viewer
+        if (_frame - _wfPhaseEnter >= 40) { _wfPhase = 2; _wfPhaseEnter = _frame; }
+      } else if (_wfPhase === 2) {
+        _wfX  += 4.2 * scale;
+        _wfDir = 1;
+        if (_wfX >= cx + 80 * scale) { _wfPhase = 3; _wfPhaseEnter = _frame; }
+      } else if (_wfPhase === 3) {
+        // howl for ~60 frames
+        if (_frame - _wfPhaseEnter >= 60) { _wfPhase = 4; _wfPhaseEnter = _frame; }
+      } else if (_wfPhase === 4) {
+        _wfX += 7 * scale;
+        _wfDir = 1;
+      }
+
+      // Ground flames — blue/white for wolf
+      for (const f of _wfGroundFlames) {
+        const flicker = Math.sin(_frame * f.speed + f.phase) * 0.35 + 0.65;
+        const rx = cx + f.x;
+        const fh = f.h * flicker;
+        const fw = f.w;
+        const color1 = cfg.shadowWolf ? 'rgba(0,140,255,0.9)' : 'rgba(60,80,220,0.85)';
+        const grad = ctx.createLinearGradient(rx, baseY + 10, rx, baseY + 10 - fh);
+        grad.addColorStop(0,   color1);
+        grad.addColorStop(0.5, 'rgba(0,40,180,0.5)');
+        grad.addColorStop(1,   'rgba(0,0,40,0)');
+        ctx.beginPath();
+        ctx.ellipse(rx, baseY + 10, fw * 0.5, fh * 0.55, 0, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.globalAlpha = 0.7 * flicker;
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // Shadow particle trail
+      if (_wfPhase !== 1 && _wfPhase !== 3 && _frame % 4 === 0) {
+        _wfShadowTrail.push({
+          x: _wfX - _wfDir * 30 * scale,
+          y: baseY,
+          alpha: 0.5,
+          r: 18 * scale,
+        });
+      }
+      for (let i = _wfShadowTrail.length - 1; i >= 0; i--) {
+        const t = _wfShadowTrail[i];
+        t.alpha -= 0.035;
+        t.r     += 1.5;
+        if (t.alpha <= 0) { _wfShadowTrail.splice(i, 1); continue; }
+        const tg = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.r);
+        tg.addColorStop(0,   `rgba(0,60,200,${t.alpha})`);
+        tg.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+        ctx.fillStyle = tg;
+        ctx.globalAlpha = 1;
+        ctx.fill();
+      }
+
+      // Lightning following wolf
+      if (_wfPhase >= 2 && _frame % 20 === 0) {
+        _drawBolt(ctx,
+          _wfX - _wfDir * 50 * scale, baseY - wolfScale * 0.8,
+          _wfX - _wfDir * 120 * scale, baseY - wolfScale * 0.2,
+          '#aaccff', 2, 0.8, 5);
+      }
+
+      // Draw wolf
+      const howling  = _wfPhase === 3;
+      const legSpeed = (_wfPhase === 1 || _wfPhase === 3) ? 0 : _frame * 0.32;
+      const tailPh   = _frame * 0.14;
+      const headTilt = _wfPhase === 1
+        ? Math.sin(_frame * 0.08) * 0.3   // looking at viewer
+        : Math.sin(_frame * 0.15) * 0.1;
+
+      ctx.save();
+      ctx.translate(_wfX, baseY);
+      ctx.scale(_wfDir, 1);
+      // aura
+      const waura = ctx.createRadialGradient(0, 0, 10, 0, 0, 90 * scale);
+      waura.addColorStop(0,   'rgba(0,80,200,0.18)');
+      waura.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.arc(0, 0, 90 * scale, 0, Math.PI * 2);
+      ctx.fillStyle = waura;
+      ctx.globalAlpha = 1;
+      ctx.fill();
+      _drawWolf(ctx, wolfScale, legSpeed, tailPh, headTilt, howling);
+      ctx.restore();
+
+      // Howl energy rings
+      if (howling && _frame % 8 === 0) {
+        const rx = _wfX;
+        const ry = baseY - wolfScale * 0.7;
+        for (let r = 0; r < 3; r++) {
+          ctx.beginPath();
+          ctx.arc(rx, ry, (20 + r * 30) * scale + (_frame % 30) * scale, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(100,160,255,0.4)';
+          ctx.lineWidth = 2;
+          ctx.globalAlpha = 0.5 - r * 0.12;
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+    // ── End Shadow Wolf ───────────────────────────────────
+
+    // ════════════════════════════════════════
+    //  SHADOW DRAGON  full animated scene
+    // ════════════════════════════════════════
+    if (cfg.dragon || cfg.shadowDragon) {
+      const dragonScale = 52 * scale;
+      const centerY     = cy - canvas.height * 0.06;
+
+      // Phase 0: dragon flies in from right
+      // Phase 1: hover at center, breathe fire, lightning
+      // Phase 2: fly off left
+      if (_drPhase === 0) {
+        _drX  -= 5.2 * scale;
+        _drDir = -1;
+        if (_drX <= cx + 80 * scale) { _drPhase = 1; _drPhaseEnter = _frame; }
+      } else if (_drPhase === 1) {
+        // hover: slow vertical oscillation
+        _drY = Math.sin(_frame * 0.04) * 18 * scale;
+        // start a fire breath ~30 frames in, then again at ~90 frames
+        const frameInPhase = _frame - _drPhaseEnter;
+        if ((frameInPhase === 30 || frameInPhase === 90) && _drFireLen === 0) _drFireLen = 0.01;
+        if (_drFireLen > 0) {
+          _drFireLen = Math.min(1, _drFireLen + 0.055);
+          if (_drFireLen >= 1) { _drFireLen = 0; }
+        }
+        if (frameInPhase >= 130) { _drPhase = 2; _drPhaseEnter = _frame; }
+      } else if (_drPhase === 2) {
+        _drX  -= 6.5 * scale;
+        _drDir = -1;
+      }
+
+      _drBodyWave += 0.055;
+      _drWingFlap += 0.12;
+
+      // Wing glow aura
+      const daura = ctx.createRadialGradient(_drX, centerY + _drY, 20, _drX, centerY + _drY, 160 * scale);
+      daura.addColorStop(0,   'rgba(80,0,200,0.22)');
+      daura.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.arc(_drX, centerY + _drY, 160 * scale, 0, Math.PI * 2);
+      ctx.fillStyle = daura;
+      ctx.globalAlpha = 1;
+      ctx.fill();
+
+      // Lightning surrounding dragon
+      if (_drPhase >= 1 && _frame % 15 === 0) {
+        const la = Math.random() * Math.PI * 2;
+        _drawBolt(ctx,
+          _drX + Math.cos(la) * 60 * scale, centerY + _drY + Math.sin(la) * 40 * scale,
+          _drX + Math.cos(la) * 150 * scale, centerY + _drY + Math.sin(la) * 100 * scale,
+          '#cc44ff', 1.5, 0.85, 5);
+      }
+
+      ctx.save();
+      ctx.translate(_drX, centerY + _drY);
+      ctx.scale(_drDir, 1);
+      _drawDragon(ctx, dragonScale, _drWingFlap, _drBodyWave, _drFireLen);
+      ctx.restore();
+    }
+    // ── End Shadow Dragon ─────────────────────────────────
+
+    // ════════════════════════════════════════
+    //  BLACK CROWS  standalone gift
+    // ════════════════════════════════════════
+    if (cfg.blackCrows) {
+      for (const flock of _bcFlocks) {
+        if (_frame < flock.delay) continue;
+        for (const bird of flock.birds) {
+          bird.x    += bird.speed;
+          bird.flap += bird.flapSpd;
+          bird.y    += Math.sin(_frame * 0.04 + bird.waveOff) * 0.8;  // undulating flight
+          // reset when off screen
+          if (bird.speed > 0 && bird.x > canvas.width + 100) bird.x = -100;
+          if (bird.speed < 0 && bird.x < -100)               bird.x = canvas.width + 100;
+
+          const wO = (Math.sin(bird.flap) + 1) * 0.5;
+          const flip = bird.speed > 0 ? 1 : -1;
+          ctx.save();
+          ctx.translate(bird.x, bird.y);
+          ctx.scale(flip * scale, scale);
+          ctx.globalAlpha = 0.9;
+          _drawCrow(ctx, bird.size, wO, '#0099ff');
+          ctx.restore();
+        }
+      }
+    }
+    // ── End Black Crows ───────────────────────────────────
 
     ctx.globalAlpha = 1;
     _snxPremRafs[overlayId] = requestAnimationFrame(tick);
