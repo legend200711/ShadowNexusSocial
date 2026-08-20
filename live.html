@@ -508,22 +508,12 @@
   window.addEventListener('snxLiveReady', (e) => {
     if (e.detail) {
       window._liveRoomId  = e.detail.roomId  || null;
-      // Host UID: if viewer, use roomId prefix (uid part); live.js provides hostId in roomData
-      // We'll get it from the event or from watching RTDB
-      if (!e.detail.isHost) {
-        // Viewer: get host from room data — try to read from RTDB via existing live.js state
-        // live.js exposes _roomHostId; we'll read it from the event if available
-      } else {
+      if (e.detail.isHost) {
         // Creator: host is the current user
         window._liveHostUid = e.detail.user?.uid || null;
       }
-      // Start the gift watcher for both host and viewer using the roomId from the event.
-      // This is the authoritative call — live.js may also call _snxgStartLiveGiftWatch
-      // directly (belt-and-suspenders), but this handler ensures the host screen receives
-      // incoming gift toasts even if the live.js version is not yet deployed.
-      if (e.detail.roomId && typeof window._snxgStartLiveGiftWatch === 'function') {
-        window._snxgStartLiveGiftWatch(e.detail.roomId);
-      }
+      // NOTE: _snxgStartLiveGiftWatch is called directly by live.js immediately
+      // after dispatching snxLiveReady — no need to call it here again.
     }
   });
 
@@ -552,29 +542,48 @@
     window._snxGiftingEnabled = cfg.giftingEnabled !== false;
   });
 
-  // Watch for incoming gifts on live room and show toasts
+  // Watch for incoming gifts on live room and show toasts on the host/viewer screen.
+  // Uses a seenTxIds Set: docs present at watcher-start are recorded but never shown;
+  // only genuinely new docs (added after the listener attached) trigger a popup.
+  // This avoids the limit(1) problem where rapid back-to-back gifts could be dropped,
+  // and avoids the initialized-flag problem where a missed gift is silently skipped.
   let _liveGiftUnsub = null;
   window._snxgStartLiveGiftWatch = function(roomId) {
     if (_liveGiftUnsub) { try { _liveGiftUnsub(); } catch(_) {} }
+    _liveGiftUnsub = null;
     if (!roomId) return;
-    let initialized = false;
+    const seenTxIds = new Set();
+    let bootstrapped = false;
     const q = query(
       collection(_db, 'giftTransactions'),
       where('postId', '==', roomId),
       where('isLive', '==', true),
       orderBy('createdAt', 'desc'),
-      limit(1)
+      limit(20)
     );
-    _liveGiftUnsub = onSnapshot(q, snap => {
-      if (!initialized) { initialized = true; return; }
-      snap.docChanges().forEach(change => {
-        if (change.type !== 'added') return;
-        const g = change.doc.data();
-        if (typeof window.snxgShowLiveGiftToast === 'function') {
-          window.snxgShowLiveGiftToast(g.senderName || 'Someone', g.giftId);
+    _liveGiftUnsub = onSnapshot(q,
+      snap => {
+        if (!bootstrapped) {
+          // First snapshot: record all existing docs so we don't replay them.
+          snap.docs.forEach(d => seenTxIds.add(d.id));
+          bootstrapped = true;
+          return;
         }
-      });
-    });
+        snap.docChanges().forEach(change => {
+          if (change.type !== 'added') return;
+          const txId = change.doc.id;
+          if (seenTxIds.has(txId)) return;
+          seenTxIds.add(txId);
+          const g = change.doc.data();
+          if (typeof window.snxgShowLiveGiftToast === 'function') {
+            window.snxgShowLiveGiftToast(g.senderName || 'Someone', g.giftId);
+          }
+        });
+      },
+      err => {
+        console.error('[SNX GIFT WATCH] onSnapshot error — gifts will not appear:', err.code, err.message);
+      }
+    );
   };
 </script>
 
