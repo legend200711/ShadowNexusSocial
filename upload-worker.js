@@ -98,9 +98,13 @@ function mimeFromExt(filename) {
     gif: 'image/gif',  webp: 'image/webp', svg: 'image/svg+xml',
     mp4: 'video/mp4',  mov: 'video/quicktime',
     avi: 'video/x-msvideo', mkv: 'video/x-matroska', m4v: 'video/mp4',
+    // webm is a video container by default — audio-only webm is rare and browsers
+    // report it correctly when they know the MIME. Mapping to video/webm preserves
+    // correct Content-Type for video files uploaded as application/octet-stream.
+    webm: 'video/webm',
     mp3: 'audio/mpeg', m4a: 'audio/mp4',  aac: 'audio/aac',
     ogg: 'audio/ogg',  wav: 'audio/wav',  flac: 'audio/flac',
-    opus: 'audio/ogg', webm: 'audio/webm',
+    opus: 'audio/ogg',
   };
   return map[ext] || null;
 }

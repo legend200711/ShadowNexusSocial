@@ -124,8 +124,40 @@ function snxgInit() {
   console.log('[SHADOW COINS] snxgInit — _snxFirestore defined:', fs !== null);
   _snxgSubscribeWallet(user.uid);
   _snxgRenderCoinPill();
+  // Patch in-memory catalog prices from Firestore so the gift tray
+  // always shows the current Founder-set prices.
+  snxgLoadCatalogPrices();
 }
 window.snxgInit = snxgInit;
+
+/* ══════════════════════════════════════════════════
+   CATALOG PRICE SYNC — patches SNX_GIFT_CATALOG
+   with current Firestore prices so the gift tray
+   always reflects Founder price edits.
+   ══════════════════════════════════════════════════ */
+async function snxgLoadCatalogPrices() {
+  const fs = _snxgDb();
+  if (!fs) return;
+  const { db, collection, getDocs } = fs;
+  try {
+    const snaps = await getDocs(collection(db, 'giftCatalog'));
+    snaps.forEach(d => {
+      const data  = d.data();
+      const price = typeof data.coins === 'number' ? data.coins
+                  : typeof data.coinPrice === 'number' ? data.coinPrice
+                  : null;
+      if (price !== null && price > 0) {
+        const local = SNX_GIFT_CATALOG.find(g => g.id === d.id);
+        if (local) local.coins = price;
+      }
+    });
+    // Re-render affordability after prices may have changed
+    _snxgRefreshGiftAffordability();
+  } catch (_) {
+    // Non-fatal — tray falls back to local defaults
+  }
+}
+window.snxgLoadCatalogPrices = snxgLoadCatalogPrices;
 
 /* ══════════════════════════════════════════════════
    WALLET SUBSCRIPTION — real-time coin balance
@@ -1706,6 +1738,7 @@ window.snxgLoadGiftHistory = snxgLoadGiftHistory;
    ADMIN — GIFT MANAGEMENT
    ══════════════════════════════════════════════════ */
 async function snxgAdminLoadGifts() {
+  if (window._snxRole !== 'founder') return;
   const user = _snxgUser();
   if (!user) return;
   const fs = _snxgDb();
@@ -1725,18 +1758,45 @@ async function snxgAdminLoadGifts() {
     earnSnaps.forEach(d => { totalPlatform += (d.data().platformCoins || 0); });
     if (revEl) revEl.textContent = `$${(totalPlatform / COINS_PER_DOLLAR).toFixed(2)}`;
 
-    // Gift catalog uses local catalog (could load from Firestore in production)
-    listEl.innerHTML = SNX_GIFT_CATALOG.map(gift => `
-    <div class="ag-gift-row">
-      <div class="ag-gift-art">${gift.art}</div>
-      <div class="ag-gift-info">
-        <div class="ag-name">${gift.name}</div>
-        <div class="ag-price">🪙 ${gift.coins} coins · ${gift.premium ? '⭐ PREMIUM' : 'Standard'}</div>
-      </div>
-      <div class="ag-gift-actions">
-        <button class="ag-gift-toggle ${gift.enabled ? 'enabled' : 'disabled'}">${gift.enabled ? 'Enabled' : 'Disabled'}</button>
-      </div>
-    </div>`).join('');
+    // Fetch current Firestore prices so the panel shows live values
+    const catalogSnaps = await getDocs(collection(db, 'giftCatalog'));
+    const firestorePrices = {};
+    catalogSnaps.forEach(d => {
+      const data  = d.data();
+      const price = typeof data.coins === 'number' ? data.coins
+                  : typeof data.coinPrice === 'number' ? data.coinPrice
+                  : null;
+      if (price !== null && price > 0) firestorePrices[d.id] = price;
+    });
+
+    listEl.innerHTML = SNX_GIFT_CATALOG.map(gift => {
+      const currentPrice = firestorePrices[gift.id] ?? gift.coins;
+      return `
+      <div class="ag-gift-row" id="agRow_${gift.id}">
+        <div class="ag-gift-art">${gift.art}</div>
+        <div class="ag-gift-info">
+          <div class="ag-name">${gift.name}</div>
+          <div class="ag-price" id="agPrice_${gift.id}">🪙 ${currentPrice.toLocaleString()} coins · ${gift.premium ? '⭐ PREMIUM' : 'Standard'}</div>
+        </div>
+        <div class="ag-gift-actions" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+          <button class="ag-gift-toggle ${gift.enabled ? 'enabled' : 'disabled'}">${gift.enabled ? 'Enabled' : 'Disabled'}</button>
+          <button class="ag-edit-price-btn"
+            style="font-size:11px;padding:4px 10px;border-radius:7px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.35);color:#00AEEF;cursor:pointer;white-space:nowrap;"
+            onclick="snxgAdminTogglePriceEdit('${gift.id}', ${currentPrice})">✏️ Edit Price</button>
+          <div id="agPriceEdit_${gift.id}" style="display:none;align-items:center;gap:6px;margin-top:2px;">
+            <span style="font-size:11px;color:#9bbdd8;">🪙</span>
+            <input type="number" id="agPriceInput_${gift.id}" min="1" max="999999"
+              value="${currentPrice}"
+              style="width:80px;background:rgba(0,15,40,0.8);border:1px solid rgba(0,174,239,0.4);border-radius:6px;padding:4px 7px;color:#d8eeff;font-size:13px;font-weight:700;outline:none;"
+              onkeydown="if(event.key==='Enter')snxgAdminSaveGiftPrice('${gift.id}',this)">
+            <button onclick="snxgAdminSaveGiftPrice('${gift.id}',document.getElementById('agPriceInput_${gift.id}'))"
+              style="font-size:11px;padding:4px 10px;border-radius:7px;background:rgba(0,174,239,0.18);border:1px solid rgba(0,174,239,0.5);color:#00AEEF;cursor:pointer;font-weight:700;">Save</button>
+            <button onclick="snxgAdminTogglePriceEdit('${gift.id}', null)"
+              style="font-size:11px;padding:4px 8px;border-radius:7px;background:transparent;border:1px solid rgba(100,130,160,0.35);color:#6a90b8;cursor:pointer;">✕</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
 
   } catch(err) {
     console.error('[SNX-GIFTS] adminLoadGifts:', err);
@@ -1744,6 +1804,69 @@ async function snxgAdminLoadGifts() {
   }
 }
 window.snxgAdminLoadGifts = snxgAdminLoadGifts;
+
+function snxgAdminTogglePriceEdit(giftId, currentPrice) {
+  const editEl = document.getElementById('agPriceEdit_' + giftId);
+  if (!editEl) return;
+  const isOpen = editEl.style.display !== 'none';
+  editEl.style.display = isOpen ? 'none' : 'flex';
+  if (!isOpen) {
+    // Populate input with current price when opening
+    const input = document.getElementById('agPriceInput_' + giftId);
+    if (input && currentPrice !== null) input.value = currentPrice;
+    if (input) input.focus();
+  }
+}
+window.snxgAdminTogglePriceEdit = snxgAdminTogglePriceEdit;
+
+async function snxgAdminSaveGiftPrice(giftId, inputEl) {
+  if (window._snxRole !== 'founder') {
+    _snxgToast('⛔ Only the Founder can edit gift prices.');
+    return;
+  }
+  const fs = _snxgDb();
+  if (!fs) return;
+
+  const newPrice = Math.floor(Number(inputEl.value));
+  if (!Number.isFinite(newPrice) || newPrice < 1) {
+    _snxgToast('⚠️ Price must be a positive number (minimum 1 coin).');
+    inputEl.focus();
+    return;
+  }
+
+  const { db, doc, setDoc } = fs;
+  const saveBtn = inputEl.nextElementSibling;  // Save button
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+  try {
+    // Write the new price to Firestore — this is what the gift transaction reads.
+    await setDoc(doc(db, 'giftCatalog', giftId), { coins: newPrice }, { merge: true });
+
+    // Patch the in-memory catalog so the gift tray reflects the new price immediately.
+    const local = SNX_GIFT_CATALOG.find(g => g.id === giftId);
+    if (local) local.coins = newPrice;
+
+    // Update the displayed price in the admin list
+    const priceEl = document.getElementById('agPrice_' + giftId);
+    if (priceEl) {
+      const gift = SNX_GIFT_CATALOG.find(g => g.id === giftId);
+      const badge = gift?.premium ? '⭐ PREMIUM' : 'Standard';
+      priceEl.textContent = `🪙 ${newPrice.toLocaleString()} coins · ${badge}`;
+    }
+
+    // Close the edit row
+    snxgAdminTogglePriceEdit(giftId, null);
+
+    _snxgToast(`✅ Price updated to 🪙 ${newPrice.toLocaleString()} coins.`);
+    console.log('[SNX-GIFTS] Gift price updated:', giftId, '→', newPrice, 'coins');
+  } catch(err) {
+    console.error('[SNX-GIFTS] adminSaveGiftPrice:', err);
+    _snxgToast('❌ Failed to save price: ' + (err.message || 'unknown error'));
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+  }
+}
+window.snxgAdminSaveGiftPrice = snxgAdminSaveGiftPrice;
 
 async function snxgAdminLoadCoinStats() {
   const user = _snxgUser();

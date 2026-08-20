@@ -9642,8 +9642,8 @@ body.arcade-fs-ios body::after { display:none !important; }
   <div class="adm-panel-card">
     <h3 class="adm-section-title">🎁 Gift Catalog</h3>
     <p style="font-size:12px;color:#6a90b8;margin:0 0 14px;line-height:1.6;">
-      Shadow Nexus branded gifts. Prices are enforced server-side — client values are never trusted.
-      To change prices, update Firestore <code>/giftCatalog</code> documents directly.
+      Shadow Nexus branded gifts. Prices are enforced server-side via Firestore — client values are never trusted.
+      Use the <strong style="color:#00AEEF;">✏️ Edit Price</strong> button on any gift to update its Shadow Coin price.
     </p>
     <div id="agGiftList">
       <div class="cs-empty"><div class="snxg-processing">Loading…</div></div>
@@ -12023,8 +12023,11 @@ body.arcade-fs-ios body::after { display:none !important; }
               const _audioExts = ['mp3','ogg','wav','aac','flac','m4a','opus'];
               const _videoExts = ['mp4','webm','mov','avi','mkv','m4v'];
               function _urlMediaKind(url, savedType) {
+                  const _ext = (url || '').split('?')[0].split('.').pop().toLowerCase();
+                  // Guard: if savedType is 'audio' but the URL extension is a video format,
+                  // the post was saved with the wrong type (old webm bug) — treat as video.
+                  if (savedType === 'audio' && _videoExts.includes(_ext)) return 'video';
                   if (savedType === 'audio' || savedType === 'video' || savedType === 'image') return savedType;
-                  const _ext = url.split('?')[0].split('.').pop().toLowerCase();
                   if (_audioExts.includes(_ext) || url.includes('/audio/')) return 'audio';
                   if (_videoExts.includes(_ext) || url.includes('/video/')) return 'video';
                   return 'image';
@@ -19233,8 +19236,11 @@ async function snxLoadProfileWall(uid) {
         const _wallAudioExts = ['mp3','ogg','wav','aac','flac','m4a','opus'];
         const _wallVideoExts = ['mp4','webm','mov','avi','mkv','m4v'];
         const _wallMediaKind = (url, savedType) => {
+            const ext = (url || '').split('?')[0].split('.').pop().toLowerCase();
+            // Guard: if savedType is 'audio' but the URL extension is a video format,
+            // the post was saved with the wrong type (old webm bug) — treat as video.
+            if (savedType === 'audio' && _wallVideoExts.includes(ext)) return 'video';
             if (savedType === 'audio' || savedType === 'video' || savedType === 'image') return savedType;
-            const ext = url.split('?')[0].split('.').pop().toLowerCase();
             if (_wallAudioExts.includes(ext) || url.includes('/audio/')) return 'audio';
             if (_wallVideoExts.includes(ext) || url.includes('/video/')) return 'video';
             return 'image';
@@ -20981,8 +20987,8 @@ async function uploadToR2(file, progressBarId, progressWrapId, meta) {
     }
 
     // ── Client-side MIME validation ──
-    const _audioExts  = ['mp3','ogg','wav','aac','flac','m4a','opus','webm'];
-    const _videoExts  = ['mp4','mov','avi','mkv','m4v'];
+    const _audioExts  = ['mp3','ogg','wav','aac','flac','m4a','opus'];
+    const _videoExts  = ['mp4','webm','mov','avi','mkv','m4v'];
     const _imageExts  = ['jpg','jpeg','png','gif','webp','svg'];
     const _ext        = (file.name.split('.').pop() || '').toLowerCase();
     const _validMime  = file.type.startsWith('image/') || file.type.startsWith('video/') ||
@@ -21057,6 +21063,8 @@ let _postMediaUploadedUrls = [];
 // Tracks the resolved media type of the last uploaded file(s) — used when saving the post
 let _postMediaType = ''; // 'image' | 'video' | 'audio' | ''
 let _postMediaFileName = ''; // original filename for display in the feed
+// Tracks the current preview blob URL so it can be revoked when a new file is picked
+let _postPreviewBlobUrl = '';
 
 // ── Derive media type from a File object (MIME first, extension fallback) ──
 function _resolveFileMediaType(file) {
@@ -21064,10 +21072,10 @@ function _resolveFileMediaType(file) {
     if (file.type.startsWith('video/')) return 'video';
     if (file.type.startsWith('audio/')) return 'audio';
     const _audioExts = ['mp3','ogg','wav','aac','flac','m4a','opus'];
-    const _videoExts = ['mp4','webm','mov','avi','mkv','m4v'];
+    const _videoExts = ['mp4','webm','mov','avi','mkv','m4v'];  // webm is video by default
     const _ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (_videoExts.includes(_ext)) return 'video';  // video check before audio (webm)
     if (_audioExts.includes(_ext)) return 'audio';
-    if (_videoExts.includes(_ext)) return 'video';
     return 'image';
 }
 
@@ -21093,9 +21101,17 @@ async function handlePostMediaPick(input) {
     const previewImg = document.getElementById('postMediaPreviewImg');
     const previewVid = document.getElementById('postMediaPreviewVid');
     const previewAud = document.getElementById('postMediaPreviewAud');
+    // Revoke previous preview blob URL before creating a new one
+    if (_postPreviewBlobUrl) {
+        // Pause any playing video before revoking its src
+        if (previewVid) { previewVid.pause(); previewVid.src = ''; }
+        URL.revokeObjectURL(_postPreviewBlobUrl);
+        _postPreviewBlobUrl = '';
+    }
     if (files.length === 1) {
         const _prvType = _resolveFileMediaType(files[0]);
         const _blobUrl = URL.createObjectURL(files[0]);
+        _postPreviewBlobUrl = _blobUrl;
         if (previewImg) previewImg.style.display = 'none';
         if (previewVid) previewVid.style.display = 'none';
         if (previewAud) previewAud.style.display = 'none';
@@ -21173,9 +21189,18 @@ function clearPostMedia() {
     document.getElementById('postMediaFile').value = '';
     document.getElementById('postMediaFilename').textContent = '';
     document.getElementById('postMediaClear').style.display = 'none';
-    document.getElementById('postMediaPreviewImg').style.display = 'none';
-    document.getElementById('postMediaPreviewVid').style.display = 'none';
-    document.getElementById('postMediaPreviewAud').style.display = 'none';
+    // Reset src before hiding so the browser releases the media resource
+    const _pvImg = document.getElementById('postMediaPreviewImg');
+    const _pvVid = document.getElementById('postMediaPreviewVid');
+    const _pvAud = document.getElementById('postMediaPreviewAud');
+    if (_pvImg) { _pvImg.src = ''; _pvImg.style.display = 'none'; }
+    if (_pvVid) { _pvVid.pause(); _pvVid.src = ''; _pvVid.style.display = 'none'; }
+    if (_pvAud) { _pvAud.pause(); _pvAud.src = ''; _pvAud.style.display = 'none'; }
+    // Revoke any held blob URL
+    if (_postPreviewBlobUrl) {
+        URL.revokeObjectURL(_postPreviewBlobUrl);
+        _postPreviewBlobUrl = '';
+    }
     // Hide photo destination options, restore text-only wall toggle
     const photoOptsEl = document.getElementById('photoPostOptions');
     if (photoOptsEl) { photoOptsEl.style.display = 'none'; }
