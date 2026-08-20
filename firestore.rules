@@ -822,6 +822,11 @@ service cloud.firestore {
         && request.resource.data.lifetimeCoins  >= 0;
       // Any authenticated user may update (gift senders credit earnings).
       // Validate non-negative values and that uid cannot be changed.
+      //
+      // platformCoins is backward-compatible: older docs that pre-date the field are
+      // allowed to omit it (treated as 0). The gift-send transaction always writes it;
+      // the earned-coin conversion only touches availableCoins + lastConversionAt so
+      // platformCoins may legitimately be absent in the merged result.
       allow update: if isSignedIn()
         && request.resource.data.uid             == resource.data.uid  // uid is immutable
         && request.resource.data.pendingCoins    is number
@@ -830,8 +835,9 @@ service cloud.firestore {
         && request.resource.data.availableCoins  >= 0
         && request.resource.data.lifetimeCoins   is number
         && request.resource.data.lifetimeCoins   >= 0
-        && request.resource.data.platformCoins   is number
-        && request.resource.data.platformCoins   >= 0;
+        && (!('platformCoins' in request.resource.data)
+            || (request.resource.data.platformCoins is number
+                && request.resource.data.platformCoins >= 0));
       allow delete: if false;
     }
 
@@ -883,6 +889,63 @@ service cloud.firestore {
       allow create: if false;  // backend only
       allow update: if false;  // immutable
       allow delete: if false;
+    }
+
+    // testCoinTransfers/{txId} — test coin transfer records (backend-written, Founder-readable)
+    // Records server-side coin moves between two users initiated by the Founder for testing.
+    // No real cash value; cannot trigger PayPal payouts.
+    match /testCoinTransfers/{txId} {
+      allow read:   if isFounder();
+      allow create: if false;  // backend only
+      allow update: if false;  // immutable
+      allow delete: if false;
+    }
+
+    // ─── Shadow XP / Social Credit ─────────────────────────────────────────────
+    //
+    // /shadowXP/{uid}  — level, experience, title
+    //   Written by the owner (snxf_awardXP) and, for the experience field only,
+    //   by a gift sender crediting the recipient's social standing.
+    //
+    // Gift-credit rule: a signed-in user may create or update another user's
+    // shadowXP document provided:
+    //   - only the 'experience' and 'lastGiftXPAt' fields change
+    //   - new experience > existing experience (never a deduction)
+    //   - new experience is a number
+    //
+    match /shadowXP/{uid} {
+      // Owner reads/writes their own XP (snxf_awardXP, snxf_loadXPStrip).
+      // Any signed-in user may also read — required so that a gift-send transaction
+      // can tx.get() the recipient's XP doc to compute the incremented value before
+      // writing it (the Firestore transaction reads all docs before any writes).
+      allow read:   if isSignedIn();
+      allow create: if
+        // Case 1: Owner creates their own XP doc.
+        ( isOwner(uid)
+          && request.resource.data.experience is number
+          && request.resource.data.experience >= 0 )
+        ||
+        // Case 2: Gift sender creates XP doc for a recipient who has none yet.
+        // Strictly limited: uid field matches path, experience must be positive.
+        ( isSignedIn()
+          && request.resource.data.uid == uid
+          && request.resource.data.experience is number
+          && request.resource.data.experience > 0 );
+      allow update: if
+        // Case 1: Owner updates their own XP (snxf_awardXP).
+        ( isOwner(uid)
+          && request.resource.data.experience is number
+          && request.resource.data.experience >= 0 )
+        ||
+        // Case 2: Gift sender credits recipient's Social Credit (XP).
+        // Strictly limited: only experience and lastGiftXPAt may change,
+        // new experience must be strictly greater than the existing value.
+        ( isSignedIn()
+          && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['experience', 'lastGiftXPAt'])
+          && request.resource.data.experience is number
+          && request.resource.data.experience > resource.data.experience );
+      allow delete: if isFounder();
     }
 
     // ─── SHADOW FIRE LIVE — Video Collections ──────────────────────────────────
