@@ -517,6 +517,13 @@
         // Creator: host is the current user
         window._liveHostUid = e.detail.user?.uid || null;
       }
+      // Start the gift watcher for both host and viewer using the roomId from the event.
+      // This is the authoritative call — live.js may also call _snxgStartLiveGiftWatch
+      // directly (belt-and-suspenders), but this handler ensures the host screen receives
+      // incoming gift toasts even if the live.js version is not yet deployed.
+      if (e.detail.roomId && typeof window._snxgStartLiveGiftWatch === 'function') {
+        window._snxgStartLiveGiftWatch(e.detail.roomId);
+      }
     }
   });
 

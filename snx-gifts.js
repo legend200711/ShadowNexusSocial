@@ -42,9 +42,9 @@ function _snxgToast(msg, ms) {
   }
 }
 
-// PayPal Worker base URL — snx-paypal-worker handles all PayPal and coin routes.
+// PayPal Worker base URL — yellow-term-11e6 handles all PayPal and coin routes.
 // This is a different origin from shadownexussocial.online so the URL must be absolute.
-const SNX_PAYPAL_WORKER = 'https://snx-paypal-worker.nthntjrn.workers.dev/paypal';
+const SNX_PAYPAL_WORKER = 'https://yellow-term-11e6.nthntjrn.workers.dev/paypal';
 
 /**
  * Get the current user's Firebase ID token for backend calls.
@@ -1504,15 +1504,67 @@ let _ctgGranting     = false;
 
 /**
  * Called when the Coin Testing tab is opened.
- * Frontend gate: founderOnly(). Backend gate: role+email check on server.
+ * Loads the current testCoinGrantsEnabled state from siteSettings/config and
+ * updates the toggle UI. Frontend gate: founderOnly().
  */
 function snxgLoadCoinTestingTab() {
-  // Frontend gate — do not proceed if not founder in the UI
   if (window._snxRole !== 'founder') return;
   _ctgResetSelection();
   _ctgLoadGrantLog();
+  _ctgLoadEnabledState();
 }
 window.snxgLoadCoinTestingTab = snxgLoadCoinTestingTab;
+
+/**
+ * Read siteSettings/config.testCoinGrantsEnabled from Firestore and update the toggle.
+ */
+async function _ctgLoadEnabledState() {
+  if (window._snxRole !== 'founder') return;
+  const fs = _snxgDb();
+  if (!fs) return;
+  const statusEl = document.getElementById('ctgEnabledStatus');
+  const toggleEl = document.getElementById('ctgEnabledToggle');
+  try {
+    const snap = await fs.getDoc(fs.doc(fs.db, 'siteSettings', 'config'));
+    const enabled = snap.exists() && snap.data().testCoinGrantsEnabled === true;
+    if (toggleEl) toggleEl.checked = enabled;
+    if (statusEl) {
+      statusEl.textContent = enabled ? '✅ ON — grants are allowed' : '🔴 OFF — grants are blocked';
+      statusEl.style.color  = enabled ? '#39FF14' : '#ff6677';
+    }
+  } catch (err) {
+    console.error('[SNX-CTG] Could not read testCoinGrantsEnabled:', err);
+    if (statusEl) statusEl.textContent = 'Could not load setting.';
+  }
+}
+
+/**
+ * Founder-only: save testCoinGrantsEnabled to siteSettings/config.
+ * Called by the toggle checkbox onchange handler.
+ */
+async function snxgSetTestCoinGrantsEnabled(enabled) {
+  if (window._snxRole !== 'founder') return;
+  const fs = _snxgDb();
+  if (!fs) return;
+  const statusEl = document.getElementById('ctgEnabledStatus');
+  const toggleEl = document.getElementById('ctgEnabledToggle');
+  try {
+    if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.style.color = '#4a7a9a'; }
+    await fs.setDoc(fs.doc(fs.db, 'siteSettings', 'config'), { testCoinGrantsEnabled: enabled }, { merge: true });
+    if (statusEl) {
+      statusEl.textContent = enabled ? '✅ ON — grants are allowed' : '🔴 OFF — grants are blocked';
+      statusEl.style.color  = enabled ? '#39FF14' : '#ff6677';
+    }
+    _snxgToast(enabled ? '✅ Test Coin Grants enabled' : '🔴 Test Coin Grants disabled');
+  } catch (err) {
+    console.error('[SNX-CTG] Failed to save testCoinGrantsEnabled:', err);
+    // Revert the toggle to its previous state
+    if (toggleEl) toggleEl.checked = !enabled;
+    if (statusEl) { statusEl.textContent = 'Save failed. Try again.'; statusEl.style.color = '#ff6677'; }
+    _snxgToast('Failed to save setting. Please try again.');
+  }
+}
+window.snxgSetTestCoinGrantsEnabled = snxgSetTestCoinGrantsEnabled;
 
 /**
  * Debounced user search for the coin testing tab.

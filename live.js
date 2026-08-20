@@ -1955,7 +1955,10 @@ async function _startViewerWebRTC(roomData) {
   const sessionId = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
   // Write viewer presence so the host knows to create a peer for this viewer.
-  try { await update(slotRef, { sessionId, viewerCandidates: {} }); }
+  // Use set() not update() — this clears any stale offer/answer/candidates from a
+  // previous session so the polling loop below never picks up an old offer and
+  // enters a renegotiation loop with the host.
+  try { await set(slotRef, { sessionId, viewerCandidates: {} }); }
   catch(e) { _showConnBanner('Waiting for stream…', ''); return; }
 
   // Poll for the host's offer (up to 15 s)

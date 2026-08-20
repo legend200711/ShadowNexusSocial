@@ -13,10 +13,9 @@
   ],
 
   "vars": {
-    "LIVEKIT_URL":             "wss://chris-oxi8fwap.livekit.cloud",
-    "PAYPAL_ENV":              "live",
-    "SNX_ORIGIN":              "https://shadownexussocial.online",
-    "ENABLE_TEST_COIN_GRANTS": "true"
+    "LIVEKIT_URL":  "wss://chris-oxi8fwap.livekit.cloud",
+    "PAYPAL_ENV":   "live",
+    "SNX_ORIGIN":   "https://shadownexussocial.online"
   }
 
 }

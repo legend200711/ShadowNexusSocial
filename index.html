@@ -9694,6 +9694,18 @@ body.arcade-fs-ios body::after { display:none !important; }
       Amount is fixed at <strong>500 coins</strong>. This cannot be changed from the frontend.
     </div>
 
+    <!-- Enable / Disable toggle -->
+    <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(0,15,40,0.7);border:1px solid rgba(0,174,239,0.25);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#c8e8ff;margin-bottom:2px;">Test Coin Grants</div>
+        <div id="ctgEnabledStatus" style="font-size:11px;color:#4a7a9a;">Loading…</div>
+      </div>
+      <label class="notif-toggle-wrap" style="margin:0;">
+        <input type="checkbox" id="ctgEnabledToggle" class="notif-toggle-cb" onchange="snxgSetTestCoinGrantsEnabled(this.checked)">
+        <span class="notif-toggle-slider"></span>
+      </label>
+    </div>
+
     <!-- User search -->
     <div style="margin-bottom:14px;">
       <label style="display:block;font-size:11px;color:#4a7a9a;margin-bottom:6px;letter-spacing:0.5px;">SEARCH USER BY NAME OR UID</label>
