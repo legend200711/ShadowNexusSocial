@@ -1573,6 +1573,9 @@ async function snxgConvertEarnedCoins() {
   const earnRef   = doc(db, 'creatorEarnings', user.uid);
   const walletRef = doc(db, 'wallets',         user.uid);
 
+  // Conversion rate: 1 earned coin = 1 shadow coin (1:1)
+  const CONVERSION_RATE = 1;
+
   try {
     await runTransaction(db, async (tx) => {
 
@@ -1581,6 +1584,23 @@ async function snxgConvertEarnedCoins() {
       const earn     = earnSnap.exists() ? earnSnap.data() : {};
       const available = typeof earn.availableCoins === 'number' ? earn.availableCoins : 0;
 
+      // ── READ 2: wallet ──
+      const walletSnap    = await tx.get(walletRef);
+      const walletData    = walletSnap.exists() ? walletSnap.data() : {};
+      const currentShadow = typeof walletData.shadowCoins === 'number' ? walletData.shadowCoins : 0;
+
+      console.log('[COIN EXCHANGE]', {
+        userUID:          user.uid,
+        eligibleBalance:  available,
+        exchangeAmount:   amount,
+        conversionRate:   `${CONVERSION_RATE}:1`,
+        shadowCoinsBefore: currentShadow,
+        earnedDocExists:  earnSnap.exists(),
+        walletDocExists:  walletSnap.exists(),
+        firebasePath_earn:   `creatorEarnings/${user.uid}`,
+        firebasePath_wallet: `wallets/${user.uid}`,
+      });
+
       if (amount > available) {
         throw new Error('insufficient_earned');
       }
@@ -1588,13 +1608,8 @@ async function snxgConvertEarnedCoins() {
         throw new Error('insufficient_earned');
       }
 
-      // ── READ 2: wallet ──
-      const walletSnap  = await tx.get(walletRef);
-      const walletData  = walletSnap.exists() ? walletSnap.data() : {};
-      const currentShadow = typeof walletData.shadowCoins === 'number' ? walletData.shadowCoins : 0;
-
-      const newAvailable = available - amount;         // may be 0, never negative
-      const newShadow    = currentShadow + amount;     // always increases
+      const newAvailable = available - amount;                      // may be 0, never negative
+      const newShadow    = currentShadow + (amount * CONVERSION_RATE);  // always increases
 
       // ── WRITE 1: deduct availableCoins from creatorEarnings ──
       // Use update() — only change availableCoins and lastConversionAt.
@@ -1608,8 +1623,8 @@ async function snxgConvertEarnedCoins() {
       // ── WRITE 2: credit shadowCoins in wallet ──
       if (walletSnap.exists()) {
         tx.update(walletRef, {
-          shadowCoins:       newShadow,
-          lastConversionAt:  serverTimestamp(),
+          shadowCoins:      newShadow,
+          lastConversionAt: serverTimestamp(),
         });
       } else {
         // Wallet doesn't exist yet — create it.
@@ -1622,7 +1637,7 @@ async function snxgConvertEarnedCoins() {
     });
 
     // Transaction committed — update the UI
-    console.log('[SNX-EXCHANGE] converted', amount, 'earned coins → shadow coins for uid:', user.uid);
+    console.log('[SNX-EXCHANGE] ✅ converted', amount, 'earned coins →', amount * CONVERSION_RATE, 'shadow coins | uid:', user.uid);
 
     if (note) {
       note.className = 'cs-status-msg success';
@@ -1636,7 +1651,12 @@ async function snxgConvertEarnedCoins() {
     await snxgLoadExchangeTab();
 
   } catch (err) {
-    console.error('[SNX-EXCHANGE] conversion failed:', err.code, err.message);
+    console.error('[COIN EXCHANGE] ❌ Transaction result: FAILED', {
+      userUID:       user.uid,
+      exchangeAmount: amount,
+      firebaseError: err.code || 'no-code',
+      errorMessage:  err.message,
+    });
 
     let msg;
     if (err.message === 'insufficient_earned') {
