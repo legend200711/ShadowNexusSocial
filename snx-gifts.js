@@ -42,9 +42,9 @@ function _snxgToast(msg, ms) {
   }
 }
 
-// PayPal Worker base URL — the yellow-term-11e6 worker handles all PayPal routes.
+// PayPal Worker base URL — snx-paypal-worker handles all PayPal and coin routes.
 // This is a different origin from shadownexussocial.online so the URL must be absolute.
-const SNX_PAYPAL_WORKER = 'https://yellow-term-11e6.nthntjrn.workers.dev/paypal';
+const SNX_PAYPAL_WORKER = 'https://snx-paypal-worker.nthntjrn.workers.dev/paypal';
 
 /**
  * Get the current user's Firebase ID token for backend calls.

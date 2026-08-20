@@ -6631,15 +6631,6 @@ body.arcade-fs-ios body::after { display:none !important; }
     </div>
 </nav>
 
-<!-- ████ COIN BALANCE PILL — top-right shortcut ████ -->
-<div id="snxCoinPill" onclick="snxgOpenBuyCoins()" title="Shadow Coins — click to buy more" aria-label="Shadow Coins balance">
-  <span class="coin-pill-icon">🪙</span>
-  <div>
-    <span class="coin-pill-amt">0</span>
-    <span class="coin-pill-label">Coins</span>
-  </div>
-</div>
-
 <!-- ████ NEXUS CORE — Mobile Floating Button ████ -->
 <button id="nexusCoreBtn" aria-label="Open Nexus Core Navigation">🌑</button>
 
@@ -6743,7 +6734,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
         <div class="ncm-item" onclick="snxgOpenBuyCoins();mobileNavTo('_close')">
             <div class="ncm-icon-wrap">🪙</div>
-            <div class="ncm-label">Shadow Coins <span id="ncmCoinAmt" style="color:#00AEEF;font-weight:700;font-size:11px;"></span></div>
+            <div class="ncm-label">Shadow Coins</div>
         </div>
         <div class="ncm-item" onclick="snxgOpenCreatorStudio();mobileNavTo('_close')">
             <div class="ncm-icon-wrap">💰</div>
@@ -6867,7 +6858,6 @@ body.arcade-fs-ios body::after { display:none !important; }
         <!-- ── WALLET / CREATOR ── -->
         <button class="nav-item" onclick="snxgOpenBuyCoins()">
             <span class="nav-icon">🪙</span> Shadow Coins
-            <span class="nav-badge" id="sidebarCoinBadge" style="background:rgba(0,174,239,0.25);color:#00AEEF;"></span>
         </button>
         <button class="nav-item" onclick="snxgOpenCreatorStudio()">
             <span class="nav-icon">💰</span> Creator Studio
@@ -9840,15 +9830,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 <!-- Wallet tab -->
 <div class="cs-tab-panel" id="csPanel_wallet">
   <div class="section-card">
-    <h3 style="margin:0 0 10px;font-size:14px;color:#00AEEF;text-shadow:0 0 8px rgba(0,174,239,0.35);">💳 Your Shadow Coin Balance</h3>
-    <div class="snxg-coin-header" style="margin-bottom:14px;">
-      <div class="snxg-coin-header-icon">🪙</div>
-      <div class="snxg-coin-header-info">
-        <div class="snxg-coin-header-label">Shadow Coins</div>
-        <div class="snxg-coin-header-balance" id="csWalletCoinBal">0</div>
-        <div style="font-size:11px;color:#4a7a9a;">Buy coins to send gifts to creators</div>
-      </div>
-    </div>
+    <h3 style="margin:0 0 10px;font-size:14px;color:#00AEEF;text-shadow:0 0 8px rgba(0,174,239,0.35);">💳 Shadow Coins</h3>
     <button onclick="snxgOpenBuyCoins()"
       style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#003087,#009cde);border-color:rgba(0,156,222,0.7);color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
       <img src="https://www.paypalobjects.com/webstatic/en_US/i/buttons/PP_logo_h_200x51.png" alt="PayPal" style="height:16px;">
@@ -29591,14 +29573,8 @@ document.addEventListener('click', function(e) {
   function _updateAllCoinDisplays(bal) {
     var n   = (typeof bal === 'number' && !isNaN(bal)) ? bal : 0;
     var fmt = n.toLocaleString ? n.toLocaleString() : String(n);
-    var scAmt   = document.getElementById('scNavCoinAmt');
-    var ncmAmt  = document.getElementById('ncmCoinAmt');
-    var sbBadge = document.getElementById('sidebarCoinBadge');
-    var csWal   = document.getElementById('csWalletCoinBal');
-    if (scAmt)   scAmt.textContent   = fmt;
-    if (ncmAmt)  ncmAmt.textContent  = fmt;
-    if (sbBadge) sbBadge.textContent = fmt;
-    if (csWal)   csWal.textContent   = fmt;
+    var scAmt = document.getElementById('scNavCoinAmt');
+    if (scAmt) scAmt.textContent = fmt;
   }
 
   // Poll _snxgCoinBalance (set by snx-gifts.js) every second

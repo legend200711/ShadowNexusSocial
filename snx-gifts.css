@@ -16,42 +16,7 @@
 /* ═══════════════════════════════════════════════════
    COIN BALANCE PILL — fixed top-right shortcut
    ═══════════════════════════════════════════════════ */
-#snxCoinPill {
-  position: fixed;
-  top: 12px;
-  right: 14px;
-  z-index: 1200;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(0,20,55,0.88);
-  border: 1px solid rgba(0,174,239,0.5);
-  border-radius: 20px;
-  padding: 6px 12px 6px 9px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-  color: #c8e8ff;
-  box-shadow: 0 0 14px rgba(0,174,239,0.25), 0 2px 8px rgba(0,0,0,0.5);
-  transition: border-color 0.18s, box-shadow 0.18s;
-  user-select: none;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-#snxCoinPill:hover {
-  border-color: rgba(0,174,239,0.9);
-  box-shadow: 0 0 22px rgba(0,174,239,0.45), 0 2px 8px rgba(0,0,0,0.5);
-}
-#snxCoinPill .coin-pill-icon { font-size: 16px; line-height: 1; }
-#snxCoinPill .coin-pill-amt { letter-spacing: 0.3px; }
-#snxCoinPill .coin-pill-label {
-  font-size: 9px;
-  color: #4a90b8;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  display: block;
-  line-height: 1;
-}
+/* #snxCoinPill removed from HTML — element no longer exists */
 
 /* Desktop shadow-core nav coin button */
 .sc-coin-btn {
@@ -945,5 +910,4 @@
 @media (min-width: 768px) {
   .gift-tray-sheet { max-width: 540px; margin: 0 auto; border-radius: 20px 20px 0 0; }
   .cs-balance-grid { grid-template-columns: repeat(4, 1fr); }
-  #snxCoinPill { top: 16px; right: 20px; }
 }

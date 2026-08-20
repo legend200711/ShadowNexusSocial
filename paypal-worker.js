@@ -6,13 +6,15 @@
  * NO PayPal secrets are ever sent to the browser.
  *
  * Routes:
- *   POST /paypal/create-order        — Create a PayPal order for coin purchase
- *   POST /paypal/capture-order       — Capture a PayPal order after buyer approval
- *   POST /paypal/webhook             — Receive and verify PayPal webhook events
- *   POST /paypal/onboard-creator     — Generate a PayPal onboarding link for creator
- *   POST /paypal/payout              — Send payout to a connected creator
- *   GET  /paypal/creator-status      — Get creator PayPal onboarding status
- *   GET  /health                     — Health check
+ *   POST /paypal/create-order         — Create a PayPal order for coin purchase
+ *   POST /paypal/capture-order        — Capture a PayPal order after buyer approval
+ *   POST /paypal/webhook              — Receive and verify PayPal webhook events
+ *   POST /paypal/onboard-creator      — Generate a PayPal onboarding link for creator
+ *   POST /paypal/payout               — Send payout to a connected creator
+ *   GET  /paypal/creator-status       — Get creator PayPal onboarding status
+ *   POST /paypal/grant-test-coins     — Founder: give test Shadow Coins to a user
+ *   POST /paypal/transfer-test-coins  — Founder: move test coins between two users
+ *   GET  /health                      — Health check
  *
  * Required Cloudflare Secrets (set via: wrangler secret put <NAME> --config wrangler-paypal.toml):
  *   PAYPAL_CLIENT_ID         — BAA_f0dLIUnsqCYMCUKypUxef68PGf6RUCHlYk-Y9FFSf8VdHn3tpAYb6O7lEAkqNpWUL2ebmy4GKwmndw
@@ -1345,7 +1347,7 @@ async function handleGrantTestCoins(req, env, origin) {
   let body;
   try { body = await req.json(); } catch { return errResp('Invalid JSON', 400, origin, env); }
 
-  const { idToken, recipientUid, reason } = body;
+  const { idToken, recipientUid, reason, amount } = body;
   if (!idToken)      return errResp('Authentication required', 401, origin, env);
   if (!recipientUid) return errResp('recipientUid is required', 400, origin, env);
 
@@ -1371,7 +1373,12 @@ async function handleGrantTestCoins(req, env, origin) {
   }
   const recipientName = recipientData.displayName || recipientData.username || recipientUid;
 
-  const TEST_GRANT_AMOUNT = 500;  // fixed test amount
+  // Accept a custom amount (defaults to 500) capped at 5,000 for safety.
+  // The amount must be a positive integer.
+  const TEST_GRANT_AMOUNT = Math.min(
+    Math.max(1, Math.floor(Number(amount) || 500)),
+    5000
+  );
 
   // Read current wallet balance
   const walletDoc  = await fbGetDoc(fbToken, 'wallets', recipientUid);
@@ -1413,6 +1420,127 @@ async function handleGrantTestCoins(req, env, origin) {
   }, 200, origin, env);
 }
 
+/**
+ * POST /paypal/transfer-test-coins
+ * Body: { idToken, senderUid, recipientUid, amount, reason? }
+ *
+ * Founder-only: moves Shadow Coins from one user's wallet to another
+ * using the same debit/credit logic as the normal gift flow, but
+ * executed server-side so it works regardless of which account the
+ * caller is signed in to.
+ *
+ * This is purely a testing utility — no PayPal or cash flow is involved.
+ * Coins deducted from senderUid are credited directly to recipientUid.
+ * A testCoinTransfers log record is written for auditing.
+ */
+async function handleTransferTestCoins(req, env, origin) {
+  let body;
+  try { body = await req.json(); } catch { return errResp('Invalid JSON', 400, origin, env); }
+
+  const { idToken, senderUid, recipientUid, amount, reason } = body;
+  if (!idToken)      return errResp('Authentication required', 401, origin, env);
+  if (!senderUid)    return errResp('senderUid is required', 400, origin, env);
+  if (!recipientUid) return errResp('recipientUid is required', 400, origin, env);
+
+  const coinAmount = Number(amount);
+  if (!Number.isInteger(coinAmount) || coinAmount <= 0) {
+    return errResp('amount must be a positive integer', 400, origin, env);
+  }
+
+  // Verify the caller's Firebase ID token
+  let callerUid;
+  try { callerUid = await fbVerifyToken(idToken); }
+  catch { return errResp('Authentication failed', 401, origin, env); }
+
+  const fbToken = await fbGetToken(env);
+
+  // Verify caller is a Founder
+  const callerDoc  = await fbGetDoc(fbToken, 'users', callerUid);
+  const callerData = fromFirestoreDoc(callerDoc) || {};
+  if (callerData.role !== 'founder') {
+    return errResp('Permission denied — Founders only.', 403, origin, env);
+  }
+
+  // Read sender wallet
+  const senderWalletDoc  = await fbGetDoc(fbToken, 'wallets', senderUid);
+  const senderWalletData = fromFirestoreDoc(senderWalletDoc) || {};
+  const senderBalance    = typeof senderWalletData.shadowCoins === 'number'
+    ? senderWalletData.shadowCoins : (senderWalletData.shadowCoins || 0);
+
+  if (senderBalance < coinAmount) {
+    return errResp(
+      `Insufficient coins: sender has ${senderBalance}, needs ${coinAmount}.`,
+      400, origin, env
+    );
+  }
+
+  const newSenderBalance = senderBalance - coinAmount;
+
+  // Read recipient wallet
+  const recipientWalletDoc  = await fbGetDoc(fbToken, 'wallets', recipientUid);
+  const recipientWalletData = fromFirestoreDoc(recipientWalletDoc) || {};
+  const recipientBalance    = typeof recipientWalletData.shadowCoins === 'number'
+    ? recipientWalletData.shadowCoins : (recipientWalletData.shadowCoins || 0);
+
+  const newRecipientBalance = recipientBalance + coinAmount;
+
+  // Get user display names for the log
+  const senderUserDoc     = await fbGetDoc(fbToken, 'users', senderUid);
+  const senderUserData    = fromFirestoreDoc(senderUserDoc) || {};
+  const senderName        = senderUserData.displayName || senderUid;
+
+  const recipientUserDoc  = await fbGetDoc(fbToken, 'users', recipientUid);
+  const recipientUserData = fromFirestoreDoc(recipientUserDoc) || {};
+  const recipientName     = recipientUserData.displayName || recipientUid;
+
+  // Write updated sender wallet (deduct)
+  await fbSetDoc(fbToken, 'wallets', senderUid, {
+    uid:         senderUid,
+    shadowCoins: newSenderBalance,
+    lastGiftAt:  serverTs(),
+  });
+
+  // Write updated recipient wallet (credit)
+  await fbSetDoc(fbToken, 'wallets', recipientUid, {
+    uid:                recipientUid,
+    shadowCoins:        newRecipientBalance,
+    lastGiftReceivedAt: serverTs(),
+  });
+
+  // Write transfer log record
+  const txId = `snxt_xfr_${callerUid.slice(0, 6)}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  await fbSetDoc(fbToken, 'testCoinTransfers', txId, {
+    txId,
+    authorizedBy:         callerUid,
+    senderUid,
+    senderName,
+    recipientUid,
+    recipientName,
+    amount:               coinAmount,
+    senderPrevBalance:    senderBalance,
+    senderNewBalance:     newSenderBalance,
+    recipientPrevBalance: recipientBalance,
+    recipientNewBalance:  newRecipientBalance,
+    reason:               reason || 'Test transfer',
+    cashValue:            0,
+    isTestOnly:           true,
+    transferredAt:        serverTs(),
+  });
+
+  return jsonResp({
+    success:              true,
+    txId,
+    amount:               coinAmount,
+    senderUid,
+    senderName,
+    senderNewBalance,
+    recipientUid,
+    recipientName,
+    recipientNewBalance,
+    note:                 'Test transfer only — no cash value.',
+  }, 200, origin, env);
+}
+
 // ─── Main Fetch Handler ───────────────────────────────────────────────────────
 
 export default {
@@ -1447,7 +1575,8 @@ export default {
       if (path === '/paypal/onboard-creator' && req.method === 'POST') return handleOnboardCreator(req, env, origin);
       if (path === '/paypal/creator-status'  && req.method === 'GET')  return handleCreatorStatus(req, env, origin);
       if (path === '/paypal/payout'          && req.method === 'POST') return handlePayout(req, env, origin);
-      if (path === '/paypal/grant-test-coins'&& req.method === 'POST') return handleGrantTestCoins(req, env, origin);
+      if (path === '/paypal/grant-test-coins'    && req.method === 'POST') return handleGrantTestCoins(req, env, origin);
+      if (path === '/paypal/transfer-test-coins'  && req.method === 'POST') return handleTransferTestCoins(req, env, origin);
 
       return errResp('Not found', 404, origin, env);
     } catch (err) {

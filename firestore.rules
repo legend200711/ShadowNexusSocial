@@ -885,6 +885,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // testCoinTransfers/{txId} — test coin transfer records (backend-written, Founder-readable)
+    // Records server-side coin moves between two users initiated by the Founder for testing.
+    // No real cash value; cannot trigger PayPal payouts.
+    match /testCoinTransfers/{txId} {
+      allow read:   if isFounder();
+      allow create: if false;  // backend only
+      allow update: if false;  // immutable
+      allow delete: if false;
+    }
+
     // ─── SHADOW FIRE LIVE — Video Collections ──────────────────────────────────
     //
     // /videos/{videoId}  — uploaded video metadata
