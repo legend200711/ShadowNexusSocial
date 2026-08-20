@@ -1925,6 +1925,11 @@ const _FOUNDER_EMAIL    = 'christijerina46@gmail.com';
 const _TEST_GRANT_COINS = 500;  // hardcoded — never trusted from client
 
 async function handleGrantTestCoins(req, env, cors, sec) {
+  // ── 0. Feature flag ──
+  if (env.ENABLE_TEST_COIN_GRANTS !== 'true') {
+    return _ppErr('Test coin grants are not enabled.', 403, cors, sec);
+  }
+
   // ── 1. Parse request ──
   let body;
   try { body = await req.json(); } catch { return _ppErr('Invalid JSON', 400, cors, sec); }
@@ -1956,19 +1961,6 @@ async function handleGrantTestCoins(req, env, cors, sec) {
   } catch (err) {
     console.error('[TEST COINS] Firebase admin token error:', err.message);
     return _ppErr('Internal auth error. Please try again.', 500, cors, sec);
-  }
-
-  // ── 0. Feature flag — read from Firestore siteSettings/config.testCoinGrantsEnabled ──
-  // This is controlled by the Founder toggle in the Control Panel (same pattern as liveEnabled).
-  try {
-    const cfg = await _fbGet(fbToken, 'siteSettings', 'config');
-    if (!cfg || cfg.testCoinGrantsEnabled !== true) {
-      console.log('[TEST COINS] testCoinGrantsEnabled is not true in siteSettings/config — blocked.');
-      return _ppErr('Test coin grants are not enabled.', 403, cors, sec);
-    }
-  } catch (err) {
-    console.error('[TEST COINS] Could not read siteSettings/config:', err.message);
-    return _ppErr('Test coin grants are not enabled.', 403, cors, sec);
   }
 
   // ── 4. Server-side Founder verification ──

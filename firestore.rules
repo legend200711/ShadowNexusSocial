@@ -901,6 +901,50 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ─── Shadow XP / Social Credit ─────────────────────────────────────────────
+    //
+    // /shadowXP/{uid}  — level, experience, title
+    //   Written by the owner (snxf_awardXP) and, for the experience field only,
+    //   by a gift sender crediting the recipient's social standing.
+    //
+    // Gift-credit rule: a signed-in user may create or update another user's
+    // shadowXP document provided:
+    //   - only the 'experience' and 'lastGiftXPAt' fields change
+    //   - new experience > existing experience (never a deduction)
+    //   - new experience is a number
+    //
+    match /shadowXP/{uid} {
+      // Owner reads/writes their own XP (snxf_awardXP, snxf_loadXPStrip).
+      allow read:   if isOwner(uid) || isFounder();
+      allow create: if
+        // Case 1: Owner creates their own XP doc.
+        ( isOwner(uid)
+          && request.resource.data.experience is number
+          && request.resource.data.experience >= 0 )
+        ||
+        // Case 2: Gift sender creates XP doc for a recipient who has none yet.
+        // Strictly limited: uid field matches path, experience must be positive.
+        ( isSignedIn()
+          && request.resource.data.uid == uid
+          && request.resource.data.experience is number
+          && request.resource.data.experience > 0 );
+      allow update: if
+        // Case 1: Owner updates their own XP (snxf_awardXP).
+        ( isOwner(uid)
+          && request.resource.data.experience is number
+          && request.resource.data.experience >= 0 )
+        ||
+        // Case 2: Gift sender credits recipient's Social Credit (XP).
+        // Strictly limited: only experience and lastGiftXPAt may change,
+        // new experience must be strictly greater than the existing value.
+        ( isSignedIn()
+          && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['experience', 'lastGiftXPAt'])
+          && request.resource.data.experience is number
+          && request.resource.data.experience > resource.data.experience );
+      allow delete: if isFounder();
+    }
+
     // ─── SHADOW FIRE LIVE — Video Collections ──────────────────────────────────
     //
     // /videos/{videoId}  — uploaded video metadata

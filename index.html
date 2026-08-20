@@ -9700,7 +9700,7 @@ body.arcade-fs-ios body::after { display:none !important; }
   <div class="adm-panel-card" style="border-color:rgba(0,174,239,0.4);">
     <h3 class="adm-section-title">🪙 Shadow Coin Testing</h3>
     <p style="font-size:12px;color:#6a90b8;margin:0 0 14px;line-height:1.7;">
-      Grant <strong style="color:#00AEEF;">500 test Shadow Coins</strong> to a specific user for LIVE gifting tests.<br>
+      Grant up to <strong style="color:#00AEEF;">50,000 test Shadow Coins</strong> to a specific user for LIVE gifting tests.<br>
       Test coins have <strong style="color:#ffcc44;">no real cash value</strong> and cannot be withdrawn or trigger PayPal.<br>
       Earnings from test coins are marked <strong style="color:#ffcc44;">TEST EARNINGS — NO CASH VALUE</strong>.
     </p>
@@ -9708,7 +9708,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     <!-- Warning badge -->
     <div style="background:rgba(255,204,68,0.1);border:1px solid rgba(255,204,68,0.4);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#ffcc44;line-height:1.6;">
       ⚠️ <strong>Founder access only.</strong> The backend independently verifies your identity.<br>
-      Amount is fixed at <strong>500 coins</strong>. This cannot be changed from the frontend.
+      Maximum grant: <strong>50,000 coins per grant</strong>. No cash value.
     </div>
 
     <!-- Enable / Disable toggle -->
@@ -9753,15 +9753,19 @@ body.arcade-fs-ios body::after { display:none !important; }
           <div id="ctgUserUid"  style="font-size:10px;color:#4a7a9a;font-family:monospace;"></div>
         </div>
       </div>
-      <div style="font-size:12px;color:#6a90b8;margin-bottom:12px;">
-        Grant amount: <strong style="color:#00AEEF;">🪙 500 Shadow Coins</strong>
-        <span style="margin-left:8px;font-size:10px;color:#ffcc44;">(no cash value · sandbox only)</span>
+      <div style="margin-bottom:12px;">
+        <label style="display:block;font-size:11px;color:#4a7a9a;margin-bottom:6px;letter-spacing:0.5px;">GRANT AMOUNT (max 50,000)</label>
+        <input type="number" id="ctgCoinAmount" min="1" max="50000" value="500"
+          style="width:100%;box-sizing:border-box;background:rgba(0,15,40,0.8);border:1px solid rgba(0,174,239,0.3);
+                 border-radius:8px;padding:9px 12px;color:#00AEEF;font-size:15px;font-weight:800;outline:none;"
+          placeholder="1 – 50,000">
+        <div style="font-size:10px;color:#ffcc44;margin-top:4px;">no cash value · sandbox only</div>
       </div>
       <button id="ctgGrantBtn" onclick="snxgGrantTestCoins()"
         style="width:100%;padding:12px;background:linear-gradient(135deg,#003d99,#0077dd);
                border:1px solid rgba(0,180,255,0.5);border-radius:10px;color:#fff;
                font-size:14px;font-weight:800;cursor:pointer;letter-spacing:0.5px;">
-        🪙 Grant 500 Test Coins
+        🪙 Grant Test Coins
       </button>
       <div id="ctgGrantStatus" style="display:none;margin-top:10px;font-size:12px;border-radius:8px;padding:8px 12px;"></div>
     </div>
@@ -29781,8 +29785,10 @@ document.addEventListener('click', function(e) {
   function _updateAllCoinDisplays(bal) {
     var n   = (typeof bal === 'number' && !isNaN(bal)) ? bal : 0;
     var fmt = n.toLocaleString ? n.toLocaleString() : String(n);
-    var scAmt = document.getElementById('scNavCoinAmt');
-    if (scAmt) scAmt.textContent = fmt;
+    var scAmt     = document.getElementById('scNavCoinAmt');
+    var modalBal  = document.getElementById('snxCoinModalBal');
+    if (scAmt)    scAmt.textContent    = fmt;
+    if (modalBal) modalBal.textContent = fmt;
   }
 
   // Poll _snxgCoinBalance (set by snx-gifts.js) every second

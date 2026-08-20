@@ -76,12 +76,24 @@ async function _snxgPaypalPost(endpoint, body) {
    for fast UI rendering.  Server always revalidates.
    ══════════════════════════════════════════════════ */
 const SNX_GIFT_CATALOG = [
-  { id: 'black_cat',       name: 'Black Cat',         art: '🐱',  coins: 10,  premium: false, enabled: true },
-  { id: 'shadow_lightning',name: 'Shadow Lightning',  art: '⚡',  coins: 25,  premium: false, enabled: true },
-  { id: 'blue_flame',      name: 'Blue Flame',        art: '🔵🔥', coins: 50,  premium: false, enabled: true },
-  { id: 'wolf',            name: 'Wolf',              art: '🐺',  coins: 100, premium: false, enabled: true },
-  { id: 'grim_reaper',     name: 'Grim Reaper',       art: '💀',  coins: 200, premium: true,  enabled: true },
-  { id: 'stay_legendary',  name: 'STAY LEGENDARY',    art: '🌑',  coins: 300, premium: true,  enabled: true },
+  { id: 'black_cat',         name: 'Black Cat',         art: '🐱',   coins: 10,   premium: false, enabled: true },
+  { id: 'shadow_lightning',  name: 'Shadow Lightning',  art: '⚡',   coins: 25,   premium: false, enabled: true },
+  { id: 'blue_flame',        name: 'Blue Flame',        art: '🔵🔥',  coins: 50,   premium: false, enabled: true },
+  { id: 'wolf',              name: 'Wolf',              art: '🐺',   coins: 100,  premium: false, enabled: true },
+  { id: 'grim_reaper',       name: 'Grim Reaper',       art: '💀',   coins: 200,  premium: true,  enabled: true },
+  { id: 'stay_legendary',    name: 'STAY LEGENDARY',    art: '🌑',   coins: 300,  premium: true,  enabled: true },
+  // ── Premium Animated Gifts (750–5000 coins) ──────────────────────────────
+  { id: 'shadow_eclipse',    name: 'Shadow Eclipse',    art: '🌑',   coins: 750,  premium: true,  enabled: true },
+  { id: 'nexus_lightning',   name: 'Nexus Lightning',   art: '⚡',   coins: 1000, premium: true,  enabled: true },
+  { id: 'shadow_inferno',    name: 'Shadow Inferno',    art: '🔥',   coins: 1250, premium: true,  enabled: true },
+  { id: 'legendary_crown',   name: 'Legendary Crown',   art: '👑',   coins: 1500, premium: true,  enabled: true },
+  { id: 'shadow_cat',        name: 'Shadow Cat',        art: '🐈‍⬛',  coins: 1750, premium: true,  enabled: true },
+  { id: 'shadow_dragon',     name: 'Shadow Dragon',     art: '🐉',   coins: 2000, premium: true,  enabled: true },
+  { id: 'nexus_diamond',     name: 'Nexus Diamond',     art: '💎',   coins: 2500, premium: true,  enabled: true },
+  { id: 'galaxy_portal',     name: 'Galaxy Portal',     art: '🌌',   coins: 3000, premium: true,  enabled: true },
+  { id: 'reapers_gift',      name: "Reaper's Gift",     art: '☠️',   coins: 3500, premium: true,  enabled: true },
+  { id: 'shadow_wolf',       name: 'Shadow Wolf',       art: '🐺',   coins: 4000, premium: true,  enabled: true },
+  { id: 'eclipse_nexus',     name: 'Eclipse Nexus',     art: '🌑⚡',  coins: 5000, premium: true,  enabled: true },
 ];
 
 // Coin exchange rate: 100 coins = $1.00  →  1 coin = $0.01
@@ -412,9 +424,20 @@ function _snxgRenderGiftTrayGrid() {
 }
 
 function _snxgGiftArt(gift, context) {
-  if (gift.id === 'stay_legendary') return `<span style="filter:drop-shadow(0 0 8px rgba(0,174,239,0.9));">${gift.art}</span>`;
-  if (gift.id === 'grim_reaper')    return `<span style="filter:drop-shadow(0 0 6px rgba(80,0,200,0.7));">${gift.art}</span>`;
-  if (gift.id === 'wolf')           return `<span style="filter:drop-shadow(0 0 5px rgba(0,174,239,0.6));">${gift.art}</span>`;
+  if (gift.id === 'stay_legendary')  return `<span style="filter:drop-shadow(0 0 8px rgba(0,174,239,0.9));">${gift.art}</span>`;
+  if (gift.id === 'grim_reaper')     return `<span style="filter:drop-shadow(0 0 6px rgba(80,0,200,0.7));">${gift.art}</span>`;
+  if (gift.id === 'wolf')            return `<span style="filter:drop-shadow(0 0 5px rgba(0,174,239,0.6));">${gift.art}</span>`;
+  if (gift.id === 'shadow_eclipse')  return `<span style="filter:drop-shadow(0 0 10px rgba(80,0,160,0.9)) drop-shadow(0 0 20px rgba(0,0,0,0.8));">${gift.art}</span>`;
+  if (gift.id === 'nexus_lightning') return `<span style="filter:drop-shadow(0 0 12px rgba(0,200,255,1)) drop-shadow(0 0 24px rgba(0,120,255,0.8));">${gift.art}</span>`;
+  if (gift.id === 'shadow_inferno')  return `<span style="filter:drop-shadow(0 0 12px rgba(255,80,0,0.9)) drop-shadow(0 0 22px rgba(180,0,0,0.7));">${gift.art}</span>`;
+  if (gift.id === 'legendary_crown') return `<span style="filter:drop-shadow(0 0 14px rgba(255,200,0,1)) drop-shadow(0 0 30px rgba(200,100,0,0.8));">${gift.art}</span>`;
+  if (gift.id === 'shadow_dragon')   return `<span style="filter:drop-shadow(0 0 12px rgba(100,0,200,0.9)) drop-shadow(0 0 24px rgba(40,0,80,0.8));">${gift.art}</span>`;
+  if (gift.id === 'nexus_diamond')   return `<span style="filter:drop-shadow(0 0 14px rgba(0,230,255,1)) drop-shadow(0 0 28px rgba(80,0,255,0.7));">${gift.art}</span>`;
+  if (gift.id === 'galaxy_portal')   return `<span style="filter:drop-shadow(0 0 14px rgba(120,0,255,0.9)) drop-shadow(0 0 30px rgba(0,80,200,0.7));">${gift.art}</span>`;
+  if (gift.id === 'reapers_gift')    return `<span style="filter:drop-shadow(0 0 12px rgba(0,200,0,0.8)) drop-shadow(0 0 24px rgba(0,60,0,0.9));">${gift.art}</span>`;
+  if (gift.id === 'shadow_wolf')     return `<span style="filter:drop-shadow(0 0 12px rgba(0,174,239,0.8)) drop-shadow(0 0 24px rgba(0,40,100,0.7));">${gift.art}</span>`;
+  if (gift.id === 'shadow_cat')      return `<span style="filter:drop-shadow(0 0 12px rgba(0,180,255,1)) drop-shadow(0 0 26px rgba(0,0,80,0.9));">${gift.art}</span>`;
+  if (gift.id === 'eclipse_nexus')   return `<span style="filter:drop-shadow(0 0 16px rgba(0,200,255,1)) drop-shadow(0 0 36px rgba(80,0,200,0.9)) drop-shadow(0 0 60px rgba(0,100,255,0.6));">${gift.art}</span>`;
   return gift.art;
 }
 
@@ -592,6 +615,7 @@ async function snxgSendGift() {
   const senderWalletRef   = doc(db, 'wallets',         senderId);
   const recipientWalletRef = doc(db, 'wallets',        creatorId);  // recipient's spendable balance
   const creatorEarnRef    = doc(db, 'creatorEarnings', creatorId);
+  const recipientXPRef    = doc(db, 'shadowXP',        creatorId);  // recipient's Social Credit
   // Use txId as the document ID — this makes the transaction idempotent.
   // If the same txId is committed twice (network retry), Firestore will
   // reject the second write on the giftTxRef with 'already-exists', but
@@ -674,6 +698,13 @@ async function snxgSendGift() {
       const recipientNewBalance   = recipientCurrentCoins + verifiedCreatorCoins;
       console.log('[GIFT DEBUG] recipient wallet exists:', recipientWalletSnap.exists(), '| current balance:', recipientCurrentCoins, '→', recipientNewBalance);
 
+      // ── READ 4: recipient Shadow XP / Social Credit ────────────────────────
+      const recipientXPSnap  = await tx.get(recipientXPRef);
+      const recipientXPData  = recipientXPSnap.exists() ? recipientXPSnap.data() : {};
+      const recipientCurrentXP = typeof recipientXPData.experience === 'number' ? recipientXPData.experience : 0;
+      const recipientNewXP     = recipientCurrentXP + verifiedCoinPrice;  // 1 Social Credit per coin gifted
+      console.log('[GIFT DEBUG] recipient XP exists:', recipientXPSnap.exists(), '| current XP:', recipientCurrentXP, '→', recipientNewXP);
+
       // ── WRITE 1: deduct sender wallet ──────────────────────────────────────
       // Use update() when doc exists, set() when it doesn't — avoids the
       // create-rule path for update operations on existing wallets.
@@ -723,6 +754,25 @@ async function snxgSendGift() {
           lastGiftReceivedAt: serverTimestamp(),
         });
       }
+
+      // ── WRITE 2c: credit recipient's Shadow Social Credit (Shadow XP) ──────
+      // Social Credit = verifiedCoinPrice XP (1 per coin gifted).
+      // Rule: only experience and lastGiftXPAt may change; new value > existing.
+      if (recipientXPSnap.exists()) {
+        tx.update(recipientXPRef, {
+          experience:   recipientNewXP,
+          lastGiftXPAt: serverTimestamp(),
+        });
+      } else {
+        // Recipient has no XP doc yet — create one at level 1.
+        tx.set(recipientXPRef, {
+          uid:          creatorId,
+          experience:   recipientNewXP,
+          level:        1,
+          lastGiftXPAt: serverTimestamp(),
+        });
+      }
+      console.log('[GIFT DEBUG] Social Credit write: shadowXP/' + creatorId + '.experience', recipientCurrentXP, '→', recipientNewXP);
 
       // ── WRITE 3: immutable gift transaction record ─────────────────────────
       tx.set(giftTxRef, {
@@ -817,17 +867,27 @@ function _snxgGenTxId() {
 /* ══════════════════════════════════════════════════
    GIFT ANIMATIONS
    ══════════════════════════════════════════════════ */
+// Premium gift IDs that get the full-screen animated overlay
+const _SNX_PREMIUM_ANIM_IDS = new Set([
+  'shadow_eclipse', 'nexus_lightning', 'shadow_inferno', 'legendary_crown',
+  'shadow_cat',     'shadow_dragon',   'nexus_diamond',  'galaxy_portal',
+  'reapers_gift',   'shadow_wolf',     'eclipse_nexus',
+]);
+
 function _snxgPlayGiftAnimation(gift, senderName) {
   if (gift.id === 'stay_legendary') {
     snxgPlayStayLegendary(senderName);
     return;
   }
+  if (_SNX_PREMIUM_ANIM_IDS.has(gift.id)) {
+    _snxgPlayPremiumAnimation(gift, senderName);
+    return;
+  }
 
-  // General pop animation
+  // General pop animation (existing gifts)
   const el = document.createElement('div');
   el.className = 'snxg-gift-pop';
 
-  // Position: center of viewport or over the post area
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   el.style.left = (vw * 0.5 - 50) + 'px';
@@ -965,6 +1025,391 @@ function _snxgStopSloCanvas() {
   if (canvas) { const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); }
 }
 
+
+/* ══════════════════════════════════════════════════
+   PREMIUM GIFT ANIMATIONS — full-screen overlays
+   ══════════════════════════════════════════════════ */
+
+// Config per gift: { bg, particleColors, title, titleColor, tagline, duration }
+const _SNX_PREMIUM_CONFIGS = {
+  shadow_eclipse: {
+    bg: 'radial-gradient(ellipse at center, #1a004a 0%, #05000f 70%)',
+    particleColors: ['#6600cc', '#aa44ff', '#330066', '#ffffff'],
+    title: 'SHADOW ECLIPSE',
+    titleColor: 'linear-gradient(90deg, #aa44ff, #6600cc, #cc88ff, #aa44ff)',
+    tagline: '— Dark Energy Unleashed —',
+    duration: 5000,
+  },
+  nexus_lightning: {
+    bg: 'radial-gradient(ellipse at center, #001a3a 0%, #000a1a 70%)',
+    particleColors: ['#00ccff', '#0088ff', '#44eeff', '#ffffff'],
+    title: 'NEXUS LIGHTNING',
+    titleColor: 'linear-gradient(90deg, #00ccff, #44eeff, #0088ff, #00ccff)',
+    tagline: '— Electric Force —',
+    duration: 5000,
+    lightning: true,
+  },
+  shadow_inferno: {
+    bg: 'radial-gradient(ellipse at center, #2a0800 0%, #0a0000 70%)',
+    particleColors: ['#ff4400', '#ff8800', '#cc2200', '#ffaa00'],
+    title: 'SHADOW INFERNO',
+    titleColor: 'linear-gradient(90deg, #ff4400, #ff8800, #ffaa00, #ff4400)',
+    tagline: '— Consume Everything —',
+    duration: 5500,
+    flames: true,
+  },
+  legendary_crown: {
+    bg: 'radial-gradient(ellipse at center, #2a1800 0%, #080400 70%)',
+    particleColors: ['#ffcc00', '#ffaa00', '#ff8800', '#ffffff'],
+    title: 'LEGENDARY CROWN',
+    titleColor: 'linear-gradient(90deg, #ffcc00, #ffffff, #ffaa00, #ffcc00)',
+    tagline: '— Rarest of the Rare —',
+    duration: 6000,
+  },
+  shadow_cat: {
+    bg: 'radial-gradient(ellipse at center, #000a1a 0%, #000005 75%)',
+    particleColors: ['#00aaff', '#0044cc', '#001a4a', '#88ccff', '#ffffff'],
+    title: 'SHADOW CAT',
+    titleColor: 'linear-gradient(90deg, #00aaff, #88ccff, #0066ff, #00aaff)',
+    tagline: '— The Darkness Purrs —',
+    duration: 6000,
+    lightning: true,
+    shadowCat: true,
+  },
+  shadow_dragon: {
+    bg: 'radial-gradient(ellipse at center, #1a0040 0%, #060012 70%)',
+    particleColors: ['#8800ff', '#cc44ff', '#440088', '#ff88ff'],
+    title: 'SHADOW DRAGON',
+    titleColor: 'linear-gradient(90deg, #8800ff, #cc44ff, #aa00ff, #8800ff)',
+    tagline: '— The Dragon Awakens —',
+    duration: 5500,
+    dragon: true,
+  },
+  nexus_diamond: {
+    bg: 'radial-gradient(ellipse at center, #001830 0%, #000610 70%)',
+    particleColors: ['#00eeff', '#88ddff', '#ffffff', '#4488ff'],
+    title: 'NEXUS DIAMOND',
+    titleColor: 'linear-gradient(90deg, #00eeff, #ffffff, #88ddff, #00eeff)',
+    tagline: '— Crystalline Perfection —',
+    duration: 5500,
+  },
+  galaxy_portal: {
+    bg: 'radial-gradient(ellipse at center, #0a0030 0%, #020008 70%)',
+    particleColors: ['#8844ff', '#4400cc', '#ff44ff', '#aaaaff'],
+    title: 'GALAXY PORTAL',
+    titleColor: 'linear-gradient(90deg, #8844ff, #ff44ff, #aaaaff, #8844ff)',
+    tagline: '— The Universe Opens —',
+    duration: 6000,
+  },
+  reapers_gift: {
+    bg: 'radial-gradient(ellipse at center, #001a00 0%, #000400 70%)',
+    particleColors: ['#00cc44', '#008822', '#004400', '#44ff88'],
+    title: "REAPER'S GIFT",
+    titleColor: 'linear-gradient(90deg, #00cc44, #44ff88, #008822, #00cc44)',
+    tagline: '— Death Delivers —',
+    duration: 5500,
+  },
+  shadow_wolf: {
+    bg: 'radial-gradient(ellipse at center, #001830 0%, #000508 70%)',
+    particleColors: ['#00aaff', '#0044cc', '#88ccff', '#ffffff'],
+    title: 'SHADOW WOLF',
+    titleColor: 'linear-gradient(90deg, #00aaff, #88ccff, #0066ff, #00aaff)',
+    tagline: '— The Pack Howls —',
+    duration: 5500,
+    wolf: true,
+  },
+  eclipse_nexus: {
+    bg: 'radial-gradient(ellipse at center, #0a0030 0%, #000008 70%)',
+    particleColors: ['#00ccff', '#8800ff', '#ffffff', '#ff44ff', '#ffcc00'],
+    title: 'ECLIPSE NEXUS',
+    titleColor: 'linear-gradient(90deg, #00ccff, #8800ff, #ffffff, #ff44ff, #00ccff)',
+    tagline: '— Ultimate Rarity —',
+    duration: 7000,
+    lightning: true,
+    flames: true,
+  },
+};
+
+// Track active premium RAF per overlay ID to allow cleanup
+const _snxPremRafs = {};
+
+function _snxgPlayPremiumAnimation(gift, senderName) {
+  const cfg = _SNX_PREMIUM_CONFIGS[gift.id];
+  if (!cfg) return;  // fallback safety
+
+  const overlayId = 'snxPremOverlay_' + gift.id;
+
+  // Remove any existing overlay for this gift (e.g. rapid re-send)
+  const old = document.getElementById(overlayId);
+  if (old) {
+    if (_snxPremRafs[overlayId]) { cancelAnimationFrame(_snxPremRafs[overlayId]); delete _snxPremRafs[overlayId]; }
+    old.remove();
+  }
+
+  // Build overlay DOM
+  const overlay = document.createElement('div');
+  overlay.id = overlayId;
+  overlay.className = 'snxp-overlay';
+  overlay.innerHTML = `
+    <div class="snxp-bg" style="background:${cfg.bg};"></div>
+    <canvas class="snxp-canvas"></canvas>
+    <div class="snxp-content">
+      <span class="snxp-emblem">${gift.art}</span>
+      <span class="snxp-title" style="background:${cfg.titleColor};">${cfg.title}</span>
+      <span class="snxp-tagline">${cfg.tagline}</span>
+      <div class="snxp-sender">Sent by <strong>${senderName}</strong></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Trigger open animation on next frame
+  requestAnimationFrame(() => overlay.classList.add('active'));
+
+  // Start canvas particle system
+  const canvas = overlay.querySelector('.snxp-canvas');
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+
+  const particles = [];
+  const count = window.innerWidth < 500 ? 60 : 100;  // fewer on mobile
+  for (let i = 0; i < count; i++) {
+    particles.push(_snxpMakeParticle(canvas, cfg.particleColors));
+  }
+
+  // Extra lightning streaks if configured
+  const bolts = [];
+  if (cfg.lightning) {
+    for (let i = 0; i < 6; i++) {
+      bolts.push({ x: Math.random() * canvas.width, y: 0, h: 60 + Math.random() * 150,
+                   timer: Math.random() * 60, interval: 10 + Math.floor(Math.random() * 20),
+                   color: cfg.particleColors[0] });
+    }
+  }
+
+  // Shadow Cat: crows + blue flames state
+  let _scFrame = 0;
+  const _scCrows = [];
+  const _scFlames = [];
+  if (cfg.shadowCat) {
+    const crowCount = window.innerWidth < 500 ? 5 : 7;
+    for (let i = 0; i < crowCount; i++) {
+      const orbit = 90 + Math.random() * 60;
+      _scCrows.push({
+        angle:  (i / crowCount) * Math.PI * 2,
+        speed:  0.022 + Math.random() * 0.014,
+        orbit,
+        flap:   Math.random() * Math.PI * 2,   // wing flap phase
+        flapSpd: 0.18 + Math.random() * 0.1,
+        size:   11 + Math.random() * 6,
+      });
+    }
+    const flameCount = window.innerWidth < 500 ? 10 : 16;
+    for (let i = 0; i < flameCount; i++) {
+      _scFlames.push({
+        angle: (i / flameCount) * Math.PI * 2,
+        phase: Math.random() * Math.PI * 2,
+        h:     30 + Math.random() * 40,
+        w:     6  + Math.random() * 8,
+      });
+    }
+  }
+
+  function tick() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    _scFrame++;
+    const cx = canvas.width  * 0.5;
+    const cy = canvas.height * 0.5;
+
+    // Particles
+    for (const p of particles) {
+      p.x  += p.vx;
+      p.y  += p.vy;
+      p.alpha -= 0.004;
+      if (p.y < -10 || p.alpha <= 0) {
+        Object.assign(p, _snxpMakeParticle(canvas, cfg.particleColors));
+      }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, p.alpha);
+      ctx.fill();
+    }
+
+    // ── Shadow Cat canvas elements ───────────────────
+    if (cfg.shadowCat) {
+      // Blue flames rising from a ring around the cat center
+      for (const f of _scFlames) {
+        const flicker = Math.sin(_scFrame * 0.07 + f.phase) * 0.3 + 0.7;
+        const rx = cx + Math.cos(f.angle) * 55;
+        const ry = cy + Math.sin(f.angle) * 55;
+        const fh  = f.h * flicker;
+        const grad = ctx.createLinearGradient(rx, ry, rx, ry - fh);
+        grad.addColorStop(0,   'rgba(0,120,255,0.9)');
+        grad.addColorStop(0.4, 'rgba(0,60,180,0.6)');
+        grad.addColorStop(1,   'rgba(0,0,40,0)');
+        ctx.beginPath();
+        ctx.ellipse(rx, ry, f.w * 0.5 * flicker, fh * 0.5, 0, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.globalAlpha = 0.7 * flicker;
+        ctx.fill();
+      }
+
+      // Periodic lightning bolts radiating outward from cat center
+      if (_scFrame % 18 === 0 || _scFrame % 18 === 1) {
+        const boltAngle = Math.random() * Math.PI * 2;
+        const boltLen   = 70 + Math.random() * 80;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        let bx = cx, by = cy;
+        const steps = 5;
+        for (let s = 0; s < steps; s++) {
+          bx += Math.cos(boltAngle) * (boltLen / steps) + (Math.random() - 0.5) * 18;
+          by += Math.sin(boltAngle) * (boltLen / steps) + (Math.random() - 0.5) * 18;
+          ctx.lineTo(bx, by);
+        }
+        ctx.strokeStyle = '#00ccff';
+        ctx.lineWidth   = _scFrame % 18 === 0 ? 2 : 1;
+        ctx.globalAlpha = _scFrame % 18 === 0 ? 0.95 : 0.5;
+        ctx.shadowColor = '#00aaff';
+        ctx.shadowBlur  = 8;
+        ctx.stroke();
+        ctx.shadowBlur  = 0;
+      }
+
+      // Glowing eye flashes — two small teal orbs just above center
+      const eyeGlow = 0.5 + Math.sin(_scFrame * 0.09) * 0.5;
+      const eyeR    = 4 + eyeGlow * 2;
+      [[-12, -12], [12, -12]].forEach(([dx, dy]) => {
+        const eg = ctx.createRadialGradient(cx + dx, cy + dy, 0, cx + dx, cy + dy, eyeR * 2.5);
+        eg.addColorStop(0,   `rgba(0,230,255,${0.9 * eyeGlow})`);
+        eg.addColorStop(0.5, `rgba(0,120,255,${0.5 * eyeGlow})`);
+        eg.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.beginPath();
+        ctx.arc(cx + dx, cy + dy, eyeR * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = eg;
+        ctx.globalAlpha = eyeGlow;
+        ctx.fill();
+      });
+
+      // Crows circling
+      for (const crow of _scCrows) {
+        crow.angle += crow.speed;
+        crow.flap  += crow.flapSpd;
+        const bx = cx + Math.cos(crow.angle) * crow.orbit;
+        const by = cy + Math.sin(crow.angle) * crow.orbit * 0.45;
+        const flip = Math.cos(crow.angle) < 0 ? -1 : 1;
+        const wingOpen = Math.abs(Math.sin(crow.flap));
+        const s = crow.size;
+
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.scale(flip, 1);
+        ctx.globalAlpha = 0.88;
+
+        // Body
+        ctx.beginPath();
+        ctx.ellipse(0, 0, s * 0.55, s * 0.3, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#0a0a14';
+        ctx.fill();
+
+        // Head
+        ctx.beginPath();
+        ctx.arc(s * 0.45, -s * 0.18, s * 0.22, 0, Math.PI * 2);
+        ctx.fillStyle = '#0a0a14';
+        ctx.fill();
+
+        // Beak
+        ctx.beginPath();
+        ctx.moveTo(s * 0.65, -s * 0.18);
+        ctx.lineTo(s * 0.85, -s * 0.12);
+        ctx.lineTo(s * 0.65, -s * 0.08);
+        ctx.closePath();
+        ctx.fillStyle = '#334';
+        ctx.fill();
+
+        // Wings (flapping)
+        const wu = wingOpen * s * 0.9;
+        ctx.beginPath();
+        ctx.moveTo(0, -s * 0.08);
+        ctx.bezierCurveTo(-s * 0.2, -wu, -s * 0.7, -wu * 0.7, -s * 0.8, 0);
+        ctx.bezierCurveTo(-s * 0.5, s * 0.1, -s * 0.1, s * 0.05, 0, -s * 0.08);
+        ctx.fillStyle = '#080812';
+        ctx.fill();
+
+        // Eye glint
+        ctx.beginPath();
+        ctx.arc(s * 0.48, -s * 0.22, s * 0.07, 0, Math.PI * 2);
+        ctx.fillStyle = '#00ccff';
+        ctx.globalAlpha = 0.9;
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      // Shadow smoke ring around the cat
+      const smokeAlpha = 0.08 + Math.sin(_scFrame * 0.04) * 0.04;
+      const sg = ctx.createRadialGradient(cx, cy, 20, cx, cy, 80);
+      sg.addColorStop(0,   `rgba(0,40,100,0)`);
+      sg.addColorStop(0.5, `rgba(0,20,60,${smokeAlpha})`);
+      sg.addColorStop(1,   `rgba(0,0,20,0)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, 80, 0, Math.PI * 2);
+      ctx.fillStyle = sg;
+      ctx.globalAlpha = 1;
+      ctx.fill();
+    }
+    // ── End Shadow Cat canvas elements ───────────────
+
+    // Lightning (general, used by nexus_lightning & eclipse_nexus too)
+    for (const b of bolts) {
+      b.timer--;
+      if (b.timer <= 0) {
+        b.timer = b.interval + Math.floor(Math.random() * 15);
+        b.x = Math.random() * canvas.width;
+        b.h = 60 + Math.random() * 150;
+        ctx.beginPath();
+        ctx.moveTo(b.x, 0);
+        // jagged bolt
+        let lx = b.x, ly = 0;
+        while (ly < b.h) {
+          lx += (Math.random() - 0.5) * 20;
+          ly += 12 + Math.random() * 16;
+          ctx.lineTo(lx, ly);
+        }
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth   = 1.5;
+        ctx.globalAlpha = 0.8;
+        ctx.stroke();
+      }
+    }
+
+    ctx.globalAlpha = 1;
+    _snxPremRafs[overlayId] = requestAnimationFrame(tick);
+  }
+  tick();
+
+  // Auto-dismiss
+  setTimeout(() => {
+    overlay.classList.remove('active');
+    if (_snxPremRafs[overlayId]) { cancelAnimationFrame(_snxPremRafs[overlayId]); delete _snxPremRafs[overlayId]; }
+    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 400);
+  }, cfg.duration);
+}
+
+function _snxpMakeParticle(canvas, colors) {
+  return {
+    x: Math.random() * canvas.width,
+    y: canvas.height + Math.random() * 20,
+    r: 1 + Math.random() * 3.5,
+    vx: (Math.random() - 0.5) * 2,
+    vy: -(0.6 + Math.random() * 2),
+    alpha: 0.5 + Math.random() * 0.5,
+    color: colors[Math.floor(Math.random() * colors.length)],
+  };
+}
+
+
 /* ══════════════════════════════════════════════════
    LIVE GIFT TOAST
    ══════════════════════════════════════════════════ */
@@ -1004,6 +1449,11 @@ window.snxgShowLiveGiftToast = function(senderName, giftId, fallbackName, fallba
   }
   if (gift.id === 'stay_legendary') {
     snxgPlayStayLegendary(senderName);
+    return;
+  }
+  if (_SNX_PREMIUM_ANIM_IDS.has(gift.id)) {
+    _snxgShowLiveGiftToast(senderName, gift);
+    _snxgPlayPremiumAnimation(gift, senderName);
     return;
   }
   _snxgShowLiveGiftToast(senderName, gift);
@@ -1724,7 +2174,7 @@ function snxgWatchLiveGifts(roomId) {
 window.snxgWatchLiveGifts = snxgWatchLiveGifts;
 
 /* ══════════════════════════════════════════════════
-   FOUNDER COIN TESTING — Grant 500 test coins
+   FOUNDER COIN TESTING — Grant up to 50,000 test coins
    ══════════════════════════════════════════════════ */
 
 // Selected recipient for test grant
@@ -1886,7 +2336,7 @@ function snxgCoinTestSelectUser(uid, name, avatar) {
   if (avEl)   avEl.src           = avatar || '';
   if (area)   area.style.display = 'block';
   if (status) status.style.display = 'none';
-  if (btn)    { btn.disabled = false; btn.textContent = '🪙 Grant 500 Test Coins'; }
+  if (btn)    { btn.disabled = false; btn.textContent = '🪙 Grant Test Coins'; }
 
   // Clear results
   const resultsEl = document.getElementById('ctgUserResults');
@@ -1923,6 +2373,26 @@ async function snxgGrantTestCoins() {
     return;
   }
 
+  // Read and validate the amount input
+  const amountInput = document.getElementById('ctgCoinAmount');
+  const rawAmount   = amountInput ? parseInt(amountInput.value, 10) : 500;
+  const MAX_GRANT   = 50000;
+
+  if (!rawAmount || isNaN(rawAmount) || rawAmount < 1) {
+    _snxgToast('Please enter a valid coin amount (minimum 1).');
+    return;
+  }
+  if (rawAmount > MAX_GRANT) {
+    _snxgToast(`Maximum grant is ${MAX_GRANT.toLocaleString()} coins per grant.`);
+    const status = document.getElementById('ctgGrantStatus');
+    if (status) {
+      status.style.display = 'block';
+      status.className = 'cs-status-msg error';
+      status.textContent = `Amount exceeds the maximum of ${MAX_GRANT.toLocaleString()} coins per grant.`;
+    }
+    return;
+  }
+
   const btn    = document.getElementById('ctgGrantBtn');
   const status = document.getElementById('ctgGrantStatus');
 
@@ -1935,7 +2405,7 @@ async function snxgGrantTestCoins() {
     idToken = await _snxgGetIdToken();
   } catch {
     if (status) { status.className = 'cs-status-msg error'; status.textContent = 'Session expired. Please sign out and back in.'; }
-    if (btn)    { btn.disabled = false; btn.textContent = '🪙 Grant 500 Test Coins'; }
+    if (btn)    { btn.disabled = false; btn.textContent = '🪙 Grant Test Coins'; }
     _ctgGranting = false;
     return;
   }
@@ -1944,13 +2414,14 @@ async function snxgGrantTestCoins() {
     const { ok, data } = await _snxgPaypalPost('/grant-test-coins', {
       idToken,
       recipientUid: _ctgSelectedUid,
+      amount:       rawAmount,
       reason: 'LIVE gifting test',
     });
 
     if (!ok || !data.success) {
       const msg = data?.error || 'Grant failed. Please try again.';
       if (status) { status.className = 'cs-status-msg error'; status.textContent = msg; }
-      if (btn)    { btn.disabled = false; btn.textContent = '🪙 Grant 500 Test Coins'; }
+      if (btn)    { btn.disabled = false; btn.textContent = '🪙 Grant Test Coins'; }
     } else {
       if (status) {
         status.className = 'cs-status-msg success';
@@ -1964,7 +2435,7 @@ async function snxgGrantTestCoins() {
   } catch (err) {
     console.error('[SNX-CTG] grant error:', err);
     if (status) { status.className = 'cs-status-msg error'; status.textContent = 'Network error. Please try again.'; }
-    if (btn)    { btn.disabled = false; btn.textContent = '🪙 Grant 500 Test Coins'; }
+    if (btn)    { btn.disabled = false; btn.textContent = '🪙 Grant Test Coins'; }
   } finally {
     _ctgGranting = false;
   }

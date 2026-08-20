@@ -1373,11 +1373,11 @@ async function handleGrantTestCoins(req, env, origin) {
   }
   const recipientName = recipientData.displayName || recipientData.username || recipientUid;
 
-  // Accept a custom amount (defaults to 500) capped at 5,000 for safety.
+  // Accept a custom amount (defaults to 500) capped at 50,000 per grant.
   // The amount must be a positive integer.
   const TEST_GRANT_AMOUNT = Math.min(
     Math.max(1, Math.floor(Number(amount) || 500)),
-    5000
+    50000
   );
 
   // Read current wallet balance
