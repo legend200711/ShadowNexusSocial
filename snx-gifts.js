@@ -372,6 +372,9 @@ function snxgCloseGiftTray() {
   if (tray) tray.classList.remove('open');
   _snxgSelectedGift = null;
   _snxgSending = false;
+  // Always reset the send button when the tray closes so it is ready for the next open.
+  const sendBtn = document.getElementById('giftConfirmSend');
+  if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send 🎁'; }
 }
 window.snxgCloseGiftTray = snxgCloseGiftTray;
 
@@ -471,6 +474,9 @@ window.snxgSelectGift = snxgSelectGift;
 function _snxgHideConfirmBanner() {
   const banner = document.getElementById('giftConfirmBanner');
   if (banner) banner.classList.remove('visible');
+  // Also reset the send button so it is never left in a stuck disabled state.
+  const sendBtn = document.getElementById('giftConfirmSend');
+  if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send 🎁'; }
 }
 
 function _snxgRefreshGiftAffordability() {
@@ -803,6 +809,10 @@ async function snxgSendGift() {
     console.log('[GIFT DEBUG] transaction committed ✓');
 
     // ── Only after commit: update UI ──
+    // Restore send button BEFORE closing the tray so it is in a clean state
+    // for the next open.  (snxgCloseGiftTray also resets it, but being explicit
+    // here prevents any stuck-button state if the tray close path changes later.)
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send 🎁'; }
     snxgCloseGiftTray();
     _snxgToast(`🎁 ${giftName} sent!`);
     _snxgPlayGiftAnimation(gift, senderName);
@@ -2483,16 +2493,30 @@ async function _ctgLoadGrantLog() {
 /* ══════════════════════════════════════════════════
    AUTH STATE HOOK — subscribe when user logs in
    ══════════════════════════════════════════════════ */
-if (window._snxOnAuthReady) {
+// Initialise as soon as auth is resolved.
+//
+// Both this module and the page's inline Firebase module are ES modules, so
+// they execute concurrently after the document is parsed.  The inline module
+// sets window._snxOnAuthReady synchronously at its top level (before any
+// await), so it is usually available by the time this module's top-level code
+// runs.  If it is not yet available, the polling fallback is used instead.
+//
+// The polling fallback previously checked `window._snxCurrentUser !== undefined`
+// which could fire too early (before auth resolved) on browsers where the
+// property happened to be set to undefined by another script.  The correct
+// check is `window._snxAuthResolved === true` which is only set by the page's
+// inline module AFTER onAuthStateChanged has fired and the user object is
+// fully populated.
+if (typeof window._snxOnAuthReady === 'function') {
   window._snxOnAuthReady(() => {
     snxgInit();
   });
 } else {
-  // Fallback: poll for auth ready
+  // Fallback: poll until the inline Firebase module sets _snxAuthResolved.
   const _pollAuth = setInterval(() => {
-    if (window._snxCurrentUser !== undefined) {
+    if (window._snxAuthResolved === true) {
       clearInterval(_pollAuth);
       snxgInit();
     }
-  }, 500);
+  }, 200);
 }
