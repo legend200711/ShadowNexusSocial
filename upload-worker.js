@@ -1915,30 +1915,23 @@ async function handlePaypalOnboardCreator(req, env, cors, sec) {
 
 // ── Route: POST /paypal/grant-test-coins ─────────────────────────────────────
 //
-// Founder-only: grants exactly 500 test Shadow Coins to a specified user.
+// Founder-only: grants test Shadow Coins to a specified user.
 // The backend independently verifies:
 //   1. The caller's Firebase ID token is valid
 //   2. The caller's users/{uid}.role === 'founder' AND email matches FOUNDER_EMAIL
-//   3. ENABLE_TEST_COIN_GRANTS === 'true' in worker env vars
-//   4. Amount is hardcoded to 500 — never taken from the request body
-//   5. Transaction is marked TEST_GRANT, environment: 'sandbox', no cash value
+//   3. Amount is capped at 50,000 — client value is validated server-side
+//   4. Transaction is marked TEST_GRANT, environment: 'sandbox', no cash value
 //
 // A non-founder or any other role receives 403 Permission denied.
 
-const _FOUNDER_EMAIL    = 'christijerina46@gmail.com';
 const _TEST_GRANT_COINS = 500;  // hardcoded — never trusted from client
 
 async function handleGrantTestCoins(req, env, cors, sec) {
-  // ── 0. Feature flag ──
-  if (env.ENABLE_TEST_COIN_GRANTS !== 'true') {
-    return _ppErr('Test coin grants are not enabled.', 403, cors, sec);
-  }
-
   // ── 1. Parse request ──
   let body;
   try { body = await req.json(); } catch { return _ppErr('Invalid JSON', 400, cors, sec); }
 
-  const { idToken, recipientUid, reason } = body;
+  const { idToken, recipientUid, reason, amount } = body;
   if (!idToken)      return _ppErr('Authentication required', 401, cors, sec);
   if (!recipientUid) return _ppErr('recipientUid is required', 400, cors, sec);
 
@@ -1980,12 +1973,10 @@ async function handleGrantTestCoins(req, env, cors, sec) {
     return _ppErr('Permission denied', 403, cors, sec);
   }
 
-  const callerRole  = callerDoc.role  || '';
-  const callerEmail = callerDoc.email || '';
+  const callerRole = callerDoc.role || '';
 
-  if (callerRole !== 'founder' || callerEmail.toLowerCase() !== _FOUNDER_EMAIL.toLowerCase()) {
-    console.warn('[TEST COINS] Permission denied — uid:', callerUid,
-      'role:', callerRole, 'email:', callerEmail);
+  if (callerRole !== 'founder') {
+    console.warn('[TEST COINS] Permission denied — uid:', callerUid, 'role:', callerRole);
     return _ppErr('Permission denied', 403, cors, sec);
   }
 
@@ -2009,7 +2000,8 @@ async function handleGrantTestCoins(req, env, cors, sec) {
   }
 
   // ── 6. Read existing wallet balance ──
-  const grantCoins = _TEST_GRANT_COINS;  // always 500, never from request
+  // Accept custom amount from request, capped at 50,000. Falls back to 500.
+  const grantCoins = Math.min(Math.max(1, Math.floor(Number(amount) || _TEST_GRANT_COINS)), 50000);
   let walletData = {};
   try {
     walletData = await _fbGet(fbToken, 'wallets', recipientUid) || {};
@@ -2051,7 +2043,7 @@ async function handleGrantTestCoins(req, env, cors, sec) {
       recipientUserId:      recipientUid,
       recipientName:        recipientDoc.displayName || '',
       grantedBy:            callerUid,
-      grantedByEmail:       callerEmail,
+      grantedByEmail:       callerDoc.email || '',
       reason:               reason || 'LIVE gifting test',
       noRealCashValue:      true,
       earningsWithdrawable: false,
@@ -2091,6 +2083,120 @@ async function handleGrantTestCoins(req, env, cors, sec) {
     environment:    'sandbox',
     noRealCashValue: true,
     message:        `✅ ${grantCoins} test coins granted to ${recipientDoc.displayName || recipientUid}`,
+  }, 200, cors, sec);
+}
+
+// ── Route: POST /paypal/transfer-test-coins ──────────────────────────────────
+//
+// Founder-only: moves Shadow Coins from one user's wallet to another.
+// Used by the 4-hop test script (test-free-coin-flow.js) to circulate coins
+// between accounts after the initial grant. No PayPal / cash value involved.
+
+async function handleTransferTestCoins(req, env, cors, sec) {
+  let body;
+  try { body = await req.json(); } catch { return _ppErr('Invalid JSON', 400, cors, sec); }
+
+  const { idToken, senderUid, recipientUid, amount, reason } = body;
+  if (!idToken)      return _ppErr('Authentication required', 401, cors, sec);
+  if (!senderUid)    return _ppErr('senderUid is required', 400, cors, sec);
+  if (!recipientUid) return _ppErr('recipientUid is required', 400, cors, sec);
+
+  const coinAmount = Number(amount);
+  if (!Number.isInteger(coinAmount) || coinAmount <= 0) {
+    return _ppErr('amount must be a positive integer', 400, cors, sec);
+  }
+
+  // Verify caller Firebase ID token
+  let callerUid;
+  try { callerUid = await _fbVerifyToken(env, idToken); }
+  catch { return _ppErr('Authentication failed', 401, cors, sec); }
+
+  if (!env.FIREBASE_SERVICE_KEY) {
+    return _ppErr('Server configuration error.', 503, cors, sec);
+  }
+
+  let fbToken;
+  try { fbToken = await _fbGetAdminToken(env); }
+  catch (err) { return _ppErr('Internal auth error.', 500, cors, sec); }
+
+  // Verify caller is Founder
+  const callerDoc = await _fbGet(fbToken, 'users', callerUid).catch(() => null);
+  if (!callerDoc || callerDoc.role !== 'founder') {
+    return _ppErr('Permission denied — Founders only.', 403, cors, sec);
+  }
+
+  // Read sender wallet
+  const senderWalletData  = await _fbGet(fbToken, 'wallets', senderUid).catch(() => null) || {};
+  const senderBalance     = (typeof senderWalletData.shadowCoins === 'number') ? senderWalletData.shadowCoins : 0;
+
+  if (senderBalance < coinAmount) {
+    return _ppErr(`Insufficient coins: sender has ${senderBalance}, needs ${coinAmount}.`, 400, cors, sec);
+  }
+
+  // Read recipient wallet
+  const recipientWalletData = await _fbGet(fbToken, 'wallets', recipientUid).catch(() => null) || {};
+  const recipientBalance    = (typeof recipientWalletData.shadowCoins === 'number') ? recipientWalletData.shadowCoins : 0;
+
+  const newSenderBalance    = senderBalance - coinAmount;
+  const newRecipientBalance = recipientBalance + coinAmount;
+
+  // Get display names for log
+  const senderUserData    = await _fbGet(fbToken, 'users', senderUid).catch(() => null) || {};
+  const recipientUserData = await _fbGet(fbToken, 'users', recipientUid).catch(() => null) || {};
+  const senderName        = senderUserData.displayName || senderUid;
+  const recipientName     = recipientUserData.displayName || recipientUid;
+
+  // Write updated sender wallet (deduct)
+  try {
+    await _fbSet(fbToken, 'wallets', senderUid, {
+      uid:        senderUid,
+      shadowCoins: newSenderBalance,
+      lastGiftAt: _fbTs(),
+    });
+  } catch (err) {
+    return _ppErr('Failed to deduct sender coins: ' + err.message, 500, cors, sec);
+  }
+
+  // Write updated recipient wallet (credit)
+  try {
+    await _fbSet(fbToken, 'wallets', recipientUid, {
+      uid:                recipientUid,
+      shadowCoins:        newRecipientBalance,
+      lastGiftReceivedAt: _fbTs(),
+    });
+  } catch (err) {
+    return _ppErr('Failed to credit recipient coins: ' + err.message, 500, cors, sec);
+  }
+
+  // Write transfer log (non-fatal)
+  const txId = `snxt_xfr_${callerUid.slice(0, 6)}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  await _fbSet(fbToken, 'testCoinTransfers', txId, {
+    txId, authorizedBy: callerUid,
+    senderUid, senderName,
+    recipientUid, recipientName,
+    amount: coinAmount,
+    senderPrevBalance: senderBalance,     senderNewBalance: newSenderBalance,
+    recipientPrevBalance: recipientBalance, recipientNewBalance: newRecipientBalance,
+    reason: reason || 'Test transfer',
+    cashValue: 0, isTestOnly: true,
+    transferredAt: _fbTs(),
+  }).catch(err => console.error('[TRANSFER TEST COINS] log write failed (non-fatal):', err.message));
+
+  console.log('[TRANSFER TEST COINS] Complete — Sender:', senderUid, '→ Recipient:', recipientUid,
+    '| Amount:', coinAmount, '| Sender new balance:', newSenderBalance,
+    '| Recipient new balance:', newRecipientBalance);
+
+  return _ppJson({
+    success:              true,
+    txId,
+    amount:               coinAmount,
+    senderUid,
+    senderName,
+    senderNewBalance,
+    recipientUid,
+    recipientName,
+    recipientNewBalance,
+    note:                 'Test transfer only — no cash value.',
   }, 200, cors, sec);
 }
 
@@ -2146,7 +2252,8 @@ export default {
     if (url.pathname === '/paypal/payout'          && request.method === 'POST') return handlePaypalPayout(request, env, cors, sec);
     if (url.pathname === '/paypal/creator-status'  && request.method === 'GET')  return handlePaypalCreatorStatus(request, env, cors, sec);
     if (url.pathname === '/paypal/onboard-creator'  && request.method === 'POST') return handlePaypalOnboardCreator(request, env, cors, sec);
-    if (url.pathname === '/paypal/grant-test-coins' && request.method === 'POST') return handleGrantTestCoins(request, env, cors, sec);
+    if (url.pathname === '/paypal/grant-test-coins'    && request.method === 'POST') return handleGrantTestCoins(request, env, cors, sec);
+    if (url.pathname === '/paypal/transfer-test-coins' && request.method === 'POST') return handleTransferTestCoins(request, env, cors, sec);
     if (url.pathname === '/paypal/health'          && request.method === 'GET') {
       return _ppJson({
         status: 'ok', service: 'snx-paypal', worker: 'yellow-term-11e6',

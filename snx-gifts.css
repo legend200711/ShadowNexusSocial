@@ -1018,3 +1018,5 @@
 .gift-item[id="giftItem_eclipse_nexus"]:hover { border-color: rgba(0,220,255,0.9); }
 .gift-item[id="giftItem_legendary_crown"] { border-color: rgba(255,200,0,0.4); }
 .gift-item[id="giftItem_legendary_crown"]:hover { border-color: rgba(255,220,0,0.8); }
+.gift-item[id="giftItem_legendary_lion"] { border-color: rgba(200,120,0,0.45); }
+.gift-item[id="giftItem_legendary_lion"]:hover { border-color: rgba(240,160,20,0.85); }

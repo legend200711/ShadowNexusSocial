@@ -94,6 +94,7 @@ const SNX_GIFT_CATALOG = [
   { id: 'reapers_gift',      name: "Reaper's Gift",     art: '☠️',   coins: 3500, premium: true,  enabled: true },
   { id: 'shadow_wolf',       name: 'Shadow Wolf',       art: '🐺',   coins: 4000, premium: true,  enabled: true },
   { id: 'eclipse_nexus',     name: 'Eclipse Nexus',     art: '🌑⚡',  coins: 5000, premium: true,  enabled: true },
+  { id: 'legendary_lion',    name: 'Legendary Lion',    art: '🦁',   coins: 2250, premium: true,  enabled: true },
 ];
 
 // Coin exchange rate: 100 coins = $1.00  →  1 coin = $0.01
@@ -165,10 +166,12 @@ window.snxgLoadCatalogPrices = snxgLoadCatalogPrices;
 function _snxgSubscribeWallet(uid) {
   const fs = _snxgDb();
   if (!fs) {
-    console.error('[SHADOW COINS] _snxgSubscribeWallet: window._snxFirestore is null — Firebase not ready');
+    console.error('[SHADOW COINS] _snxgSubscribeWallet: window._snxFirestore is null — retrying in 1 s');
+    // Retry once Firebase has had a chance to initialise
+    setTimeout(() => _snxgSubscribeWallet(uid), 1000);
     return;
   }
-  const { db, doc, onSnapshot } = fs;
+  const { db, doc, getDoc, onSnapshot } = fs;
 
   if (_snxgWalletUnsub) { try { _snxgWalletUnsub(); } catch(_) {} }
 
@@ -176,14 +179,14 @@ function _snxgSubscribeWallet(uid) {
   console.log('[SHADOW COINS] Auth UID:', uid);
   console.log('[SHADOW COINS] Firebase path:', walletPath);
 
-  const walletRef = doc(db, 'wallets', uid);
-  _snxgWalletUnsub = onSnapshot(walletRef, snap => {
-    const exists = snap.exists();
-    const data   = exists ? snap.data() : {};
-    console.log('[SHADOW COINS] Document exists:', exists);
-    console.log('[SHADOW COINS] Document data:', JSON.stringify(data));
-    console.log('[SHADOW COINS] Balance field (shadowCoins):', data.shadowCoins);
-    _snxgCoinBalance = (typeof data.shadowCoins === 'number') ? data.shadowCoins : (data.shadowCoins || 0);
+  // Helper shared by snapshot callback and getDoc fallback
+  function _applyBalance(data) {
+    data = data || {};
+    // Always coerce to a finite non-negative integer so the nav polling
+    // (_updateAllCoinDisplays) passes typeof === 'number' check.
+    const raw = data.shadowCoins;
+    const parsed = typeof raw === 'number' ? raw : Number(raw);
+    _snxgCoinBalance = (Number.isFinite(parsed) && parsed >= 0) ? Math.floor(parsed) : 0;
     console.log('[SHADOW COINS] Balance value (assigned):', _snxgCoinBalance);
     window._snxgCoinBalance = _snxgCoinBalance; // expose to non-module polling in index.html
     _snxgRenderCoinPill();
@@ -192,8 +195,29 @@ function _snxgSubscribeWallet(uid) {
     if (typeof window._snxgSyncNavCoins === 'function') {
       window._snxgSyncNavCoins(_snxgCoinBalance);
     }
+  }
+
+  const walletRef = doc(db, 'wallets', uid);
+  _snxgWalletUnsub = onSnapshot(walletRef, snap => {
+    const exists = snap.exists();
+    const data   = exists ? snap.data() : {};
+    console.log('[SHADOW COINS] Document exists:', exists);
+    console.log('[SHADOW COINS] Document data:', JSON.stringify(data));
+    console.log('[SHADOW COINS] Balance field (shadowCoins):', data.shadowCoins);
+    _applyBalance(data);
   }, err => {
     console.error('[SHADOW COINS] Firebase error:', err.code, err.message);
+    // Real-time subscription failed — fall back to a one-time getDoc so the
+    // balance is still displayed even if onSnapshot cannot maintain a listener.
+    getDoc(doc(db, 'wallets', uid)).then(snap => {
+      console.log('[SHADOW COINS] getDoc fallback — document exists:', snap.exists());
+      _applyBalance(snap.exists() ? snap.data() : {});
+      // Retry the live subscription after a short delay so real-time updates
+      // resume as soon as connectivity / permissions are restored.
+      setTimeout(() => _snxgSubscribeWallet(uid), 5000);
+    }).catch(e => {
+      console.error('[SHADOW COINS] getDoc fallback also failed:', e.message);
+    });
   });
 }
 
@@ -473,6 +497,7 @@ function _snxgGiftArt(gift, context) {
   if (gift.id === 'shadow_wolf')     return `<span style="filter:drop-shadow(0 0 12px rgba(0,174,239,0.8)) drop-shadow(0 0 24px rgba(0,40,100,0.7));">${gift.art}</span>`;
   if (gift.id === 'shadow_cat')      return `<span style="filter:drop-shadow(0 0 12px rgba(0,180,255,1)) drop-shadow(0 0 26px rgba(0,0,80,0.9));">${gift.art}</span>`;
   if (gift.id === 'eclipse_nexus')   return `<span style="filter:drop-shadow(0 0 16px rgba(0,200,255,1)) drop-shadow(0 0 36px rgba(80,0,200,0.9)) drop-shadow(0 0 60px rgba(0,100,255,0.6));">${gift.art}</span>`;
+  if (gift.id === 'legendary_lion')  return `<span style="filter:drop-shadow(0 0 14px rgba(255,160,0,0.95)) drop-shadow(0 0 28px rgba(200,80,0,0.75));">${gift.art}</span>`;
   return gift.art;
 }
 
@@ -918,6 +943,8 @@ const _SNX_PREMIUM_ANIM_IDS = new Set([
   'shadow_eclipse', 'nexus_lightning', 'shadow_inferno', 'legendary_crown',
   'shadow_cat',     'shadow_dragon',   'nexus_diamond',  'galaxy_portal',
   'reapers_gift',   'shadow_wolf',     'eclipse_nexus',
+  // New animated gifts
+  'legendary_lion',
 ]);
 
 function _snxgPlayGiftAnimation(gift, senderName) {
@@ -1217,6 +1244,16 @@ const _SNX_PREMIUM_CONFIGS = {
     lightning: true,
     flames: true,
   },
+
+  legendary_lion: {
+    bg: 'linear-gradient(180deg, #1a0e00 0%, #2d1500 30%, #1a0e00 70%, #0a0800 100%)',
+    particleColors: ['#c8781e', '#e8a83a', '#f0c050', '#ffffff', '#8b4a00'],
+    title: 'LEGENDARY LION',
+    titleColor: 'linear-gradient(90deg, #f0c050, #ffffff, #e8a83a, #f0c050)',
+    tagline: '— King of the Mountain —',
+    duration: 6500,
+    legendaryLion: true,
+  },
 };
 
 // Track active premium RAF per overlay ID to allow cleanup
@@ -1356,6 +1393,24 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
   let _drBodyWave = 0;
   let _drFireLen = 0;
   let _drWingFlap = 0;
+
+  // ── LEGENDARY LION state ────────────────────────────────────────────────────
+  let _llX = -200;             // lion starts off left edge
+  let _llY = 0;                // vertical bob offset
+  let _llPhase = 0;            // 0=run across, done when off right edge
+  const _llDustPuffs = [];     // dust particles under feet
+
+  // Pre-build mountain ridge points (stable per animation)
+  const _llMtPts = [];
+  if (cfg.legendaryLion) {
+    const peakCount = 6;
+    for (let i = 0; i < peakCount; i++) {
+      _llMtPts.push({
+        x:     (i / (peakCount - 1)) * lw,
+        peakY: lh * (0.34 + Math.random() * 0.18),
+      });
+    }
+  }
 
   // ── BLACK CROWS (standalone gift) state ─────────────────────────────────────
   const _bcFlocks = [];
@@ -1760,6 +1815,248 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
       ctx.fillStyle = '#000';
       ctx.fill();
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  HELPER: draw lion at canvas-local (0,0), always faces right
+  //  s        = scale (logical pixels)
+  //  legPhase = running animation phase (radians)
+  //  tailPhase= tail sway phase
+  //  headBob  = vertical head bob amount (-1..1)
+  //  maneWave = mane sway phase
+  // ══════════════════════════════════════════════════════════════════
+  function _drawLion(ctx, s, legPhase, tailPhase, headBob, maneWave) {
+
+    // Ground shadow
+    const shad = ctx.createRadialGradient(0, s * 0.58, 2, 0, s * 0.58, s * 0.9);
+    shad.addColorStop(0,   'rgba(0,0,0,0.45)');
+    shad.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.ellipse(0, s * 0.58, s * 0.82, s * 0.13, 0, 0, Math.PI * 2);
+    ctx.fillStyle = shad;
+    ctx.globalAlpha = 0.5;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // LEGS — 4 legs with realistic running gait
+    const legDefs = [
+      { bx: -s * 0.22, phase: 0 },
+      { bx: -s * 0.06, phase: Math.PI },
+      { bx:  s * 0.10, phase: Math.PI * 0.5 },
+      { bx:  s * 0.26, phase: Math.PI * 1.5 },
+    ];
+    const yHip  = s * 0.18;
+    const yPaw  = s * 0.58;
+    legDefs.forEach(leg => {
+      const ph   = legPhase + leg.phase;
+      const swF  = Math.sin(ph) * s * 0.30;
+      const swB  = Math.cos(ph) * s * 0.10;
+      const knee = leg.bx + swF * 0.45;
+      const kY   = yHip + (yPaw - yHip) * 0.48;
+      // upper leg
+      ctx.beginPath();
+      ctx.moveTo(leg.bx, yHip);
+      ctx.lineTo(knee, kY);
+      ctx.strokeStyle = '#7a4a10';
+      ctx.lineWidth   = s * 0.12;
+      ctx.lineCap     = 'round';
+      ctx.globalAlpha = 1;
+      ctx.stroke();
+      // lower leg
+      ctx.beginPath();
+      ctx.moveTo(knee, kY);
+      ctx.lineTo(leg.bx + swF, yPaw + swB);
+      ctx.strokeStyle = '#5c3608';
+      ctx.lineWidth   = s * 0.09;
+      ctx.stroke();
+      // paw
+      ctx.beginPath();
+      ctx.ellipse(leg.bx + swF, yPaw + swB, s * 0.09, s * 0.055, 0, 0, Math.PI * 2);
+      ctx.fillStyle   = '#3d2005';
+      ctx.globalAlpha = 1;
+      ctx.fill();
+    });
+
+    // TAIL — thick, tufted; curves up and sways
+    const tc = Math.sin(tailPhase) * s * 0.45;
+    // main tail
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.5, s * 0.05);
+    ctx.bezierCurveTo(
+      -s * 0.72, -s * 0.08 + tc * 0.5,
+      -s * 0.88, -s * 0.28 + tc * 0.75,
+      -s * 0.80, -s * 0.52 + tc
+    );
+    ctx.strokeStyle = '#8c5a18';
+    ctx.lineWidth   = s * 0.14;
+    ctx.lineCap     = 'round';
+    ctx.globalAlpha = 1;
+    ctx.stroke();
+    // tail tuft
+    const ttx = -s * 0.80;
+    const tty = -s * 0.52 + tc;
+    const tuffGrad = ctx.createRadialGradient(ttx, tty, 0, ttx, tty, s * 0.18);
+    tuffGrad.addColorStop(0,   '#3a1e00');
+    tuffGrad.addColorStop(0.5, '#5c3200');
+    tuffGrad.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.arc(ttx, tty, s * 0.18, 0, Math.PI * 2);
+    ctx.fillStyle   = tuffGrad;
+    ctx.globalAlpha = 0.9;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // BODY
+    const bodyGrad = ctx.createRadialGradient(0, -s * 0.04, s * 0.04, 0, -s * 0.08, s * 0.54);
+    bodyGrad.addColorStop(0,   '#c8781e');
+    bodyGrad.addColorStop(0.45, '#9a5210');
+    bodyGrad.addColorStop(1,   '#6b3608');
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.54, s * 0.29, 0, 0, Math.PI * 2);
+    ctx.fillStyle   = bodyGrad;
+    ctx.globalAlpha = 1;
+    ctx.fill();
+
+    // Belly lighter patch
+    const bellyGrad = ctx.createRadialGradient(s * 0.1, s * 0.12, 0, s * 0.1, s * 0.12, s * 0.28);
+    bellyGrad.addColorStop(0,   'rgba(220,165,80,0.35)');
+    bellyGrad.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.ellipse(s * 0.1, s * 0.14, s * 0.28, s * 0.18, 0, 0, Math.PI * 2);
+    ctx.fillStyle   = bellyGrad;
+    ctx.globalAlpha = 1;
+    ctx.fill();
+
+    // Spine ridge fur lines
+    for (let i = 0; i < 4; i++) {
+      const rx = -s * 0.3 + i * s * 0.2;
+      ctx.beginPath();
+      ctx.moveTo(rx, -s * 0.22);
+      ctx.lineTo(rx + s * 0.04, -s * 0.32);
+      ctx.strokeStyle = 'rgba(200,130,30,0.4)';
+      ctx.lineWidth   = s * 0.03;
+      ctx.stroke();
+    }
+
+    // NECK
+    ctx.beginPath();
+    ctx.moveTo(s * 0.36, -s * 0.10);
+    ctx.lineTo(s * 0.50, -s * 0.24 + headBob * s * 0.04);
+    ctx.strokeStyle = '#a06020';
+    ctx.lineWidth   = s * 0.26;
+    ctx.lineCap     = 'round';
+    ctx.stroke();
+
+    // HEAD position
+    const hx = s * 0.54;
+    const hy = -s * 0.30 + headBob * s * 0.05;
+
+    // ── MANE — drawn before head so head overlaps it ──────────────────────────
+    const maneSpikes = 14;
+    for (let i = 0; i < maneSpikes; i++) {
+      const ang = (i / maneSpikes) * Math.PI * 2 + maneWave * 0.06;
+      const mLen = s * (0.34 + Math.sin(maneWave + i * 0.7) * 0.06);
+      const mx1  = hx + Math.cos(ang) * s * 0.26;
+      const my1  = hy + Math.sin(ang) * s * 0.22;
+      const mx2  = hx + Math.cos(ang) * mLen;
+      const my2  = hy + Math.sin(ang) * mLen * 0.85;
+      ctx.beginPath();
+      ctx.moveTo(mx1, my1);
+      ctx.lineTo(mx2, my2);
+      const maneAlpha = 0.7 + Math.sin(maneWave + i) * 0.15;
+      // alternate dark/light strands for depth
+      ctx.strokeStyle = i % 2 === 0 ? '#3a1e00' : '#6b3a08';
+      ctx.lineWidth   = s * (0.055 + Math.sin(maneWave + i * 0.5) * 0.01);
+      ctx.lineCap     = 'round';
+      ctx.globalAlpha = maneAlpha;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Mane base fill (dark collar ring)
+    const maneGrad = ctx.createRadialGradient(hx, hy, s * 0.20, hx, hy, s * 0.38);
+    maneGrad.addColorStop(0,   'rgba(40,18,0,0)');
+    maneGrad.addColorStop(0.5, 'rgba(40,18,0,0.55)');
+    maneGrad.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.arc(hx, hy, s * 0.38, 0, Math.PI * 2);
+    ctx.fillStyle   = maneGrad;
+    ctx.globalAlpha = 1;
+    ctx.fill();
+
+    // HEAD
+    const headGrad = ctx.createRadialGradient(hx, hy, 0, hx, hy, s * 0.30);
+    headGrad.addColorStop(0,   '#d48828');
+    headGrad.addColorStop(0.6, '#a06020');
+    headGrad.addColorStop(1,   '#7a4010');
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, s * 0.28, s * 0.24, 0, 0, Math.PI * 2);
+    ctx.fillStyle   = headGrad;
+    ctx.globalAlpha = 1;
+    ctx.fill();
+
+    // SNOUT / muzzle
+    const muzzGrad = ctx.createRadialGradient(hx + s * 0.15, hy + s * 0.05, 0, hx + s * 0.15, hy + s * 0.05, s * 0.20);
+    muzzGrad.addColorStop(0,   '#e0a850');
+    muzzGrad.addColorStop(1,   '#b07030');
+    ctx.beginPath();
+    ctx.ellipse(hx + s * 0.16, hy + s * 0.06, s * 0.18, s * 0.14, 0, 0, Math.PI * 2);
+    ctx.fillStyle   = muzzGrad;
+    ctx.globalAlpha = 1;
+    ctx.fill();
+
+    // NOSE
+    ctx.beginPath();
+    ctx.ellipse(hx + s * 0.30, hy + s * 0.02, s * 0.055, s * 0.042, 0, 0, Math.PI * 2);
+    ctx.fillStyle   = '#3a1a08';
+    ctx.fill();
+
+    // EARS
+    [[-s * 0.16, -s * 0.20], [s * 0.06, -s * 0.24]].forEach(([edx, edy]) => {
+      ctx.save();
+      ctx.translate(hx + edx, hy + edy);
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.09, s * 0.08);
+      ctx.lineTo(0,          -s * 0.18);
+      ctx.lineTo(s * 0.09,   s * 0.08);
+      ctx.closePath();
+      ctx.fillStyle = '#c87820';
+      ctx.globalAlpha = 1;
+      ctx.fill();
+      // inner ear
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.05, s * 0.04);
+      ctx.lineTo(0,          -s * 0.10);
+      ctx.lineTo(s * 0.05,   s * 0.04);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(180,80,30,0.5)';
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // EYES — amber with dark slit pupil
+    [[-s * 0.10, -s * 0.04], [s * 0.08, -s * 0.05]].forEach(([edx, edy]) => {
+      const eg = ctx.createRadialGradient(hx + edx, hy + edy, 0, hx + edx, hy + edy, s * 0.10);
+      eg.addColorStop(0,   '#ffe066');
+      eg.addColorStop(0.5, 'rgba(200,120,0,0.8)');
+      eg.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.ellipse(hx + edx, hy + edy, s * 0.09, s * 0.07, 0, 0, Math.PI * 2);
+      ctx.fillStyle   = eg;
+      ctx.globalAlpha = 1;
+      ctx.fill();
+      // slit pupil
+      ctx.beginPath();
+      ctx.ellipse(hx + edx, hy + edy, s * 0.025, s * 0.06, 0, 0, Math.PI * 2);
+      ctx.fillStyle   = '#000';
+      ctx.globalAlpha = 1;
+      ctx.fill();
+      // eye highlight
+      ctx.beginPath();
+      ctx.arc(hx + edx - s * 0.025, hy + edy - s * 0.025, s * 0.018, 0, Math.PI * 2);
+      ctx.fillStyle   = 'rgba(255,255,200,0.7)';
+      ctx.fill();
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -2421,6 +2718,155 @@ function _snxgPlayPremiumAnimation(gift, senderName) {
     }
     // ── End Black Crows ───────────────────────────────────
 
+    // ════════════════════════════════════════
+    //  LEGENDARY LION  — mountain run scene
+    // ════════════════════════════════════════
+    if (cfg.legendaryLion) {
+      // Lion runs at 60% of screen height (on the ridge)
+      const baseY = lh * 0.60;
+
+      // ── Atmospheric sky gradient (distant haze) ───────────────
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, baseY);
+      skyGrad.addColorStop(0,    'rgba(80,30,0,0.55)');
+      skyGrad.addColorStop(0.5,  'rgba(140,60,0,0.30)');
+      skyGrad.addColorStop(1,    'rgba(0,0,0,0)');
+      ctx.fillStyle   = skyGrad;
+      ctx.globalAlpha = 1;
+      ctx.fillRect(0, 0, lw, baseY);
+
+      // ── Far mountain range (parallax layer 1 — slowest) ───────
+      const mPara1 = (_frame * 0.18) % lw;
+      const drawFarMtns = (offsetX) => {
+        ctx.beginPath();
+        ctx.moveTo(offsetX, baseY);
+        const segW = lw / 5;
+        for (let i = 0; i <= 6; i++) {
+          const px = offsetX + i * segW;
+          const py = baseY - lh * (0.28 + Math.sin(i * 1.3 + 0.5) * 0.10);
+          i === 0 ? ctx.moveTo(px, baseY) : ctx.lineTo(px, py);
+        }
+        ctx.lineTo(offsetX + 6 * segW, baseY);
+        ctx.closePath();
+        const fmGrad = ctx.createLinearGradient(0, baseY - lh * 0.38, 0, baseY);
+        fmGrad.addColorStop(0,   'rgba(60,25,5,0.75)');
+        fmGrad.addColorStop(1,   'rgba(20,8,0,0.85)');
+        ctx.fillStyle   = fmGrad;
+        ctx.globalAlpha = 0.7;
+        ctx.fill();
+      };
+      drawFarMtns(-mPara1);
+      if (lw - mPara1 < lw) drawFarMtns(lw - mPara1);
+      ctx.globalAlpha = 1;
+
+      // ── Mid mountain range (parallax layer 2) ─────────────────
+      const mPara2 = (_frame * 0.35) % lw;
+      const drawMidMtns = (offsetX) => {
+        ctx.beginPath();
+        ctx.moveTo(offsetX, baseY);
+        const segW = lw / 4;
+        for (let i = 0; i <= 5; i++) {
+          const px = offsetX + i * segW;
+          const py = baseY - lh * (0.18 + Math.sin(i * 1.9 + 1.1) * 0.09);
+          i === 0 ? ctx.moveTo(px, baseY) : ctx.lineTo(px, py);
+        }
+        ctx.lineTo(offsetX + 5 * segW, baseY);
+        ctx.closePath();
+        const mmGrad = ctx.createLinearGradient(0, baseY - lh * 0.27, 0, baseY);
+        mmGrad.addColorStop(0,   'rgba(45,18,3,0.85)');
+        mmGrad.addColorStop(1,   'rgba(15,5,0,0.90)');
+        ctx.fillStyle   = mmGrad;
+        ctx.globalAlpha = 0.85;
+        ctx.fill();
+      };
+      drawMidMtns(-mPara2);
+      if (lw - mPara2 < lw) drawMidMtns(lw - mPara2);
+      ctx.globalAlpha = 1;
+
+      // ── Ground ridge beneath the lion ─────────────────────────
+      const ridgeGrad = ctx.createLinearGradient(0, baseY - 8, 0, baseY + lh * 0.06);
+      ridgeGrad.addColorStop(0,   '#3d1a00');
+      ridgeGrad.addColorStop(0.4, '#1e0a00');
+      ridgeGrad.addColorStop(1,   '#080200');
+      ctx.fillStyle   = ridgeGrad;
+      ctx.globalAlpha = 1;
+      ctx.fillRect(0, baseY - 8, lw, lh - baseY + 8);
+
+      // ── Ambient warm sun glow from top-right ──────────────────
+      const sunGlow = ctx.createRadialGradient(lw * 0.8, lh * 0.12, 0, lw * 0.8, lh * 0.12, lw * 0.65);
+      sunGlow.addColorStop(0,   'rgba(255,140,20,0.22)');
+      sunGlow.addColorStop(0.5, 'rgba(200,80,0,0.08)');
+      sunGlow.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.arc(lw * 0.8, lh * 0.12, lw * 0.65, 0, Math.PI * 2);
+      ctx.fillStyle   = sunGlow;
+      ctx.globalAlpha = 1;
+      ctx.fill();
+
+      // ── Move lion ─────────────────────────────────────────────
+      const lionSpeed = isMobile ? 3.8 : 5.2;
+      _llX += lionSpeed;
+
+      // Vertical body bob — natural running bounce
+      _llY = Math.sin(_frame * 0.32) * 5 * scale;
+
+      // ── Dust puffs — spawn under paws every ~10 frames ───────
+      if (_frame % 10 === 0 && _llX > 0 && _llX < lw + 100) {
+        const dustCount = isMobile ? 1 : 2;
+        for (let d = 0; d < dustCount; d++) {
+          _llDustPuffs.push({
+            x:     _llX + (Math.random() - 0.5) * 30 * scale,
+            y:     baseY + 4,
+            r:     4 + Math.random() * 5,
+            alpha: 0.45,
+            vx:    (Math.random() - 0.6) * 1.2,
+            vy:    -(0.4 + Math.random() * 0.5),
+          });
+        }
+      }
+
+      // Draw and age dust puffs
+      for (let i = _llDustPuffs.length - 1; i >= 0; i--) {
+        const dp = _llDustPuffs[i];
+        dp.x     += dp.vx;
+        dp.y     += dp.vy;
+        dp.r     += 0.8;
+        dp.alpha -= 0.022;
+        if (dp.alpha <= 0) { _llDustPuffs.splice(i, 1); continue; }
+        const dpGrad = ctx.createRadialGradient(dp.x, dp.y, 0, dp.x, dp.y, dp.r);
+        dpGrad.addColorStop(0,   `rgba(160,80,20,${dp.alpha})`);
+        dpGrad.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.beginPath();
+        ctx.arc(dp.x, dp.y, dp.r, 0, Math.PI * 2);
+        ctx.fillStyle   = dpGrad;
+        ctx.globalAlpha = 1;
+        ctx.fill();
+      }
+
+      // ── Draw the lion ──────────────────────────────────────────
+      const lionScale = isMobile ? 38 * scale : 52;
+      const legPh     = _frame * 0.30;
+      const tailPh    = _frame * 0.13;
+      const headBob   = Math.sin(_frame * 0.30);
+      const maneWv    = _frame * 0.18;
+
+      ctx.save();
+      ctx.translate(_llX, baseY + _llY);
+
+      // Warm sunlit aura around lion
+      const laura = ctx.createRadialGradient(0, -lionScale * 0.2, 5, 0, -lionScale * 0.2, lionScale * 1.6);
+      laura.addColorStop(0,   'rgba(220,110,20,0.18)');
+      laura.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.arc(0, -lionScale * 0.2, lionScale * 1.6, 0, Math.PI * 2);
+      ctx.fillStyle   = laura;
+      ctx.globalAlpha = 1;
+      ctx.fill();
+
+      _drawLion(ctx, lionScale, legPh, tailPh, headBob, maneWv);
+      ctx.restore();
+    }
+    // ── End Legendary Lion ────────────────────────────────
+
     ctx.globalAlpha = 1;
     _snxPremRafs[overlayId] = requestAnimationFrame(tick);
   }
@@ -3065,8 +3511,9 @@ async function snxgLoadExchangeTab() {
     const earn   = earnSnap.exists()   ? earnSnap.data()   : {};
     const wallet = walletSnap.exists() ? walletSnap.data() : {};
 
-    const available   = typeof earn.availableCoins   === 'number' ? earn.availableCoins   : 0;
-    const shadowCoins = typeof wallet.shadowCoins     === 'number' ? wallet.shadowCoins    : 0;
+    const available   = typeof earn.availableCoins   === 'number' ? Math.floor(earn.availableCoins)   : 0;
+    const _rawSC      = wallet.shadowCoins;
+    const shadowCoins = Math.floor(Number.isFinite(Number(_rawSC)) ? Number(_rawSC) : 0);
 
     if (earnedEl) earnedEl.textContent = available.toLocaleString();
     if (shadowEl) shadowEl.textContent = shadowCoins.toLocaleString();
@@ -3449,6 +3896,7 @@ function snxgCoinTestSelectUser(uid, name, avatar) {
   const nameEl = document.getElementById('ctgUserName');
   const uidEl  = document.getElementById('ctgUserUid');
   const avEl   = document.getElementById('ctgUserAvatar');
+  const balEl  = document.getElementById('ctgUserBalance');
   const status = document.getElementById('ctgGrantStatus');
   const btn    = document.getElementById('ctgGrantBtn');
 
@@ -3458,12 +3906,27 @@ function snxgCoinTestSelectUser(uid, name, avatar) {
   if (area)   area.style.display = 'block';
   if (status) status.style.display = 'none';
   if (btn)    { btn.disabled = false; btn.textContent = '🪙 Grant Test Coins'; }
+  if (balEl)  balEl.textContent = '…';
 
   // Clear results
   const resultsEl = document.getElementById('ctgUserResults');
   if (resultsEl) resultsEl.innerHTML = '';
   const input = document.getElementById('ctgSearchInput');
   if (input) input.value = '';
+
+  // Fetch recipient's current wallet balance from Firestore
+  const fs = _snxgDb();
+  if (fs) {
+    const { db, doc, getDoc } = fs;
+    getDoc(doc(db, 'wallets', uid)).then(snap => {
+      if (balEl) {
+        const coins = snap.exists() ? (snap.data().shadowCoins || 0) : 0;
+        balEl.textContent = Number.isFinite(Number(coins)) ? Math.floor(Number(coins)).toLocaleString() : '0';
+      }
+    }).catch(() => {
+      if (balEl) balEl.textContent = '—';
+    });
+  }
 }
 window.snxgCoinTestSelectUser = snxgCoinTestSelectUser;
 
@@ -3474,6 +3937,8 @@ function _ctgResetSelection() {
   if (area) area.style.display = 'none';
   const status = document.getElementById('ctgGrantStatus');
   if (status) status.style.display = 'none';
+  const balEl = document.getElementById('ctgUserBalance');
+  if (balEl) balEl.textContent = '…';
 }
 
 /**
@@ -3544,14 +4009,42 @@ async function snxgGrantTestCoins() {
       if (status) { status.className = 'cs-status-msg error'; status.textContent = msg; }
       if (btn)    { btn.disabled = false; btn.textContent = '🪙 Grant Test Coins'; }
     } else {
-      if (status) {
-        status.className = 'cs-status-msg success';
-        status.innerHTML = `✅ <strong>${data.amount} test coins</strong> granted to <strong>${data.recipientName || _ctgSelectedName}</strong><br>
-          <span style="font-size:10px;color:#4a7a9a;">TX: ${data.txId} · No cash value</span>`;
-      }
       if (btn) { btn.disabled = true; btn.textContent = '✓ Granted'; }
       _snxgToast(`🪙 ${data.amount} test coins granted to ${data.recipientName || _ctgSelectedName}!`);
       setTimeout(() => _ctgLoadGrantLog(), 800);
+
+      // Verify the balance was written to Firestore and update the UI
+      const recipUid = _ctgSelectedUid;
+      const fs = _snxgDb();
+      const verifyAndShow = (confirmedBalance) => {
+        const _fb = Number(confirmedBalance);
+        const _db = Number(data.newBalance);
+        const newTotal = Number.isFinite(_fb) && _fb >= 0
+          ? Math.floor(_fb)
+          : (Number.isFinite(_db) && _db >= 0 ? Math.floor(_db) : 0);
+        // Update the balance display in the recipient card
+        const balEl = document.getElementById('ctgUserBalance');
+        if (balEl) balEl.textContent = (typeof newTotal === 'number' ? newTotal : 0).toLocaleString();
+        if (status) {
+          status.className = 'cs-status-msg success';
+          status.innerHTML = `✅ <strong>${data.amount} test coins</strong> granted to <strong>${data.recipientName || _ctgSelectedName}</strong>`
+            + (typeof newTotal === 'number' ? `<br><span style="font-size:11px;color:#c8e8ff;">New balance: <strong>${newTotal.toLocaleString()} 🪙</strong></span>` : '')
+            + `<br><span style="font-size:10px;color:#4a7a9a;">TX: ${data.txId} · No cash value</span>`;
+        }
+      };
+
+      if (fs) {
+        // Re-read the wallet from Firestore to confirm the write landed
+        const { db, doc, getDoc } = fs;
+        getDoc(doc(db, 'wallets', recipUid)).then(snap => {
+          const confirmed = snap.exists() ? snap.data().shadowCoins : data.newBalance;
+          verifyAndShow(confirmed);
+        }).catch(() => {
+          verifyAndShow(data.newBalance);
+        });
+      } else {
+        verifyAndShow(data.newBalance);
+      }
     }
   } catch (err) {
     console.error('[SNX-CTG] grant error:', err);

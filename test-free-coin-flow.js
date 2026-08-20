@@ -43,7 +43,7 @@
   const C_TO_FOUNDER    = 50;    // User C  → Founder
 
   /* ─── Worker URL ─── */
-  const WORKER  = 'https://snx-paypal-worker.nthntjrn.workers.dev/paypal';
+  const WORKER  = 'https://yellow-term-11e6.nthntjrn.workers.dev/paypal';
 
   /* ─── Helpers ─── */
   function log(msg, ...args) {
