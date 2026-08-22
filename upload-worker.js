@@ -1656,25 +1656,28 @@ async function handlePaypalCaptureOrder(req, env, cors, sec) {
   console.log(`[SHADOW COINS PURCHASE] Existing balance: ${existingBalance}`);
   console.log(`[SHADOW COINS PURCHASE] New balance: ${newBalance}`);
 
-  // Write new balance to Firestore wallet
+  // Write new balance to Firestore wallet.
+  // _fbSet returns the full committed Firestore document (PATCH response) — use it
+  // to verify the write directly instead of a separate GET (eliminates race window).
   try {
-    await _fbSet(fbToken, 'wallets', uid, {
+    const committedDoc = await _fbSet(fbToken, 'wallets', uid, {
       uid,
       shadowCoins:    newBalance,
       totalPurchased: (typeof walletData.totalPurchased === 'number' ? walletData.totalPurchased : 0) + expectedCoins,
       lastPurchaseAt: _fbTs(),
     });
-    console.log(`[SHADOW COINS PURCHASE] Firebase result: wallets/${uid}.shadowCoins = ${newBalance}`);
-
-    // Read-back verification — confirm the write actually landed
-    const verifyWallet = await _fbGet(fbToken, 'wallets', uid) || {};
-    const verifiedBalance = verifyWallet.shadowCoins;
-    console.log(`[SHADOW COINS PURCHASE] READ-BACK: wallets/${uid}.shadowCoins =`, verifiedBalance);
-    if (verifiedBalance !== newBalance) {
-      console.error(`[SHADOW COINS PURCHASE] READ-BACK MISMATCH: wrote ${newBalance} but read back ${verifiedBalance}`);
+    const committedValue  = committedDoc?.fields?.shadowCoins;
+    const committedCoins  = committedValue
+      ? ('integerValue' in committedValue ? parseInt(committedValue.integerValue)
+        : 'doubleValue'  in committedValue ? committedValue.doubleValue
+        : null)
+      : null;
+    console.log(`[SHADOW COINS PURCHASE] Firebase result: wallets/${uid}.shadowCoins =`, committedCoins, '(expected', newBalance, ')');
+    if (committedCoins !== null && committedCoins !== newBalance) {
+      console.error(`[SHADOW COINS PURCHASE] COMMIT MISMATCH: wrote ${newBalance} but Firestore committed ${committedCoins}`);
       await _fbSet(fbToken, 'coinPurchases', purchaseId, {
         status: 'wallet_write_failed', captureId, capturedAmount,
-        walletWriteError: `read-back mismatch: wrote ${newBalance}, got ${verifiedBalance}`,
+        walletWriteError: `commit mismatch: wrote ${newBalance}, got ${committedCoins}`,
         requiresManualCredit: true, captureAt: _fbTs(),
       }).catch(() => {});
       return _ppErr('Payment captured but balance did not update. Please contact support — reference: ' + purchaseId, 500, cors, sec);
