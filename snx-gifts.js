@@ -53,7 +53,9 @@ const SNX_PAYPAL_WORKER = 'https://yellow-term-11e6.nthntjrn.workers.dev/paypal'
 async function _snxgGetIdToken() {
   const user = _snxgUser();
   if (!user) throw new Error('Not authenticated');
-  if (typeof user.getIdToken === 'function') return user.getIdToken(/* forceRefresh */ false);
+  // forceRefresh: true ensures the backend always receives a valid, non-expired token.
+  // Firebase SDK caches the new token automatically so subsequent calls are fast.
+  if (typeof user.getIdToken === 'function') return user.getIdToken(/* forceRefresh */ true);
   throw new Error('Cannot get ID token');
 }
 

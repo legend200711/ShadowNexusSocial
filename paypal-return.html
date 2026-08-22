@@ -142,6 +142,36 @@
   // then full Firebase re-auth as fallback.
   // NOTE: do NOT delete the sessionStorage token until AFTER the capture fetch
   // succeeds, so the page can retry on network error.
+
+  // Helper: initialize Firebase and get a fresh ID token from the persisted session.
+  // Used both as primary fallback and as a retry path when a stored token is rejected.
+  async function getFreshFirebaseToken() {
+    try {
+      const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+      const { getAuth, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+      const cfg = {
+        apiKey: 'AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y',
+        authDomain: 'horr-a08f4.firebaseapp.com',
+        projectId: 'horr-a08f4',
+        messagingSenderId: '933810617818',
+        appId: '1:933810617818:web:efb24f123337dd987c14e3',
+      };
+      const app  = getApps().length ? getApp() : initializeApp(cfg);
+      const auth = getAuth(app);
+      return await new Promise((resolve) => {
+        const unsub = onAuthStateChanged(auth, async (user) => {
+          unsub();
+          if (user) { resolve(await user.getIdToken(/* forceRefresh */ true)); }
+          else { resolve(null); }
+        });
+        setTimeout(() => resolve(null), 20000);
+      });
+    } catch (e) {
+      console.error('Firebase init error:', e);
+      return null;
+    }
+  }
+
   let idToken = null;
 
   // Try to get token from session storage (stored before redirect by snx-gifts.js)
@@ -157,31 +187,8 @@
   }
 
   if (!idToken) {
-    // Fallback: initialize Firebase and get a fresh token.
-    // Use a longer timeout (20s) to accommodate slow auth state restoration.
-    try {
-      const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-      const { getAuth, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-      const cfg = {
-        apiKey: 'AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y',
-        authDomain: 'horr-a08f4.firebaseapp.com',
-        projectId: 'horr-a08f4',
-        messagingSenderId: '933810617818',
-        appId: '1:933810617818:web:efb24f123337dd987c14e3',
-      };
-      const app  = getApps().length ? getApp() : initializeApp(cfg);
-      const auth = getAuth(app);
-      idToken = await new Promise((resolve) => {
-        const unsub = onAuthStateChanged(auth, async (user) => {
-          unsub();
-          if (user) { resolve(await user.getIdToken()); }
-          else { resolve(null); }
-        });
-        setTimeout(() => resolve(null), 20000); // increased from 8s to 20s
-      });
-    } catch (e) {
-      console.error('Firebase init error:', e);
-    }
+    // No stored token — go straight to Firebase re-auth
+    idToken = await getFreshFirebaseToken();
   }
 
   if (!idToken) {
@@ -192,14 +199,30 @@
   // Call the paypal worker to capture the order.
   // Must be absolute — the worker is at yellow-term-11e6.nthntjrn.workers.dev,
   // not the same origin as shadownexussocial.online.
-  try {
-    const workerUrl = 'https://yellow-term-11e6.nthntjrn.workers.dev/paypal/capture-order';
+  const workerUrl = 'https://yellow-term-11e6.nthntjrn.workers.dev/paypal/capture-order';
+
+  async function doCapture(token) {
     const res = await fetch(workerUrl, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId, purchaseId, idToken }),
+      body: JSON.stringify({ orderId, purchaseId, idToken: token }),
     });
-    const data = await res.json();
+    return { res, data: await res.json() };
+  }
+
+  try {
+    let { res, data } = await doCapture(idToken);
+
+    // If the stored/cached token was rejected (expired), get a fresh one and retry once.
+    // This handles the case where the user spent >1hr on the PayPal approval page.
+    if (res.status === 401 && storedToken) {
+      console.warn('Stored token rejected (expired?) — retrying with fresh Firebase token');
+      const freshToken = await getFreshFirebaseToken();
+      if (freshToken && freshToken !== idToken) {
+        ({ res, data } = await doCapture(freshToken));
+        if (res.ok) sessionStorage.removeItem('snxg_paypal_idtoken');
+      }
+    }
 
     if (data.success) {
       // Capture succeeded — safe to clear the stored token now
