@@ -2051,38 +2051,32 @@ async function handleGrantTestCoins(req, env, cors, sec) {
   console.log('[TEST COINS] New balance:', newBalance);
 
   // ── 7. Write wallet — this is the critical step ──
-  let committedDoc;
+  // _fbSet returns the full committed Firestore document (PATCH response).
+  // We verify the write using the committed document directly — no extra round-trip.
   try {
-    committedDoc = await _fbSet(fbToken, 'wallets', recipientUid, {
+    const committedDoc = await _fbSet(fbToken, 'wallets', recipientUid, {
       uid:         recipientUid,
       shadowCoins: newBalance,
       lastGrantAt: _fbTs(),
     });
-    const committedCoins = committedDoc?.fields?.shadowCoins;
-    console.log('[TEST COINS] Firebase write committed. wallets/' + recipientUid + '.shadowCoins field:', JSON.stringify(committedCoins));
-    console.log('[TEST COINS] Expected newBalance:', newBalance);
-  } catch (err) {
-    console.error('[TEST COINS] Firebase error writing wallet:', err.message);
-    return _ppErr('Failed to credit coins. Please try again. Error: ' + err.message, 500, cors, sec);
-  }
-
-  // ── 7b. Read-back verification — confirm the write actually landed ──
-  try {
-    const verify = await _fbGet(fbToken, 'wallets', recipientUid) || {};
-    const verifiedCoins = verify.shadowCoins;
-    console.log('[TEST COINS] READ-BACK: wallets/' + recipientUid + '.shadowCoins =', verifiedCoins);
-    if (verifiedCoins !== newBalance) {
-      // The write returned 200 from Firestore REST but the value did not persist.
-      // Return an error so the caller knows the credit did not land.
-      console.error('[TEST COINS] READ-BACK MISMATCH: wrote', newBalance, 'but read back', verifiedCoins);
+    // Verify the committed value from the PATCH response (strongly consistent — same HTTP call)
+    const committedValue = committedDoc?.fields?.shadowCoins;
+    const committedCoins = committedValue
+      ? ('integerValue' in committedValue ? parseInt(committedValue.integerValue)
+        : 'doubleValue' in committedValue  ? committedValue.doubleValue
+        : null)
+      : null;
+    console.log('[TEST COINS] Firebase write committed. wallets/' + recipientUid + '.shadowCoins =', committedCoins, '(expected', newBalance, ')');
+    if (committedCoins !== null && committedCoins !== newBalance) {
+      console.error('[TEST COINS] COMMIT MISMATCH: wrote', newBalance, 'but Firestore committed', committedCoins);
       return _ppErr(
         'Coin credit failed — balance did not update. Check Firestore permissions for wallets/' + recipientUid + '.',
         500, cors, sec
       );
     }
   } catch (err) {
-    // Read-back itself failed — log but do not block success (the primary write succeeded).
-    console.warn('[TEST COINS] Read-back verification failed (non-fatal):', err.message);
+    console.error('[TEST COINS] Firebase error writing wallet:', err.message);
+    return _ppErr('Failed to credit coins. Please try again. Error: ' + err.message, 500, cors, sec);
   }
 
   // ── 8. Write immutable test transaction record (non-fatal if it fails) ──
