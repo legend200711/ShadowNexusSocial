@@ -97,11 +97,14 @@
 
   const fs = window._snxFirestore;
   if (!fs) { fail('window._snxFirestore not available — is Firebase initialized?'); return; }
-  const { db, doc, getDoc } = fs;
+  const { db, doc, getDocFromServer, getDoc } = fs;
+  // Prefer getDocFromServer to bypass the Firestore client cache.
+  // After a server-side write (grant/purchase), the cache may still hold the old value.
+  const _readFresh = getDocFromServer || getDoc;
 
-  /* ─── Read a wallet balance from Firestore ─── */
+  /* ─── Read a wallet balance from Firestore (always from server, never cache) ─── */
   async function readBalance(uid) {
-    const snap = await getDoc(doc(db, 'wallets', uid));
+    const snap = await _readFresh(doc(db, 'wallets', uid));
     if (!snap.exists()) return 0;
     const v = snap.data().shadowCoins;
     return typeof v === 'number' ? v : 0;

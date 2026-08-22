@@ -2307,6 +2307,7 @@ export default {
     if (url.pathname === '/paypal/onboard-creator'  && request.method === 'POST') return handlePaypalOnboardCreator(request, env, cors, sec);
     if (url.pathname === '/paypal/grant-test-coins'    && request.method === 'POST') return handleGrantTestCoins(request, env, cors, sec);
     if (url.pathname === '/paypal/transfer-test-coins' && request.method === 'POST') return handleTransferTestCoins(request, env, cors, sec);
+
     if (url.pathname === '/paypal/health'          && request.method === 'GET') {
       return _ppJson({
         status: 'ok', service: 'snx-paypal', worker: 'yellow-term-11e6',
