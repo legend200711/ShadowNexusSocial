@@ -1627,6 +1627,17 @@ async function handlePaypalCaptureOrder(req, env, cors, sec) {
   console.log(`[SHADOW COINS PURCHASE] Coins to credit: ${expectedCoins}`);
   console.log(`[SHADOW COINS PURCHASE] Credit operation: wallets/${uid} += ${expectedCoins} shadowCoins`);
 
+  // Guard: a zero-coin result means the PayPal response lacked a valid amount —
+  // do NOT write a no-op update that would appear to succeed but credit nothing.
+  if (expectedCoins <= 0) {
+    console.error(`[SHADOW COINS PURCHASE] expectedCoins=0 — PayPal capture response missing amount. capturedAmount=${capturedAmount}`);
+    await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+      status: 'capture_failed', paypalStatus: captureStatus,
+      captureResult: JSON.stringify(capture).slice(0, 500), failedAt: _fbTs(),
+    }).catch(() => {});
+    return _ppErr('Payment captured but coin amount could not be verified. Please contact support — reference: ' + purchaseId, 500, cors, sec);
+  }
+
   // Read existing wallet balance
   let walletData = {};
   try {
@@ -1654,6 +1665,20 @@ async function handlePaypalCaptureOrder(req, env, cors, sec) {
       lastPurchaseAt: _fbTs(),
     });
     console.log(`[SHADOW COINS PURCHASE] Firebase result: wallets/${uid}.shadowCoins = ${newBalance}`);
+
+    // Read-back verification — confirm the write actually landed
+    const verifyWallet = await _fbGet(fbToken, 'wallets', uid) || {};
+    const verifiedBalance = verifyWallet.shadowCoins;
+    console.log(`[SHADOW COINS PURCHASE] READ-BACK: wallets/${uid}.shadowCoins =`, verifiedBalance);
+    if (verifiedBalance !== newBalance) {
+      console.error(`[SHADOW COINS PURCHASE] READ-BACK MISMATCH: wrote ${newBalance} but read back ${verifiedBalance}`);
+      await _fbSet(fbToken, 'coinPurchases', purchaseId, {
+        status: 'wallet_write_failed', captureId, capturedAmount,
+        walletWriteError: `read-back mismatch: wrote ${newBalance}, got ${verifiedBalance}`,
+        requiresManualCredit: true, captureAt: _fbTs(),
+      }).catch(() => {});
+      return _ppErr('Payment captured but balance did not update. Please contact support — reference: ' + purchaseId, 500, cors, sec);
+    }
   } catch (err) {
     console.error(`[SHADOW COINS PURCHASE] Error writing wallet: ${err.message}`);
     // Payment captured but wallet write failed — mark for manual review.
@@ -2041,14 +2066,22 @@ async function handleGrantTestCoins(req, env, cors, sec) {
     return _ppErr('Failed to credit coins. Please try again. Error: ' + err.message, 500, cors, sec);
   }
 
-  // ── 7b. Read-back verification ──
+  // ── 7b. Read-back verification — confirm the write actually landed ──
   try {
     const verify = await _fbGet(fbToken, 'wallets', recipientUid) || {};
-    console.log('[TEST COINS] READ-BACK: wallets/' + recipientUid + '.shadowCoins =', verify.shadowCoins);
-    if (verify.shadowCoins !== newBalance) {
-      console.error('[TEST COINS] READ-BACK MISMATCH: wrote', newBalance, 'but read back', verify.shadowCoins);
+    const verifiedCoins = verify.shadowCoins;
+    console.log('[TEST COINS] READ-BACK: wallets/' + recipientUid + '.shadowCoins =', verifiedCoins);
+    if (verifiedCoins !== newBalance) {
+      // The write returned 200 from Firestore REST but the value did not persist.
+      // Return an error so the caller knows the credit did not land.
+      console.error('[TEST COINS] READ-BACK MISMATCH: wrote', newBalance, 'but read back', verifiedCoins);
+      return _ppErr(
+        'Coin credit failed — balance did not update. Check Firestore permissions for wallets/' + recipientUid + '.',
+        500, cors, sec
+      );
     }
   } catch (err) {
+    // Read-back itself failed — log but do not block success (the primary write succeeded).
     console.warn('[TEST COINS] Read-back verification failed (non-fatal):', err.message);
   }
 

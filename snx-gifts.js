@@ -3914,11 +3914,12 @@ function snxgCoinTestSelectUser(uid, name, avatar) {
   const input = document.getElementById('ctgSearchInput');
   if (input) input.value = '';
 
-  // Fetch recipient's current wallet balance from Firestore
+  // Fetch recipient's current wallet balance — bypass cache so we always see the live value
   const fs = _snxgDb();
   if (fs) {
-    const { db, doc, getDoc } = fs;
-    getDoc(doc(db, 'wallets', uid)).then(snap => {
+    const { db, doc, getDocFromServer, getDoc } = fs;
+    const _readWallet = getDocFromServer || getDoc;  // getDocFromServer forces a fresh server read
+    _readWallet(doc(db, 'wallets', uid)).then(snap => {
       if (balEl) {
         const _raw = snap.exists() ? snap.data().shadowCoins : 0;
         const coins = Number(_raw);
@@ -4035,9 +4036,10 @@ async function snxgGrantTestCoins() {
       };
 
       if (fs) {
-        // Re-read the wallet from Firestore to confirm the write landed
-        const { db, doc, getDoc } = fs;
-        getDoc(doc(db, 'wallets', recipUid)).then(snap => {
+        // Re-read the wallet from Firestore server (bypass cache) to confirm the write landed
+        const { db, doc, getDocFromServer, getDoc } = fs;
+        const _readWallet = getDocFromServer || getDoc;  // prefer server read to bypass stale cache
+        _readWallet(doc(db, 'wallets', recipUid)).then(snap => {
           const confirmed = snap.exists() ? snap.data().shadowCoins : data.newBalance;
           verifyAndShow(confirmed);
         }).catch(() => {

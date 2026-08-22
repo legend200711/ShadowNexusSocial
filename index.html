@@ -10335,7 +10335,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, browserLocalPersistence, setPersistence, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, getDocFromCache, updateDoc, deleteDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment, serverTimestamp, enableNetwork, disableNetwork } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, getDocFromCache, getDocFromServer, updateDoc, deleteDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment, serverTimestamp, enableNetwork, disableNetwork } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
   import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
   import { getDatabase as _getRtdb, ref as _rtdbRef, set as _rtdbSet, onDisconnect as _rtdbOnDisconnect, serverTimestamp as _rtdbServerTimestamp, onValue as _rtdbOnValue, off as _rtdbOff } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
@@ -10376,7 +10376,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   // ── Full Firestore namespace for feature scripts ──
   window._snxFirestore = {
-      db, doc, getDoc, getDocFromCache, setDoc, updateDoc, deleteDoc,
+      db, doc, getDoc, getDocFromCache, getDocFromServer, setDoc, updateDoc, deleteDoc,
       collection, addDoc, query, orderBy, limit,
       onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment,
       serverTimestamp, enableNetwork, disableNetwork,
