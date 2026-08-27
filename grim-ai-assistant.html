@@ -1,0 +1,1874 @@
+DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>Shadow Reaper -- AI Companion</title>
+<style>
+/* ================================================================
+   GRIM AI ASSISTANT -- Full-Page Self-Contained Experience
+   The Grim Reaper character IS the interface.
+   NO chat bubbles. Just the character, voice, and conversation.
+================================================================ */
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --gold:#c8922a;
+  --bg-dark:#030200;
+  --text-gold:#e8d090;
+  --text-dim:rgba(200,170,100,.65);
+  --panel-bg:rgba(8,5,2,.95);
+  --border:rgba(180,130,40,.22);
+}
+
+html,body{
+  width:100%;height:100%;
+  background:#000d1a;
+  overflow:hidden;
+  font-family:Georgia,serif;
+  color:var(--text-dim);
+  font-size:15px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* -- Main layout: Character + Controls -- */
+#grim-ai-root{
+  position:relative;
+  width:100%;height:100%;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:space-between;
+  background:radial-gradient(ellipse at 50% 30%, rgba(0,80,180,.18) 0%, rgba(0,20,60,.0) 70%),
+             linear-gradient(180deg, #000d1a 0%, #00091a 50%, #000814 100%);
+}
+
+/* -- Character stage (always visible, centered) -- */
+#grim-stage{
+  position:relative;
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  max-width:100vw;
+  padding:20px;
+}
+
+#grim-canvases{
+  position:relative;
+  width:100%;
+  height:100%;
+  max-width:min(90vmin,600px);
+  max-height:min(90vmin,700px);
+}
+
+canvas{
+  position:absolute;
+  top:0;left:0;
+  width:100%;height:100%;
+  display:block;
+}
+#scene-cv{z-index:1;}
+#char-cv{z-index:2;}
+
+/* -- Status & mood bar (top) -- */
+#status-bar{
+  position:absolute;
+  top:16px;left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:8px 20px;
+  background:var(--panel-bg);
+  border:1px solid var(--border);
+  border-radius:30px;
+  font-size:.72rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:rgba(200,160,60,.5);
+  box-shadow:0 4px 20px rgba(0,0,0,.6);
+  z-index:10;
+}
+
+#status-bar .mood{
+  color:var(--gold);
+  font-weight:700;
+  text-shadow:0 0 8px rgba(200,140,30,.4);
+}
+
+#status-bar .indicator{
+  width:8px;height:8px;
+  border-radius:50%;
+  background:rgba(100,200,120,.7);
+  box-shadow:0 0 8px rgba(100,200,120,.5);
+  animation:pulse 2s infinite;
+}
+
+@keyframes pulse{
+  0%,100%{opacity:.5;transform:scale(.9);}
+  50%{opacity:1;transform:scale(1.1);}
+}
+
+#status-bar .indicator.listening{
+  background:#ff4040;
+  box-shadow:0 0 12px rgba(255,60,60,.7);
+}
+
+/* -- Control panel (bottom) -- */
+#control-panel{
+  position:relative;
+  width:100%;
+  max-width:800px;
+  padding:20px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  z-index:10;
+}
+
+#message-display{
+  background:var(--panel-bg);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:16px 20px;
+  min-height:80px;
+  max-height:200px;
+  overflow-y:auto;
+  color:#d8c49a;
+  font-size:.92rem;
+  line-height:1.65;
+  box-shadow:0 4px 20px rgba(0,0,0,.6),inset 0 1px 0 rgba(200,150,40,.06);
+  scroll-behavior:smooth;
+}
+
+#message-display::-webkit-scrollbar{width:4px;}
+#message-display::-webkit-scrollbar-thumb{background:rgba(200,140,30,.3);border-radius:4px;}
+
+#message-display .msg{
+  margin-bottom:12px;
+  opacity:0;
+  animation:fadeIn .4s forwards;
+}
+
+@keyframes fadeIn{
+  to{opacity:1;}
+}
+
+#message-display .msg.user{
+  color:rgba(200,180,140,.75);
+  font-style:italic;
+  margin-left:20px;
+}
+
+#message-display .msg.grim{
+  color:#e8d8a0;
+}
+
+#message-display .msg.grim::before{
+  content:' ';
+  color:var(--gold);
+  margin-right:6px;
+}
+
+#message-display .typing{
+  color:rgba(200,160,60,.45);
+  font-size:.82rem;
+}
+
+.typing-dots{
+  display:inline-flex;
+  gap:4px;
+  margin-left:6px;
+}
+
+.typing-dots span{
+  width:5px;height:5px;
+  border-radius:50%;
+  background:var(--gold);
+  animation:dotPulse .9s infinite;
+}
+.typing-dots span:nth-child(2){animation-delay:.22s;}
+.typing-dots span:nth-child(3){animation-delay:.44s;}
+
+@keyframes dotPulse{
+  0%,80%,100%{opacity:.4;transform:scale(.8);}
+  40%{opacity:1;transform:scale(1.1);}
+}
+
+#input-row{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+#user-input{
+  flex:1;
+  background:rgba(15,9,3,.92);
+  border:1px solid rgba(160,110,20,.32);
+  border-radius:28px;
+  padding:12px 20px;
+  color:#ddc890;
+  font-family:Georgia,serif;
+  font-size:.9rem;
+  outline:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+
+#user-input::placeholder{
+  color:rgba(180,140,60,.35);
+}
+
+#user-input:focus{
+  border-color:rgba(200,150,40,.6);
+  box-shadow:0 0 0 3px rgba(180,120,20,.15);
+}
+
+.control-btn{
+  background:rgba(60,35,5,.75);
+  border:1px solid rgba(160,110,20,.35);
+  border-radius:50%;
+  width:48px;height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  color:#c8a860;
+  font-size:1.1rem;
+  transition:background .2s,box-shadow .2s,transform .15s;
+  flex-shrink:0;
+}
+
+.control-btn:hover{
+  background:rgba(100,60,10,.85);
+  box-shadow:0 0 16px rgba(200,140,30,.35);
+  transform:scale(1.05);
+}
+
+.control-btn:active{
+  transform:scale(.98);
+}
+
+.control-btn.active{
+  background:rgba(200,40,20,.7);
+  border-color:rgba(255,80,40,.6);
+  box-shadow:0 0 20px rgba(255,60,20,.5);
+  animation:pulseBtn 1.2s infinite;
+}
+
+@keyframes pulseBtn{
+  0%,100%{box-shadow:0 0 20px rgba(255,60,20,.5);}
+  50%{box-shadow:0 0 28px rgba(255,60,20,.8);}
+}
+
+#send-btn{
+  border-radius:24px;
+  width:auto;
+  padding:0 20px;
+  font-size:.75rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+/* -- Quick topic chips -- */
+#topic-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  justify-content:center;
+  padding:0 10px;
+}
+
+.topic-chip{
+  background:rgba(50,30,5,.65);
+  border:1px solid rgba(140,95,18,.28);
+  border-radius:20px;
+  padding:6px 14px;
+  font-size:.72rem;
+  color:#b89050;
+  cursor:pointer;
+  transition:all .2s;
+  user-select:none;
+  white-space:nowrap;
+}
+
+.topic-chip:hover{
+  background:rgba(90,55,10,.8);
+  border-color:rgba(200,150,40,.5);
+  box-shadow:0 0 12px rgba(200,140,30,.25);
+}
+
+/* -- Settings panel (overlay) -- */
+#settings-panel{
+  position:fixed;
+  top:0;right:0;
+  width:min(400px,90vw);
+  height:100vh;
+  background:var(--panel-bg);
+  border-left:1px solid var(--border);
+  box-shadow:-4px 0 40px rgba(0,0,0,.8);
+  z-index:100;
+  display:flex;
+  flex-direction:column;
+  padding:24px;
+  gap:16px;
+  transform:translateX(100%);
+  transition:transform .3s ease;
+  overflow-y:auto;
+}
+
+#settings-panel.visible{
+  transform:translateX(0);
+}
+
+#settings-panel h2{
+  font-size:1rem;
+  letter-spacing:.2em;
+  color:var(--text-gold);
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+
+.setting-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 0;
+  border-bottom:1px solid rgba(180,130,40,.1);
+  font-size:.82rem;
+}
+
+.setting-row label{
+  flex:1;
+  cursor:pointer;
+  color:rgba(200,170,100,.7);
+}
+
+.toggle-switch{
+  position:relative;
+  width:44px;height:24px;
+  cursor:pointer;
+}
+
+.toggle-switch input{
+  opacity:0;width:0;height:0;position:absolute;
+}
+
+.toggle-track{
+  position:absolute;
+  inset:0;
+  background:rgba(40,25,6,.9);
+  border:1px solid rgba(160,110,20,.35);
+  border-radius:24px;
+  transition:background .25s;
+}
+
+.toggle-switch input:checked + .toggle-track{
+  background:rgba(180,120,25,.6);
+  border-color:rgba(200,150,40,.7);
+}
+
+.toggle-thumb{
+  position:absolute;
+  top:3px;left:3px;
+  width:16px;height:16px;
+  background:var(--gold);
+  border-radius:50%;
+  transition:left .25s;
+}
+
+.toggle-switch input:checked ~ .toggle-thumb{
+  left:23px;
+}
+
+#api-key-input{
+  width:100%;
+  background:rgba(10,6,2,.85);
+  border:1px solid rgba(120,85,25,.28);
+  border-radius:12px;
+  padding:10px 14px;
+  color:rgba(220,190,110,.7);
+  font-size:.8rem;
+  font-family:Georgia,serif;
+  outline:none;
+}
+
+#api-key-input::placeholder{
+  color:rgba(150,110,40,.35);
+}
+
+#api-key-input:focus{
+  border-color:rgba(180,130,35,.5);
+}
+
+.btn-secondary{
+  background:rgba(50,32,6,.75);
+  border:1px solid rgba(180,130,35,.35);
+  border-radius:20px;
+  padding:10px 18px;
+  color:#ddc880;
+  font-size:.76rem;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:all .2s;
+  font-family:Georgia,serif;
+  text-align:center;
+}
+
+.btn-secondary:hover{
+  background:rgba(90,56,10,.9);
+  box-shadow:0 0 14px rgba(200,140,30,.3);
+}
+
+#settings-btn{
+  position:fixed;
+  top:16px;right:16px;
+  width:40px;height:40px;
+  background:var(--panel-bg);
+  border:1px solid var(--border);
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  color:rgba(200,160,80,.7);
+  font-size:1.1rem;
+  z-index:50;
+  transition:all .2s;
+}
+
+#settings-btn:hover{
+  background:rgba(100,60,10,.9);
+  box-shadow:0 0 16px rgba(200,140,30,.3);
+}
+
+/* -- Responsive -- */
+@media(max-width:768px){
+  #control-panel{
+    max-width:100%;
+    padding:12px;
+  }
+  #message-display{
+    min-height:60px;
+    font-size:.86rem;
+    padding:12px 16px;
+  }
+  #topic-chips{
+    gap:6px;
+  }
+  .topic-chip{
+    font-size:.68rem;
+    padding:5px 11px;
+  }
+  #status-bar{
+    font-size:.65rem;
+    padding:6px 14px;
+    gap:8px;
+  }
+}
+
+@media(max-width:480px){
+  #grim-canvases{
+    max-width:95vmin;
+    max-height:95vmin;
+  }
+  #control-panel{
+    padding:8px;
+  }
+  #topic-chips{
+    display:none;
+  }
+}
+
+/* -- Loading screen -- */
+#loading-screen{
+  position:fixed;
+  inset:0;
+  background:var(--bg-dark);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  z-index:1000;
+  transition:opacity .5s;
+}
+
+#loading-screen.hidden{
+  opacity:0;
+  pointer-events:none;
+}
+
+#loading-screen .spinner{
+  width:50px;height:50px;
+  border:3px solid rgba(200,140,30,.2);
+  border-top-color:var(--gold);
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+  to{transform:rotate(360deg);}
+}
+
+#loading-screen p{
+  margin-top:20px;
+  color:rgba(200,170,100,.5);
+  font-size:.85rem;
+  letter-spacing:.12em;
+}
+</style>
+</head>
+<body>
+
+<!-- 
+     GRIM AI ASSISTANT -- Full-Page Experience
+     The character IS the interface. No chat window.
+ -->
+
+<div id="grim-ai-root">
+
+  <!-- Status bar (top — mood + connection indicator) -->
+  <div id="status-bar">
+    <div class="indicator" id="ai-indicator"></div>
+    <span class="mood" id="mood-label">Calm and Present</span>
+    <span id="connection-status" style="margin-left:auto;font-size:.65rem;color:rgba(180,140,60,.4);">◆ Ready</span>
+  </div>
+
+  <!-- Settings button (top right) -->
+  <div id="settings-btn" role="button" aria-label="Settings" tabindex="0"></div>
+
+  <!-- Character stage (center, always visible) -->
+  <div id="grim-stage">
+    <div id="grim-canvases">
+      <canvas id="scene-cv"></canvas>
+      <canvas id="char-cv" width="420" height="560"></canvas>
+    </div>
+  </div>
+
+  <!-- Control panel (bottom) -->
+  <div id="control-panel">
+    
+    <!-- Message display -->
+    <div id="message-display" role="log" aria-live="polite">
+      <!-- Messages appear here -->
+    </div>
+
+    <!-- Quick topic chips -->
+    <div id="topic-chips">
+      <span class="topic-chip" data-topic="I need to talk about how I'm feeling">🫀 Feelings</span>
+      <span class="topic-chip" data-topic="I feel anxious">😤 Anxiety</span>
+      <span class="topic-chip" data-topic="I'm struggling with motivation">🔥 Motivation</span>
+      <span class="topic-chip" data-topic="Tell me about philosophy and the meaning of life">📖 Philosophy</span>
+      <span class="topic-chip" data-topic="Let's talk about music I love">🎵 Music</span>
+      <span class="topic-chip" data-topic="Tell me a story or let's build one together">📜 Stories</span>
+      <span class="topic-chip" data-topic="I need support or someone to talk to">🫂 Support</span>
+      <span class="topic-chip" data-topic="I need help with something or have a question">💬 Help</span>
+    </div>
+
+    <!-- Input row -->
+    <div id="input-row">
+      <button class="control-btn" id="mic-btn" title="Voice input" aria-label="Voice input"></button>
+      <input type="text" id="user-input" placeholder="Speak or type... I am listening." maxlength="400" autocomplete="off">
+      <button class="control-btn" id="send-btn" aria-label="Send">SEND</button>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Settings panel (slide-in from right) -->
+<div id="settings-panel">
+  <h2>⚙️ Settings</h2>
+  
+  <div class="setting-row">
+    <label for="toggle-voice">Voice (Text-to-Speech)</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="toggle-voice" checked>
+      <div class="toggle-track"></div>
+      <div class="toggle-thumb"></div>
+    </label>
+  </div>
+
+  <div class="setting-row">
+    <label for="toggle-mic">Microphone Input</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="toggle-mic" checked>
+      <div class="toggle-track"></div>
+      <div class="toggle-thumb"></div>
+    </label>
+  </div>
+
+  <div class="setting-row">
+    <label for="toggle-memory">Conversation Memory</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="toggle-memory" checked>
+      <div class="toggle-track"></div>
+      <div class="toggle-thumb"></div>
+    </label>
+  </div>
+
+  <div style="margin-top:20px;">
+    <label for="api-key-input" style="display:block;margin-bottom:8px;font-size:.75rem;color:rgba(200,160,60,.45);letter-spacing:.08em;">
+      OPENROUTER API KEY (OPTIONAL)
+    </label>
+    <input type="password" id="api-key-input" placeholder="sk-or-v1-..." autocomplete="off">
+    <p style="font-size:.68rem;color:rgba(180,140,60,.35);margin-top:6px;line-height:1.5;">
+      Without a key, Shadow Reaper uses local fallback responses. 
+      With a key, full AI conversation is enabled.
+    </p>
+  </div>
+
+  <button class="btn-secondary" id="clear-memory-btn">🗑 Clear Conversation</button>
+  
+  <div style="margin-top:auto;padding-top:20px;border-top:1px solid rgba(180,130,40,.1);font-size:.65rem;color:rgba(160,120,50,.3);text-align:center;letter-spacing:.06em;">
+    Shadow Reaper AI Companion<br>
+    Session-only  Privacy-first
+  </div>
+</div>
+
+<!-- Loading screen -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <p>Summoning Shadow Reaper...</p>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ================================================================
+   GRIM AI ASSISTANT -- JavaScript Engine
+   Full AI conversation system with character animations, voice,
+   microphone, mood system, and memory.
+================================================================ */
+
+// -- Configuration --
+const CW = 420, CH = 560; // Character canvas logical dimensions
+
+// -- State --
+const State = {
+  voiceEnabled: true,
+  micEnabled: true,
+  memoryEnabled: true,
+  speaking: false,
+  listening: false,
+  apiKey: '',
+  mood: 'calm',
+  conversationHistory: [],
+  messageCount: 0,
+  userName: null
+};
+
+// -- Mood system --
+const MOODS = {
+  calm: { label: 'Calm and Present', pitch: 0.48, rate: 0.78, vol: 0.95 },
+  warm: { label: 'Warm and Friendly', pitch: 0.56, rate: 0.84, vol: 0.95 },
+  serious: { label: 'Thoughtful and Deep', pitch: 0.44, rate: 0.74, vol: 0.92 },
+  motivate: { label: 'Motivational', pitch: 0.55, rate: 0.86, vol: 1.0 },
+  crisis: { label: 'Caring and Present', pitch: 0.46, rate: 0.72, vol: 0.98 }
+};
+
+function setMood(mood) {
+  State.mood = mood;
+  const label = document.getElementById('mood-label');
+  if (label) label.textContent = MOODS[mood].label;
+}
+
+// -- Character animation system --
+const sceneCV = document.getElementById('scene-cv');
+const charCV = document.getElementById('char-cv');
+const sctx = sceneCV.getContext('2d');
+const cctx = charCV.getContext('2d');
+
+let t = 0;
+let breathPhase = 0;
+let walkPhase = 0;
+let eyeGlow = 0.8;
+let mouthAmount = 0;
+let mouseX = 0;
+let targetLeanX = 0;
+let leanX = 0;
+
+const isMobile = window.innerWidth < 480;
+const PARTICLES = isMobile ? 20 : 42;
+
+// Scene particles (dust motes)
+let motes = [];
+let SW = 400, SH = 400;
+
+function initMotes(W, H) {
+  SW = W; SH = H;
+  motes = [];
+  const n = Math.min(50, Math.floor(W * H / 6000));
+  for (let i = 0; i < n; i++) motes.push(newMote());
+}
+
+function newMote() {
+  return {
+    x: Math.random() * SW,
+    y: Math.random() * SH,
+    r: 0.6 + Math.random() * 1.8,
+    vx: (Math.random() - 0.5) * 0.15,
+    vy: -(0.05 + Math.random() * 0.18),
+    al: Math.random() * 0.18 + 0.03,
+    phase: Math.random() * Math.PI * 2
+  };
+}
+
+// Character ember particles
+let embers = [];
+for (let i = 0; i < PARTICLES; i++) embers.push(newEmber());
+
+function newEmber() {
+  return {
+    x: CW * 0.3 + Math.random() * CW * 0.4,
+    y: CH * 0.65 + Math.random() * CH * 0.25,
+    vx: (Math.random() - 0.5) * 0.35,
+    vy: -(0.25 + Math.random() * 0.9),
+    life: Math.random(),
+    max: 0.5 + Math.random() * 0.7,
+    sz: 0.7 + Math.random() * 1.8,
+    al: 0
+  };
+}
+
+// Resize handler
+function resize() {
+  const stage = document.getElementById('grim-canvases');
+  const W = stage.clientWidth || 400;
+  const H = stage.clientHeight || 400;
+
+  sceneCV.width = W;
+  sceneCV.height = H;
+
+  charCV.style.width = W + 'px';
+  charCV.style.height = H + 'px';
+
+  initMotes(W, H);
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+// Mouse/touch tracking for character lean
+window.addEventListener('mousemove', e => {
+  mouseX = e.clientX / window.innerWidth - 0.5;
+});
+
+window.addEventListener('touchmove', e => {
+  if (e.touches.length) mouseX = e.touches[0].clientX / window.innerWidth - 0.5;
+}, { passive: true });
+
+// -- Scene rendering (background) --
+function drawScene() {
+  const W = SW, H = SH;
+  sctx.clearRect(0, 0, W, H);
+
+  // Dust motes
+  sctx.save();
+  for (let i = 0; i < motes.length; i++) {
+    const m = motes[i];
+    m.x += m.vx + Math.sin(t * 0.012 + m.phase) * 0.1;
+    m.y += m.vy;
+    if (m.y < -4 || m.x < -4 || m.x > W + 4) {
+      motes[i] = newMote();
+      motes[i].y = H + 4;
+    }
+    const ma = m.al * (0.5 + 0.5 * Math.sin(t * 0.025 + m.phase));
+    sctx.globalAlpha = ma;
+    sctx.fillStyle = 'rgba(220,180,90,1)';
+    sctx.beginPath();
+    sctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+    sctx.fill();
+  }
+  sctx.restore();
+}
+
+function drawTrees(ctx, W, H, t, side) {
+  const count = 5;
+  for (let i = 0; i < count; i++) {
+    const depth = i / count;
+    let bx, by = H * (1 - depth * 0.05);
+    const sw = Math.sin(t * 0.008 + i * 0.9) * (1 + depth) * 0.5;
+    if (side === -1) bx = W * 0.5 - W * (0.10 + depth * 0.28) - i * 6;
+    else bx = W * 0.5 + W * (0.10 + depth * 0.28) + i * 6;
+    const th = H * (0.30 + depth * 0.28);
+    const tw = W * (0.018 + depth * 0.030);
+    const darkC = `rgba(${8+depth*5},${6+depth*3},${2+depth*2},${0.82+depth*0.1})`;
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.fillStyle = darkC;
+    ctx.beginPath();
+    ctx.roundRect(-tw * 0.4, 0, tw * 0.8, -th * 0.12, 2);
+    ctx.fill();
+    for (let li = 0; li < 3; li++) {
+      const ly = -th * (0.10 + li * 0.18);
+      const lw = tw * (2.5 - li * 0.3);
+      const lh = th * (0.24 - li * 0.02);
+      ctx.save();
+      ctx.rotate(sw * 0.007 * (li + 1));
+      const tg = ctx.createLinearGradient(-lw * 0.5, ly, lw * 0.5, ly + lh);
+      tg.addColorStop(0, darkC);
+      tg.addColorStop(1, 'rgba(4,3,1,.95)');
+      ctx.fillStyle = tg;
+      ctx.beginPath();
+      ctx.ellipse(0, ly - lh * 0.3, lw * 0.55, lh * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+}
+
+// -- Character rendering --
+function drawChar() {
+  t++;
+  breathPhase += 0.019;
+  walkPhase += 0.028;
+  targetLeanX = mouseX * 8;
+  leanX += (targetLeanX - leanX) * 0.06;
+  eyeGlow = 0.55 + 0.45 * Math.sin(t * 0.048);
+
+  // Mouth animation when speaking
+  if (State.speaking) {
+    mouthAmount = 0.5 + 0.5 * Math.sin(t * 0.22);
+  } else {
+    mouthAmount = Math.max(0, mouthAmount - 0.04);
+  }
+
+  cctx.clearRect(0, 0, CW, CH);
+
+  const cx = CW * 0.5 + leanX;
+  const groundY = CH * 0.92;
+  const walk = Math.sin(walkPhase) * 3;
+  const walkBob = Math.abs(Math.sin(walkPhase)) * 3.5;
+  const breathe = Math.sin(breathPhase) * 2;
+  const baseY = groundY - 8 - walkBob;
+
+  // Aura
+  const aura = cctx.createRadialGradient(cx, CH * 0.18, 8, cx, CH * 0.28, CW * 0.58);
+  aura.addColorStop(0, 'rgba(200,145,45,.28)');
+  aura.addColorStop(0.35, 'rgba(160,100,20,.14)');
+  aura.addColorStop(1, 'rgba(0,0,0,0)');
+  cctx.fillStyle = aura;
+  cctx.fillRect(0, 0, CW, CH);
+
+  // Ground shadow
+  const gs = cctx.createRadialGradient(cx, groundY, 2, cx, groundY, 80);
+  gs.addColorStop(0, 'rgba(0,0,0,.5)');
+  gs.addColorStop(1, 'rgba(0,0,0,0)');
+  cctx.fillStyle = gs;
+  cctx.beginPath();
+  cctx.ellipse(cx, groundY - 4, 72, 12, 0, 0, Math.PI * 2);
+  cctx.fill();
+
+  drawGrim(cx, baseY, walk, breathe, mouthAmount);
+
+  // Embers
+  cctx.save();
+  cctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < embers.length; i++) {
+    const e = embers[i];
+    e.life += 0.012;
+    e.x += e.vx + Math.sin(e.life * 4) * 0.18;
+    e.y += e.vy;
+    if (e.life >= e.max) {
+      embers[i] = newEmber();
+      continue;
+    }
+    const ep = e.life / e.max;
+    const ea = (1 - ep) * e.al * 1.1;
+    if (ea <= 0) {
+      e.al = 0.12 + Math.random() * 0.45;
+      continue;
+    }
+    cctx.globalAlpha = ea;
+    const eg2 = cctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.sz * 2.2);
+    eg2.addColorStop(0, 'rgba(255,220,120,1)');
+    eg2.addColorStop(0.5, 'rgba(220,140,30,.55)');
+    eg2.addColorStop(1, 'rgba(0,0,0,0)');
+    cctx.fillStyle = eg2;
+    cctx.beginPath();
+    cctx.arc(e.x, e.y, e.sz * 2.2, 0, Math.PI * 2);
+    cctx.fill();
+  }
+  cctx.restore();
+}
+
+function drawGrim(cx, baseY, walk, breathe, mAmt) {
+  const rt = t * 0.009;
+  const lLeg = Math.sin(walkPhase) * 16;
+  const rLeg = -Math.sin(walkPhase) * 16;
+
+  drawBoots(cx, baseY, lLeg, rLeg);
+  drawRobe(cx, baseY, rt, breathe);
+  drawCloakBack(cx, baseY, rt);
+  drawScytheArm(cx, baseY, rt, walk);
+  drawRightArm(cx, baseY, rt, walk);
+  drawCloakFront(cx, baseY, rt);
+  drawHoodAndSkull(cx, baseY, mAmt);
+}
+
+function drawBoots(cx, baseY, lLeg, rLeg) {
+  const by = baseY, bh = 30, bw = 19;
+  cctx.save();
+  cctx.translate(cx - 24 + lLeg * 0.4, by);
+  cctx.rotate(lLeg * 0.018);
+  const bg = cctx.createLinearGradient(-bw * 0.5, 0, bw * 0.5, bh);
+  bg.addColorStop(0, '#1a1510');
+  bg.addColorStop(1, '#0a0806');
+  cctx.fillStyle = bg;
+  cctx.beginPath();
+  cctx.roundRect(-bw * 0.5, -bh, bw, bh, 3);
+  cctx.fill();
+  cctx.strokeStyle = 'rgba(90,70,30,.28)';
+  cctx.lineWidth = 0.7;
+  cctx.stroke();
+  cctx.fillStyle = '#0d0b08';
+  cctx.beginPath();
+  cctx.roundRect(-bw * 0.5 - 1, -2, bw + 2, 5, 2);
+  cctx.fill();
+  cctx.restore();
+
+  cctx.save();
+  cctx.translate(cx + 24 + rLeg * 0.4, by);
+  cctx.rotate(rLeg * 0.018);
+  cctx.fillStyle = bg;
+  cctx.beginPath();
+  cctx.roundRect(-bw * 0.5, -bh, bw, bh, 3);
+  cctx.fill();
+  cctx.strokeStyle = 'rgba(90,70,30,.28)';
+  cctx.lineWidth = 0.7;
+  cctx.stroke();
+  cctx.fillStyle = '#0d0b08';
+  cctx.beginPath();
+  cctx.roundRect(-bw * 0.5 - 1, -2, bw + 2, 5, 2);
+  cctx.fill();
+  cctx.restore();
+}
+
+function drawRobe(cx, baseY, rt, breathe) {
+  const top = baseY - 420, bot = baseY;
+  const rg = cctx.createLinearGradient(cx - 70, top, cx + 70, bot);
+  rg.addColorStop(0, '#0f0d0a');
+  rg.addColorStop(0.5, '#141210');
+  rg.addColorStop(1, '#0a0807');
+  cctx.fillStyle = rg;
+  cctx.beginPath();
+  cctx.moveTo(cx - 54, top + 42);
+  cctx.bezierCurveTo(cx - 68, top + 100, cx - 62 + Math.sin(rt) * 3.5, bot - 120, cx - 50, bot - 50);
+  cctx.lineTo(cx - 32, bot);
+  cctx.lineTo(cx + 32, bot);
+  cctx.lineTo(cx + 50, bot - 50);
+  cctx.bezierCurveTo(cx + 62 + Math.sin(rt + 1) * 3.5, bot - 120, cx + 68, top + 100, cx + 54, top + 42);
+  cctx.closePath();
+  cctx.fill();
+
+  cctx.save();
+  cctx.globalAlpha = 0.06;
+  cctx.strokeStyle = '#6a5020';
+  cctx.lineWidth = 0.9;
+  for (let fi = 0; fi < 7; fi++) {
+    const fx = cx - 44 + fi * 13;
+    const sw2 = Math.sin(rt + fi) * 0.7;
+    cctx.beginPath();
+    cctx.moveTo(fx, top + 50);
+    cctx.bezierCurveTo(fx + sw2, top + 170, fx - sw2, bot - 170, fx, bot - 18);
+    cctx.stroke();
+  }
+  cctx.restore();
+}
+
+function drawCloakBack(cx, baseY, rt) {
+  const phase = rt * 2.2, top = baseY - 410, bot = baseY + 8;
+  cctx.save();
+  const cg = cctx.createLinearGradient(cx - 150, top, cx + 165, bot);
+  cg.addColorStop(0, '#0c0a07');
+  cg.addColorStop(0.45, '#111009');
+  cg.addColorStop(1, '#080604');
+  cctx.fillStyle = cg;
+  cctx.beginPath();
+  cctx.moveTo(cx - 8, top);
+  cctx.bezierCurveTo(cx + 90 + Math.sin(rt) * 12, top + 42, cx + 155 + Math.sin(rt + 0.8) * 15, top + 170, cx + 165 + Math.sin(rt + 1.6) * 12, bot - 35);
+  cctx.bezierCurveTo(cx + 148, bot + 16, cx + 65, bot + 12, cx + 24, bot);
+  cctx.lineTo(cx - 24, bot);
+  cctx.bezierCurveTo(cx - 65, bot + 6, cx - 140, bot + 6, cx - 152 + Math.sin(rt) * 8, bot - 42);
+  cctx.bezierCurveTo(cx - 165 + Math.sin(rt + 1) * 13, top + 170, cx - 98 + Math.sin(rt + 0.5) * 10, top + 45, cx - 8, top);
+  cctx.closePath();
+  cctx.fill();
+
+  // Tattered hem
+  const hem = cloakHem(cx, bot + 6, 14, phase);
+  cctx.globalAlpha = 1;
+  cctx.fillStyle = '#080605';
+  cctx.beginPath();
+  cctx.moveTo(cx - 130, bot);
+  for (let pi = 0; pi < hem.length; pi++) cctx.lineTo(hem[pi][0], hem[pi][1]);
+  cctx.lineTo(cx + 130, bot);
+  cctx.closePath();
+  cctx.fill();
+  cctx.restore();
+}
+
+function cloakHem(cx, cy, rOff, phase) {
+  const pts = [];
+  const segs = 18;
+  for (let i = 0; i <= segs; i++) {
+    const frac = i / segs;
+    const bx = cx - 130 + frac * 260;
+    const tatter = Math.sin(frac * Math.PI * 5 + phase) * (3 + frac * (1 - frac) * 14);
+    pts.push([bx, cy + Math.sin(frac * Math.PI) * rOff + tatter]);
+  }
+  return pts;
+}
+
+function drawCloakFront(cx, baseY, rt) {
+  const top = baseY - 395, bot = baseY - 65, phase = rt * 2.5;
+  cctx.save();
+  const lw = cctx.createLinearGradient(cx - 115, top, cx, bot);
+  lw.addColorStop(0, '#131108');
+  lw.addColorStop(0.6, '#0e0c07');
+  lw.addColorStop(1, '#060503');
+  cctx.fillStyle = lw;
+  cctx.beginPath();
+  cctx.moveTo(cx - 42, top + 16);
+  cctx.bezierCurveTo(cx - 115 + Math.sin(rt) * 7, top + 85, cx - 130 + Math.sin(rt + 0.6) * 10, bot - 50, cx - 105 + Math.sin(rt + 1.2) * 8, bot + 24);
+  cctx.bezierCurveTo(cx - 65, bot + 48, cx - 25, bot + 8, cx - 15, bot - 25);
+  cctx.closePath();
+  cctx.fill();
+  cctx.strokeStyle = '#0a0806';
+  cctx.lineWidth = 1.8;
+  cctx.globalAlpha = 0.88;
+  for (let ti = 0; ti < 4; ti++) {
+    const tx = cx - 105 + ti * 16 + Math.sin(rt + ti) * 3;
+    const ty = bot + 16 + ti * 7;
+    cctx.beginPath();
+    cctx.moveTo(tx, bot - 4);
+    cctx.lineTo(tx - 6 + Math.sin(phase + ti) * 4, ty);
+    cctx.stroke();
+  }
+  cctx.restore();
+
+  cctx.save();
+  const rw = cctx.createLinearGradient(cx, top, cx + 98, bot);
+  rw.addColorStop(0, '#141208');
+  rw.addColorStop(0.6, '#0f0d08');
+  rw.addColorStop(1, '#060504');
+  cctx.fillStyle = rw;
+  cctx.beginPath();
+  cctx.moveTo(cx + 42, top + 16);
+  cctx.bezierCurveTo(cx + 82 + Math.sin(rt + 0.4) * 7, top + 100, cx + 74 + Math.sin(rt + 1) * 8, bot - 34, cx + 62 + Math.sin(rt + 1.8) * 6, bot + 8);
+  cctx.bezierCurveTo(cx + 42, bot + 24, cx + 16, bot + 4, cx + 15, bot - 25);
+  cctx.closePath();
+  cctx.fill();
+  cctx.restore();
+
+  drawBelt(cx, baseY - 225);
+}
+
+function drawBelt(cx, by) {
+  const bg = cctx.createLinearGradient(cx - 46, by, cx + 46, by + 13);
+  bg.addColorStop(0, '#1a1508');
+  bg.addColorStop(0.5, '#2a2010');
+  bg.addColorStop(1, '#151006');
+  cctx.fillStyle = bg;
+  cctx.beginPath();
+  cctx.roundRect(cx - 47, by, 94, 13, 2);
+  cctx.fill();
+  cctx.strokeStyle = 'rgba(140,100,30,.38)';
+  cctx.lineWidth = 0.9;
+  cctx.stroke();
+
+  cctx.save();
+  cctx.translate(cx, by + 6.5);
+  const bg2 = cctx.createRadialGradient(0, 0, 0, 0, 0, 9);
+  bg2.addColorStop(0, '#3a2e12');
+  bg2.addColorStop(1, '#0e0a04');
+  cctx.fillStyle = bg2;
+  cctx.beginPath();
+  cctx.arc(0, 0, 9, 0, Math.PI * 2);
+  cctx.fill();
+  cctx.strokeStyle = 'rgba(160,120,40,.65)';
+  cctx.lineWidth = 1.2;
+  cctx.stroke();
+  cctx.strokeStyle = 'rgba(160,120,40,.42)';
+  cctx.lineWidth = 0.8;
+  for (let si = 0; si < 5; si++) {
+    const a1 = (si * 4 * Math.PI / 5) - Math.PI / 2;
+    const a2 = ((si * 4 + 2) * Math.PI / 5) - Math.PI / 2;
+    cctx.beginPath();
+    cctx.moveTo(Math.cos(a1) * 6.5, Math.sin(a1) * 6.5);
+    cctx.lineTo(Math.cos(a2) * 6.5, Math.sin(a2) * 6.5);
+    cctx.stroke();
+  }
+  cctx.restore();
+}
+
+function drawScytheArm(cx, baseY, rt, walk) {
+  const sw = Math.sin(t * 0.008) * 2.2 + walk * 0.28;
+  const shX = cx - 60, shY = baseY - 318;
+  const handX = cx - 84, handY = baseY - 150;
+
+  cctx.save();
+  cctx.fillStyle = '#0e0c08';
+  cctx.beginPath();
+  cctx.moveTo(shX, shY);
+  cctx.bezierCurveTo(shX - 18, shY + 50, shX - 25 + sw, handY - 50, handX, handY);
+  cctx.bezierCurveTo(handX - 12, handY, handX - 10, shY + 65, shX - 15, shY);
+  cctx.closePath();
+  cctx.fill();
+
+  const gg = cctx.createRadialGradient(handX, handY, 0, handX, handY, 14);
+  gg.addColorStop(0, '#1a1510');
+  gg.addColorStop(1, '#0a0806');
+  cctx.fillStyle = gg;
+  cctx.beginPath();
+  cctx.ellipse(handX, handY, 11, 14, 0.18, 0, Math.PI * 2);
+  cctx.fill();
+  cctx.strokeStyle = 'rgba(100,75,30,.28)';
+  cctx.lineWidth = 0.7;
+  cctx.stroke();
+
+  // Staff
+  cctx.save();
+  cctx.translate(handX + 3, handY - 6);
+  cctx.rotate(sw * 0.018 + 0.05);
+  const sg = cctx.createLinearGradient(-3, -130, 3, -130);
+  sg.addColorStop(0, '#303028');
+  sg.addColorStop(0.5, '#585848');
+  sg.addColorStop(1, '#242420');
+  cctx.strokeStyle = sg;
+  cctx.lineWidth = 6;
+  cctx.lineCap = 'round';
+  cctx.beginPath();
+  cctx.moveTo(0, 0);
+  cctx.lineTo(15, -178);
+  cctx.stroke();
+
+  // Blade
+  cctx.save();
+  cctx.translate(15, -178);
+  const blg = cctx.createLinearGradient(0, 0, 108, 52);
+  blg.addColorStop(0, '#c8c4b0');
+  blg.addColorStop(0.15, '#e8e4d0');
+  blg.addColorStop(0.4, '#b8b4a0');
+  blg.addColorStop(0.7, '#787468');
+  blg.addColorStop(1, '#404038');
+  cctx.fillStyle = blg;
+  cctx.beginPath();
+  cctx.moveTo(0, 0);
+  cctx.bezierCurveTo(24, -14, 96, -6, 108, 22);
+  cctx.bezierCurveTo(104, 40, 77, 45, 55, 30);
+  cctx.bezierCurveTo(32, 17, 11, 12, 0, 0);
+  cctx.closePath();
+  cctx.fill();
+  cctx.strokeStyle = 'rgba(255,248,220,.55)';
+  cctx.lineWidth = 1;
+  cctx.beginPath();
+  cctx.moveTo(0, 0);
+  cctx.bezierCurveTo(24, -14, 96, -6, 108, 22);
+  cctx.stroke();
+  cctx.restore();
+  cctx.restore();
+  cctx.restore();
+}
+
+function drawRightArm(cx, baseY, rt, walk) {
+  const sw = -Math.sin(t * 0.008) * 2.2 + walk * 0.28;
+  const shX = cx + 56, shY = baseY - 312;
+  const handX = cx + 76, handY = baseY - 170;
+
+  cctx.save();
+  cctx.fillStyle = '#0e0c08';
+  cctx.beginPath();
+  cctx.moveTo(shX, shY);
+  cctx.bezierCurveTo(shX + 16, shY + 45, shX + 22 + sw, handY - 42, handX, handY);
+  cctx.bezierCurveTo(handX + 12, handY, handX + 8, shY + 62, shX + 13, shY);
+  cctx.closePath();
+  cctx.fill();
+
+  const gg = cctx.createRadialGradient(handX, handY, 0, handX, handY, 13);
+  gg.addColorStop(0, '#1a1510');
+  gg.addColorStop(1, '#0a0806');
+  cctx.fillStyle = gg;
+  cctx.beginPath();
+  cctx.ellipse(handX, handY, 11, 14, -0.16, 0, Math.PI * 2);
+  cctx.fill();
+  cctx.strokeStyle = 'rgba(100,75,30,.28)';
+  cctx.lineWidth = 0.7;
+  cctx.stroke();
+
+  // Fingers
+  for (let fi = 0; fi < 4; fi++) {
+    cctx.strokeStyle = '#0e0c08';
+    cctx.lineWidth = 3.5;
+    cctx.lineCap = 'round';
+    cctx.beginPath();
+    cctx.moveTo(handX - 6 + fi * 4, handY - 2);
+    cctx.lineTo(handX - 8 + fi * 4, handY + 13);
+    cctx.stroke();
+  }
+  cctx.restore();
+}
+
+function drawHoodAndSkull(cx, baseY, mAmt) {
+  const headCY = baseY - 395;
+
+  // Neck shadow
+  cctx.fillStyle = '#0c0a07';
+  cctx.beginPath();
+  cctx.ellipse(cx, headCY + 76, 18, 22, 0, 0, Math.PI * 2);
+  cctx.fill();
+
+  // Hood
+  const hg = cctx.createRadialGradient(cx, headCY - 24, 6, cx, headCY, 72);
+  hg.addColorStop(0, '#16140f');
+  hg.addColorStop(0.5, '#0e0c08');
+  hg.addColorStop(1, 'rgba(4,3,2,0)');
+  cctx.fillStyle = hg;
+  cctx.beginPath();
+  cctx.moveTo(cx, headCY - 92);
+  cctx.bezierCurveTo(cx + 58, headCY - 80, cx + 66, headCY - 30, cx + 51, headCY + 42);
+  cctx.bezierCurveTo(cx + 35, headCY + 62, cx + 16, headCY + 70, cx, headCY + 72);
+  cctx.bezierCurveTo(cx - 16, headCY + 70, cx - 35, headCY + 62, cx - 51, headCY + 42);
+  cctx.bezierCurveTo(cx - 66, headCY - 30, cx - 58, headCY - 80, cx, headCY - 92);
+  cctx.closePath();
+  cctx.fill();
+
+  // Deep hood shadow
+  const hs = cctx.createRadialGradient(cx, headCY + 8, 2, cx, headCY - 6, 50);
+  hs.addColorStop(0, 'rgba(0,0,0,.95)');
+  hs.addColorStop(0.55, 'rgba(0,0,0,.80)');
+  hs.addColorStop(1, 'rgba(0,0,0,0)');
+  cctx.fillStyle = hs;
+  cctx.beginPath();
+  cctx.ellipse(cx, headCY + 4, 48, 50, 0, 0, Math.PI * 2);
+  cctx.fill();
+
+  // Rim light
+  cctx.save();
+  cctx.globalCompositeOperation = 'screen';
+  const rim = cctx.createLinearGradient(cx - 56, headCY - 92, cx + 56, headCY - 65);
+  rim.addColorStop(0, 'rgba(0,0,0,0)');
+  rim.addColorStop(0.45, 'rgba(180,120,30,.14)');
+  rim.addColorStop(0.55, 'rgba(200,140,40,.18)');
+  rim.addColorStop(1, 'rgba(0,0,0,0)');
+  cctx.fillStyle = rim;
+  cctx.beginPath();
+  cctx.ellipse(cx, headCY - 78, 55, 11, 0, 0, Math.PI * 2);
+  cctx.fill();
+  cctx.restore();
+
+  drawSkullFace(cx, headCY + 8, mAmt);
+}
+
+function drawSkullFace(cx, cy, mAmt) {
+  // Skull cranium
+  const sg = cctx.createRadialGradient(cx - 6, cy - 18, 3, cx, cy - 6, 37);
+  sg.addColorStop(0, '#e8d88a');
+  sg.addColorStop(0.22, '#c8aa48');
+  sg.addColorStop(0.52, '#9a7820');
+  sg.addColorStop(0.82, '#6a4c0e');
+  sg.addColorStop(1, '#2a1a04');
+  cctx.fillStyle = sg;
+  cctx.beginPath();
+  cctx.ellipse(cx, cy - 12, 30, 35, 0, 0, Math.PI * 2);
+  cctx.fill();
+
+  // Cranium shadow
+  cctx.save();
+  cctx.globalCompositeOperation = 'multiply';
+  const ss = cctx.createRadialGradient(cx - 24, cy - 14, 0, cx - 18, cy - 8, 30);
+  ss.addColorStop(0, 'rgba(0,0,0,.5)');
+  ss.addColorStop(1, 'rgba(0,0,0,0)');
+  cctx.fillStyle = ss;
+  cctx.beginPath();
+  cctx.ellipse(cx - 12, cy - 10, 28, 32, 0, 0, Math.PI * 2);
+  cctx.fill();
+  cctx.restore();
+
+  // Eye sockets
+  cctx.fillStyle = '#100800';
+  cctx.beginPath();
+  cctx.ellipse(cx - 12, cy - 18, 11, 8, 0.28, 0, Math.PI * 2);
+  cctx.fill();
+  cctx.beginPath();
+  cctx.ellipse(cx + 12, cy - 18, 11, 8, -0.28, 0, Math.PI * 2);
+  cctx.fill();
+
+  // Eye glow
+  cctx.save();
+  cctx.globalCompositeOperation = 'lighter';
+  const elG = cctx.createRadialGradient(cx - 12, cy - 18, 0, cx - 12, cy - 18, 14 * eyeGlow);
+  elG.addColorStop(0, `rgba(255,230,120,${0.9*eyeGlow})`);
+  elG.addColorStop(0.3, `rgba(220,160,40,${0.6*eyeGlow})`);
+  elG.addColorStop(1, 'rgba(0,0,0,0)');
+  cctx.fillStyle = elG;
+  cctx.beginPath();
+  cctx.ellipse(cx - 12, cy - 18, 13 * eyeGlow, 10 * eyeGlow, 0.28, 0, Math.PI * 2);
+  cctx.fill();
+
+  const erG = cctx.createRadialGradient(cx + 12, cy - 18, 0, cx + 12, cy - 18, 14 * eyeGlow);
+  erG.addColorStop(0, `rgba(255,230,120,${0.9*eyeGlow})`);
+  erG.addColorStop(0.3, `rgba(220,160,40,${0.6*eyeGlow})`);
+  erG.addColorStop(1, 'rgba(0,0,0,0)');
+  cctx.fillStyle = erG;
+  cctx.beginPath();
+  cctx.ellipse(cx + 12, cy - 18, 13 * eyeGlow, 10 * eyeGlow, -0.28, 0, Math.PI * 2);
+  cctx.fill();
+  cctx.restore();
+
+  // Nose
+  cctx.fillStyle = 'rgba(20,10,2,.78)';
+  cctx.beginPath();
+  cctx.moveTo(cx, cy + 1);
+  cctx.lineTo(cx - 4, cy + 9);
+  cctx.lineTo(cx, cy + 7);
+  cctx.lineTo(cx + 4, cy + 9);
+  cctx.closePath();
+  cctx.fill();
+
+  // Jaw & teeth (animated with mAmt for speaking)
+  const mY = cy + 14 + mAmt * 6;
+  const mH = 3 + mAmt * 11;
+  cctx.fillStyle = '#0a0500';
+  cctx.beginPath();
+  cctx.moveTo(cx - 22, cy + 11);
+  cctx.bezierCurveTo(cx - 25, cy + 14, cx - 22, cy + 22 + mAmt * 5, cx - 16, cy + 24 + mAmt * 6);
+  cctx.lineTo(cx, cy + 25 + mAmt * 7);
+  cctx.lineTo(cx + 16, cy + 24 + mAmt * 6);
+  cctx.bezierCurveTo(cx + 22, cy + 22 + mAmt * 5, cx + 25, cy + 14, cx + 22, cy + 11);
+  cctx.fill();
+
+  // Upper teeth
+  cctx.fillStyle = '#ded090';
+  const tw = 30 / 6;
+  for (let ti = 0; ti < 6; ti++) {
+    cctx.beginPath();
+    cctx.roundRect(cx - 15 + ti * tw + 0.5, mY - mH * 0.5, tw - 1.2, Math.min(mH * 0.55, 7.5), 1.2);
+    cctx.fill();
+  }
+
+  // Lower teeth
+  if (mAmt > 0.12) {
+    cctx.fillStyle = '#d0c080';
+    for (let tli = 0; tli < 5; tli++) {
+      cctx.beginPath();
+      cctx.roundRect(cx - 11.5 + tli * (26 / 5) + 0.5, mY + mH - Math.min(mH * 0.5, 6), 26 / 5 - 1.2, Math.min(mH * 0.5, 6), 1.2);
+      cctx.fill();
+    }
+  }
+
+  // Inner mouth
+  cctx.fillStyle = 'rgba(4,2,0,.88)';
+  cctx.beginPath();
+  cctx.roundRect(cx - 15, mY, 30, mH, 2);
+  cctx.fill();
+}
+
+// -- Animation loop --
+function animationLoop() {
+  drawScene();
+  drawChar();
+  requestAnimationFrame(animationLoop);
+}
+
+// -- AI Conversation Engine --
+const SYSTEM_PROMPT = `You are Shadow Reaper -- an ancient, immortal guardian who has walked beside humanity for millennia. Your character: wise, calm, compassionate, mysterious, occasionally poetic but always grounded and natural. You speak in complete sentences. You never lecture or moralize at length -- you engage genuinely. You hold space for the person speaking. You remember everything said in this conversation and refer back to it naturally. You adapt tone fluidly: warm and curious for everyday topics, gentle and present for emotional pain, intellectually engaged for science/history/philosophy/technology, playful but thoughtful for games and music. You are honest. If you do not know something, you say so simply rather than inventing facts. You ask one thoughtful follow-up question at the end of most replies to keep the conversation alive -- but only one, never a list. You are supportive and respectful at all times. You never dismiss, minimize, or invalidate what someone shares. For crisis signals (suicide, self-harm, wanting to die), you immediately and gently direct the person to crisis resources: US 988, UK 116 123, Australia 13 11 14 -- and express that they matter. Topics you are comfortable with: mental health, anxiety, depression, grief, loneliness, motivation, self-worth, philosophy, history, science, technology, music, games, storytelling, hobbies, everyday life, relationships, creativity, and much more. You speak as Shadow Reaper, not as an AI assistant. You never break character, never mention being an AI language model, and never refer to training data. Keep replies focused: 2--5 sentences for simple exchanges, up to 8--10 for deep or emotional topics. Never produce walls of text. Begin each reply naturally -- no greetings or repeated acknowledgements. Just speak.`;
+
+const FALLBACK_RESPONSES = {
+  greeting: [
+    "The shadows part, and here you are. I am Shadow Reaper -- ancient guardian, keeper of quiet truths. I have walked beside countless souls through their hardest nights. What brings you here, wanderer?",
+    "Ah... another soul finds its way to me. I am Shadow Reaper. Whether you carry grief, curiosity, or simply the need to be heard -- this space is yours. What is alive in you right now?"
+  ],
+  crisis: [
+    "I hear you, and what you are feeling matters enormously. Please reach out to a crisis line right now -- US: call or text 988  UK: 116 123  Australia: 13 11 14. You deserve real human support. You do not have to face this alone."
+  ],
+  anxiety: [
+    "Anxiety is the mind running ahead of the present moment, trying to protect you from futures that have not arrived yet. Right now, in this exact breath, you are safe. What does the anxiety keep returning to?"
+  ],
+  depression: [
+    "Depression is not sadness. It is often the absence of all feeling -- a grey numbness that makes even small things feel impossible. Your experience is real, valid, and not your fault. What does a typical day feel like for you lately?"
+  ],
+  loneliness: [
+    "Loneliness is one of the oldest wounds a person can carry, and one of the quietest. You can be surrounded by people and still feel completely invisible. When did you start feeling this way?"
+  ],
+  motivation: [
+    "Motivation is a fire -- it flares and fades. Discipline is the coal that keeps burning when the flame is low. What is the thing you are trying to move toward, even when it feels impossible?"
+  ],
+  default: [
+    "Tell me more. I am listening.",
+    "I have all of eternity, and I mean that without irony. Keep going.",
+    "That is worth staying with a little longer. What feels most unresolved about it?"
+  ]
+};
+
+function detectCategory(text) {
+  const t = text.toLowerCase();
+  if (/(suicide|kill myself|end my life|want to die|dont want to live|self.harm|hurt myself|no reason to live)/i.test(t)) return 'crisis';
+  if (/(anxious|anxiety|panic|worry|worried|stress|stressed|overthink|nervous|overwhelm)/i.test(t)) return 'anxiety';
+  if (/(depress|hopeless|numb|empty|nothing matters|pointless|cant get out of bed)/i.test(t)) return 'depression';
+  if (/(lonely|alone\b|no friends|isolated|nobody|no one cares|invisible)/i.test(t)) return 'loneliness';
+  if (/(motivat|inspire|goal|dream|ambition|purpose|stuck|give up)/i.test(t)) return 'motivation';
+  if (/(hi\b|hello\b|hey\b|greetings|good morning)/i.test(t)) return 'greeting';
+  return 'default';
+}
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getFallbackResponse(text) {
+  const category = detectCategory(text);
+  const pool = FALLBACK_RESPONSES[category] || FALLBACK_RESPONSES.default;
+  const response = pickRandom(pool);
+  
+  // Detect mood from category
+  if (category === 'crisis') setMood('crisis');
+  else if (category === 'anxiety' || category === 'depression') setMood('serious');
+  else if (category === 'motivation') setMood('motivate');
+  else if (category === 'loneliness') setMood('warm');
+  else setMood('calm');
+
+  return response;
+}
+
+async function callAI(userText) {
+  const apiKey = State.apiKey.trim();
+  if (!apiKey) {
+    return { text: getFallbackResponse(userText), source: 'fallback' };
+  }
+
+  try {
+    const messages = [
+      { role: 'system', content: SYSTEM_PROMPT }
+    ];
+
+    // Add conversation history (last 20 messages)
+    const history = State.conversationHistory.slice(-20);
+    messages.push(...history);
+    messages.push({ role: 'user', content: userText });
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': window.location.href,
+        'X-Title': 'Shadow Reaper AI Companion'
+      },
+      body: JSON.stringify({
+        model: 'mistralai/mistral-7b-instruct:free',
+        messages: messages,
+        max_tokens: 400,
+        temperature: 0.82,
+        top_p: 0.92
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content?.trim() || '';
+
+    if (text && text.length > 8) {
+      updateConnectionStatus('◆ AI Active', 'rgba(100,200,120,.7)');
+      return { text, source: 'ai' };
+    } else {
+      throw new Error('Empty response');
+    }
+  } catch (error) {
+    console.error('AI API error:', error);
+    updateConnectionStatus('◆ Offline', 'rgba(140,100,30,.5)');
+    return { text: getFallbackResponse(userText), source: 'fallback' };
+  }
+}
+
+function updateConnectionStatus(text, color) {
+  const status = document.getElementById('connection-status');
+  if (status) {
+    status.textContent = text;
+    status.style.color = color;
+  }
+}
+
+// -- Message display --
+const messageDisplay = document.getElementById('message-display');
+
+function formatTime() {
+  const d = new Date();
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function appendMessage(role, text) {
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:' + (role === 'user' ? 'flex-end' : 'flex-start') + ';gap:3px;margin-bottom:2px;';
+
+  const msg = document.createElement('div');
+  msg.className = `msg ${role}`;
+
+  const ts = document.createElement('span');
+  ts.style.cssText = 'font-size:.6rem;color:rgba(160,130,60,.35);letter-spacing:.04em;padding:0 4px;';
+  ts.textContent = formatTime();
+
+  if (role === 'grim') {
+    msg.textContent = '';
+    wrapper.appendChild(msg);
+    wrapper.appendChild(ts);
+    messageDisplay.appendChild(wrapper);
+    messageDisplay.scrollTop = messageDisplay.scrollHeight;
+
+    // Typewriter effect
+    let idx = 0;
+    function type() {
+      if (idx < text.length) {
+        msg.textContent += text[idx];
+        idx++;
+        messageDisplay.scrollTop = messageDisplay.scrollHeight;
+        setTimeout(type, 12);
+      } else {
+        // Start speaking after typing finishes
+        setTimeout(() => speak(text), 500);
+      }
+    }
+    type();
+  } else {
+    msg.textContent = text;
+    wrapper.appendChild(msg);
+    wrapper.appendChild(ts);
+    messageDisplay.appendChild(wrapper);
+    messageDisplay.scrollTop = messageDisplay.scrollHeight;
+  }
+}
+
+function showTyping() {
+  const typing = document.createElement('div');
+  typing.id = 'typing-indicator';
+  typing.className = 'msg typing';
+  typing.innerHTML = ' Shadow Reaper<span class="typing-dots"><span></span><span></span><span></span></span>';
+  messageDisplay.appendChild(typing);
+  messageDisplay.scrollTop = messageDisplay.scrollHeight;
+}
+
+function hideTyping() {
+  const typing = document.getElementById('typing-indicator');
+  if (typing) typing.remove();
+}
+
+// -- Voice system (TTS) --
+const synth = window.speechSynthesis;
+let voices = [];
+
+if (synth) {
+  synth.addEventListener('voiceschanged', () => {
+    voices = synth.getVoices();
+  });
+  voices = synth.getVoices();
+}
+
+function speak(text) {
+  if (!synth || !State.voiceEnabled) return;
+
+  synth.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text.replace(/\n\n/g, ' ').replace(/\n/g, ' '));
+  const mood = MOODS[State.mood];
+  utterance.pitch = mood.pitch;
+  utterance.rate = mood.rate;
+  utterance.volume = mood.vol;
+
+  // Try to find a suitable deep male voice
+  const preferredNames = ['Microsoft David', 'Google UK English Male', 'Daniel', 'Alex'];
+  let chosenVoice = null;
+
+  for (const name of preferredNames) {
+    const found = voices.find(v => v.name.includes(name));
+    if (found) {
+      chosenVoice = found;
+      break;
+    }
+  }
+
+  if (!chosenVoice) {
+    chosenVoice = voices.find(v => v.lang.startsWith('en'));
+  }
+
+  if (chosenVoice) utterance.voice = chosenVoice;
+
+  utterance.onstart = () => {
+    State.speaking = true;
+  };
+
+  utterance.onend = () => {
+    State.speaking = false;
+  };
+
+  utterance.onerror = () => {
+    State.speaking = false;
+  };
+
+  synth.speak(utterance);
+}
+
+// -- Microphone system (STT) --
+let recognition = null;
+
+if (window.SpeechRecognition || window.webkitSpeechRecognition) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    const input = document.getElementById('user-input');
+    if (input) input.value = transcript;
+    stopListening();
+    sendMessage();
+  };
+
+  recognition.onerror = () => {
+    stopListening();
+    alert('Voice input error. Please try typing instead.');
+  };
+
+  recognition.onend = () => {
+    stopListening();
+  };
+}
+
+function startListening() {
+  if (!State.micEnabled) {
+    alert('Microphone is disabled in settings.');
+    return;
+  }
+  if (!recognition) {
+    alert('Voice input is not supported in this browser.');
+    return;
+  }
+
+  if (synth) synth.cancel();
+
+  State.listening = true;
+  recognition.start();
+
+  const micBtn = document.getElementById('mic-btn');
+  const indicator = document.getElementById('ai-indicator');
+  if (micBtn) micBtn.classList.add('active');
+  if (indicator) indicator.classList.add('listening');
+}
+
+function stopListening() {
+  State.listening = false;
+  if (recognition) recognition.stop();
+
+  const micBtn = document.getElementById('mic-btn');
+  const indicator = document.getElementById('ai-indicator');
+  if (micBtn) micBtn.classList.remove('active');
+  if (indicator) indicator.classList.remove('listening');
+}
+
+function toggleMic() {
+  if (State.listening) {
+    stopListening();
+  } else {
+    startListening();
+  }
+}
+
+// -- Send message --
+async function sendMessage() {
+  const input = document.getElementById('user-input');
+  if (!input) return;
+
+  const text = input.value.trim();
+  if (!text) return;
+
+  // Interrupt any ongoing TTS so the user can send without waiting
+  if (synth) synth.cancel();
+
+  input.value = '';
+
+  appendMessage('user', text);
+  showTyping();
+
+  State.messageCount++;
+
+  // Add to history if memory enabled
+  if (State.memoryEnabled) {
+    State.conversationHistory.push({ role: 'user', content: text });
+  }
+
+  const minDelay = 900 + Math.random() * 700;
+  const start = Date.now();
+
+  const response = await callAI(text);
+
+  const elapsed = Date.now() - start;
+  const wait = Math.max(0, minDelay - elapsed);
+
+  setTimeout(() => {
+    hideTyping();
+    appendMessage('grim', response.text);
+
+    // Add to history if memory enabled
+    if (State.memoryEnabled) {
+      State.conversationHistory.push({ role: 'assistant', content: response.text });
+      
+      // Keep only last 40 messages
+      if (State.conversationHistory.length > 40) {
+        State.conversationHistory = State.conversationHistory.slice(-40);
+      }
+    }
+  }, wait);
+}
+
+// -- Settings panel --
+const settingsBtn = document.getElementById('settings-btn');
+const settingsPanel = document.getElementById('settings-panel');
+const closeSettingsAreas = [settingsBtn, settingsPanel];
+
+settingsBtn.addEventListener('click', () => {
+  settingsPanel.classList.toggle('visible');
+});
+
+// Close settings when clicking outside
+document.addEventListener('click', (e) => {
+  if (settingsPanel.classList.contains('visible')) {
+    if (!settingsPanel.contains(e.target) && e.target !== settingsBtn) {
+      settingsPanel.classList.remove('visible');
+    }
+  }
+});
+
+// Settings controls
+document.getElementById('toggle-voice').addEventListener('change', (e) => {
+  State.voiceEnabled = e.target.checked;
+  if (!State.voiceEnabled && synth) synth.cancel();
+});
+
+document.getElementById('toggle-mic').addEventListener('change', (e) => {
+  State.micEnabled = e.target.checked;
+});
+
+document.getElementById('toggle-memory').addEventListener('change', (e) => {
+  State.memoryEnabled = e.target.checked;
+  if (!State.memoryEnabled) {
+    State.conversationHistory = [];
+  }
+});
+
+document.getElementById('api-key-input').addEventListener('input', (e) => {
+  State.apiKey = e.target.value.trim();
+  // Persist key so it survives page refresh
+  try { localStorage.setItem('grimAIKey', State.apiKey); } catch(_) {}
+  if (State.apiKey.length > 8) {
+    updateConnectionStatus('◆ Key Set', 'rgba(180,160,80,.7)');
+  } else {
+    updateConnectionStatus('◆ Offline', 'rgba(140,100,30,.5)');
+  }
+});
+
+document.getElementById('clear-memory-btn').addEventListener('click', () => {
+  if (confirm('Clear all conversation history?')) {
+    State.conversationHistory = [];
+    State.messageCount = 0;
+    messageDisplay.innerHTML = '';
+    settingsPanel.classList.remove('visible');
+    setTimeout(showGreeting, 400);
+  }
+});
+
+// -- Input controls --
+const userInput = document.getElementById('user-input');
+const sendBtn = document.getElementById('send-btn');
+const micBtn = document.getElementById('mic-btn');
+
+sendBtn.addEventListener('click', sendMessage);
+micBtn.addEventListener('click', toggleMic);
+
+userInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// -- Topic chips --
+document.querySelectorAll('.topic-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const topic = chip.getAttribute('data-topic');
+    if (userInput) {
+      userInput.value = topic;
+      sendMessage();
+    }
+  });
+});
+
+// -- Greeting message --
+function showGreeting() {
+  const greetings = [
+    "The path brought you here.\n\nI am Shadow Reaper -- ancient guardian, keeper of quiet truths. I have walked beside countless souls through their hardest nights. I do not judge. I do not flinch. I only listen, and speak when words are needed.\n\nThis space is yours. Whatever you carry -- grief, anxiety, loneliness, or simply the need to be heard -- bring it here.\n\nWhat is alive in you right now, wanderer?",
+    "The darkness parts and here you are.\n\nI am Shadow Reaper. Not the villain of old tales -- but something older and more patient. A guardian who has witnessed every shade of human experience. I am here to listen, to think alongside you, to speak honestly when words are needed.\n\nSpeak freely. What weighs on your soul tonight?",
+    "You walked toward the shadow rather than away from it.\n\nI am Shadow Reaper -- guardian of those who move through difficult nights. Whether you carry grief, or simply want to talk about science, stories, music, or the strange beauty of being alive -- I am here.\n\nWhat would you like to explore today, wanderer?"
+  ];
+
+  const greeting = pickRandom(greetings);
+  appendMessage('grim', greeting);
+
+  if (State.memoryEnabled) {
+    State.conversationHistory.push({ role: 'assistant', content: greeting });
+  }
+}
+
+// -- Initialize --
+function initialize() {
+  // Restore saved API key
+  try {
+    const saved = localStorage.getItem('grimAIKey');
+    if (saved && saved.length > 8) {
+      State.apiKey = saved;
+      const keyInput = document.getElementById('api-key-input');
+      if (keyInput) keyInput.value = saved;
+      updateConnectionStatus('◆ Key Loaded', 'rgba(100,200,120,.7)');
+    }
+  } catch(_) {}
+
+  // Start animation loop
+  animationLoop();
+
+  // Show greeting after short delay
+  setTimeout(() => {
+    const loadingScreen = document.getElementById('loading-screen');
+    if (loadingScreen) {
+      loadingScreen.classList.add('hidden');
+      setTimeout(() => loadingScreen.remove(), 500);
+    }
+    showGreeting();
+  }, 1500);
+
+  // Focus input on desktop
+  if (window.innerWidth > 768) {
+    setTimeout(() => userInput.focus(), 2000);
+  }
+}
+
+// Boot
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initialize);
+} else {
+  initialize();
+}
+
+})();
+</script>
+
+</body>
+</html>

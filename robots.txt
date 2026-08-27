@@ -1,0 +1,14 @@
+# Shadow Nexus Social — robots.txt
+# https://shadownexussocial.online/
+
+User-agent: *
+Allow: /
+
+# Block private/internal paths from indexing
+Disallow: /admin
+Disallow: /settings
+Disallow: /messages
+Disallow: /notifications
+
+# Sitemap
+Sitemap: https://shadownexussocial.online/sitemap.xml

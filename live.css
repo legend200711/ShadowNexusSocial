@@ -1,0 +1,1475 @@
+/*
+ * Shadow Nexus Live — live.css
+ * All styles for the live streaming creator + viewer pages.
+ */
+
+:root {
+  --bg-main:        #0B1F3A;
+  --bg-card:        #0d2444;
+  --bg-deep:        #071428;
+  --neon-blue:      #00AEEF;
+  --neon-green:     #39FF14;
+  --text-primary:   #ffffff;
+  --text-secondary: #b8d4f0;
+  --text-muted:     #6a90b8;
+  --border-color:   #1a3a5c;
+  --live-red:       #ff2244;
+  --live-red-dim:   rgba(255,34,68,0.18);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: #000;
+  color: #fff;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Loading screen ── */
+#liveLoading {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #0B1F3A;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px;
+}
+.ll-spinner {
+  width: 52px; height: 52px; border-radius: 50%;
+  border: 3px solid rgba(0,174,239,0.2);
+  border-top-color: #00AEEF;
+  animation: llSpin 0.75s linear infinite;
+}
+@keyframes llSpin { to { transform: rotate(360deg); } }
+.ll-text { font-size: 14px; color: #6a90b8; letter-spacing: 0.5px; }
+
+/* ── Setup screen (before going live) ── */
+#liveSetup {
+  display: none;
+  position: fixed; inset: 0; z-index: 100;
+  background: linear-gradient(180deg, #071428 0%, #0B1F3A 100%);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0 env(safe-area-inset-bottom, 0);
+}
+.setup-inner {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 40px 20px 60px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 24px;
+}
+
+/* Setup header */
+.setup-logo {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #003d99 0%, #071428 100%);
+  border: 2.5px solid rgba(0,174,239,0.72);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 34px;
+  box-shadow: 0 0 36px rgba(0,174,239,0.55);
+  animation: snxBlueFlame 3s infinite;
+}
+@keyframes snxBlueFlame {
+  0%,100% { box-shadow: 0 0 10px rgba(0,120,255,0.5), 0 0 28px rgba(0,80,200,0.25); }
+  50%     { box-shadow: 0 0 22px rgba(0,160,255,0.7), 0 0 50px rgba(0,100,220,0.4); }
+}
+.setup-title {
+  font-size: 22px; font-weight: 800;
+  text-align: center; color: #fff;
+  text-shadow: 0 0 18px rgba(0,174,239,0.4);
+}
+.setup-sub {
+  font-size: 13px; color: #4a7a9a; text-align: center;
+}
+
+/* Camera preview in setup */
+.setup-preview-wrap {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #070d1a;
+  border-radius: 16px;
+  border: 2px solid rgba(0,174,239,0.22);
+  overflow: hidden;
+  position: relative;
+}
+#setupPreview {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* mirror for selfie */
+  display: block;
+}
+.setup-preview-off {
+  position: absolute; inset: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 10px;
+  color: #3a5a7a; font-size: 13px; text-align: center;
+}
+.setup-preview-off.visible { display: flex; }
+.setup-preview-off-icon { font-size: 40px; }
+
+/* Setup controls row */
+.setup-controls {
+  display: flex; gap: 12px; width: 100%;
+  justify-content: center; flex-wrap: wrap;
+}
+.setup-ctrl-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  background: rgba(0,20,55,0.85);
+  border: 1px solid rgba(0,150,255,0.4);
+  border-radius: 12px; padding: 10px 18px;
+  color: #00AEEF; cursor: pointer;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+  transition: all 0.18s; min-width: 68px;
+  text-transform: uppercase;
+}
+.setup-ctrl-btn:hover { background: rgba(0,70,180,0.25); box-shadow: 0 0 14px rgba(0,174,239,0.3); }
+.setup-ctrl-btn:active { transform: scale(0.95); }
+.setup-ctrl-btn.off { border-color: rgba(255,60,80,0.45); color: #ff5566; }
+.setup-ctrl-btn.off:hover { background: rgba(255,40,60,0.12); }
+.setup-ctrl-icon { font-size: 22px; line-height: 1; }
+
+/* Title input */
+.setup-input {
+  width: 100%;
+  background: rgba(7,20,42,0.95);
+  border: 1px solid rgba(0,174,239,0.38);
+  color: #fff;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.setup-input::placeholder { color: rgba(80,150,220,0.4); }
+.setup-input:focus {
+  border-color: rgba(0,180,255,0.65);
+  box-shadow: 0 0 12px rgba(0,140,255,0.2);
+}
+
+/* Go Live button */
+.setup-go-live-btn {
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #cc0022, #ff2244);
+  border: none;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: filter 0.15s, transform 0.1s;
+  box-shadow: 0 0 30px rgba(255,30,60,0.45);
+  animation: goLivePulse 2s ease-in-out infinite;
+}
+.setup-go-live-btn:hover { filter: brightness(1.12); }
+.setup-go-live-btn:active { transform: scale(0.97); }
+@keyframes goLivePulse {
+  0%,100% { box-shadow: 0 0 20px rgba(255,30,60,0.4); }
+  50%     { box-shadow: 0 0 40px rgba(255,30,60,0.65), 0 0 80px rgba(255,0,40,0.2); }
+}
+.go-live-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #fff; flex-shrink: 0;
+  animation: feedLivePulse 1.2s ease-in-out infinite;
+}
+@keyframes feedLivePulse {
+  0%   { box-shadow: 0 0 0 0   rgba(255,255,255,0.7); }
+  70%  { box-shadow: 0 0 0 8px rgba(255,255,255,0);   }
+  100% { box-shadow: 0 0 0 0   rgba(255,255,255,0);   }
+}
+
+/* ═══════════════════════════════════════════════
+   LIVE STAGE — fullscreen video + overlay UI
+   ═══════════════════════════════════════════════ */
+#liveStage {
+  display: none;
+  position: fixed; inset: 0; z-index: 200;
+  background: #000;
+  flex-direction: column;
+}
+#liveStage.active { display: flex; }
+
+/* Main video container */
+.live-video-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #000;
+}
+#liveVideo {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #000;
+}
+
+/* Creator — mirror the selfie camera */
+body.is-creator #liveVideo {
+  transform: scaleX(-1);
+}
+
+/* Camera-off overlay */
+.live-cam-off-overlay {
+  position: absolute; inset: 0;
+  background: #070d1a;
+  display: none;
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 12px;
+  color: #3a5a7a; font-size: 14px;
+}
+.live-cam-off-overlay.visible { display: flex; }
+.live-cam-off-icon { font-size: 52px; }
+
+/* ── Top bar overlay ── */
+.live-top-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: env(safe-area-inset-top, 0) 14px 10px;
+  padding-top: calc(env(safe-area-inset-top, 0) + 10px);
+  background: linear-gradient(180deg, rgba(0,0,0,0.65) 0%, transparent 100%);
+  display: flex; align-items: center; justify-content: space-between;
+  z-index: 10; gap: 8px;
+  pointer-events: none; /* children enable their own */
+}
+.live-top-bar > * { pointer-events: auto; }
+
+/* LIVE badge */
+.live-badge {
+  display: flex; align-items: center; gap: 5px;
+  background: #ff2244;
+  padding: 4px 10px 4px 8px;
+  border-radius: 8px;
+  font-size: 11px; font-weight: 800;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  box-shadow: 0 0 16px rgba(255,30,60,0.65);
+  flex-shrink: 0;
+}
+.live-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #fff;
+  animation: feedLivePulse 1.2s ease-in-out infinite;
+}
+
+/* Creator info pill */
+.live-creator-pill {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(0,0,0,0.52); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px; padding: 4px 12px 4px 5px;
+  flex: 1; min-width: 0; overflow: hidden;
+}
+.live-creator-avatar {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  background: #0B1F3A center/cover no-repeat;
+  border: 1.5px solid rgba(0,174,239,0.55);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: bold; color: #00AEEF;
+  overflow: hidden;
+}
+.live-creator-name {
+  font-size: 12px; font-weight: 700; color: #e8f4ff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Viewer count */
+.live-viewer-count {
+  display: flex; align-items: center; gap: 4px;
+  background: rgba(0,0,0,0.52); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px; padding: 4px 10px;
+  font-size: 11px; color: #d0e8ff; flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Close / End button */
+.live-close-btn {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(0,0,0,0.52); backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.16);
+  color: #fff; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.15s;
+}
+.live-close-btn:hover { background: rgba(255,40,60,0.35); }
+.live-close-btn:active { transform: scale(0.93); }
+
+/* ── Bottom controls (creator only) ── */
+.live-bottom-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 8px 10px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
+  background: linear-gradient(0deg, rgba(0,0,0,0.72) 0%, transparent 100%);
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: nowrap; gap: 8px; z-index: 10;
+}
+.live-ctrl-btn {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
+  border: 1.5px solid rgba(255,255,255,0.22);
+  color: #fff; font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+  transition: background 0.18s, border-color 0.18s, transform 0.1s;
+  touch-action: manipulation;
+}
+.live-ctrl-btn:hover { background: rgba(0,80,200,0.3); border-color: rgba(0,174,239,0.6); }
+.live-ctrl-btn:active { transform: scale(0.92); }
+.live-ctrl-btn.off { background: rgba(255,30,50,0.25); border-color: rgba(255,50,70,0.65); }
+.live-ctrl-btn.off:hover { background: rgba(255,30,50,0.4); }
+
+/* End Live button */
+#btnEndLive {
+  padding: 7px 14px; border-radius: 20px; height: auto;
+  width: auto; font-size: 11px; font-weight: 800;
+  background: rgba(180,0,30,0.6); border-color: rgba(255,50,70,0.7);
+  letter-spacing: 0.5px; text-transform: uppercase;
+  color: #ffb0b8;
+}
+#btnEndLive:hover { background: rgba(220,0,40,0.8); color: #fff; }
+
+/* ── Chat panel ── */
+.live-chat-panel {
+  position: absolute;
+  /* Leave right side clear for viewer action buttons (54px wide) */
+  bottom: 0; left: 0;
+  right: 64px; /* clear of side buttons */
+  height: 55%;
+  display: flex; flex-direction: column;
+  pointer-events: none;
+  z-index: 9;
+}
+
+/* Creator mode — right edge can go full width, shift up above bottom controls */
+body.is-creator .live-chat-panel {
+  bottom: 66px;
+  right: 0;
+  height: 48%;
+}
+
+.live-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px 4px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  gap: 2px;
+  mask-image: linear-gradient(0deg, black 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(0deg, black 70%, transparent 100%);
+  scrollbar-width: none;
+}
+.live-chat-messages::-webkit-scrollbar { display: none; }
+
+.live-chat-msg {
+  display: flex; align-items: baseline; gap: 5px;
+  animation: chatMsgIn 0.2s ease-out both;
+  pointer-events: auto;
+  max-width: 100%;
+}
+@keyframes chatMsgIn {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.live-chat-author {
+  font-size: 11px; font-weight: 700; color: #00d4ff;
+  white-space: nowrap; flex-shrink: 0;
+  text-shadow: 0 0 8px rgba(0,200,255,0.5);
+}
+.live-chat-author.is-host { color: #ff6677; }
+.live-chat-text {
+  font-size: 12px; color: rgba(255,255,255,0.88);
+  line-height: 1.4; word-break: break-word;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+/* System messages */
+.live-chat-msg.system .live-chat-text {
+  color: #5a9a7a; font-style: italic; font-size: 11px;
+}
+
+/* Chat input row (viewer + creator) */
+.live-chat-input-row {
+  display: flex; gap: 6px; align-items: center;
+  padding: 8px 10px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
+  pointer-events: auto;
+  /* Subtle background so text is always readable over video */
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(4px);
+  border-radius: 0 0 0 0;
+}
+body.is-creator .live-chat-input-row {
+  padding-bottom: 8px;
+}
+.live-chat-input {
+  flex: 1;
+  background: rgba(0,0,0,0.52); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 20px;
+  color: #fff; font-size: 13px;
+  padding: 8px 14px; outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+  max-width: 100%;
+}
+.live-chat-input::placeholder { color: rgba(255,255,255,0.3); }
+.live-chat-input:focus { border-color: rgba(0,174,239,0.65); }
+.live-chat-send {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, #003388, #0066cc);
+  border: 1px solid rgba(0,180,255,0.55);
+  color: #fff; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.15s, transform 0.1s;
+  touch-action: manipulation;
+}
+.live-chat-send:hover { background: linear-gradient(135deg, #005522, #00aa55); border-color: rgba(0,255,136,0.6); }
+.live-chat-send:active { transform: scale(0.9); }
+
+/* ── Viewer action bar ── */
+/* ══════════════════════════════════════════════════════
+   VIEWER LAYOUT — TikTok-style
+   Side buttons: right edge, vertical column
+   Chat: bottom-left area, clear of the side buttons
+   ══════════════════════════════════════════════════════ */
+
+.live-viewer-actions {
+  position: absolute;
+  /* Sit above the chat input row (≈ 60px) + safe area */
+  bottom: calc(64px + env(safe-area-inset-bottom, 0));
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  z-index: 20;
+  pointer-events: none;
+}
+.live-viewer-actions > * { pointer-events: auto; }
+
+/* ── Shared base style for all circular side buttons ── */
+.live-like-btn,
+.live-profile-btn,
+.live-share-btn {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.58);
+  backdrop-filter: blur(6px);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  color: #fff;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.18s, border-color 0.18s;
+  touch-action: manipulation;
+  flex-shrink: 0;
+  text-decoration: none;
+  font-size: 0; /* hide text label on circular buttons */
+}
+
+/* Like button */
+.live-like-btn:hover  { background: rgba(255,30,70,0.35);  border-color: rgba(255,60,100,0.7); }
+.live-like-btn:active { transform: scale(0.88); }
+.live-like-btn.liked  { border-color: rgba(255,60,100,0.85); color: #ff6688; }
+.live-like-icon { font-size: 22px; line-height: 1; display: block; }
+
+/* Profile button */
+.live-profile-btn:hover  { background: rgba(0,80,200,0.32); border-color: rgba(0,174,239,0.7); }
+.live-profile-icon { font-size: 22px; line-height: 1; display: block; }
+
+/* Share button */
+.live-share-btn:hover  { background: rgba(0,80,200,0.32); border-color: rgba(0,174,239,0.75); box-shadow: 0 0 12px rgba(0,174,239,0.3); }
+.live-share-btn:active { transform: scale(0.88); }
+.live-share-icon { font-size: 22px; line-height: 1; display: block; }
+
+/* ── Viewer count ribbon for chat ── */
+.live-stats-ribbon {
+  position: absolute;
+  top: 56px; left: 14px;
+  display: flex; gap: 8px; z-index: 10;
+  pointer-events: none;
+}
+.live-stat-pill {
+  display: flex; align-items: center; gap: 4px;
+  background: rgba(0,0,0,0.52); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px; padding: 3px 10px;
+  font-size: 11px; color: #d0e8ff;
+  white-space: nowrap;
+}
+
+/* ── Heart burst animation ── */
+.like-burst {
+  position: absolute;
+  pointer-events: none;
+  font-size: 28px; z-index: 20;
+  animation: heartBurst 0.9s ease-out forwards;
+}
+@keyframes heartBurst {
+  0%   { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-80px) scale(0.5); opacity: 0; }
+}
+
+/* ── Connection state banner ── */
+.live-conn-banner {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.78);
+  border: 1px solid rgba(0,174,239,0.4);
+  border-radius: 14px;
+  padding: 18px 28px; text-align: center;
+  z-index: 30; max-width: 280px; width: 90%;
+  display: none;
+}
+.live-conn-banner.visible { display: block; }
+.live-conn-title { font-size: 15px; font-weight: 700; }
+.live-conn-sub   { font-size: 12px; color: #6a90b8; display: none; }
+
+/* ── Stream ended overlay ── */
+#liveEndedOverlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.88);
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 18px;
+  text-align: center; padding: 30px;
+}
+#liveEndedOverlay.visible { display: flex; }
+.ended-icon { font-size: 58px; }
+.ended-title { font-size: 22px; font-weight: 800; color: #fff; }
+.ended-sub   { font-size: 14px; color: #6a90b8; line-height: 1.6; max-width: 280px; }
+.ended-back-btn {
+  padding: 13px 36px; border-radius: 14px;
+  background: linear-gradient(135deg, #003388, #0066cc);
+  border: 1px solid rgba(0,180,255,0.6);
+  color: #fff; font-size: 15px; font-weight: 700;
+  cursor: pointer; transition: filter 0.15s;
+  touch-action: manipulation;
+}
+.ended-back-btn:hover { filter: brightness(1.12); }
+.ended-back-btn:active { transform: scale(0.96); }
+
+/* ── Fullscreen support: hide system UI ── */
+:fullscreen .live-top-bar,
+:fullscreen .live-bottom-bar,
+:fullscreen .live-viewer-actions { opacity: 1; }
+
+/* ── Responsive tweaks ── */
+@media (max-width: 380px) {
+  /* Very small phones — squeeze bottom bar even more */
+  .live-ctrl-btn  { width: 36px; height: 36px; font-size: 15px; }
+  .live-bottom-bar { gap: 5px; padding: 6px 6px; }
+  #btnEndLive { padding: 6px 10px; font-size: 10px; }
+  /* Side buttons stay circular — just shrink slightly */
+  .live-like-btn, .live-profile-btn, .live-share-btn, .live-request-box-btn {
+    width: 38px; height: 38px;
+  }
+  .live-like-icon { font-size: 18px; }
+  .live-profile-icon { font-size: 18px; }
+  .live-share-icon { font-size: 18px; }
+  .live-viewer-actions { gap: 10px; right: 7px; }
+}
+@media (max-width: 480px) and (min-width: 381px) {
+  .live-ctrl-btn  { width: 38px; height: 38px; font-size: 16px; }
+  .live-bottom-bar { gap: 6px; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  /* Landscape on phones — shrink side buttons, shift viewer actions up */
+  .live-ctrl-btn  { width: 34px; height: 34px; font-size: 14px; }
+  .live-bottom-bar { gap: 6px; padding-bottom: calc(4px + env(safe-area-inset-bottom, 0)); }
+  #btnEndLive { padding: 5px 10px; font-size: 10px; }
+  .live-viewer-actions {
+    bottom: calc(52px + env(safe-area-inset-bottom, 0));
+    right: 8px; gap: 8px;
+  }
+  .live-like-btn, .live-profile-btn, .live-share-btn, .live-request-box-btn {
+    width: 36px; height: 36px;
+  }
+  .live-like-icon { font-size: 16px; }
+  .live-profile-icon { font-size: 16px; }
+  .live-share-icon { font-size: 16px; }
+  /* In landscape, chat can use more height */
+  .live-chat-panel { height: 70%; right: 54px; }
+}
+@media (min-width: 768px) {
+  /* Tablet/Desktop: wider chat, bigger side buttons */
+  .live-chat-panel { width: 280px; right: auto; }
+  body.is-creator .live-chat-panel { bottom: 72px; right: 0; }
+  .live-viewer-actions { right: 14px; gap: 16px; }
+  .live-like-btn, .live-profile-btn, .live-share-btn, .live-request-box-btn {
+    width: 50px; height: 50px;
+  }
+  /* Desktop: restore comfortable button sizes */
+  .live-ctrl-btn { width: 46px; height: 46px; font-size: 20px; }
+  .live-bottom-bar { gap: 14px; }
+}
+
+/* ── Viewer-only: no bottom bar, use viewer-actions ── */
+body.is-viewer .live-bottom-bar { display: none !important; }
+body.is-creator .live-viewer-actions { display: none !important; }
+
+/* ── Hide host-only items from viewers ── */
+body.is-viewer #btnLiveSettings    { display: none !important; }
+body.is-viewer #liveSettingsPanel  { display: none !important; }
+body.is-viewer #liveTimerDisplay   { display: none !important; }
+body.is-viewer #aiSafetyBadge      { display: none !important; }
+body.is-viewer #shadowBotBadge     { display: none !important; }
+
+/* ── Tap to show/hide controls on mobile (creator) ── */
+.live-controls-hidden .live-bottom-bar { opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+.live-controls-hidden .live-top-bar    { opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+
+/* ── Profile avatar live ring (red pulsing border) ── */
+/* Referenced by index.html .p-avatar.is-live and the creator's stage avatar */
+@keyframes avatarLivePulse {
+  0%   { box-shadow: 0 0 0 3px rgba(255,34,68,0.9),  0 0 0 6px rgba(255,34,68,0.25); }
+  50%  { box-shadow: 0 0 0 4px rgba(255,34,68,1),    0 0 0 10px rgba(255,34,68,0.45); }
+  100% { box-shadow: 0 0 0 3px rgba(255,34,68,0.9),  0 0 0 6px rgba(255,34,68,0.25); }
+}
+
+/* ── Notification toast ── */
+/* z-index 9500 keeps it above the live stage (z-index 100) and ended overlay (500) */
+#liveToast {
+  position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0));
+  left: 50%; transform: translateX(-50%) translateY(20px);
+  background: rgba(8, 20, 48, 0.97);
+  border: 1px solid rgba(0,174,239,0.55);
+  padding: 10px 20px;
+  border-radius: 10px;
+  z-index: 9500;
+  font-size: 13px;
+  color: #c8e8ff;
+  white-space: nowrap;
+  max-width: calc(100vw - 40px);
+  opacity: 0;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  pointer-events: none;
+  will-change: opacity, transform;
+}
+#liveToast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ═══════════════════════════════════════════════
+   GUEST BOX SYSTEM
+   ═══════════════════════════════════════════════ */
+
+/* ── Request a Box / Guest Cam / Guest Mic buttons (viewer side column) ── */
+.live-request-box-btn {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0;
+  background: rgba(0,80,200,0.55); backdrop-filter: blur(6px);
+  border: 1.5px solid rgba(0,174,239,0.7);
+  color: #fff; font-size: 0; font-weight: 700;
+  cursor: pointer; transition: transform 0.15s, background 0.18s, border-color 0.18s;
+  touch-action: manipulation;
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(0,174,239,0.3);
+}
+.live-request-box-btn > span:first-child { font-size: 20px; line-height: 1; display: block; }
+.live-request-box-btn > span:not(:first-child) { display: none; } /* hide text label */
+.live-request-box-btn:hover  { background: rgba(0,100,255,0.65); box-shadow: 0 0 16px rgba(0,174,239,0.55); }
+.live-request-box-btn:active { transform: scale(0.88); }
+.live-request-box-btn.pending {
+  background: rgba(180,120,0,0.45);
+  border-color: rgba(255,200,0,0.6);
+  color: #ffe066;
+  cursor: default;
+}
+.live-request-box-btn.off {
+  background: rgba(255,30,50,0.25);
+  border-color: rgba(255,50,70,0.65);
+  color: #ff8899;
+}
+.live-request-box-btn.off:hover { background: rgba(255,30,50,0.4); }
+
+/* ── Leave Box button (guest viewer) ── */
+.live-leave-box-btn {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0;
+  background: rgba(200,30,50,0.45); backdrop-filter: blur(6px);
+  border: 1.5px solid rgba(255,60,80,0.75);
+  color: #fff; font-size: 0; font-weight: 700;
+  cursor: pointer; transition: transform 0.15s, background 0.18s, border-color 0.18s;
+  touch-action: manipulation;
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(255,50,70,0.35);
+}
+.live-leave-box-btn > span:first-child { font-size: 20px; line-height: 1; display: block; }
+.live-leave-box-btn > span:not(:first-child) { display: none; }
+.live-leave-box-btn:hover  { background: rgba(220,0,30,0.65); box-shadow: 0 0 16px rgba(255,50,70,0.55); }
+.live-leave-box-btn:active { transform: scale(0.88); }
+
+/* ── Confirmation dialog (Leave Box / Remove Guest) ── */
+.snx-confirm-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.72);
+  z-index: 9800;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  animation: snxConfirmIn 0.18s ease-out both;
+}
+@keyframes snxConfirmIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.snx-confirm-box {
+  background: rgba(6,18,44,0.98);
+  border: 1.5px solid rgba(0,174,239,0.5);
+  border-radius: 18px;
+  padding: 24px 20px 20px;
+  width: min(300px, calc(100vw - 40px));
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  animation: snxConfirmBoxIn 0.2s ease-out both;
+}
+@keyframes snxConfirmBoxIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.snx-confirm-icon { font-size: 36px; line-height: 1; }
+.snx-confirm-title {
+  font-size: 15px; font-weight: 800; color: #e8f4ff;
+  text-align: center; line-height: 1.4;
+}
+.snx-confirm-sub {
+  font-size: 12px; color: #6a90b8;
+  text-align: center; line-height: 1.5;
+  margin-top: -6px;
+}
+.snx-confirm-actions {
+  display: flex; gap: 10px; width: 100%;
+}
+.snx-confirm-cancel {
+  flex: 1; padding: 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1.5px solid rgba(255,255,255,0.15);
+  color: #a8c8e8; font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: background 0.15s;
+  touch-action: manipulation;
+}
+.snx-confirm-cancel:hover { background: rgba(255,255,255,0.12); }
+.snx-confirm-ok {
+  flex: 1; padding: 10px;
+  border-radius: 10px;
+  background: rgba(200,0,30,0.35);
+  border: 1.5px solid rgba(255,50,70,0.65);
+  color: #ff7788; font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: background 0.15s;
+  touch-action: manipulation;
+}
+.snx-confirm-ok:hover { background: rgba(220,0,40,0.6); color: #fff; }
+.snx-confirm-ok.ok-blue {
+  background: rgba(0,80,200,0.35);
+  border-color: rgba(0,174,239,0.65);
+  color: #00AEEF;
+}
+.snx-confirm-ok.ok-blue:hover { background: rgba(0,100,220,0.6); color: #fff; }
+
+/* ── Incoming request queue (host side) ── */
+.guest-request-queue {
+  position: absolute;
+  top: 64px; left: 14px;
+  z-index: 40;
+  display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
+  max-width: min(320px, calc(100vw - 28px));
+}
+.guest-request-card {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(0,10,30,0.92); backdrop-filter: blur(10px);
+  border: 1.5px solid rgba(0,174,239,0.55);
+  border-radius: 14px; padding: 10px 12px;
+  pointer-events: auto;
+  animation: grcSlideIn 0.25s ease-out both;
+}
+@keyframes grcSlideIn {
+  from { opacity:0; transform: translateX(-18px); }
+  to   { opacity:1; transform: translateX(0); }
+}
+.guest-req-avatar {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  background: #0B1F3A center/cover no-repeat;
+  border: 1.5px solid rgba(0,174,239,0.5);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: bold; color: #00AEEF;
+  overflow: hidden;
+}
+.guest-req-name {
+  flex: 1; min-width: 0;
+  font-size: 12px; font-weight: 700; color: #e8f4ff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.guest-req-sub {
+  font-size: 10px; color: #6a90b8; margin-top: 1px;
+}
+.guest-req-actions {
+  display: flex; gap: 6px; flex-shrink: 0;
+}
+.guest-req-accept {
+  padding: 5px 12px; border-radius: 8px;
+  background: rgba(0,180,80,0.25); border: 1px solid rgba(0,220,100,0.55);
+  color: #00dd66; font-size: 11px; font-weight: 800;
+  cursor: pointer; transition: background 0.15s;
+  touch-action: manipulation;
+}
+.guest-req-accept:hover  { background: rgba(0,200,80,0.45); }
+.guest-req-decline {
+  padding: 5px 12px; border-radius: 8px;
+  background: rgba(180,0,30,0.18); border: 1px solid rgba(255,50,70,0.4);
+  color: #ff5566; font-size: 11px; font-weight: 800;
+  cursor: pointer; transition: background 0.15s;
+  touch-action: manipulation;
+}
+.guest-req-decline:hover  { background: rgba(220,0,40,0.32); }
+
+/* ── Layout button indicator ── */
+.guest-layout-btn { font-size: 20px !important; }
+.guest-layout-btn.has-guests {
+  border-color: rgba(0,174,239,0.8) !important;
+  box-shadow: 0 0 14px rgba(0,174,239,0.45);
+}
+
+/* ── Layout settings panel ── */
+.layout-settings-panel {
+  position: absolute;
+  bottom: 80px; left: 50%; transform: translateX(-50%);
+  width: min(340px, calc(100vw - 24px));
+  background: rgba(0,10,30,0.95); backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(0,174,239,0.45);
+  border-radius: 18px; padding: 16px;
+  z-index: 50;
+  animation: layoutPanelIn 0.2s ease-out both;
+}
+@keyframes layoutPanelIn {
+  from { opacity:0; transform: translateX(-50%) translateY(12px); }
+  to   { opacity:1; transform: translateX(-50%) translateY(0); }
+}
+.layout-panel-title {
+  font-size: 13px; font-weight: 800; color: #e8f4ff;
+  text-align: center; margin-bottom: 12px; letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.layout-panel-section {
+  font-size: 10px; font-weight: 700; color: #6a90b8;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  margin: 12px 0 8px;
+}
+.layout-panel-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.layout-option-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: rgba(0,20,55,0.8);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 10px; padding: 8px 4px;
+  color: #6a90b8; font-size: 10px; font-weight: 700;
+  cursor: pointer; transition: all 0.15s; touch-action: manipulation;
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+.layout-option-btn .layout-icon { font-size: 18px; line-height: 1; }
+.layout-option-btn:hover { background: rgba(0,60,180,0.3); border-color: rgba(0,174,239,0.4); color: #a8d4f0; }
+.layout-option-btn.active {
+  background: rgba(0,80,200,0.35);
+  border-color: rgba(0,174,239,0.75);
+  color: #00AEEF;
+  box-shadow: 0 0 10px rgba(0,174,239,0.25);
+}
+.layout-size-row {
+  display: flex; gap: 8px;
+}
+.layout-size-btn {
+  flex: 1;
+  padding: 7px;
+  border-radius: 8px;
+  background: rgba(0,20,55,0.8);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  color: #6a90b8; font-size: 12px; font-weight: 800;
+  cursor: pointer; transition: all 0.15s; touch-action: manipulation;
+}
+.layout-size-btn:hover  { border-color: rgba(0,174,239,0.4); color: #a8d4f0; }
+.layout-size-btn.active {
+  background: rgba(0,80,200,0.35);
+  border-color: rgba(0,174,239,0.75);
+  color: #00AEEF;
+}
+
+/* ── Guest video grid container ── */
+.guest-grid {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  display: none; /* shown only when guests present */
+  /* Smooth re-layout when guests join/leave */
+  transition: none;
+  /* Clip children so nothing escapes the stage */
+  overflow: hidden;
+}
+.guest-grid.has-guests { display: flex; }
+
+/* ── Individual guest cell ── */
+.guest-cell {
+  position: relative;
+  overflow: hidden;
+  background: #070d1a;
+  pointer-events: auto;
+  flex-shrink: 0;
+  /* Face-centering: video is always object-fit:cover so face stays centred */
+  min-width: 0; min-height: 0;
+  /* Guarantee cells never escape the grid */
+  max-width: 100vw;
+  max-height: 100vh;
+}
+.guest-cell video {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+.guest-cell-name {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(0deg, rgba(0,0,0,0.72) 0%, transparent 100%);
+  padding: clamp(4px, 1.2vw, 8px) clamp(5px, 1.5vw, 10px) clamp(3px, 0.8vw, 5px);
+  font-size: clamp(9px, 1.8vw, 11px); font-weight: 700; color: #e8f4ff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;
+}
+.guest-cell-remove {
+  position: absolute; top: 5px; right: 5px;
+  width: clamp(20px, 4vw, 26px); height: clamp(20px, 4vw, 26px);
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff; font-size: clamp(10px, 2vw, 13px);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 2;
+  transition: background 0.15s;
+  touch-action: manipulation;
+}
+.guest-cell-remove:hover { background: rgba(200,0,30,0.6); }
+
+/* ════════════════════════════════════════════════════════════
+   LAYOUT MODES
+   All sizes are set by the JS engine (_doApplyGuestLayout).
+   CSS provides only the flex container skeleton + named-mode
+   overrides for floating/absolute positioning.
+   ════════════════════════════════════════════════════════════ */
+
+/* Grid hidden when no guests */
+.guest-grid[data-count="0"] { display: none !important; }
+
+/* All cells: box-model + transition for smooth rearrangement */
+.guest-cell {
+  box-sizing: border-box;
+  transition: width 0.25s ease, height 0.25s ease;
+}
+
+/* ── Float / Host-Full: absolute guest tiles need border + shadow ── */
+.guest-grid[data-layout="float"]     .guest-cell:not(.host-cell),
+.guest-grid[data-layout="host-full"] .guest-cell:not(.host-cell) {
+  border-radius: 10px;
+  border: 1.5px solid rgba(0,174,239,0.4);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+  z-index: 6;
+  overflow: hidden;
+}
+.guest-grid[data-layout="float"] .guest-cell:not(.host-cell) {
+  cursor: move;
+}
+
+/* ── Grid layout: thin dividing border between cells ── */
+.guest-grid[data-layout="grid"] .guest-cell {
+  border: 1px solid rgba(0,0,0,0.3);
+}
+
+/* ── Box size modifiers ── */
+.guest-grid.box-sm .guest-cell:not(.host-cell) { --gbox-scale: 0.82; }
+.guest-grid.box-md .guest-cell:not(.host-cell) { --gbox-scale: 1.0;  }
+.guest-grid.box-lg .guest-cell:not(.host-cell) { --gbox-scale: 1.18; }
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE OVERRIDES — compact labels on small screens
+   (Geometry is always JS; only typography changes here)
+   ══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .guest-cell-name { font-size: 9px; padding: 3px 5px; }
+  .vgc-avatar      { width: 48px; height: 48px; font-size: 18px; }
+}
+
+@media (orientation: landscape) and (max-height: 420px) {
+  .guest-cell-name { font-size: 8px; padding: 2px 4px; }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  .guest-cell-name { font-size: 10px; }
+}
+
+@media (min-width: 769px) {
+  .guest-cell-name { font-size: 11px; }
+  .vgc-avatar      { width: 72px; height: 72px; font-size: 28px; }
+}
+
+/* Hide main #liveVideo when grid is showing (grid renders its own host cell) */
+.guest-grid.has-guests ~ * #liveVideo,
+.live-video-wrap:has(.guest-grid.has-guests) > #liveVideo {
+  opacity: 0; pointer-events: none;
+}
+
+/* ── viewer: hide layout btn and request queue ── */
+body.is-viewer .guest-layout-btn      { display: none !important; }
+body.is-viewer .guest-request-queue   { display: none !important; }
+body.is-viewer #layoutSettingsPanel   { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════
+   VIEWER GUEST CARDS (vgc) — shown to non-host viewers
+   Replaces the <video> element with an avatar + overlay.
+   Uses the same .guest-cell layout so the grid CSS applies.
+   ═══════════════════════════════════════════════════════ */
+
+/* Avatar circle — centred in the cell */
+.vgc-avatar {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -60%);
+  width: 64px; height: 64px; border-radius: 50%;
+  background: #0B1F3A center/cover no-repeat;
+  border: 2.5px solid rgba(0,174,239,0.6);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 800; color: #00AEEF;
+  overflow: hidden;
+  box-shadow: 0 0 18px rgba(0,174,239,0.3);
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+/* Camera-off overlay — dark bg + icon, shown when camOn === false */
+.vgc-cam-off {
+  display: none;
+  position: absolute; inset: 0;
+  background: #070d1a;
+  flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 6px; z-index: 3;
+  color: #3a5a7a;
+}
+.vgc-cam-off span:first-child { font-size: 30px; }
+.vgc-cam-off span:last-child  { font-size: 11px; }
+.vgc-cam-off--visible { display: flex !important; }
+
+/* Status bar — top-left corner icons */
+.vgc-status {
+  position: absolute;
+  top: 5px; left: 6px;
+  display: flex; align-items: center; gap: 3px;
+  z-index: 4;
+}
+.vgc-icon-cam,
+.vgc-icon-mic {
+  font-size: 12px;
+  background: rgba(0,0,0,0.55);
+  border-radius: 4px;
+  padding: 1px 3px;
+  line-height: 1.4;
+}
+
+/* HOST badge */
+.vgc-host-badge {
+  font-size: 9px; font-weight: 800;
+  background: #ff2244;
+  color: #fff;
+  border-radius: 5px;
+  padding: 1px 5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Name label — use existing .guest-cell-name but add a Live dot for host */
+.vgc-cell.host-cell .vgc-name::before {
+  content: '🔴 ';
+  font-size: 9px;
+}
+
+/* Viewer cells have no remove button — ensure it never shows */
+.vgc-cell .guest-cell-remove { display: none !important; }
+
+/* When a live video stream is present in a vgc-cell, hide the avatar behind it */
+.vgc-cell video {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+/* Avatar sits below the video — only visible when no video */
+.vgc-cell .vgc-avatar {
+  z-index: 2;
+}
+
+/* When video is present, push avatar to z-index 0 so video covers it */
+.vgc-cell:has(video) .vgc-avatar {
+  z-index: 0;
+}
+
+/* Name and status labels always on top */
+.vgc-cell .guest-cell-name,
+.vgc-cell .vgc-name,
+.vgc-cell .vgc-status {
+  z-index: 5;
+}
+
+/* ═══════════════════════════════════════════════════════
+   PERFORMANCE OPTIMIZATIONS
+   ─────────────────────────────────────────────────────
+   - Promote composited layers for animated/scrolling elements
+   - Prevent layout shifts on mobile
+   - Improve touch response
+   ═══════════════════════════════════════════════════════ */
+
+/* GPU-composited layers for frequently animated elements */
+#liveVideo {
+  will-change: transform;
+  transform: translateZ(0);
+}
+body.is-creator #liveVideo {
+  transform: scaleX(-1) translateZ(0);
+}
+
+/* Prevent layout reflow from chat scrolling */
+.live-chat-messages {
+  will-change: scroll-position;
+  contain: layout style;
+  overscroll-behavior: contain;
+  /* Smooth native momentum scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Each chat message: contain paint to prevent full repaint */
+.live-chat-msg {
+  contain: layout style;
+}
+
+/* Guest grid: isolate compositing layer */
+.guest-grid {
+  will-change: contents;
+  contain: layout;
+}
+
+/* Guest cells: hardware-accelerated transitions */
+.guest-cell {
+  will-change: transform, opacity;
+  contain: layout style paint;
+}
+
+/* Promote video elements in guest cells to own compositing layer */
+.guest-cell video {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Chat input: prevent iOS zoom on focus (font-size ≥ 16px stops zoom) */
+.live-chat-input {
+  font-size: max(16px, 13px);
+  touch-action: manipulation;
+}
+
+/* Prevent any tap-delay on all interactive elements */
+button, input, a, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Prevent text selection on buttons during rapid taps */
+.live-ctrl-btn,
+.live-like-btn,
+.live-request-box-btn,
+.live-leave-box-btn,
+.live-chat-send,
+.live-close-btn {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Stable height for connection banner to prevent layout shift */
+.live-conn-banner {
+  contain: layout style;
+}
+
+/* Smooth removal transition for guest cells (guest leaves) */
+.guest-cell.removing {
+  animation: guestCellOut 0.2s ease-in forwards;
+  pointer-events: none;
+}
+@keyframes guestCellOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.85); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LIVE SETTINGS PANEL  (host only)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Settings button in creator bottom bar */
+#btnLiveSettings {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
+  border: 1.5px solid rgba(255,255,255,0.22);
+  color: #fff; font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+  transition: background 0.18s, border-color 0.18s, transform 0.1s;
+  touch-action: manipulation;
+}
+#btnLiveSettings:hover { background: rgba(0,80,200,0.3); border-color: rgba(0,174,239,0.6); }
+#btnLiveSettings:active { transform: scale(0.92); }
+
+/* Settings Panel */
+.live-settings-panel {
+  position: absolute;
+  bottom: 80px; right: 12px;
+  width: min(300px, calc(100vw - 24px));
+  background: rgba(0,10,30,0.97); backdrop-filter: blur(14px);
+  border: 1.5px solid rgba(0,174,239,0.45);
+  border-radius: 18px; padding: 16px 18px;
+  z-index: 50;
+  animation: lspIn 0.2s ease-out both;
+}
+@keyframes lspIn {
+  from { opacity:0; transform: translateY(10px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+.live-settings-title {
+  font-size: 12px; font-weight: 800; color: #e8f4ff;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  text-align: center; margin-bottom: 14px;
+  border-bottom: 1px solid rgba(0,174,239,0.2);
+  padding-bottom: 10px;
+}
+
+/* Row for each toggle setting */
+.lsp-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 9px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.lsp-row:last-child { border-bottom: none; padding-bottom: 0; }
+.lsp-label {
+  display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0;
+}
+.lsp-label-name {
+  font-size: 12px; font-weight: 700; color: #d8eeff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lsp-label-desc {
+  font-size: 10px; color: #4a7a9a; line-height: 1.4;
+}
+
+/* Toggle switch */
+.lsp-toggle {
+  position: relative; display: inline-block;
+  width: 42px; height: 24px; flex-shrink: 0;
+}
+.lsp-toggle input { opacity: 0; width: 0; height: 0; }
+.lsp-slider {
+  position: absolute; cursor: pointer; inset: 0;
+  background: rgba(255,255,255,0.12);
+  border: 1.5px solid rgba(255,255,255,0.18);
+  border-radius: 24px;
+  transition: background 0.22s, border-color 0.22s;
+}
+.lsp-slider:before {
+  content: ''; position: absolute;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(255,255,255,0.55);
+  left: 3px; top: 50%; transform: translateY(-50%);
+  transition: left 0.22s, background 0.22s;
+}
+.lsp-toggle input:checked + .lsp-slider {
+  background: rgba(0,174,239,0.35);
+  border-color: rgba(0,174,239,0.7);
+}
+.lsp-toggle input:checked + .lsp-slider:before {
+  left: 20px; background: #00AEEF;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LIVE TIMER  (host only, shown in top-bar)
+   ═══════════════════════════════════════════════════════════════ */
+#liveTimerDisplay {
+  display: none;
+  align-items: center; gap: 5px;
+  background: rgba(0,0,0,0.52); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px; padding: 4px 10px;
+  font-size: 11px; color: #d0e8ff; flex-shrink: 0;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+  font-family: 'Courier New', monospace;
+}
+#liveTimerDisplay.visible { display: flex; }
+.live-timer-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #ff2244; flex-shrink: 0;
+  animation: feedLivePulse 1.2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AI SAFETY SYSTEM  (host-only private warning popup)
+   ═══════════════════════════════════════════════════════════════ */
+.snx-safety-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 9900;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(3px);
+  animation: snxSafetyIn 0.22s ease-out both;
+}
+@keyframes snxSafetyIn {
+  from { opacity:0; }
+  to   { opacity:1; }
+}
+.snx-safety-box {
+  background: rgba(6,18,44,0.99);
+  border: 2px solid rgba(255,180,0,0.55);
+  border-radius: 20px;
+  padding: 20px 18px 18px;
+  width: min(360px, calc(100vw - 32px));
+  display: flex; flex-direction: column; gap: 12px;
+  animation: snxSafetyBoxIn 0.24s ease-out both;
+}
+@keyframes snxSafetyBoxIn {
+  from { opacity:0; transform: translateY(18px) scale(0.97); }
+  to   { opacity:1; transform: translateY(0) scale(1); }
+}
+.snx-safety-header {
+  display: flex; align-items: center; gap: 10px;
+}
+.snx-safety-icon { font-size: 28px; line-height: 1; flex-shrink: 0; }
+.snx-safety-title-block { flex: 1; min-width: 0; }
+.snx-safety-title {
+  font-size: 14px; font-weight: 800; color: #ffe066;
+  line-height: 1.3;
+}
+.snx-safety-category {
+  font-size: 10px; font-weight: 700; color: #b89c00;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  margin-top: 2px;
+}
+.snx-safety-body {
+  background: rgba(255,180,0,0.07);
+  border: 1px solid rgba(255,180,0,0.2);
+  border-radius: 10px; padding: 10px 12px;
+}
+.snx-safety-label {
+  font-size: 10px; font-weight: 700; color: #6a90b8;
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;
+}
+.snx-safety-text {
+  font-size: 12px; color: #d8eeff;
+  word-break: break-word; line-height: 1.5;
+}
+.snx-safety-user-row {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(0,174,239,0.06);
+  border: 1px solid rgba(0,174,239,0.18);
+  border-radius: 8px; padding: 7px 10px;
+}
+.snx-safety-user-name {
+  font-size: 12px; font-weight: 700; color: #00AEEF;
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.snx-safety-actions {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.snx-safety-btn {
+  padding: 9px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 700;
+  cursor: pointer; transition: background 0.15s;
+  touch-action: manipulation; text-align: center;
+}
+.snx-safety-btn-ignore {
+  background: rgba(255,255,255,0.07);
+  border: 1.5px solid rgba(255,255,255,0.15);
+  color: #a8c8e8;
+}
+.snx-safety-btn-ignore:hover { background: rgba(255,255,255,0.12); }
+.snx-safety-btn-warn {
+  background: rgba(255,180,0,0.15);
+  border: 1.5px solid rgba(255,180,0,0.5);
+  color: #ffe066;
+}
+.snx-safety-btn-warn:hover { background: rgba(255,180,0,0.28); }
+.snx-safety-btn-del {
+  background: rgba(180,0,30,0.18);
+  border: 1.5px solid rgba(255,50,70,0.45);
+  color: #ff7788;
+}
+.snx-safety-btn-del:hover { background: rgba(220,0,40,0.35); }
+.snx-safety-btn-kick {
+  background: rgba(80,0,180,0.18);
+  border: 1.5px solid rgba(140,80,255,0.45);
+  color: #bb99ff;
+}
+.snx-safety-btn-kick:hover { background: rgba(100,0,200,0.35); }
+
+/* ── Shadow Bot indicator badge shown in top-bar when bot is active ── */
+#shadowBotBadge {
+  display: none;
+  align-items: center; gap: 5px;
+  background: rgba(0,0,0,0.52); backdrop-filter: blur(6px);
+  border: 1px solid rgba(124,92,216,0.5);
+  border-radius: 20px; padding: 4px 10px;
+  font-size: 10px; color: #bb99ff; flex-shrink: 0;
+  white-space: nowrap;
+}
+#shadowBotBadge.visible { display: flex; }
+
+/* ── AI Safety active indicator in top-bar ── */
+#aiSafetyBadge {
+  display: none;
+  align-items: center; gap: 5px;
+  background: rgba(0,0,0,0.52); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,180,0,0.4);
+  border-radius: 20px; padding: 4px 10px;
+  font-size: 10px; color: #ffe066; flex-shrink: 0;
+  white-space: nowrap;
+}
+#aiSafetyBadge.visible { display: flex; }
+
+/* ═══════════════════════════════════════════════════════════════
+   INTERNET QUALITY BADGE  (host-only, top-bar)
+   ═══════════════════════════════════════════════════════════════ */
+#iqBadge {
+  display: none;
+  align-items: center; gap: 5px;
+  background: rgba(0,0,0,0.52); backdrop-filter: blur(6px);
+  border: 1px solid rgba(0,174,239,0.4);
+  border-radius: 20px; padding: 4px 10px;
+  font-size: 10px; color: #88ddff; flex-shrink: 0;
+  white-space: nowrap;
+}
+#iqBadge.iq-visible { display: flex; }
+/* Quality-tier colour variants */
+#iqBadge.iq-excellent { border-color: rgba(57,255,20,0.55);  color: #77ff55; }
+#iqBadge.iq-good      { border-color: rgba(0,174,239,0.55);  color: #55ddff; }
+#iqBadge.iq-fair      { border-color: rgba(255,180,0,0.55);  color: #ffcc44; }
+#iqBadge.iq-poor      { border-color: rgba(255,50,70,0.65);  color: #ff7788; }
+
+/* IQ quality-change toast — reuses existing #liveToast; colours are set inline via JS */

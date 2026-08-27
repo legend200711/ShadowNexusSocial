@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CloudStream Viewer — Shadow Nexus Social</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0B1F3A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+/* ── Reset & base ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#070d1a;color:#e0eaff;font-family:-apple-system,"Segoe UI",system-ui,sans-serif;font-size:15px;line-height:1.5;overflow-x:hidden}
+a{color:#00AEEF;text-decoration:none}
+button{cursor:pointer;border:none;background:none;font:inherit;color:inherit}
+
+/* ── Top nav bar ── */
+#snxvTopBar{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  background:rgba(7,13,26,0.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(0,174,239,0.18);
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  height:52px;
+}
+#snxvTopBar .snxv-back{font-size:20px;padding:4px 8px;color:#00AEEF;flex-shrink:0}
+#snxvTopBar .snxv-title{font-weight:700;font-size:15px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#snxvTopBar .snxv-badge{
+  font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 8px;
+  border-radius:20px;background:#0066ff;color:#fff;flex-shrink:0;
+  animation:snxvBadgePulse 2s ease-in-out infinite;
+}
+@keyframes snxvBadgePulse{0%,100%{box-shadow:0 0 0 0 rgba(0,102,255,.5)}50%{box-shadow:0 0 0 5px rgba(0,102,255,0)}}
+
+/* ── Main layout ── */
+#snxvMain{
+  display:flex;flex-direction:column;min-height:100vh;
+  padding-top:52px;
+}
+
+/* ── Stream area ── */
+#snxvStreamArea{
+  background:#0a111f;
+  position:relative;width:100%;
+  /* 16:9 aspect up to ~720px, then fixed height on desktop */
+  aspect-ratio:16/9;max-height:calc(100vw * 9/16);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+}
+@media(min-width:900px){
+  #snxvMain{flex-direction:row;flex-wrap:wrap;align-items:flex-start}
+  #snxvStreamCol{flex:1 1 0;min-width:0}
+  #snxvSideCol{width:340px;flex-shrink:0;height:calc(100vh - 52px);overflow-y:auto;
+               border-left:1px solid rgba(0,174,239,0.12);background:rgba(7,13,26,0.7)}
+  #snxvStreamArea{aspect-ratio:16/9;max-height:none;height:auto}
+}
+
+/* Stream status overlay */
+#snxvStatusOverlay{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:14px;
+  background:linear-gradient(135deg,#070d1a 0%,#0B1F3A 100%);
+  text-align:center;padding:20px;
+}
+#snxvStatusOverlay .snxv-status-icon{font-size:52px;line-height:1}
+#snxvStatusOverlay .snxv-status-text{font-size:22px;font-weight:700;color:#00AEEF;letter-spacing:.05em}
+#snxvStatusOverlay .snxv-status-sub{font-size:13px;color:#7a9ec4}
+#snxvStatusOverlay .snxv-status-scene{
+  margin-top:6px;padding:6px 16px;border-radius:20px;
+  background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.25);
+  font-size:13px;color:#a0c8e8;
+}
+
+/* Scene card (what's playing) */
+#snxvSceneCard{
+  background:rgba(0,174,239,0.06);border-bottom:1px solid rgba(0,174,239,0.12);
+  padding:10px 14px;display:flex;align-items:center;gap:10px;
+}
+#snxvSceneCard .snxv-scene-label{font-size:11px;color:#5a8ab0;letter-spacing:.08em;text-transform:uppercase}
+#snxvSceneCard .snxv-scene-name{font-size:14px;font-weight:600;color:#00AEEF}
+#snxvSceneCard .snxv-scene-theme{font-size:11px;color:#5a8ab0;margin-left:auto}
+
+/* ── Host info row ── */
+#snxvHostRow{
+  padding:12px 14px;display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid rgba(255,255,255,0.05);
+}
+.snxv-host-av{
+  width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;
+  border:2px solid #00AEEF;background:#0B1F3A;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:700;color:#00AEEF;overflow:hidden;
+}
+.snxv-host-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+#snxvHostName{font-weight:700;font-size:15px}
+#snxvHostHandle{font-size:12px;color:#5a8ab0}
+#snxvCreatorLink{display:flex;align-items:center;gap:12px;min-width:0;flex:1;text-decoration:none;color:inherit}
+#snxvCreatorLink:hover #snxvHostName{color:#00AEEF}
+#snxvViewerCount{margin-left:auto;font-size:13px;color:#5a8ab0}
+
+/* ── Stats row ── */
+#snxvStats{
+  display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.05);
+}
+.snxv-stat{
+  flex:1;padding:10px 8px;text-align:center;
+  border-right:1px solid rgba(255,255,255,0.05);
+}
+.snxv-stat:last-child{border-right:none}
+.snxv-stat-val{font-size:18px;font-weight:700;color:#00AEEF}
+.snxv-stat-lbl{font-size:10px;color:#5a8ab0;letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+
+/* ── Action buttons ── */
+#snxvActions{
+  display:flex;gap:8px;padding:12px 14px;
+  border-bottom:1px solid rgba(255,255,255,0.05);
+  flex-wrap:wrap;
+}
+.snxv-action-btn{
+  flex:1;min-width:80px;padding:9px 12px;border-radius:8px;
+  font-size:13px;font-weight:600;text-align:center;
+  background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.25);
+  color:#00AEEF;transition:background .15s;
+}
+.snxv-action-btn:hover{background:rgba(0,174,239,0.22)}
+.snxv-action-btn.danger{background:rgba(255,51,102,0.12);border-color:rgba(255,51,102,0.25);color:#ff3366}
+.snxv-action-btn.disabled{opacity:.4;pointer-events:none}
+
+/* ── Chat panel ── */
+#snxvChatWrap{flex:1;display:flex;flex-direction:column;min-height:280px}
+@media(min-width:900px){#snxvChatWrap{height:calc(100vh - 52px - 56px - 300px);min-height:200px;max-height:400px}}
+#snxvChatMessages{
+  flex:1;overflow-y:auto;padding:8px 10px;
+  display:flex;flex-direction:column;gap:4px;
+  scrollbar-width:thin;scrollbar-color:rgba(0,174,239,0.2) transparent;
+}
+.snxv-chat-msg{font-size:13px;line-height:1.4;word-break:break-word}
+.snxv-chat-msg .snxv-cm-name{font-weight:600;color:#00AEEF;margin-right:4px}
+.snxv-chat-msg .snxv-cm-text{color:#c8d8ec}
+.snxv-chat-msg.system{color:#5a8ab0;font-style:italic;font-size:12px}
+#snxvChatInput{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;
+  border-top:1px solid rgba(0,174,239,0.12);background:rgba(7,13,26,0.6);
+}
+#snxvChatInput input{
+  flex:1;background:rgba(0,174,239,0.07);border:1px solid rgba(0,174,239,0.2);
+  border-radius:20px;padding:7px 14px;font-size:13px;color:#e0eaff;outline:none;
+}
+#snxvChatInput input::placeholder{color:#5a8ab0}
+#snxvChatInput input:focus{border-color:rgba(0,174,239,0.5);background:rgba(0,174,239,0.1)}
+#snxvChatSend{
+  padding:7px 14px;background:#0066ff;color:#fff;
+  border-radius:20px;font-size:13px;font-weight:600;
+  transition:background .15s;
+}
+#snxvChatSend:hover{background:#0055dd}
+
+/* ── Gift panel ── */
+#snxvGiftRow{
+  padding:10px 14px;border-top:1px solid rgba(255,255,255,0.05);
+  display:flex;align-items:center;gap:8px;overflow-x:auto;
+  scrollbar-width:none;
+}
+#snxvGiftRow::-webkit-scrollbar{display:none}
+.snxv-gift-chip{
+  flex-shrink:0;padding:6px 12px;border-radius:20px;
+  background:rgba(255,153,0,0.12);border:1px solid rgba(255,153,0,0.25);
+  color:#ffaa00;font-size:12px;font-weight:600;
+  transition:background .15s;
+}
+.snxv-gift-chip:hover{background:rgba(255,153,0,0.25)}
+
+/* ── Offline / loading overlay ── */
+#snxvLoadingOverlay{
+  position:fixed;inset:0;z-index:200;
+  background:#070d1a;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:16px;text-align:center;padding:20px;
+}
+#snxvLoadingOverlay .snxv-spinner{
+  width:42px;height:42px;border:3px solid rgba(0,174,239,0.15);
+  border-top-color:#00AEEF;border-radius:50%;animation:snxvSpin .8s linear infinite;
+}
+@keyframes snxvSpin{to{transform:rotate(360deg)}}
+#snxvLoadingOverlay .snxv-load-text{font-size:15px;color:#7a9ec4}
+
+/* ── Auth gate ── */
+#snxvAuthGate{
+  position:fixed;inset:0;z-index:300;
+  background:#070d1a;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:16px;text-align:center;padding:24px;
+}
+#snxvAuthGate.visible{display:flex}
+#snxvAuthGate h2{font-size:22px;color:#00AEEF}
+#snxvAuthGate p{color:#7a9ec4;font-size:14px}
+#snxvAuthGate a{
+  display:inline-block;margin-top:8px;padding:12px 28px;
+  background:#0066ff;color:#fff;border-radius:8px;font-weight:700;font-size:15px;
+}
+
+/* ── Toast ── */
+#snxvToast{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  background:#1a2a4a;border:1px solid rgba(0,174,239,0.3);border-radius:8px;
+  padding:10px 18px;font-size:13px;color:#c8d8ec;
+  opacity:0;transition:opacity .25s;pointer-events:none;z-index:500;
+  white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;
+}
+#snxvToast.show{opacity:1}
+
+/* ── Now Playing bar (CloudStream music) ── */
+#snxvNowPlaying{
+  display:none;padding:10px 14px;
+  background:rgba(0,174,239,0.06);
+  border-bottom:1px solid rgba(0,174,239,0.14);
+}
+#snxvNowPlaying .snxv-np-row{display:flex;align-items:center;gap:10px}
+#snxvNowPlaying .snxv-np-icon{font-size:22px;flex-shrink:0;animation:snxvNpSpin 2s linear infinite}
+@keyframes snxvNpSpin{0%,100%{transform:rotate(0deg)}50%{transform:rotate(10deg)}}
+#snxvNowPlaying .snxv-np-info{flex:1;min-width:0}
+#snxvNpTitle{font-size:13px;font-weight:700;color:#d8eeff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#snxvNpArtist{font-size:11px;color:#5a8ab0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#snxvNpLabel{font-size:9px;color:#00AEEF;letter-spacing:.08em;text-transform:uppercase;margin-bottom:2px}
+#snxvNowPlaying .snxv-np-vol{display:flex;align-items:center;gap:6px;flex-shrink:0}
+#snxvNpVolSlider{width:60px;accent-color:#00AEEF;cursor:pointer}
+#snxvNpMute{font-size:16px;cursor:pointer;color:#5a8ab0;transition:color .15s;padding:2px 4px}
+#snxvNpMute:hover{color:#00AEEF}
+#snxvNpProgress{height:3px;background:rgba(0,174,239,0.18);border-radius:2px;margin-top:6px;overflow:hidden}
+#snxvNpProgressFill{height:100%;background:#00AEEF;border-radius:2px;width:0%;transition:width .5s linear}
+#snxvNpNext{font-size:10px;color:#3a5a7a;margin-top:3px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+
+/* ── Animations ── */
+@keyframes snxvFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.snxv-fadein{animation:snxvFadeIn .3s ease both}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="snxvLoadingOverlay">
+  <div class="snxv-spinner"></div>
+  <div class="snxv-load-text">Loading CloudStream…</div>
+</div>
+
+<!-- Auth gate -->
+<div id="snxvAuthGate">
+  <h2>☁️ CloudStream Viewer</h2>
+  <p>Sign in to Shadow Nexus Social to watch this CloudStream.</p>
+  <a href="index.html">Sign In / Join Free</a>
+</div>
+
+<!-- Top nav -->
+<div id="snxvTopBar">
+  <button class="snxv-back" onclick="history.length>1?history.back():location.href='index.html'" title="Back">‹</button>
+  <div class="snxv-title" id="snxvBarTitle">CloudStream</div>
+  <div class="snxv-badge" id="snxvLiveBadge" style="display:none">☁️ LIVE</div>
+</div>
+
+<!-- Main layout -->
+<div id="snxvMain">
+
+  <!-- Left/top: stream column -->
+  <div id="snxvStreamCol">
+
+    <!-- Stream display area -->
+    <div id="snxvStreamArea">
+      <!-- Live video element — receives the creator's WebRTC stream -->
+      <video id="snxvLiveVideo" autoplay playsinline
+             style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;background:#000;"></video>
+      <div id="snxvStatusOverlay">
+        <div class="snxv-status-icon">☁️</div>
+        <div class="snxv-status-text" id="snxvStatusText">Connecting…</div>
+        <div class="snxv-status-sub" id="snxvStatusSub">Fetching stream information</div>
+        <div class="snxv-status-scene" id="snxvStatusScene" style="display:none"></div>
+        <div id="snxvRtcDbg" style="margin-top:12px;font-size:11px;color:#5a8ab0;text-align:left;max-width:320px;line-height:1.7;word-break:break-all;"></div>
+      </div>
+    </div>
+
+    <!-- Current scene info -->
+    <div id="snxvSceneCard" style="display:none">
+      <div>
+        <div class="snxv-scene-label">Current Scene</div>
+        <div class="snxv-scene-name" id="snxvSceneName">—</div>
+      </div>
+      <div class="snxv-scene-theme" id="snxvSceneTheme"></div>
+    </div>
+
+    <!-- Now Playing music bar (CloudStream audio) -->
+    <div id="snxvNowPlaying">
+      <div class="snxv-np-row">
+        <span class="snxv-np-icon">🎵</span>
+        <div class="snxv-np-info">
+          <div id="snxvNpLabel">♪ Now Playing</div>
+          <div id="snxvNpTitle">—</div>
+          <div id="snxvNpArtist"></div>
+        </div>
+        <div class="snxv-np-vol">
+          <span id="snxvNpMute" onclick="snxvToggleMute()" title="Mute/Unmute">🔊</span>
+          <input id="snxvNpVolSlider" type="range" min="0" max="100" value="80"
+                 oninput="snxvSetVolume(this.value)" title="Volume">
+        </div>
+      </div>
+      <div id="snxvNpProgress"><div id="snxvNpProgressFill"></div></div>
+      <div id="snxvNpNext"></div>
+    </div>
+
+    <!-- Host info -->
+    <div id="snxvHostRow">
+      <a id="snxvCreatorLink" href="index.html" title="View profile">
+        <div class="snxv-host-av" id="snxvHostAvEl">?</div>
+        <div style="min-width:0">
+          <div id="snxvHostName">—</div>
+          <div id="snxvHostHandle"></div>
+        </div>
+      </a>
+      <div id="snxvViewerCount">👁 —</div>
+    </div>
+
+    <!-- Stream stats -->
+    <div id="snxvStats">
+      <div class="snxv-stat">
+        <div class="snxv-stat-val" id="snxvStatUptime">—</div>
+        <div class="snxv-stat-lbl">Uptime</div>
+      </div>
+      <div class="snxv-stat">
+        <div class="snxv-stat-val" id="snxvStatViewers">—</div>
+        <div class="snxv-stat-lbl">Viewers</div>
+      </div>
+      <div class="snxv-stat">
+        <div class="snxv-stat-val" id="snxvStatStatus">—</div>
+        <div class="snxv-stat-lbl">Stream</div>
+      </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div id="snxvActions">
+      <button class="snxv-action-btn" id="snxvLikeBtn" onclick="snxvSendLike()">❤️ Like</button>
+      <button class="snxv-action-btn" id="snxvGiftBtn" onclick="snxvOpenGifts()">🎁 Gift</button>
+      <button class="snxv-action-btn" id="snxvShareBtn" onclick="snxvShare()">📤 Share</button>
+    </div>
+
+    <!-- Gift bar (quick gifts) -->
+    <div id="snxvGiftRow" style="display:none">
+      <span style="font-size:12px;color:#5a8ab0;flex-shrink:0;">Quick Gift:</span>
+    </div>
+
+    <!-- Mobile: chat below stream -->
+    <div id="snxvChatWrap" class="snxv-fadein">
+      <div id="snxvChatMessages">
+        <div class="snxv-chat-msg system">Welcome to the Shadow Nexus CloudStream. Be kind and stay legendary! 🌑</div>
+      </div>
+      <div id="snxvChatInput">
+        <input id="snxvChatBox" type="text" placeholder="Say something…" maxlength="200"
+               onkeydown="if(event.key==='Enter')snxvSendChat()">
+        <button id="snxvChatSend" onclick="snxvSendChat()">Send</button>
+      </div>
+    </div>
+
+  </div><!-- /streamCol -->
+
+  <!-- Desktop side column (chat repeats here on large screens via JS clone) -->
+  <div id="snxvSideCol" style="display:none"></div>
+
+</div><!-- /main -->
+
+<div id="snxvToast"></div>
+
+<!-- ──────────────────────────────────────────────
+     SNX Gifts system — loaded before Firebase module so
+     the gift tray is available when auth resolves.
+     snx-gifts.js reads window._snxFirestore and
+     window._snxCurrentUser which are set below.
+────────────────────────────────────────────── -->
+<link rel="stylesheet" href="snx-gifts.css">
+<script src="snx-gifts.js"></script>
+
+<!-- ──────────────────────────────────────────────
+     Firebase SDK — SAME app instance as Shadow Nexus Social.
+     Using the default (unnamed) app so Firebase Auth shares
+     the persisted SNX session from IndexedDB.  The user logs
+     in once on Shadow Nexus Social and is automatically
+     recognised here without a second login.
+────────────────────────────────────────────── -->
+<script type="module">
+import { initializeApp, getApps, getApp }
+                                   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, onAuthStateChanged }
+                                   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFirestore, doc, getDoc, getDocs, updateDoc, addDoc,
+         collection, query, where, orderBy, limit, onSnapshot,
+         serverTimestamp, increment, runTransaction, setDoc, deleteDoc,
+         arrayUnion, arrayRemove, writeBatch, getDocFromCache, getDocFromServer,
+         enableNetwork, disableNetwork }
+                                   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getDatabase, ref as rtdbRef, set as rtdbSet, get as rtdbGet,
+         onValue as rtdbOnValue, off as rtdbOff, push as rtdbPush, remove as rtdbRemove }
+                                   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+// ── Firebase config — same project as Shadow Nexus Social ────────────────
+// Using the default (unnamed) app so Firebase Auth automatically reuses
+// the authenticated SNX session that was persisted in IndexedDB.
+const FIREBASE_CONFIG = {
+  apiKey:            'AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y',
+  authDomain:        'horr-a08f4.firebaseapp.com',
+  databaseURL:       'https://horr-a08f4-default-rtdb.firebaseio.com',
+  projectId:         'horr-a08f4',
+  storageBucket:     'horr-a08f4.firebasestorage.app',
+  messagingSenderId: '933810617818',
+  appId:             '1:933810617818:web:efb24f123337dd987c14e3'
+};
+
+const CLOUDSTREAM_WORKER = 'https://snx-cloudstream.nthntjrn.workers.dev';
+
+// Reuse existing default app (e.g. when embedded in SNX context) or create it.
+// Do NOT pass a second name argument — the default app shares auth state with
+// the Shadow Nexus Social session stored in IndexedDB for this origin.
+const app   = getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG);
+const auth  = getAuth(app);
+const db    = getFirestore(app);
+const rtdb  = getDatabase(app);   // Realtime Database — used for WebRTC signaling
+
+// ── Globals ──────────────────────────────────────────────────────────────
+let _currentUser    = null;   // authenticated SNX Firebase user (non-anonymous)
+let _userData       = null;   // Firestore users/{uid} profile
+let _roomId         = null;   // hostUid for CloudStream rooms
+let _roomData       = null;
+let _cloudStreamId  = null;
+let _roomCollection = 'liveRooms';  // 'liveRooms' (cloud stream) or 'studioLiveRooms' (legacy)
+let _roomUnsub      = null;
+let _chatUnsub      = null;
+let _creatorUnsub   = null;   // onSnapshot for live creator profile
+let _healthInterval = null;
+let _viewerInited   = false;  // guard: only call _initViewer once
+
+// ── WebRTC viewer state ───────────────────────────────────────────────────
+const _SNXV_ICE = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'turn:openrelay.metered.ca:80',   username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',  username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
+  ]
+};
+let _rtcPc            = null;    // viewer RTCPeerConnection
+let _rtcSignalRef     = null;    // RTDB ref being listened to
+let _rtcSignalUnsub   = null;    // onValue unsubscribe
+let _offerWaitRef     = null;    // RTDB ref used by persistent offer listener
+let _offerWaitUnsub   = null;    // fallback offer-arrival listener unsubscribe fn
+let _hostUid          = null;    // creator's UID (= RTDB signaling room ID)
+let _rtcStarting      = false;   // guard: prevent concurrent _startViewerWebRTC calls
+let _startingRetryTmr = null;    // timer: retry when room status is "starting"
+let _startingDeadline = 0;       // epoch ms: stop retrying after this time (60 s)
+
+// ── Parse hash ───────────────────────────────────────────────────────────
+function _parseHash() {
+  const h = location.hash.replace('#','');
+  const p = {};
+  h.split('&').forEach(s => { const [k,v] = s.split('='); if(k) p[k] = decodeURIComponent(v||''); });
+  return p;
+}
+
+// ── Loading / error helpers ───────────────────────────────────────────────
+const _loadingEl = document.getElementById('snxvLoadingOverlay');
+function _hideLoading() { _loadingEl.style.display = 'none'; }
+
+function _showAuthGate() {
+  document.getElementById('snxvAuthGate').classList.add('visible');
+  _hideLoading();
+}
+
+function _toast(msg, ms = 2800) {
+  const t = document.getElementById('snxvToast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+// ── Expose SNX identity globals for snx-gifts.js ─────────────────────────
+// snx-gifts.js reads window._snxFirestore and window._snxCurrentUser.
+// We set them here as soon as the Firebase module is ready, before auth
+// resolves, so that the gifting system can subscribe to the wallet
+// immediately once auth fires.
+window._snxFirestore = {
+  db, doc, getDoc, getDocs, updateDoc, addDoc,
+  collection, query, where, orderBy, limit, onSnapshot,
+  serverTimestamp, increment,
+  setDoc, deleteDoc, runTransaction,
+  arrayUnion, arrayRemove, writeBatch,
+  enableNetwork, disableNetwork,
+  getDocFromCache, getDocFromServer,
+};
+
+// Auth-ready queue — lets snx-gifts.js register callbacks before auth resolves
+window._snxAuthReadyQueue = window._snxAuthReadyQueue || [];
+if (!window._snxOnAuthReady) {
+  window._snxOnAuthReady = function(fn) {
+    if (window._snxAuthResolved) { try { fn(); } catch(e){} }
+    else { window._snxAuthReadyQueue.push(fn); }
+  };
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────
+// Firebase Auth automatically restores the SNX session from IndexedDB.
+// We do NOT sign in anonymously — the viewer page is read-accessible
+// via Firestore rules without authentication.  Auth-required actions
+// (like, gift, chat) are gated on a non-anonymous SNX session below.
+onAuthStateChanged(auth, async user => {
+  if (!user || user.isAnonymous) {
+    // User is signed out or was previously only anonymously authed.
+    // Clear identity globals so snx-gifts.js / action handlers know.
+    _currentUser           = null;
+    _userData              = null;
+    window._snxCurrentUser = null;
+    window._snxUserData    = null;
+    window._snxAuthResolved = true;
+
+    // Flush any auth-ready callbacks registered before auth resolved
+    if (Array.isArray(window._snxAuthReadyQueue)) {
+      window._snxAuthReadyQueue.forEach(fn => { try { fn(); } catch(e){} });
+      window._snxAuthReadyQueue = [];
+    }
+
+    // Allow passive stream viewing — initialise viewer without auth
+    if (!_viewerInited) { _viewerInited = true; _initViewer(); }
+    return;
+  }
+
+  // ── Authenticated SNX user ────────────────────────────────────────────
+  _currentUser = user;
+
+  // Load profile from Shadow Nexus Social Firestore users/{uid}
+  try {
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    if (snap.exists()) _userData = snap.data();
+  } catch {}
+
+  // Expose globals for snx-gifts.js and other SNX scripts
+  window._snxCurrentUser = user;
+  window._snxUserData    = _userData;
+  window._snxAuthResolved = true;
+
+  // Flush auth-ready callbacks (snxgInit, wallet subscription, etc.)
+  if (Array.isArray(window._snxAuthReadyQueue)) {
+    window._snxAuthReadyQueue.forEach(fn => { try { fn(); } catch(e){} });
+    window._snxAuthReadyQueue = [];
+  }
+
+  // Initialise the viewer (idempotent — only runs once)
+  if (!_viewerInited) { _viewerInited = true; _initViewer(); }
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────
+function _initViewer() {
+  const params = _parseHash();
+  _roomId = params.watch || null;
+
+  console.log('[STUDIO LIVE] Viewer requested:', _roomId);
+
+  if (!_roomId) {
+    _setStatus('No stream found', 'Missing stream ID in URL.', '❌');
+    _hideLoading();
+    return;
+  }
+
+  _loadRoom();
+}
+
+// ── Load room from Firestore ──────────────────────────────────────────────
+// Cloud Stream writes to liveRooms/{uid}.
+// Legacy Studio Live docs may exist in studioLiveRooms/{uid} — those are
+// checked as a fallback but new Studio Live sessions go through live.html.
+// IMPORTANT: _roomId is never mutated after the correct doc is found — all
+//            subscriptions, polls and writes use the same stable key.
+async function _loadRoom() {
+  try {
+    let resolvedRoomId = _roomId;
+    let snap           = null;
+    let collection_used = '';
+
+    // ── Primary: liveRooms/{id} — Cloud Stream writes here ───────────────
+    snap = await getDoc(doc(db, 'liveRooms', resolvedRoomId));
+    if (snap.exists()) {
+      collection_used = 'liveRooms';
+    }
+
+    // ── Fallback A: studioLiveRooms/{id} — legacy Studio Live docs ───────
+    if (!snap || !snap.exists()) {
+      snap = await getDoc(doc(db, 'studioLiveRooms', resolvedRoomId));
+      if (snap.exists()) {
+        collection_used = 'studioLiveRooms';
+      }
+    }
+
+    // ── Fallback B: studioLive_ session ID → extract UID ─────────────────
+    if ((!snap || !snap.exists()) && resolvedRoomId && resolvedRoomId.startsWith('studioLive_')) {
+      const parts = resolvedRoomId.split('_');
+      if (parts.length >= 3) {
+        const extractedUid = parts[1];
+        const altSnap = await getDoc(doc(db, 'studioLiveRooms', extractedUid));
+        if (altSnap.exists()) {
+          snap           = altSnap;
+          resolvedRoomId = extractedUid;
+          collection_used = 'studioLiveRooms';
+        }
+      }
+    }
+
+    // ── Fallback C: query studioLiveRooms by studioSessionId field ────────
+    if (!snap || !snap.exists()) {
+      try {
+        const q = query(
+          collection(db, 'studioLiveRooms'),
+          where('studioSessionId', '==', _roomId),
+          limit(1)
+        );
+        const qsnap = await getDocs(q);
+        if (!qsnap.empty) {
+          snap            = qsnap.docs[0];
+          resolvedRoomId  = qsnap.docs[0].id;
+          collection_used = 'studioLiveRooms';
+        }
+      } catch (_) {}
+    }
+
+    if (!snap || !snap.exists()) {
+      console.log('[STUDIO LIVE] Viewer not found for ID:', _roomId);
+      _setStatus('Stream not found', 'This stream may have ended or the link is invalid.', '🔍');
+      _hideLoading();
+      return;
+    }
+
+    // Commit the resolved key and collection — all subsequent reads/writes use these
+    _roomId         = resolvedRoomId;
+    _roomCollection = collection_used || 'liveRooms';
+
+    _roomData = snap.data();
+    console.log('[STUDIO LIVE] Viewer found in', _roomCollection, ':', _roomId);
+
+    // Only handle Cloud Stream type — Studio Live now uses live.html
+    if (_roomData.type !== '24hour_cloudstream' && _roomData.type !== '24hour_studio_live') {
+      _setStatus('Stream not found', 'This stream may have ended or the link is invalid.', '🔍');
+      _hideLoading();
+      return;
+    }
+
+    _cloudStreamId = _roomData.cloudStreamId || null;
+    // Use creatorId (SNX UID written by studio.js) as the canonical host UID.
+    // Falls back to hostId then _roomId for backward compat with older room docs.
+    _hostUid       = _roomData.creatorId || _roomData.hostId || _roomId;
+
+    const playback = _roomData.playback || null;
+    console.log('[STUDIO LIVE] Playback:', playback);
+
+    _renderRoomMeta(_roomData);
+    _subscribeToRoom();
+    _subscribeToChat();
+    _startHealthPoll();
+    _hideLoading();
+    _incrementViewers();
+
+    // ── Start WebRTC viewer connection for Studio Live streams ────────────
+    // CloudStream (type=24hour_cloudstream) is a server-side worker broadcast.
+    // Studio Live (type=24hour_studio_live) uses WebRTC peer-to-peer.
+    if (_roomData.type === '24hour_studio_live') {
+      _initiateViewerConnection(_roomData);
+    }
+
+  } catch (e) {
+    _setStatus('Failed to load stream', e.message, '❌');
+    _hideLoading();
+  }
+}
+
+// ── Viewer connection entry point ─────────────────────────────────────────
+// Decides whether to connect immediately or wait for the creator's WebRTC
+// host engine to signal readiness.
+//
+// rtcReady logic:
+//   true             → new-style doc: host engine confirmed ready
+//   false            → new-style doc: still starting, must poll
+//   undefined/absent → legacy doc written before rtcReady field existed;
+//                      treat as ready (status='live' is sufficient signal)
+function _initiateViewerConnection(roomData) {
+  const status = roomData.status || 'live';
+
+  if (status === 'ended') {
+    _setStatus('Creator has ended this live.', 'Thanks for watching! 🌑', '✅');
+    return;
+  }
+
+  if (status === 'error') {
+    const msg = roomData.errorMsg || 'The creator\'s stream could not be started.';
+    _setStatus('Stream unavailable', msg, '❌');
+    return;
+  }
+
+  // Connect immediately when:
+  //   - status is 'live' AND rtcReady is true (new-style, host confirmed ready), OR
+  //   - status is 'live' AND rtcReady is absent (legacy doc — assume ready)
+  // Only hold back when rtcReady is explicitly false (host is still initialising).
+  if (status === 'live' && roomData.rtcReady !== false) {
+    _rtcLog('✔ room is live (rtcReady=' + roomData.rtcReady + ') — connecting');
+    _startViewerWebRTC();
+    return;
+  }
+
+  // status === 'starting', or status === 'live' with rtcReady explicitly false
+  _rtcLog('⏳ room status=' + status + ' rtcReady=' + roomData.rtcReady + ' — polling until ready');
+  _setStatus('Connecting…', 'Creator is starting their stream…', '🔄');
+  _startingDeadline = Date.now() + 60000; // retry for up to 60 s
+  _pollUntilRtcReady();
+}
+
+// Polls the room doc until the stream is connectable or ends/times out.
+// Uses exponential back-off: 1 s → 2 s → 4 s, …
+// Connects when status='live' and rtcReady is true OR absent (legacy doc).
+function _pollUntilRtcReady(attempt) {
+  attempt = attempt || 0;
+  if (_startingRetryTmr) { clearTimeout(_startingRetryTmr); _startingRetryTmr = null; }
+
+  if (Date.now() > _startingDeadline) {
+    _rtcLog('⏳ timed out waiting for creator stream — creator may still be setting up');
+    _setStatus('Stream not ready', 'The creator\'s stream is taking longer than expected. Refresh to try again.', '⏳');
+    return;
+  }
+
+  const delay = attempt < 2 ? 1000 : (attempt < 4 ? 2000 : 4000);
+  _rtcLog('  starting-poll attempt=' + attempt + ' delay=' + delay + 'ms');
+  _startingRetryTmr = setTimeout(async () => {
+    _startingRetryTmr = null;
+    try {
+      const snap = await getDoc(doc(db, _roomCollection, _roomId));
+      if (!snap.exists()) {
+        _setStatus('Stream not found', 'This stream may have ended.', '🔍');
+        return;
+      }
+      const d = snap.data();
+      if (!d.isLive || d.status === 'ended') {
+        _setStatus('Creator has ended this live.', 'Thanks for watching! 🌑', '✅');
+        return;
+      }
+      if (d.status === 'error') {
+        const msg = d.errorMsg || 'The creator\'s stream could not be started.';
+        _setStatus('Stream unavailable', msg, '❌');
+        return;
+      }
+      // Connect if live and host is ready (rtcReady true) or field is absent (legacy)
+      if (d.status === 'live' && d.rtcReady !== false) {
+        _rtcLog('✔ stream ready (rtcReady=' + d.rtcReady + ') — starting WebRTC');
+        _setStatus('Connecting…', 'Establishing video connection…', '🔄');
+        _startViewerWebRTC();
+        return;
+      }
+      // Still starting (rtcReady explicitly false) — keep polling
+      _pollUntilRtcReady(attempt + 1);
+    } catch(e) {
+      _rtcLog('  poll err: ' + e.message);
+      _pollUntilRtcReady(attempt + 1);
+    }
+  }, delay);
+}
+
+// ── Render host meta ──────────────────────────────────────────────────────
+// Accepts the studioLiveRooms doc. Uses room.creatorId (SNX UID) to subscribe to
+// the live users/{creatorId} Firestore doc so the profile is always current.
+// Falls back to the baked-in hostName/hostAvatar fields if creatorId is absent.
+function _renderRoomMeta(room) {
+  document.title = (room.title || 'CloudStream') + ' — Shadow Nexus Social';
+  document.getElementById('snxvBarTitle').textContent = room.title || 'CloudStream';
+
+  const creatorId = room.creatorId || room.hostId || null;
+
+  // Unsubscribe any previous creator listener
+  if (_creatorUnsub) { _creatorUnsub(); _creatorUnsub = null; }
+
+  if (creatorId) {
+    // Live-fetch the creator's Shadow Nexus Social profile
+    _creatorUnsub = onSnapshot(doc(db, 'users', creatorId), snap => {
+      const p = snap.exists() ? snap.data() : null;
+
+      const displayName = (p && (p.displayName || p.name)) || room.hostName || room.hostUsername || '';
+      const username    = (p && p.username) || room.hostUsername || '';
+      const avatar      = (p && p.photoURL)  || room.hostAvatar  || '';
+
+      _applyCreatorUI(displayName, username, avatar, creatorId);
+    }, () => {
+      // Firestore error — fall back to baked-in data
+      _applyCreatorUI(
+        room.hostName || room.hostUsername || '',
+        room.hostUsername || '',
+        room.hostAvatar   || '',
+        creatorId
+      );
+    });
+  } else {
+    // No creatorId — use whatever was baked into the room doc
+    _applyCreatorUI(
+      room.hostName || room.hostUsername || '',
+      room.hostUsername || '',
+      room.hostAvatar   || '',
+      null
+    );
+  }
+}
+
+// Apply creator profile fields to the UI
+function _applyCreatorUI(displayName, username, avatar, creatorId) {
+  const nameEl   = document.getElementById('snxvHostName');
+  const handleEl = document.getElementById('snxvHostHandle');
+  const avEl     = document.getElementById('snxvHostAvEl');
+  const linkEl   = document.getElementById('snxvCreatorLink');
+
+  nameEl.textContent   = displayName || '';
+  handleEl.textContent = username ? '@' + username : '';
+
+  if (avatar) {
+    avEl.innerHTML = `<img src="${_esc(avatar)}" alt="${_esc(displayName)}" loading="lazy">`;
+  } else {
+    avEl.textContent = (displayName || 'C')[0].toUpperCase();
+  }
+
+  // Update profile link
+  if (linkEl) {
+    linkEl.href  = creatorId ? `index.html#profile=${_esc(creatorId)}` : 'index.html';
+    linkEl.title = displayName ? `View ${displayName}'s profile` : 'View profile';
+  }
+}
+
+// ── Live room subscription ────────────────────────────────────────────────
+function _subscribeToRoom() {
+  if (_roomUnsub) _roomUnsub();
+  _roomUnsub = onSnapshot(doc(db, _roomCollection, _roomId), snap => {
+    if (!snap.exists()) { _setStatus('Stream ended', 'The CloudStream has ended. Thanks for watching!', '☁️'); return; }
+    const d = snap.data();
+    _roomData = d;
+
+    if (!d.isLive || d.status === 'ended') {
+      _setStatus('Creator has ended this live.', 'Thanks for watching! 🌑', '✅');
+      document.getElementById('snxvLiveBadge').style.display = 'none';
+      _cleanupPolling();
+      return;
+    }
+
+    // ── Active stream ─────────────────────────────────────────────────────
+    document.getElementById('snxvLiveBadge').style.display = '';
+    document.getElementById('snxvViewerCount').textContent = '👁 ' + (d.viewers || 0);
+    document.getElementById('snxvStatViewers').textContent = d.viewers || 0;
+    document.getElementById('snxvStatStatus').textContent  = '🟢 LIVE';
+
+    if (d.type === '24hour_studio_live') {
+      if (d.status === 'error') {
+        if (_startingRetryTmr) { clearTimeout(_startingRetryTmr); _startingRetryTmr = null; }
+        _setStatus('Stream unavailable', d.errorMsg || 'The creator\'s stream could not be started.', '❌');
+      // rtcReady=true or absent (legacy) + status=live → connect if not already doing so
+      } else if (d.status === 'live' && d.rtcReady !== false && !_rtcPc && !_rtcStarting) {
+        if (_startingRetryTmr) { clearTimeout(_startingRetryTmr); _startingRetryTmr = null; }
+        _rtcLog('✔ room snapshot: status=live rtcReady=' + d.rtcReady + ' — starting WebRTC');
+        _setStatus('Connecting…', 'Establishing video connection…', '🔄');
+        _startViewerWebRTC();
+      } else if (d.status === 'starting' || d.rtcReady === false) {
+        // rtcReady explicitly false → still initialising; show waiting message
+        const vid = document.getElementById('snxvLiveVideo');
+        const videoPlaying = vid && vid.srcObject && vid.style.display !== 'none';
+        if (!videoPlaying && !_rtcStarting && !_rtcPc) {
+          _setStatus('Starting…', 'Creator is setting up the stream…', '🔄');
+        }
+      }
+      // If video is already playing, _setStatus is a no-op (guard in _setStatus keeps video visible)
+    } else {
+      _setStatus('CloudStream Active', d.title || '', '☁️');
+    }
+  });
+}
+
+// ── Chat subscription ─────────────────────────────────────────────────────
+function _subscribeToChat() {
+  if (_chatUnsub) _chatUnsub();
+  const q = query(
+    collection(db, _roomCollection, _roomId, 'liveMessages'),
+    orderBy('createdAt', 'desc'),
+    limit(80)
+  );
+  _chatUnsub = onSnapshot(q, snap => {
+    snap.docChanges().forEach(change => {
+      if (change.type === 'added') _appendChat(change.doc.data());
+    });
+  });
+}
+
+function _appendChat(msg) {
+  const wrap   = document.getElementById('snxvChatMessages');
+  const el     = document.createElement('div');
+  el.className = 'snxv-chat-msg snxv-fadein';
+  const name   = _esc(msg.userName || msg.displayName || 'User');
+  const text   = _esc(msg.text || msg.message || '');
+  el.innerHTML = `<span class="snxv-cm-name">${name}:</span><span class="snxv-cm-text">${text}</span>`;
+  wrap.appendChild(el);
+  // Auto-scroll
+  const atBottom = wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 40;
+  if (atBottom) wrap.scrollTop = wrap.scrollHeight;
+  // Limit DOM size
+  while (wrap.children.length > 120) wrap.removeChild(wrap.firstChild);
+}
+
+// ── Health poll (from CloudStream worker) ─────────────────────────────────
+function _startHealthPoll() {
+  // Studio Live streams have no cloudStreamId — the connection flow in
+  // _initiateViewerConnection owns the status overlay entirely.
+  // Do NOT call _setStatus here; it would stomp over "Connecting…" / "Starting…".
+  if (!_cloudStreamId) return;
+  _pollHealth();
+  _healthInterval = setInterval(_pollHealth, 20000);  // 20s for timely music track sync
+  // Subscribe to Firestore for near-realtime music track updates
+  _startMusicPlayer(_cloudStreamId);
+}
+
+async function _pollHealth() {
+  if (!_cloudStreamId) return;
+  try {
+    const r = await fetch(CLOUDSTREAM_WORKER + '/api/stream/health/' + _cloudStreamId);
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!data.success) return;
+
+    // Update uptime display
+    const uptimeMins = data.uptime || 0;
+    const h = Math.floor(uptimeMins / 60);
+    const m = uptimeMins % 60;
+    document.getElementById('snxvStatUptime').textContent = h > 0 ? `${h}h ${m}m` : `${m}m`;
+
+    // Update scene
+    if (data.currentScene) {
+      const scCard = document.getElementById('snxvSceneCard');
+      scCard.style.display = '';
+      document.getElementById('snxvSceneName').textContent = data.currentScene;
+      const sceneEl = document.getElementById('snxvStatusScene');
+      sceneEl.textContent = '▶ ' + data.currentScene;
+      sceneEl.style.display = '';
+    }
+
+    // Stream offline?
+    if (data.status === 'stopped' || data.status === 'failed') {
+      _setStatus('Stream ended', 'The CloudStream has finished. Thanks for watching! 🌑', '✅');
+      _cleanupPolling();
+      _stopMusicPlayer();
+    } else {
+      const _pt = _roomData ? _roomData.title || '' : '';
+      if (_roomData && _roomData.type === '24hour_studio_live') {
+        _setStatus('🎬 Studio Live', _pt, '🎬');
+      } else {
+        _setStatus('CloudStream Active', _pt, '☁️');
+      }
+      document.getElementById('snxvLiveBadge').style.display = '';
+      // Sync music player from the health data (worker already read KV for us)
+      if (typeof _syncMusicFromHealth === 'function') _syncMusicFromHealth(data);
+    }
+  } catch {}
+}
+
+function _cleanupPolling() {
+  if (_healthInterval)    { clearInterval(_healthInterval); _healthInterval = null; }
+  if (_startingRetryTmr)  { clearTimeout(_startingRetryTmr); _startingRetryTmr = null; }
+  if (_chatUnsub)         { _chatUnsub(); _chatUnsub = null; }
+  if (_creatorUnsub)      { _creatorUnsub(); _creatorUnsub = null; }
+  _teardownViewerWebRTC();
+  if (typeof _stopMusicPlayer === 'function') _stopMusicPlayer();
+}
+
+// ── Increment viewer count ────────────────────────────────────────────────
+function _incrementViewers() {
+  try {
+    updateDoc(doc(db, _roomCollection, _roomId), { viewers: increment(1) }).catch(()=>{});
+  } catch {}
+  // Decrement on unload
+  window.addEventListener('beforeunload', () => {
+    try { updateDoc(doc(db, _roomCollection, _roomId), { viewers: increment(-1) }).catch(()=>{}); } catch {}
+  });
+}
+
+// ── Set status overlay ────────────────────────────────────────────────────
+function _setStatus(text, sub, icon) {
+  // If the WebRTC video is already playing, don't restore the overlay on top of it.
+  const vid = document.getElementById('snxvLiveVideo');
+  const isVideoLive = vid && vid.srcObject && vid.style.display !== 'none';
+  if (isVideoLive) return;
+
+  const overlay = document.getElementById('snxvStatusOverlay');
+  if (overlay) overlay.style.display = '';   // make sure overlay is visible
+  document.getElementById('snxvStatusText').textContent = text;
+  document.getElementById('snxvStatusSub').textContent  = sub || '';
+  document.querySelector('#snxvStatusOverlay .snxv-status-icon').textContent = icon || '☁️';
+}
+
+// ── Send chat ─────────────────────────────────────────────────────────────
+// Requires authenticated SNX user — anonymous/signed-out users are redirected.
+window.snxvSendChat = async function() {
+  if (!_currentUser) {
+    _toast('Sign in to Shadow Nexus Social to chat.');
+    return;
+  }
+  const input = document.getElementById('snxvChatBox');
+  const text  = input.value.trim();
+  if (!text || !_roomId) return;
+  input.value = '';
+  try {
+    await addDoc(collection(db, _roomCollection, _roomId, 'liveMessages'), {
+      userId:      _currentUser.uid,
+      userName:    _userData ? (_userData.displayName || _userData.username || _currentUser.displayName || 'User') : (_currentUser.displayName || 'User'),
+      displayName: _userData ? (_userData.displayName || '') : (_currentUser.displayName || ''),
+      text,
+      createdAt:   serverTimestamp()
+    });
+  } catch (e) {
+    _toast('Could not send message: ' + e.message);
+  }
+};
+
+// ── Send like ─────────────────────────────────────────────────────────────
+// Requires authenticated SNX user — rejects anonymous/signed-out with a
+// redirect prompt rather than silently failing or asking for CloudStream login.
+window.snxvSendLike = async function() {
+  if (!_currentUser) {
+    _toast('Sign in to Shadow Nexus Social to like this stream.');
+    return;
+  }
+  if (!_roomId) return;
+  try {
+    await updateDoc(doc(db, _roomCollection, _roomId), { likes: increment(1) });
+    _toast('❤️ Liked!');
+  } catch (e) {
+    _toast('Could not like: ' + e.message);
+  }
+};
+
+// ── Gift ─────────────────────────────────────────────────────────────────
+// Opens the SNX gift tray which is loaded via snx-gifts.js above.
+// The gift tray uses window._snxCurrentUser / window._snxFirestore set in
+// the auth handler, so coin balance and transactions use the SNX identity.
+window.snxvOpenGifts = function() {
+  if (!_currentUser) {
+    _toast('Sign in to Shadow Nexus Social to send gifts.');
+    return;
+  }
+  if (!_roomData) { _toast('Stream not ready yet.'); return; }
+
+  const creatorUid  = _roomData.hostId;
+  const creatorName = _roomData.hostName || _roomData.hostUsername || 'Creator';
+
+  // snxgOpenGiftTray is exported by snx-gifts.js
+  if (typeof window.snxgOpenGiftTray === 'function') {
+    window.snxgOpenGiftTray(null /* postId (null = live) */, creatorUid, true /* isLive */);
+  } else {
+    _toast('Gift system is loading, please try again.');
+  }
+};
+
+// ── Share ─────────────────────────────────────────────────────────────────
+window.snxvShare = function() {
+  const url = location.href;
+  if (navigator.share) {
+    navigator.share({ title: 'Shadow Nexus CloudStream', url }).catch(()=>{});
+  } else {
+    navigator.clipboard.writeText(url).then(() => _toast('Link copied!')).catch(() => _toast(url));
+  }
+};
+
+// ── Utility ───────────────────────────────────────────────────────────────
+function _esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Debug logger — writes to the on-screen panel inside the overlay ──────
+function _rtcLog(msg) {
+  console.log('[SNX Viewer]', msg);
+  const el = document.getElementById('snxvRtcDbg');
+  if (el) {
+    const line = document.createElement('div');
+    line.textContent = new Date().toTimeString().slice(0,8) + ' ' + msg;
+    el.appendChild(line);
+    // Keep last 12 lines
+    while (el.children.length > 12) el.removeChild(el.firstChild);
+  }
+}
+
+// ── WebRTC Viewer Engine ──────────────────────────────────────────────────
+// Signaling path: studioLiveConnections/{hostUid}/viewers/{myUid}
+//   Host writes: offer + hostCandidates
+//   Viewer writes: answer + viewerCandidates
+// ─────────────────────────────────────────────────────────────────────────
+async function _startViewerWebRTC() {
+  if (!_hostUid) { _rtcLog('❌ hostUid not set'); return; }
+
+  // Guard: prevent concurrent invocations (e.g. from snapshot + poll race)
+  if (_rtcStarting) { _rtcLog('⚠ already starting — skipping duplicate call'); return; }
+  _rtcStarting = true;
+
+  // Clean up any stale offer-wait listener before a new attempt
+  if (_offerWaitUnsub && _offerWaitRef) {
+    try { rtdbOff(_offerWaitRef); } catch(_) {}
+    _offerWaitUnsub = null;
+    _offerWaitRef   = null;
+  }
+
+  const myUid     = _currentUser ? _currentUser.uid
+                                 : 'anon_' + Math.random().toString(36).slice(2);
+  const sessionId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const slotPath  = `studioLiveConnections/${_hostUid}/viewers/${myUid}`;
+  const slotRef   = rtdbRef(rtdb, slotPath);
+
+  _rtcLog(`▶ start  hostUid=${_hostUid.slice(0,8)}  myUid=${myUid.slice(0,8)}`);
+  _rtcLog(`  auth=${_currentUser ? 'yes' : 'NO — anon'}`);
+
+  // Write viewer presence — signals the host to create a peer for us
+  try {
+    await rtdbSet(slotRef, { sessionId, viewerCandidates: {} });
+    _rtcLog('✔ presence written');
+  } catch(e) {
+    _rtcLog('❌ presence write FAILED: ' + e.message);
+    _rtcStarting = false;
+    return;
+  }
+
+  // Poll for the host's offer (up to 20 s, 500 ms intervals)
+  let slotSnap = null;
+  for (let i = 0; i < 40; i++) {
+    try { slotSnap = await rtdbGet(slotRef); } catch(e) { _rtcLog('  get err: ' + e.message); }
+    if (slotSnap && slotSnap.exists() && slotSnap.val().offer) {
+      _rtcLog(`✔ offer received (poll ${i+1})`);
+      break;
+    }
+    _rtcLog(`  poll ${i+1}/40 — slot=${slotSnap && slotSnap.exists() ? JSON.stringify(Object.keys(slotSnap.val())) : 'empty'}`);
+    slotSnap = null;
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  if (!slotSnap) {
+    _rtcLog('⏳ offer timeout — installing persistent listener for offer arrival');
+    _setStatus('Connecting…', 'Waiting for creator\'s video signal…', '🔄');
+    // Store in module-level vars so they can be cleaned up properly
+    _offerWaitRef   = slotRef;
+    _offerWaitUnsub = rtdbOnValue(_offerWaitRef, async snap => {
+      if (!snap.exists() || !snap.val().offer) return;
+      _rtcLog('✔ offer arrived via listener — connecting');
+      try { rtdbOff(_offerWaitRef); } catch(_) {}
+      _offerWaitUnsub = null;
+      _offerWaitRef   = null;
+      _rtcStarting    = false;
+      _startViewerWebRTC();
+    });
+    _rtcStarting = false;
+    return;
+  }
+
+  // Cancel any existing peer connection (keepPresence=true so we don't wipe our slot)
+  _teardownViewerWebRTC(true);
+
+  _rtcLog('✔ creating RTCPeerConnection');
+  _rtcPc = new RTCPeerConnection(_SNXV_ICE);
+
+  _rtcPc.ontrack = (e) => {
+    _rtcLog('🎥 ontrack fired — kind=' + e.track.kind);
+    const stream = (e.streams && e.streams[0]) ? e.streams[0] : new MediaStream([e.track]);
+    const vid    = document.getElementById('snxvLiveVideo');
+    if (!vid) return;
+    if (vid.srcObject !== stream) {
+      vid.srcObject = stream;
+      vid.muted     = false;
+      vid.play().catch(() => { vid.muted = true; vid.play().catch(() => {}); });
+    }
+    vid.style.display = '';
+    const overlay = document.getElementById('snxvStatusOverlay');
+    if (overlay) overlay.style.display = 'none';
+    document.getElementById('snxvStatStatus').textContent = '🟢 LIVE';
+    _rtcStarting = false;
+  };
+
+  _rtcPc.onicecandidate = async (e) => {
+    if (!e.candidate) return;
+    _rtcLog('→ sending ICE candidate');
+    try {
+      const candKey = 'c' + Date.now() + '_' + Math.random().toString(36).slice(2);
+      await rtdbSet(
+        rtdbRef(rtdb, `studioLiveConnections/${_hostUid}/viewers/${myUid}/viewerCandidates/${candKey}`),
+        e.candidate.toJSON()
+      );
+    } catch(e) { _rtcLog('ICE write err: ' + e.message); }
+  };
+
+  _rtcPc.onconnectionstatechange = () => {
+    const state = _rtcPc ? _rtcPc.connectionState : 'none';
+    _rtcLog('🔌 peer state → ' + state);
+    if (state === 'failed' || state === 'disconnected') {
+      setTimeout(() => {
+        if (_rtcPc && (_rtcPc.connectionState === 'failed' || _rtcPc.connectionState === 'disconnected')) {
+          _rtcLog('↺ reconnecting…');
+          _rtcStarting = false;
+          _startViewerWebRTC();
+        }
+      }, 3000);
+    } else if (state === 'closed') {
+      _rtcStarting = false;
+      _teardownViewerWebRTC();
+    }
+  };
+
+  _rtcPc.oniceconnectionstatechange = () => {
+    if (_rtcPc) _rtcLog('🧊 ICE state → ' + _rtcPc.iceConnectionState);
+  };
+
+  // Listen for additional ICE candidates from the host arriving after offer
+  _rtcSignalRef   = slotRef;
+  _rtcSignalUnsub = rtdbOnValue(slotRef, snap => {
+    if (!snap.exists() || !_rtcPc || !_rtcPc.remoteDescription) return;
+    const d = snap.val() || {};
+    if (d.hostCandidates) {
+      Object.values(d.hostCandidates).forEach(c => {
+        if (!c || !c.candidate) return;
+        _rtcPc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+      });
+    }
+  });
+
+  // Set remote description (offer) and create answer
+  const offerData = slotSnap.val().offer;
+  try {
+    _rtcLog('⚙ setRemoteDescription…');
+    await _rtcPc.setRemoteDescription(new RTCSessionDescription(offerData));
+
+    const hostCands = slotSnap.val().hostCandidates || {};
+    const candCount = Object.keys(hostCands).length;
+    _rtcLog(`  applying ${candCount} bundled host ICE candidates`);
+    for (const c of Object.values(hostCands)) {
+      if (c && c.candidate) await _rtcPc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+    }
+
+    _rtcLog('⚙ createAnswer…');
+    const answer = await _rtcPc.createAnswer();
+    await _rtcPc.setLocalDescription(answer);
+
+    _rtcLog('⚙ writing answer to RTDB…');
+    await rtdbSet(
+      rtdbRef(rtdb, `studioLiveConnections/${_hostUid}/viewers/${myUid}/answer`),
+      { type: answer.type, sdp: answer.sdp }
+    );
+    _rtcLog('✔ answer written — waiting for ICE');
+    // Negotiation complete; ontrack will fire and clear _rtcStarting when media arrives
+  } catch(e) {
+    _rtcLog('❌ offer/answer failed: ' + e.message);
+    _rtcStarting = false;
+    _teardownViewerWebRTC();
+  }
+}
+
+function _teardownViewerWebRTC(keepPresence = false) {
+  _rtcStarting = false;
+  if (_rtcSignalUnsub && _rtcSignalRef) {
+    try { rtdbOff(_rtcSignalRef); } catch(_) {}
+    _rtcSignalUnsub = null;
+    _rtcSignalRef   = null;
+  }
+  if (_offerWaitUnsub && _offerWaitRef) {
+    try { rtdbOff(_offerWaitRef); } catch(_) {}
+    _offerWaitUnsub = null;
+    _offerWaitRef   = null;
+  }
+  if (_rtcPc) {
+    _rtcPc.ontrack = null;
+    _rtcPc.onicecandidate = null;
+    _rtcPc.onconnectionstatechange = null;
+    _rtcPc.oniceconnectionstatechange = null;
+    try { _rtcPc.close(); } catch(_) {}
+    _rtcPc = null;
+  }
+  // Hide the video element
+  const vid = document.getElementById('snxvLiveVideo');
+  if (vid) { vid.srcObject = null; vid.style.display = 'none'; }
+  // Only restore the status overlay if this is a genuine teardown (not keepPresence rebuild)
+  if (!keepPresence) {
+    const overlay = document.getElementById('snxvStatusOverlay');
+    if (overlay) overlay.style.display = '';
+  }
+  // Remove viewer slot from RTDB
+  if (!keepPresence && _hostUid && _currentUser) {
+    try {
+      rtdbRemove(rtdbRef(rtdb, `studioLiveConnections/${_hostUid}/viewers/${_currentUser.uid}`)).catch(() => {});
+    } catch(_) {}
+  }
+}
+
+// ── Desktop side-column: move chat on wide screens ─────────────────────────
+function _handleLayout() {
+  const sideCol  = document.getElementById('snxvSideCol');
+  const chatWrap = document.getElementById('snxvChatWrap');
+  if (window.innerWidth >= 900) {
+    sideCol.style.display = '';
+    if (!sideCol.contains(chatWrap)) sideCol.appendChild(chatWrap);
+  } else {
+    sideCol.style.display = 'none';
+    const streamCol = document.getElementById('snxvStreamCol');
+    if (!streamCol.contains(chatWrap)) streamCol.appendChild(chatWrap);
+  }
+}
+window.addEventListener('resize', _handleLayout);
+_handleLayout();
+
+// ═══════════════════════════════════════════════════════
+// CLOUDSTREAM MUSIC PLAYER
+// Subscribes to studioCloudStreamMusic/{cloudStreamId}
+// and plays the current track URL directly from R2.
+// Track changes push from the Cloudflare Durable Object
+// alarm via Firestore REST, so audio updates without the
+// creator keeping their device open.
+// ═══════════════════════════════════════════════════════
+
+let _npAudio          = null;   // current HTMLAudioElement
+let _npCurrentId      = null;   // currently-loaded track ID
+let _npUnsub          = null;   // Firestore onSnapshot unsubscribe
+let _npMuted          = false;
+let _npVolume         = 0.8;
+let _npProgressTmr    = null;
+const _NP_BAR         = () => document.getElementById('snxvNowPlaying');
+const _NP_TITLE       = () => document.getElementById('snxvNpTitle');
+const _NP_ARTIST      = () => document.getElementById('snxvNpArtist');
+const _NP_NEXT        = () => document.getElementById('snxvNpNext');
+const _NP_FILL        = () => document.getElementById('snxvNpProgressFill');
+
+// Called once cloudStreamId is known (from _loadRoom → _cloudStreamId is set)
+function _startMusicPlayer(cloudStreamId) {
+  if (!cloudStreamId) return;
+  _stopMusicPlayer();   // tear down any prior session
+
+  // ── Subscribe to Firestore studioCloudStreamMusic/{cloudStreamId} ─────────
+  // The Cloudflare Durable Object alarm updates this doc every track.
+  // The creator's browser also pushes to it when they select a track.
+  if (window._snxFirestore) {
+    const fs = window._snxFirestore;
+    _npUnsub = fs.onSnapshot(
+      fs.doc(fs.db, 'studioCloudStreamMusic', cloudStreamId),
+      snap => {
+        if (!snap || !snap.exists()) {
+          // Firestore doc not yet created — fall back to the health endpoint
+          // which reads from KV (always authoritative regardless of Firestore state).
+          _fetchAndPlayCurrentTrack(cloudStreamId);
+          return;
+        }
+        const d = snap.data();
+        // Only act if the status is playing and there is a track
+        if (d.status === 'stopped' || d.status === 'ended' || d.status === 'paused') {
+          _pauseNpAudio();
+          return;
+        }
+        // Fast path: if the Firestore doc includes currentTrackUrl (written by the
+        // studio queue system or the DO alarm), play it directly without a health
+        // endpoint round-trip.
+        if (d.currentTrackUrl) {
+          const trackId = d.currentTrackId || d.currentTrackUrl;
+          if (trackId !== _npCurrentId) {
+            _loadNpTrack(
+              d.currentTrackUrl,
+              trackId,
+              d.currentTitle    || '',
+              d.currentArtist   || '',
+              d.nextTitle       || '',
+              d.currentDuration || 0,
+              (d.volume || 80) / 100
+            );
+          } else if (!_npAudio || _npAudio.paused) {
+            if (_npAudio) _npAudio.play().catch(() => {});
+          }
+          _updateNpUI(d.currentTitle || '', d.currentArtist || '', d.nextTitle || '');
+          return;
+        }
+        // Fallback: fetch URL from the worker health endpoint (KV authoritative source)
+        _fetchAndPlayCurrentTrack(cloudStreamId);
+      },
+      () => {
+        // Firestore subscription failed — fall back to health endpoint polling only
+        _fetchAndPlayCurrentTrack(cloudStreamId);
+      }
+    );
+  }
+
+  // Always do an immediate health fetch so audio starts as soon as the viewer opens,
+  // regardless of whether the Firestore doc exists yet.
+  _fetchAndPlayCurrentTrack(cloudStreamId);
+}
+
+function _stopMusicPlayer() {
+  if (_npUnsub) { try { _npUnsub(); } catch(_) {} _npUnsub = null; }
+  _stopNpAudio();
+}
+
+async function _fetchAndPlayCurrentTrack(cloudStreamId) {
+  try {
+    const r = await fetch(CLOUDSTREAM_WORKER + '/api/stream/health/' + cloudStreamId);
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!data.success) return;
+    if (data.musicStatus === 'no_music' || data.musicStatus === 'ended' || !data.currentMusicUrl) {
+      // No music currently — hide bar
+      const bar = _NP_BAR();
+      if (bar) bar.style.display = 'none';
+      return;
+    }
+    // Play if:
+    //   a) track ID changed, OR
+    //   b) we have no audio playing at all yet (_npCurrentId is null / no audio element)
+    const trackChanged = data.currentMusicId && data.currentMusicId !== _npCurrentId;
+    const noAudioYet   = !_npCurrentId && (!_npAudio || _npAudio.paused);
+    if (trackChanged || noAudioYet) {
+      _loadNpTrack(data.currentMusicUrl, data.currentMusicId || data.currentMusicUrl,
+                   data.currentMusicTitle, data.currentMusicArtist,
+                   data.nextMusicTitle, data.currentMusicDuration || 0,
+                   (data.musicVolume || 80) / 100);
+    } else if (_npAudio && _npAudio.paused) {
+      // Same track but audio was stopped — resume
+      _npAudio.play().catch(() => {});
+    }
+    // Update UI regardless (title/next might have changed)
+    _updateNpUI(data.currentMusicTitle, data.currentMusicArtist, data.nextMusicTitle);
+  } catch (_) {}
+}
+
+function _loadNpTrack(url, id, title, artist, nextTitle, durationSecs, volume) {
+  _stopNpAudio();
+
+  _npCurrentId = id;
+  const audio  = new Audio();
+  audio.crossOrigin  = 'anonymous';
+  audio.preload      = 'auto';
+  audio.volume       = _npMuted ? 0 : Math.min(1, Math.max(0, _npVolume));
+  _npAudio = audio;
+
+  audio.ontimeupdate = () => {
+    const fill = _NP_FILL();
+    if (fill && audio.duration) {
+      fill.style.width = ((audio.currentTime / audio.duration) * 100) + '%';
+    }
+  };
+
+  audio.onended = () => {
+    // Let the DO alarm advance the track; re-poll health in 3 s
+    setTimeout(() => {
+      if (_cloudStreamId) _fetchAndPlayCurrentTrack(_cloudStreamId);
+    }, 3000);
+  };
+
+  audio.onerror = () => {
+    // On error, try again after a short delay
+    setTimeout(() => {
+      if (_cloudStreamId) _fetchAndPlayCurrentTrack(_cloudStreamId);
+    }, 5000);
+  };
+
+  // Set src AFTER event handlers to avoid missed events on fast loads
+  audio.src = url;
+  audio.play().catch(() => {
+    // Autoplay blocked by browser — show a play button hint
+    const bar = _NP_BAR();
+    if (bar) {
+      const hint = bar.querySelector('.snxv-np-play-hint') || (() => {
+        const b = document.createElement('div');
+        b.className = 'snxv-np-play-hint';
+        b.style.cssText = 'font-size:11px;color:#ffaa00;margin-top:4px;cursor:pointer;';
+        b.textContent = '▶ Tap to hear music';
+        b.onclick = () => { audio.play().catch(() => {}); b.remove(); };
+        bar.appendChild(b);
+        return b;
+      })();
+    }
+  });
+
+  _updateNpUI(title, artist, nextTitle);
+
+  // Show bar
+  const bar = _NP_BAR();
+  if (bar) bar.style.display = '';
+}
+
+function _updateNpUI(title, artist, next) {
+  const t = _NP_TITLE(), a = _NP_ARTIST(), n = _NP_NEXT();
+  if (t) t.textContent = title  || '—';
+  if (a) a.textContent = artist || '';
+  if (n) n.textContent = next   ? '▶ Next: ' + next : '';
+}
+
+function _stopNpAudio() {
+  if (_npProgressTmr) { clearInterval(_npProgressTmr); _npProgressTmr = null; }
+  if (_npAudio) {
+    _npAudio.onended = null;
+    _npAudio.onerror = null;
+    _npAudio.ontimeupdate = null;
+    try { _npAudio.pause(); _npAudio.src = ''; } catch(_) {}
+    _npAudio = null;
+  }
+  _npCurrentId = null;
+  const fill = _NP_FILL();
+  if (fill) fill.style.width = '0%';
+}
+
+function _pauseNpAudio() {
+  if (_npAudio && !_npAudio.paused) { try { _npAudio.pause(); } catch(_) {} }
+}
+
+// Volume / mute controls exposed to HTML onclick handlers
+window.snxvToggleMute = function() {
+  _npMuted = !_npMuted;
+  if (_npAudio) _npAudio.volume = _npMuted ? 0 : _npVolume;
+  const btn = document.getElementById('snxvNpMute');
+  if (btn) btn.textContent = _npMuted ? '🔇' : '🔊';
+};
+
+window.snxvSetVolume = function(val) {
+  _npVolume = parseInt(val, 10) / 100;
+  _npMuted = false;
+  if (_npAudio) _npAudio.volume = _npVolume;
+  const btn = document.getElementById('snxvNpMute');
+  if (btn) btn.textContent = _npVolume > 0 ? '🔊' : '🔇';
+};
+
+// ── _syncMusicFromHealth — called by the music player's own poll and
+//    by the patched _pollHealth below after health data is received ─────────
+function _syncMusicFromHealth(data) {
+  if (!data) return;
+  if (data.currentMusicUrl && data.musicStatus !== 'no_music' && data.musicStatus !== 'ended') {
+    if (data.currentMusicId && data.currentMusicId !== _npCurrentId) {
+      _loadNpTrack(data.currentMusicUrl, data.currentMusicId,
+                   data.currentMusicTitle, data.currentMusicArtist,
+                   data.nextMusicTitle, data.currentMusicDuration || 0,
+                   (data.musicVolume || 80) / 100);
+    } else {
+      _updateNpUI(data.currentMusicTitle, data.currentMusicArtist, data.nextMusicTitle);
+    }
+  } else {
+    const bar = _NP_BAR(); if (bar) bar.style.display = 'none';
+  }
+}
+
+</script>
+</body>
+</html>
