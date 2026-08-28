@@ -40,13 +40,13 @@ import {
 
 /* ─── Firebase config ─────────────────────────────────────────────────── */
 const FIREBASE_CONFIG = {
-  apiKey:            'AIzaSyB2M8sgU__2s0oVa5y4-s1S294aP5CBdeQ',
-  authDomain:        'remix-studio-4bf8a.firebaseapp.com',
-  databaseURL:       'https://remix-studio-4bf8a-default-rtdb.firebaseio.com',
-  projectId:         'remix-studio-4bf8a',
-  storageBucket:     'remix-studio-4bf8a.firebasestorage.app',
-  messagingSenderId: '220851113113',
-  appId:             '1:220851113113:web:bb3cd4e44f478d3925fc08'
+  apiKey:            'AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y',
+  authDomain:        'horr-a08f4.firebaseapp.com',
+  databaseURL:       'https://horr-a08f4-default-rtdb.firebaseio.com',
+  projectId:         'horr-a08f4',
+  storageBucket:     'horr-a08f4.firebasestorage.app',
+  messagingSenderId: '933810617818',
+  appId:             '1:933810617818:web:efb24f123337dd987c14e3'
 };
 
 /* ─── Singleton init ──────────────────────────────────────────────────── */

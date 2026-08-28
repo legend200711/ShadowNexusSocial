@@ -48,7 +48,7 @@ const MIN_PURCHASE_USD  = 0.01;
 const MAX_PURCHASE_USD  = 100.00;
 const MIN_PAYOUT_USD    = 1.00;
 const PAYOUT_COOLDOWN_H = 24;    // hours between payouts
-const FIREBASE_PROJECT  = 'remix-studio-4bf8a';
+const FIREBASE_PROJECT  = 'horr-a08f4';
 
 // ─── CORS Helper ──────────────────────────────────────────────────────────────
 
@@ -536,7 +536,7 @@ async function fbVerifyToken(idToken) {
   // Use Google's public key endpoint to verify the Firebase ID token.
   // Firebase ID tokens have aud = Firebase project ID (not the numeric sender ID).
   const res = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=AIzaSyB2M8sgU__2s0oVa5y4-s1S294aP5CBdeQ`,
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=AIzaSyByZRmp6R9HY17T2_WdJUFWeeaLNOP6y2Y`,
     {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },

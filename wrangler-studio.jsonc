@@ -50,7 +50,7 @@
   // ── Non-secret config vars ──
   "vars": {
     "SNX_ORIGIN": "https://shadownexussocial.online",
-    "FIREBASE_PROJECT_ID": "remix-studio-4bf8a",
+    "FIREBASE_PROJECT_ID": "horr-a08f4",
     "WORKER_ENV": "production"
   }
 

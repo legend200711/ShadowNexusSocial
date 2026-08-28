@@ -1,6 +1,6 @@
 {
   "projects": {
-    "default": "remix-studio-4bf8a"
+    "default": "horr-a08f4"
   },
   "firestore": {
     "rules": "firestore.rules",
