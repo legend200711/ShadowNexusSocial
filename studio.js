@@ -26,7 +26,7 @@
    0. CONSTANTS
 ═══════════════════════════════════════════════════════ */
 var STUDIO_VERSION = '1.2.0';
-var APP_BUILD_VERSION = '2026-08-26-GLOBAL-HARD-UPDATE';
+var APP_BUILD_VERSION = '2026-08-27-STABILITY-FIX';
 
 // Expose for debug panels and version verification
 window.SNX_STUDIO_BUILD = APP_BUILD_VERSION;
@@ -208,17 +208,22 @@ var _csMusic = {
 ═══════════════════════════════════════════════════════ */
 window.snxStudioInit = function() {
   window._snxOnAuthReady(function() {
-    _state.user     = window._snxCurrentUser || null;
-    _state.userData = window._snxUserData || null;
-    if (!_state.user) { _showStudioError('Please sign in to use 24-Hour Studio.'); return; }
-    _loadStudioSettings();
-    _checkActiveCloudStream();
-    _renderStatusBar();
-    // Always start at main landing — user explicitly chooses Live Studio or Cloud Stream
-    _switchSection('main');
-    // Always load the permanent queue — not gated on active stream
-    // This ensures the queue persists across page refreshes for all users.
-    _sqLoad();
+    try {
+      _state.user     = window._snxCurrentUser || null;
+      _state.userData = window._snxUserData || null;
+      if (!_state.user) { _showStudioError('Please sign in to use 24-Hour Studio.'); return; }
+      _loadStudioSettings();
+      _checkActiveCloudStream();
+      _renderStatusBar();
+      // Always start at main landing — user explicitly chooses Live Studio or Cloud Stream
+      _switchSection('main');
+      // Always load the permanent queue — not gated on active stream
+      // This ensures the queue persists across page refreshes for all users.
+      _sqLoad();
+    } catch(e) {
+      console.error('[SNX Studio] init error (isolated — main app unaffected):', e);
+      _showStudioError('Studio failed to load. Please refresh and try again.');
+    }
   });
 };
 

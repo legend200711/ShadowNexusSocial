@@ -1,8 +1,8 @@
 {
-  "buildId": "2026-08-26-GLOBAL-HARD-UPDATE",
-  "swVersion": "v29",
-  "deployedAt": "2026-08-26T04:00:00Z",
+  "buildId": "2026-08-27-STABILITY-FIX",
+  "swVersion": "v30",
+  "deployedAt": "2026-08-27T00:00:00Z",
   "project": "horr-a08f4",
   "studioVersion": "1.2.0",
-  "note": "Global hard update: Live Control Room iframe flow, CS Music Upload fix, Viewers Box, END LIVE button, full production refresh v29."
+  "note": "Stability fix: auth-gate timeout fallback, initializeApp guard, removed siteSettings write loop, studio isolation."
 }

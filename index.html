@@ -6537,8 +6537,43 @@ body.arcade-fs-ios body::after { display:none !important; }
 <div id="snx-auth-gate" aria-hidden="true">
     <div class="snx-gate-logo">🌑</div>
     <div class="snx-gate-spinner"></div>
-    <div class="snx-gate-label">Loading…</div>
+    <div class="snx-gate-label" id="snxGateLabel">Loading…</div>
 </div>
+
+<!-- ── Auth gate timeout fallback ──────────────────────────────────────
+     If Firebase Auth has not resolved within 12 seconds the gate shows
+     a retry button so the user is never permanently stuck at "Loading…".
+     This fires independently of any Firebase SDK call — it is purely a
+     UI safety net.  The gate is still dismissed normally by the
+     onAuthStateChanged callback when auth does eventually resolve.
+     ──────────────────────────────────────────────────────────────────── -->
+<script>
+(function() {
+  var _gateTimeout = setTimeout(function() {
+    // If auth has already resolved, the gate is already dismissed — do nothing.
+    if (window._snxAuthResolved) return;
+    var label = document.getElementById('snxGateLabel');
+    var gate  = document.getElementById('snx-auth-gate');
+    if (!gate || gate.classList.contains('resolved')) return;
+    // Show a retry button instead of spinning forever
+    if (label) label.innerHTML =
+      '<span style="color:#ff5566;font-size:12px;letter-spacing:0.5px;">Connection taking too long.</span>' +
+      '<button onclick="window.location.reload()" style="margin-top:14px;background:rgba(0,120,255,0.18);' +
+      'border:1px solid rgba(0,174,239,0.55);color:#00d4ff;padding:9px 22px;border-radius:8px;' +
+      'font-size:13px;font-weight:700;cursor:pointer;display:block;width:auto;letter-spacing:0.5px;">' +
+      '🔄 Retry</button>';
+  }, 12000);
+  // Cancel the timeout as soon as auth resolves
+  Object.defineProperty(window, '_snxAuthResolved', {
+    get: function() { return window.__snxAuthResolvedVal; },
+    set: function(v) {
+      window.__snxAuthResolvedVal = v;
+      if (v) clearTimeout(_gateTimeout);
+    },
+    configurable: true
+  });
+})();
+</script>
 
 <!-- ████ SHADOW NEXUS REALM — Entering Animation ████ -->
 <div id="snxEnterOverlay">
@@ -11137,7 +11172,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, browserLocalPersistence, setPersistence, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, getDocFromCache, getDocFromServer, updateDoc, deleteDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment, serverTimestamp, enableNetwork, disableNetwork } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
   import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
@@ -11153,7 +11188,8 @@ body.arcade-fs-ios body::after { display:none !important; }
     appId: "1:933810617818:web:efb24f123337dd987c14e3"
   };
 
-  const app = initializeApp(firebaseConfig);
+  // Guard against double-init (e.g. module evaluated twice in some browser contexts)
+  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
   const _presenceRtdb = _getRtdb(app);
@@ -12498,16 +12534,11 @@ body.arcade-fs-ios body::after { display:none !important; }
       // Defaults to true when the field is absent so the inbox is enabled by default.
       // Set messagesTabEnabled = false in siteSettings/config via Founder Controls to hide it.
       // Cache the raw value so _snxReapplyNavVisibility() can replay it after role resolves.
-      // Auto-heal: if the field was set to false by a code bug (not by an intentional Founder
-      // toggle this session), reset it to true immediately so users aren't locked out.
-      let _msgEnabled;
-      if (cfg.messagesTabEnabled === false && !window._snxFounderTabDisabled) {
-          // Treat as enabled optimistically while the reset write propagates
-          _msgEnabled = true;
-          setDoc(doc(db, 'siteSettings', 'config'), { messagesTabEnabled: true }, { merge: true }).catch(() => {});
-      } else {
-          _msgEnabled = cfg.messagesTabEnabled !== false;
-      }
+      // NOTE: The previous auto-heal write (setDoc messagesTabEnabled:true) was removed.
+      // It caused a write-on-every-read loop: onSnapshot fires → write → onSnapshot fires.
+      // If the field is absent or false, we treat it as enabled (default on).
+      // Only a Founder intentional action via the control panel ever sets it to false.
+      let _msgEnabled = cfg.messagesTabEnabled !== false;
       window._snxMessagesTabEnabled = _msgEnabled;
       window._snxCfgMessagesTabEnabled = _msgEnabled; // persisted cache
       _syncMessagesTabUI(_msgEnabled);
@@ -30985,8 +31016,8 @@ document.addEventListener('click', function(e) {
   'use strict';
 
   /* ── Build identifier ─────────────────────────────────── */
-  var BUILD_ID = '2026-08-25-24H-STUDIO-HARD-UPDATE';
-  var SW_VER   = 'v28';
+  var BUILD_ID = '2026-08-27-STABILITY-FIX';
+  var SW_VER   = 'v30';
   window.SHADOW_NEXUS_BUILD_VERSION = BUILD_ID;
   window.SHADOW_NEXUS_SW_VERSION    = SW_VER;
 
