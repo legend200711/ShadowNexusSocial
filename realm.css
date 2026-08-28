@@ -66,7 +66,7 @@
     0 0 100px rgba(0,174,239,0.35),
     0 0 130px rgba(57,255,20,0.18),
     0 0 200px rgba(57,255,20,0.08);
-  animation: enterLogoIn 1.2s ease both, enterLogoGlow 7s ease-in-out 1.2s infinite;
+  animation: enterLogoIn 1.2s ease both;
 }
 @keyframes enterLogoGlow {
   0%, 100% {

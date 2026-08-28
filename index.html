@@ -30439,17 +30439,21 @@ document.getElementById('gp-messages')?.addEventListener('touchmove', (e) => {
    1. ENTER OVERLAY — auto-dismiss after animation
    ═══════════════════════════════════════════════════════ */
 (function initEnterOverlay() {
-    // Only show once per session
     var overlay = document.getElementById('snxEnterOverlay');
     if (!overlay) return;
-    if (sessionStorage.getItem('snx-realm-entered')) {
+    // Mark as seen immediately so a hard-refresh before the timeout fires
+    // never replays the intro screen in the same session.
+    var alreadySeen = !!sessionStorage.getItem('snx-realm-entered');
+    sessionStorage.setItem('snx-realm-entered', '1');
+    if (alreadySeen) {
         overlay.style.display = 'none';
         return;
     }
-    // Dismiss after animation (3.2s fade + 0.8s) = 4s
+    // Dismiss after the CSS animation completes (3.2s fade + 0.8s = 4s).
+    // Also stop the CSS animation on every child so the browser releases
+    // the element from its animation engine once hidden.
     setTimeout(function() {
         overlay.classList.add('done');
-        sessionStorage.setItem('snx-realm-entered', '1');
     }, 4050);
 })();
 
