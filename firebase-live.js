@@ -18,7 +18,7 @@
  * RTDB signaling  /liveSignal/{roomId}/guests/{guestUid}/...
  */
 
-import { initializeApp, getApps } from
+import { initializeApp, getApps, getApp } from
   'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import {
   getAuth,
@@ -50,16 +50,16 @@ const FIREBASE_CONFIG = {
 };
 
 /* ─── Singleton init ──────────────────────────────────────────────────── */
-// Re-use the app if the main site already initialised it on this page,
-// otherwise create a secondary named app so both can coexist.
-const _app  = getApps().find(a => a.name === '[DEFAULT]') ||
-              getApps().find(a => a.name === 'live-page')  ||
-              initializeApp(FIREBASE_CONFIG, 'live-page');
+// Always reuse the existing [DEFAULT] app if one has already been initialised
+// (e.g. index.html loaded Firebase before this module was imported).
+// If no app exists yet (standalone live-hub.html, live-room.html etc.),
+// initialise a new [DEFAULT] app — never a named secondary app.
+// A named secondary app gets its own Auth instance that does NOT share the
+// persisted session written by index.html, causing the "logged-out race" bug.
+const _app  = getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG);
 export const _auth = getAuth(_app);
 
 // Ensure the live page reads the same persisted session that index.html wrote.
-// browserLocalPersistence is the default for web but we set it explicitly so
-// the named 'live-page' app instance always uses the same localStorage token.
 setPersistence(_auth, browserLocalPersistence).catch(() => {});
 export const _db   = getFirestore(_app);
 export const _rtdb = getDatabase(_app);

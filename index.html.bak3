@@ -10848,22 +10848,6 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (!snap.exists()) return;
       const cfg = snap.data();
 
-      // Co-host system sync — broadcast to live page via localStorage flag
-      const coHostOn = cfg.coHostEnabled !== false;
-      window._snxCoHostEnabled = coHostOn;
-      const toggleCoHost = document.getElementById('toggleCoHost');
-      if (toggleCoHost) toggleCoHost.checked = coHostOn;
-      // Live enforcement: the moment the Founder disables the Co-Host System,
-      // hide any co-host invite pop-up that is currently on screen for this
-      // user, and clear the current-sender tracker so nothing re-appears. The
-      // global RTDB listener (see _snxGlobalCohostInvite) also short-circuits
-      // while the flag is OFF, so no new invites surface anywhere in the app.
-      if (!coHostOn) {
-        if (typeof _snxHideCohostInvitePopup === 'function') _snxHideCohostInvitePopup();
-        if (typeof window._snxHideCoHostInviteOverlay === 'function') window._snxHideCoHostInviteOverlay();
-        window._snxCohostCurrentSender = null;
-      }
-
       // AI moderation sync
       const isOn = cfg.aiModerationEnabled !== false;
       window._aiModerationEnabled = isOn;
@@ -10885,16 +10869,9 @@ body.arcade-fs-ios body::after { display:none !important; }
       // Defaults to true when the field is absent so the inbox is enabled by default.
       // Set messagesTabEnabled = false in siteSettings/config via Founder Controls to hide it.
       // Cache the raw value so _snxReapplyNavVisibility() can replay it after role resolves.
-      // Auto-heal: if the field was set to false by a code bug (not by an intentional Founder
-      // toggle this session), reset it to true immediately so users aren't locked out.
-      let _msgEnabled;
-      if (cfg.messagesTabEnabled === false && !window._snxFounderTabDisabled) {
-          // Treat as enabled optimistically while the reset write propagates
-          _msgEnabled = true;
-          setDoc(doc(db, 'siteSettings', 'config'), { messagesTabEnabled: true }, { merge: true }).catch(() => {});
-      } else {
-          _msgEnabled = cfg.messagesTabEnabled !== false;
-      }
+      // NOTE: do NOT write back to siteSettings/config here — writing from inside an
+      // onSnapshot on the same doc triggers another snapshot → infinite read/write loop.
+      let _msgEnabled = cfg.messagesTabEnabled !== false;
       window._snxMessagesTabEnabled = _msgEnabled;
       window._snxCfgMessagesTabEnabled = _msgEnabled; // persisted cache
       _syncMessagesTabUI(_msgEnabled);
@@ -26969,6 +26946,35 @@ window.switchAdminTab = function(tab) {
 
 <!-- ── Holiday Themes engine v2.0 ── -->
 <script src="holiday-themes.js"></script>
+
+<script>
+/* ── SERVICE WORKER RELOAD GUARD ─────────────────────────────────────────
+   Prevents the controllerchange → reload → controllerchange → reload loop.
+   Uses a sessionStorage key that script.js never clears.
+   ─────────────────────────────────────────────────────────────────────── */
+if ('serviceWorker' in navigator) {
+  var _SNX_RELOAD_KEY = 'snxSwReloadDone';
+  navigator.serviceWorker.ready.then(function(reg) {
+    function _activateWaiting() {
+      if (reg.waiting) { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); }
+    }
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      if (!sessionStorage.getItem(_SNX_RELOAD_KEY)) {
+        sessionStorage.setItem(_SNX_RELOAD_KEY, '1');
+        window.location.reload();
+      }
+    });
+    if (reg.waiting) { _activateWaiting(); }
+    reg.addEventListener('updatefound', function() {
+      var nw = reg.installing;
+      if (!nw) return;
+      nw.addEventListener('statechange', function() {
+        if (nw.state === 'installed' && navigator.serviceWorker.controller) { _activateWaiting(); }
+      });
+    });
+  }).catch(function() {});
+}
+</script>
 
 </body>
 </html>

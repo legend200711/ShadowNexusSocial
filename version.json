@@ -1,8 +1,8 @@
 {
-  "buildId": "2026-08-27-STABILITY-FIX",
-  "swVersion": "v30",
-  "deployedAt": "2026-08-27T00:00:00Z",
+  "buildId": "2026-08-28-SW-LOOP-FIX",
+  "swVersion": "v32",
+  "deployedAt": "2026-08-28T00:00:00Z",
   "project": "horr-a08f4",
   "studioVersion": "1.2.0",
-  "note": "Stability fix: auth-gate timeout fallback, initializeApp guard, removed siteSettings write loop, studio isolation."
+  "note": "SW loop fix: removed all controllerchange auto-reload and skipWaiting. Updates apply on next natural navigation."
 }

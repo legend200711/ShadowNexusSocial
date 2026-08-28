@@ -1,45 +1,21 @@
 {
   "rules": {
 
-    // ── Co-Host system ────────────────────────────────────────────────
-    //
-    //  cohosts/{liveId}/requests/{uid}
-    //    - Host writes the initial invite (from == auth.uid)
-    //    - Invitee (uid == auth.uid) updates status field only
-    //    - Host (from == auth.uid) can read all; invitee reads their own
-    //
-    //  cohosts/{liveId}/active/{uid}
-    //    - Only the invitee (uid == auth.uid) can create/update their own entry
-    //    - Host (liveId starts with safeUid of host — not feasible in RTDB rules,
-    //      so we allow any auth'd user to delete: host removes guests via their uid path)
-    //
-    //  cohosts/{liveId}/removed/{uid}
-    //    - Any authenticated user can write (host removes a co-host)
-    //
-    //  cohosts/{liveId}/settings
-    //    - Any authenticated user can read; any authenticated user can write
-    //      (host is the only one who opens settings UI — enforced in client code)
-    //
     "cohosts": {
       "$liveId": {
 
-        // Settings — host reads and writes; viewers read
         "settings": {
           ".read":  "auth != null",
           ".write": "auth != null"
         },
 
-        // Requests — host writes invite; invitee updates their own status
         "requests": {
           ".read": "auth != null",
           "$uid": {
-            // Any authenticated user can create a request node
-            // (host creates the initial invite, invitee never creates — only updates)
             ".write": "auth != null"
           }
         },
 
-        // Active co-hosts — the invitee writes their own entry; any auth'd user can delete
         "active": {
           ".read": "auth != null",
           "$uid": {
@@ -47,7 +23,6 @@
           }
         },
 
-        // Removed list — host writes when removing a co-host
         "removed": {
           ".read": "auth != null",
           "$uid": {
@@ -57,7 +32,6 @@
       }
     },
 
-    // ── Live Rooms ────────────────────────────────────────────────────
     "liveRooms": {
       "$roomId": {
         ".read":  "auth != null",
@@ -65,9 +39,6 @@
       }
     },
 
-    // ── WebRTC signaling (live-room.html / basic live system) ─────────
-    //  liveSignaling/{roomId}/viewers/{viewerUid}
-    //    → offer / answer / viewerIce / hostIce
     "liveSignaling": {
       "$roomId": {
         ".read":  "auth != null",
@@ -75,9 +46,13 @@
       }
     },
 
-    // ── Viewer + host presence (live-room.html) ────────────────────────
-    //  livePresence/{roomId}/host
-    //  livePresence/{roomId}/viewers/{uid}
+    "liveSignal": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
     "livePresence": {
       "$roomId": {
         ".read":  "auth != null",
@@ -85,10 +60,6 @@
       }
     },
 
-    // ── WebRTC signaling — live.js (Shadow Nexus Social Live) ─────────
-    // Structure: liveConnections/{hostUid}/viewers/{viewerUid}
-    // Used exclusively by Shadow Nexus Social Live (live.html / live.js).
-    // Studio Live uses studioLiveConnections — completely separate path.
     "liveConnections": {
       "$hostUid": {
         ".read":  "auth != null",
@@ -96,13 +67,6 @@
       }
     },
 
-    // ── WebRTC signaling — 24-Hour Studio Live ────────────────────────
-    // Structure: studioLiveConnections/{hostUid}/viewers/{viewerUid}
-    // Used exclusively by 24-Hour Studio (studio.js / studio-viewer.html).
-    // Shadow Nexus Social Live uses liveConnections — completely separate path.
-    // Both host and viewers are authenticated SNX users.
-    // Any authenticated user can read/write — signaling data is ephemeral
-    // and contains only SDP offers/answers and ICE candidates, no PII.
     "studioLiveConnections": {
       "$hostUid": {
         ".read":  "auth != null",
@@ -110,7 +74,6 @@
       }
     },
 
-    // ── Guest box requests ────────────────────────────────────────────
     "guestRequests": {
       "$roomId": {
         ".read":  "auth != null",
@@ -118,7 +81,6 @@
       }
     },
 
-    // ── Guest WebRTC signaling ────────────────────────────────────────
     "guestSignaling": {
       "$roomId": {
         ".read":  "auth != null",
@@ -126,7 +88,6 @@
       }
     },
 
-    // ── Guest presence in live rooms ──────────────────────────────────
     "liveGuests": {
       "$roomId": {
         ".read":  "auth != null",
@@ -134,7 +95,6 @@
       }
     },
 
-    // ── Guest→viewer relay signaling (host relays guest streams to all viewers) ──
     "guestViewerSignaling": {
       "$roomId": {
         ".read":  "auth != null",
@@ -142,7 +102,6 @@
       }
     },
 
-    // ── Storm Rooms ───────────────────────────────────────────────────
     "stormRooms": {
       "$roomId": {
         ".read":  "auth != null",
@@ -150,7 +109,6 @@
       }
     },
 
-    // ── Support Rooms ─────────────────────────────────────────────────
     "supportRooms": {
       "$roomId": {
         ".read":  "auth != null",
@@ -158,7 +116,6 @@
       }
     },
 
-    // ── User presence — each user owns their own node ─────────────────
     "presence": {
       "$uid": {
         ".read":  "auth != null",
@@ -166,7 +123,6 @@
       }
     },
 
-    // ── Per-user live status ──────────────────────────────────────────
     "userLive": {
       "$uid": {
         ".read":  "auth != null",
@@ -174,7 +130,6 @@
       }
     },
 
-    // ── Online / live presence for friends list ───────────────────────
     "users": {
       "$uid": {
         ".read":  "auth != null",

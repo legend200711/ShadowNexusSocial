@@ -15,22 +15,19 @@
 
 /* ═══════════════════════════════════════════════════════════
    3. SW UPDATE HANDLER
-   Called whenever a new SW version is ready (waiting state).
-   Strategy: auto-apply immediately (sw.js already calls skipWaiting
-   in its install event, so this just triggers the reload after the
-   controller has changed).  We never prompt the user — the reload
-   is silent and fast.
+   A new SW is waiting. Show a "refresh for update" toast.
+   We do NOT auto-reload — that causes reload loops.
+   The user can refresh manually at any time and will get
+   the new SW on the next page load.
    ═══════════════════════════════════════════════════════════ */
 function showUpdateToast(worker) {
-  // The SW's own install handler already called skipWaiting(), so
-  // the worker is either already active or will activate momentarily.
-  // Sending SKIP_WAITING is a belt-and-suspenders safety signal for
-  // any edge case where the SW did not call skipWaiting itself.
-  if (worker && worker.state !== 'activated') {
-    try { worker.postMessage({ type: 'SKIP_WAITING' }); } catch (_) {}
+  console.log('[SW] New version is waiting. Refresh the page to update.');
+  // Show a non-intrusive banner if the toast helper exists
+  if (typeof toastNotification === 'function') {
+    toastNotification('🔄 New version available — refresh to update.');
   }
-  // The controllerchange listener below handles the actual reload.
-  console.log('[SW] New version ready — reload pending after controller change.');
+  // Do NOT send SKIP_WAITING and do NOT reload.
+  // The new SW activates naturally when all tabs are closed and reopened.
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -43,10 +40,6 @@ function showUpdateToast(worker) {
   const base   = './';
   const swPath = base + 'sw.js';
 
-  // Clear the reload-guard flag at the start of each new page load
-  // so a subsequent controllerchange in the same session can still reload.
-  sessionStorage.removeItem('snx-sw-reloading');
-
   window.addEventListener('load', async () => {
 
     let reg;
@@ -56,7 +49,7 @@ function showUpdateToast(worker) {
       reg = await navigator.serviceWorker.register(swPath, { scope: base });
       console.log('[SW] Registered, scope:', reg.scope);
 
-      // If a new SW is already waiting on first load, activate it now
+      // If a new SW is already waiting, notify — do not auto-activate
       if (reg.waiting) {
         showUpdateToast(reg.waiting);
       }
@@ -67,46 +60,34 @@ function showUpdateToast(worker) {
         if (!newWorker) return;
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New version installed and ready — trigger activation
+            // New version installed and waiting — notify, do not auto-reload
             showUpdateToast(newWorker);
           }
         });
       });
 
-      // When the new SW takes control, reload so fresh cached files are used
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!sessionStorage.getItem('snx-sw-reloading')) {
-          sessionStorage.setItem('snx-sw-reloading', '1');
-          console.log('[SW] Controller changed — reloading for new version.');
-          window.location.reload();
-        }
-      });
+      // No controllerchange → reload listener.
+      // Auto-reloading on controllerchange causes infinite loops when
+      // skipWaiting() fires mid-session and the page reloads into another
+      // waiting SW cycle.
 
       // ── Foreground update check ──
-      // Browsers only check for a new SW on navigation. For a PWA that stays
-      // open (e.g. an installed Android app), we must call reg.update() manually
-      // so long-lived sessions detect a new deployment without a page load.
-      //
-      // Strategy:
-      //   • On visibilitychange (app brought to foreground from background)
-      //   • Throttled to at most once every 5 minutes to avoid hammering the server
+      // Poll for new SW on visibility restore (throttled to 5 min)
       let _lastUpdateCheck = 0;
-      const _SW_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+      const _SW_CHECK_INTERVAL = 5 * 60 * 1000;
 
       function _checkForSwUpdate() {
-        if (!navigator.onLine) return; // don't bother if offline
+        if (!navigator.onLine) return;
         const now = Date.now();
         if (now - _lastUpdateCheck < _SW_CHECK_INTERVAL) return;
         _lastUpdateCheck = now;
-        reg.update().catch(() => {}); // non-fatal if the network is unavailable
+        reg.update().catch(() => {});
       }
 
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) _checkForSwUpdate();
       });
 
-      // Also run once shortly after registration (catches deploys that happened
-      // while the device was offline or the page was already open)
       setTimeout(_checkForSwUpdate, 10_000);
 
     } catch (err) {

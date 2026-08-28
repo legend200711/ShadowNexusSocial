@@ -10,8 +10,8 @@
  * shadownexussocial.online (/) and any local dev server (/).
  */
 
-const CACHE_VERSION = 'v30';
-const BUILD_ID      = '2026-08-27-STABILITY-FIX';
+const CACHE_VERSION = 'v32';
+const BUILD_ID      = '2026-08-28-SW-LOOP-FIX';
 const CACHE_NAME    = `shadow-nexus-${CACHE_VERSION}`;
 const MEDIA_CACHE   = `shadow-nexus-media-${CACHE_VERSION}`;
 
@@ -81,6 +81,14 @@ const NETWORK_ONLY_HOSTS = [
 
 /* ─────────────────────────────────────────────
    INSTALL — pre-cache the app shell
+   Do NOT call skipWaiting() here. Automatically
+   taking over an active page mid-session causes
+   a controllerchange → reload loop. The new SW
+   waits until all tabs are closed or the user
+   manually refreshes, at which point it activates
+   naturally. The SKIP_WAITING postMessage path
+   (sent by script.js when the user is idle) is
+   the only intentional early-activation route.
    ───────────────────────────────────────────── */
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -94,12 +102,18 @@ self.addEventListener('install', (event) => {
           )
         )
       )
-      .then(() => self.skipWaiting())
+    // NO skipWaiting() — wait for all clients to close
   );
 });
 
 /* ─────────────────────────────────────────────
    ACTIVATE — clean up old caches
+   Do NOT call clients.claim() here. Claiming
+   existing clients immediately after activation
+   fires controllerchange on every open tab,
+   triggering the reload path in script.js.
+   Pages that were loaded before this SW activated
+   will use it on their next navigation anyway.
    ───────────────────────────────────────────── */
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -114,7 +128,7 @@ self.addEventListener('activate', (event) => {
             })
         )
       )
-      .then(() => self.clients.claim())
+    // NO clients.claim() — avoids firing controllerchange on live pages
   );
 });
 
@@ -251,8 +265,10 @@ let _snxOffline     = false;
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
-    // Take over immediately — all clients will reload via controllerchange
-    self.skipWaiting();
+    // SKIP_WAITING is intentionally ignored.
+    // Auto-activating mid-session fires controllerchange on all open tabs
+    // which triggers reload loops. Updates activate on next natural navigation.
+    console.log('[SW] SKIP_WAITING received but ignored — safe update policy.');
   }
   if (event.data?.type === 'CLEAR_CACHE') {
     caches.delete(CACHE_NAME).then(() => {

@@ -20,9 +20,21 @@
       ".idea/**",
       ".wrangler/**",
       "node_modules/**",
+      "snx-emulator-test/**",
       "push_to_github.ps1",
       "generate_icons.py",
-      "wrangler.jsonc"
+      "wrangler.jsonc",
+      "wrangler.toml",
+      "wrangler-paypal.toml",
+      "wrangler-paypal.jsonc",
+      "*.bak",
+      "*.bak2",
+      "*.bak3",
+      "_snx_diff.txt",
+      "paypal-setup.md",
+      "CNAME",
+      "test-free-coin-flow.js",
+      "firestore.rules.backup*"
     ],
     "rewrites": [
       {
