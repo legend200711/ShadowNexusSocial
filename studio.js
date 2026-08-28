@@ -1673,10 +1673,16 @@ function _renderCSLibrary() {
           ? '<div class="snx-track-add-btn snx-sq-add-btn' + (inSQ ? ' snx-sq-in-queue' : '') + '" onclick="snxSQAddToQueue(\'' + _esc(t.id) + '\')" title="' + (inSQ ? 'In queue' : 'Add to queue') + '">' +
               (inSQ ? '&#10003;' : '&#9656;') + '</div>'
           : '') +
-        (isReady && activePl
-          ? '<div class="snx-track-add-btn" onclick="snxCSMusicAddSingleTrack(\'' + _esc(activePl.id) + '\',\'' + _esc(t.id) + '\')" title="' + (inPl ? 'In playlist' : 'Add to playlist') + '" style="' + (inPl ? 'color:#39ff14;border-color:rgba(57,255,20,0.4);' : '') + '">' +
-              (inPl ? '&#10003;' : '+') + '</div>'
+        (isReady && activePl && inPl
+          // Already in playlist — show "Remove from Playlist" button
+          ? '<button onclick="snxCSMusicRemoveTrackFromPlaylist(\'' + _esc(activePl.id) + '\',\'' + _esc(t.id) + '\');event.stopPropagation();" ' +
+              'title="Remove from Playlist" style="background:none;border:1px solid rgba(255,51,85,0.35);color:#ff3355;font-size:11px;cursor:pointer;padding:2px 7px;border-radius:4px;">&#10005; Remove</button>'
           : '') +
+        (isReady && activePl && !inPl
+          // Not in playlist — show "Add to Playlist" button
+          ? '<div class="snx-track-add-btn" onclick="snxCSMusicAddSingleTrack(\'' + _esc(activePl.id) + '\',\'' + _esc(t.id) + '\')" title="Add to playlist">+</div>'
+          : '') +
+        '<button class="snx-track-del-btn" onclick="snxLibDeleteTrack(\'' + _esc(t.id) + '\');event.stopPropagation();" title="Delete Song" style="background:none;border:none;color:#c0392b;font-size:14px;cursor:pointer;padding:2px 5px;border-radius:4px;opacity:0.7;" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'0.7\'">&#128465;</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -2685,22 +2691,49 @@ window.snxCSMusicAddTracksToPlaylist = function(playlistId) {
 };
 
 window.snxCSMusicRemoveTrackFromPlaylist = function(playlistId, trackId) {
+  if (!_state.user) { _toastError('Sign in required.'); return; }
   var pl = _csMusic.playlists.find(function(p) { return p.id === playlistId; });
-  if (!pl) return;
+  if (!pl) { _toastError('Playlist not found.'); return; }
+
+  // IMPORTANT: this only removes the track from the playlist — it does NOT delete
+  // the original audio file or the track record in the Music Library.
   pl.trackIds = pl.trackIds.filter(function(id) { return id !== trackId; });
-  if (!_state.user || !window._snxFirestore) return;
+
+  if (!window._snxFirestore) { _toastError('Database not available.'); return; }
   var fs  = window._snxFirestore;
   var uid = _state.user.uid;
   fs.updateDoc(fs.doc(fs.db, 'studioPlaylists', uid, 'playlists', playlistId), {
     trackIds: pl.trackIds
   }).then(function() {
-    // If this is the active playlist, update queue too
+    // Update in-memory queue if this is the active playlist
     if (_csMusic.selectedId === playlistId) {
+      var wasPlaying = _csMusic.playing;
+      var currentTrack = _csMusic.queue[_csMusic.queueIndex];
       _csMusic.queue = _csMusic.queue.filter(function(t) { return t.id !== trackId; });
-      if (_csMusic.queueIndex >= _csMusic.queue.length) _csMusic.queueIndex = 0;
+      // Clamp or recompute queueIndex safely
+      if (!_csMusic.queue.length) {
+        _csMusic.queueIndex = 0;
+        _csMusic.playing = false;
+      } else if (currentTrack && currentTrack.id === trackId) {
+        // The currently playing track was removed — move to next (clamped)
+        if (_csMusic.queueIndex >= _csMusic.queue.length) _csMusic.queueIndex = 0;
+      } else if (_csMusic.queueIndex >= _csMusic.queue.length) {
+        _csMusic.queueIndex = _csMusic.queue.length - 1;
+      }
+      // Push updated queue to cloud worker if stream is active
+      if (_state.cloudStatus === 'active' && _state.cloudStreamId) {
+        _csMusicPushToWorker();
+        _csMusicPushToFirestore();
+      }
     }
+    _toast('Track removed from playlist.');
     _renderCSPlaylistPanel();
-  }).catch(function() {});
+  }).catch(function(e) {
+    // Restore the trackId on failure so state stays consistent
+    if (pl.trackIds.indexOf(trackId) === -1) pl.trackIds.push(trackId);
+    _toastError('Remove failed: ' + (e && e.message ? e.message : 'Unknown error'));
+    _renderCSPlaylistPanel();
+  });
 };
 
 /* Move a track up (-1) or down (+1) in the playlist */
@@ -3268,20 +3301,30 @@ window.snxAdminLoadCloudStreams = function() {
     }
     el.innerHTML = snap.docs.map(function(doc) {
       var d = doc.data();
-      var statusColor = d.status === 'active' ? '#00d4ff' : d.status === 'failed' ? '#ff3355' : '#ffaa00';
+      var statusColor = d.status === 'active' ? '#39ff14' : d.status === 'failed' ? '#ff3355' : '#ffaa00';
+      var startedTs   = d.startedAt ? (d.startedAt.toMillis ? d.startedAt.toMillis() : d.startedAt) : null;
+      var expiresTs   = d.expiresAt || null;
+      var remaining   = expiresTs ? Math.max(0, Math.floor((expiresTs - Date.now()) / 60000)) + 'm' : '—';
+      var startedFmt  = startedTs ? new Date(startedTs).toLocaleTimeString() : '—';
+      var listenUrl   = 'cloud-stream.html?id=' + encodeURIComponent(doc.id);
       return '<div class="snx-admin-stream-card">' +
         '<div class="snx-admin-stream-header">' +
-          '<span style="font-size:18px;">☁️</span>' +
+          '<span style="font-size:18px;">&#9925;</span>' +
           '<span class="snx-admin-stream-name">' + _esc(d.streamName || 'Untitled') + '</span>' +
           '<span class="snx-tag" style="color:' + statusColor + ';border-color:' + statusColor + '">' + _esc(d.status || 'unknown').toUpperCase() + '</span>' +
         '</div>' +
-        '<div style="font-size:11px;color:#4a7a9a;margin-bottom:8px;">' +
-          'Creator: ' + _esc(d.uid || '—') + ' · Theme: ' + _esc(d.theme || '—') +
-          ' · Viewers: ' + (d.viewerCount || 0) +
+        '<div style="font-size:11px;color:#4a7a9a;margin-bottom:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px;">' +
+          '<div>Host: <strong style="color:#d8eeff;">' + _esc(d.displayName || d.uid || '—') + '</strong></div>' +
+          '<div>Category: ' + _esc(d.category || '—') + '</div>' +
+          '<div>Started: ' + startedFmt + '</div>' +
+          '<div>Remaining: <strong style="color:#00AEEF;">' + remaining + '</strong></div>' +
+          '<div>Listeners: ' + (d.viewerCount || 0) + '</div>' +
+          '<div>Track: ' + _esc(d.currentMusicTitle || '—') + '</div>' +
         '</div>' +
         '<div class="snx-admin-stream-actions">' +
-          '<button class="snx-admin-stream-btn danger" onclick="snxAdminStopStream(\'' + doc.id + '\',\'' + _esc(d.uid || '') + '\')">⛔ Stop</button>' +
-          '<button class="snx-admin-stream-btn" onclick="snxAdminViewStreamLogs(\'' + doc.id + '\')">📋 Logs</button>' +
+          '<a class="snx-admin-stream-btn" href="' + _esc(listenUrl) + '" target="_blank">&#9654; Listen</a>' +
+          '<button class="snx-admin-stream-btn danger" onclick="snxAdminStopStream(\'' + doc.id + '\',\'' + _esc(d.uid || '') + '\')">&#9940; Stop</button>' +
+          '<button class="snx-admin-stream-btn" onclick="snxAdminViewStreamLogs(\'' + doc.id + '\')">&#128203; Logs</button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -3314,6 +3357,21 @@ window.snxAdminStopStream = function(streamId, uid) {
 
 window.snxAdminViewStreamLogs = function(streamId) {
   _toast('Logs for stream ' + streamId + ' — check cloudStreamEvents collection in Firebase Console.');
+};
+
+window.snxAdminPingWorker = function() {
+  var pingEl = document.getElementById('snxAdminWorkerPing');
+  if (pingEl) pingEl.textContent = 'Pinging worker…';
+  var t0 = Date.now();
+  fetch(CLOUDSTREAM_WORKER_URL + '/health')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var ms = Date.now() - t0;
+      if (pingEl) pingEl.innerHTML = '&#9989; Worker online · ' + d.worker + ' v' + d.v + ' · ' + ms + 'ms';
+    })
+    .catch(function(e) {
+      if (pingEl) pingEl.innerHTML = '&#10060; Worker unreachable: ' + _esc(e.message);
+    });
 };
 
 /* ═══════════════════════════════════════════════════════
@@ -3931,12 +3989,161 @@ function _renderLibrary() {
               (inQueue ? '&#10003;' : '+') + '</div>' +
             '<button class="snx-track-pl-btn" onclick="snxLibShowPlaylistPicker(\'' + _esc(t.id) + '\')" title="Add to Playlist">&#9868;</button>'
           : '') +
+        '<button class="snx-track-del-btn" onclick="snxLibDeleteTrack(\'' + _esc(t.id) + '\');event.stopPropagation();" title="Delete Song" style="background:none;border:none;color:#c0392b;font-size:14px;cursor:pointer;padding:2px 5px;border-radius:4px;opacity:0.7;" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'0.7\'">&#128465;</button>' +
       '</div>' +
     '</div>';
   }).join('');
 }
 
 window.snxLibSearch = function() { _renderLibrary(); };
+
+/* ═══════════════════════════════════════════════════════
+   DELETE FROM MUSIC LIBRARY
+   ─────────────────────────────────────────────────────
+   Permanently deletes the track from:
+     1. In-memory library (_music.tracks)
+     2. Firestore cloudStreamTracks/{uid}/tracks/{trackId}
+     3. All studioPlaylists/{uid}/playlists/* that reference this trackId
+     4. Studio queue (studioQueue/{uid}) if present
+     5. The R2 audio file (via upload worker /r2/delete)
+     6. The active cloud stream queue (push updated queue to worker)
+
+   Does NOT touch any other user's data.
+   Requires confirmed ownership via Firebase ID token (server-enforced).
+═══════════════════════════════════════════════════════ */
+window.snxLibDeleteTrack = function(trackId) {
+  if (!_state.user) { _toastError('Sign in required.'); return; }
+
+  var track = _music.tracks.find(function(t) { return t.id === trackId; });
+  if (!track) { _toastError('Track not found.'); return; }
+
+  // ── Confirmation dialog ──────────────────────────────────────────────────
+  var confirmed = window.confirm(
+    'Delete \u201c' + (track.title || 'Untitled') + '\u201d permanently?\n\n' +
+    'This will remove the song from your Music Library and all playlists.\n' +
+    'This action cannot be undone.'
+  );
+  if (!confirmed) return;
+
+  var uid = _state.user.uid;
+  var fs  = window._snxFirestore;
+  if (!fs) { _toastError('Database not available.'); return; }
+
+  // ── 1. Remove from in-memory library immediately (optimistic UI) ─────────
+  var trackIndex = _music.tracks.findIndex(function(t) { return t.id === trackId; });
+  if (trackIndex !== -1) _music.tracks.splice(trackIndex, 1);
+
+  // Stop preview if this track is being previewed
+  if (typeof _libPreviewStop === 'function') _libPreviewStop();
+  // Stop queue playback if this is the currently playing track
+  if (_music.queue[_music.queueIndex] && _music.queue[_music.queueIndex].id === trackId) {
+    if (typeof _stopAudio === 'function') _stopAudio();
+  }
+  // Remove from music queue
+  _music.queue = _music.queue.filter(function(t) { return t.id !== trackId; });
+  if (_music.queueIndex >= _music.queue.length) _music.queueIndex = 0;
+
+  // Remove from cs music queue
+  var csQueueChanged = _csMusic.queue.some(function(t) { return t.id === trackId; });
+  if (csQueueChanged) {
+    var csCurTrack = _csMusic.queue[_csMusic.queueIndex];
+    _csMusic.queue = _csMusic.queue.filter(function(t) { return t.id !== trackId; });
+    if (!_csMusic.queue.length) {
+      _csMusic.queueIndex = 0;
+    } else if (csCurTrack && csCurTrack.id === trackId) {
+      if (_csMusic.queueIndex >= _csMusic.queue.length) _csMusic.queueIndex = 0;
+    } else if (_csMusic.queueIndex >= _csMusic.queue.length) {
+      _csMusic.queueIndex = _csMusic.queue.length - 1;
+    }
+  }
+
+  // Remove from SQ queue
+  if (_sq && Array.isArray(_sq.queue)) {
+    _sq.queue = _sq.queue.filter(function(t) { return t.id !== trackId; });
+    if (_sq.queueIndex >= _sq.queue.length) _sq.queueIndex = 0;
+  }
+
+  // Re-render immediately so UI reflects removal
+  _renderLibrary();
+  if (typeof _renderNowPlayingBar === 'function') _renderNowPlayingBar();
+  if (typeof _renderQueue === 'function') _renderQueue();
+  if (typeof _renderCSPlaylistPanel === 'function') _renderCSPlaylistPanel();
+  if (typeof _sqRenderQueue === 'function') _sqRenderQueue();
+
+  // ── 2. Delete Firestore track document ───────────────────────────────────
+  var firestoreOps = [];
+  firestoreOps.push(
+    fs.deleteDoc(fs.doc(fs.db, 'cloudStreamTracks', uid, 'tracks', trackId))
+      .catch(function(e) {
+        console.error('[SNX LibDelete] Firestore track delete failed:', e && e.code, e && e.message);
+      })
+  );
+
+  // ── 3. Remove trackId from every playlist that references it ──────────────
+  _csMusic.playlists.forEach(function(pl) {
+    if (pl.trackIds && pl.trackIds.indexOf(trackId) !== -1) {
+      pl.trackIds = pl.trackIds.filter(function(id) { return id !== trackId; });
+      firestoreOps.push(
+        fs.updateDoc(fs.doc(fs.db, 'studioPlaylists', uid, 'playlists', pl.id), {
+          trackIds: pl.trackIds
+        }).catch(function(e) {
+          console.warn('[SNX LibDelete] Playlist ref cleanup failed for', pl.id, ':', e && e.message);
+        })
+      );
+    }
+  });
+
+  // ── 4. Remove from studioQueue if present ─────────────────────────────────
+  if (_sq && Array.isArray(_sq.queue)) {
+    firestoreOps.push(
+      fs.setDoc(fs.doc(fs.db, 'studioQueue', uid), {
+        uid:        uid,
+        queue:      _sq.queue,
+        queueIndex: _sq.queueIndex,
+        playing:    _sq.playing,
+        updatedAt:  fs.serverTimestamp()
+      }, { merge: true }).catch(function(e) {
+        console.warn('[SNX LibDelete] studioQueue cleanup failed:', e && e.message);
+      })
+    );
+  }
+
+  Promise.all(firestoreOps).then(function() {
+    _toast('Song deleted from library.');
+
+    // ── 5. Push updated queue to cloud worker (if stream is active) ──────────
+    if (csQueueChanged && _state.cloudStatus === 'active' && _state.cloudStreamId) {
+      _csMusicPushToWorker();
+      _csMusicPushToFirestore();
+    }
+
+    // ── 6. Delete R2 audio file (server-enforced ownership check) ────────────
+    if (track.r2Key && _state.user && typeof _state.user.getIdToken === 'function') {
+      _state.user.getIdToken(false).then(function(idToken) {
+        return fetch(UPLOAD_WORKER_URL + '/r2/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: idToken, r2Key: track.r2Key, ownerId: uid })
+        });
+      }).then(function(res) {
+        if (!res.ok) {
+          return res.json().then(function(d) {
+            console.warn('[SNX LibDelete] R2 delete failed:', d && d.error);
+          });
+        }
+        console.log('[SNX LibDelete] R2 file deleted:', track.r2Key);
+      }).catch(function(e) {
+        console.warn('[SNX LibDelete] R2 delete network error:', e && e.message);
+        // Non-fatal — Firestore record is already gone; file is orphaned but accessible.
+      });
+    }
+  }).catch(function(e) {
+    console.error('[SNX LibDelete] Firestore cleanup error:', e && e.message);
+    // Track was already removed from UI — show error but don't re-add to list
+    // since partial deletion already happened.
+    _toastError('Delete partially failed. Refresh to see current state.');
+  });
+};
 
 /* ── Library preview (per-track ▶ with seekable progress bar) ── */
 window.snxLibPreviewToggle = function(trackId, url) {

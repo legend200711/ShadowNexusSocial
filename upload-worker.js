@@ -1025,7 +1025,8 @@ async function handleR2Delete(request, env, cors, sec) {
   const safeKey = r2Key.replace(/\.\./g, '');
   const ownsKey = safeKey.startsWith(`${safeOwnerId}/`)
                || safeKey.startsWith(`profiles/${safeOwnerId}/`)
-               || safeKey.startsWith(`videos/${safeOwnerId}/`);
+               || safeKey.startsWith(`videos/${safeOwnerId}/`)
+               || safeKey.startsWith(`music/${safeOwnerId}/`);
   if (!ownsKey) {
     return new Response(JSON.stringify({ error: 'Forbidden: key does not belong to owner' }), {
       status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })

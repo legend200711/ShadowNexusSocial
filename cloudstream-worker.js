@@ -75,6 +75,8 @@ export default {
       if (method === 'POST' && path === '/api/stream/stop')    return handleStop(request, env, ctx, cors);
       if (method === 'POST' && path === '/api/stream/control') return handleControlExtended(request, env, ctx, cors);
       if (method === 'GET'  && path.startsWith('/api/stream/health/')) return handleHealth(request, env, url, cors);
+      if (method === 'GET'  && path.startsWith('/api/stream/sync/'))   return handleStreamSync(request, env, url, cors);
+      if (method === 'GET'  && path.startsWith('/api/stream/active/')) return handleActiveCheck(request, env, url, cors);
       if (method === 'POST' && path === '/api/admin/stream/stop') return handleAdminStop(request, env, ctx, cors);
       if (method === 'GET'  && path === '/api/admin/streams')  return handleAdminList(request, env, cors);
       // ── Music API ──
@@ -85,7 +87,7 @@ export default {
       if (method === 'POST' && path === '/api/destinations/save')   return handleDestinationsSave(request, env, cors);
       if (method === 'POST' && path === '/api/destinations/remove') return handleDestinationsRemove(request, env, cors);
       if (method === 'GET'  && path === '/api/destinations/list')   return handleDestinationsList(request, env, url, cors);
-      if (method === 'GET'  && path === '/health')             return jsonOK({ ok: true, worker: 'cloudstream', v: '1.2.0' }, cors);
+      if (method === 'GET'  && path === '/health')             return jsonOK({ ok: true, worker: 'cloudstream', v: '1.4.0' }, cors);
 
       return jsonErr('Not found', 404, cors);
     } catch (err) {
@@ -98,18 +100,18 @@ export default {
 /* ═══════════════════════════════════════════════════════
    STREAM START
 ═══════════════════════════════════════════════════════ */
-async function handleStart(request, env, ctx) {
+async function handleStart(request, env, ctx, cors) {
   let body;
-  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400); }
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
 
   const {
     streamId, uid, displayName, streamName, theme, scenePlaylist, durationMinutes,
     musicQueue, musicShuffle, musicRepeat, musicCrossfade, musicVolume, musicPlaylistId
   } = body;
 
-  if (!streamId || !uid) return jsonErr('streamId and uid are required', 400);
+  if (!streamId || !uid) return jsonErr('streamId and uid are required', 400, cors);
   if (!durationMinutes || durationMinutes < 1 || durationMinutes > 1440) {
-    return jsonErr('durationMinutes must be between 1 and 1440', 400);
+    return jsonErr('durationMinutes must be between 1 and 1440', 400, cors);
   }
 
   // ── Verify Firebase ID token — prevents UID spoofing ─────────────────────
@@ -120,14 +122,14 @@ async function handleStart(request, env, ctx) {
     try {
       const verified = await verifyFirebaseIdToken(idToken, env);
       if (verified && verified.uid !== uid) {
-        return jsonErr('Unauthorized: token UID does not match request uid', 403);
+        return jsonErr('Unauthorized: token UID does not match request uid', 403, cors);
       }
     } catch (verifyErr) {
-      return jsonErr('Unauthorized: ' + verifyErr.message, 401);
+      return jsonErr('Unauthorized: ' + verifyErr.message, 401, cors);
     }
   } else if (env.FIREBASE_PROJECT_ID && env.FIREBASE_API_KEY) {
     // Token required in production (when both env vars are configured)
-    return jsonErr('Unauthorized: Authorization header with Firebase ID token required', 401);
+    return jsonErr('Unauthorized: Authorization header with Firebase ID token required', 401, cors);
   }
 
   const stream = {
@@ -191,18 +193,18 @@ async function handleStart(request, env, ctx) {
     ctx.waitUntil(runAutomationEngine(stream, env));
   }
 
-  return jsonOK({ success: true, stream });
+  return jsonOK({ success: true, stream }, cors);
 }
 
 /* ═══════════════════════════════════════════════════════
    STREAM STOP
 ═══════════════════════════════════════════════════════ */
-async function handleStop(request, env, ctx) {
+async function handleStop(request, env, ctx, cors) {
   let body;
-  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400); }
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
 
   const { streamId, uid } = body;
-  if (!streamId) return jsonErr('streamId required', 400);
+  if (!streamId) return jsonErr('streamId required', 400, cors);
 
   // ── Verify Firebase ID token — prevents UID spoofing ─────────────────────
   const idToken = _extractBearerToken(request);
@@ -210,20 +212,20 @@ async function handleStop(request, env, ctx) {
     try {
       const verified = await verifyFirebaseIdToken(idToken, env);
       if (verified && verified.uid !== uid) {
-        return jsonErr('Unauthorized: token UID does not match request uid', 403);
+        return jsonErr('Unauthorized: token UID does not match request uid', 403, cors);
       }
     } catch (verifyErr) {
-      return jsonErr('Unauthorized: ' + verifyErr.message, 401);
+      return jsonErr('Unauthorized: ' + verifyErr.message, 401, cors);
     }
   } else if (env.FIREBASE_PROJECT_ID && env.FIREBASE_API_KEY) {
-    return jsonErr('Unauthorized: Authorization header with Firebase ID token required', 401);
+    return jsonErr('Unauthorized: Authorization header with Firebase ID token required', 401, cors);
   }
 
   const stream = await getStream(streamId, env);
-  if (!stream) return jsonErr('Stream not found', 404);
+  if (!stream) return jsonErr('Stream not found', 404, cors);
 
   // Validate ownership (uid must match)
-  if (stream.uid !== uid) return jsonErr('Unauthorized', 403);
+  if (stream.uid !== uid) return jsonErr('Unauthorized', 403, cors);
 
   stream.status       = 'stopped';
   stream.stoppedAt    = Date.now();
@@ -236,7 +238,7 @@ async function handleStop(request, env, ctx) {
   // Notify Firestore so the feed removes the live card (server-side — device may be off)
   if (ctx) ctx.waitUntil(markLiveRoomOffline(env, stream.uid));
 
-  return jsonOK({ success: true, message: 'Stream stopped.' });
+  return jsonOK({ success: true, message: 'Stream stopped.' }, cors);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -292,12 +294,12 @@ async function handleControl(request, env, ctx) {
 /* ═══════════════════════════════════════════════════════
    HEALTH CHECK
 ═══════════════════════════════════════════════════════ */
-async function handleHealth(request, env, url) {
+async function handleHealth(request, env, url, cors) {
   const streamId = url.pathname.replace('/api/stream/health/', '');
-  if (!streamId) return jsonErr('streamId required', 400);
+  if (!streamId) return jsonErr('streamId required', 400, cors);
 
   const stream = await getStream(streamId, env);
-  if (!stream) return jsonErr('Stream not found', 404);
+  if (!stream) return jsonErr('Stream not found', 404, cors);
 
   // Check if stream has passed its end time
   if (stream.endsAt && Date.now() > stream.endsAt && stream.status === 'active') {
@@ -343,7 +345,7 @@ async function handleHealth(request, env, url) {
     lastHeartbeat: stream.lastHeartbeat,
     workerActive:  stream.workerActive,
     ...musicInfo
-  });
+  }, cors);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -351,30 +353,30 @@ async function handleHealth(request, env, url) {
    Requires a valid Firebase ID token whose UID has
    role === 'founder' in Firestore users/{uid}.
 ═══════════════════════════════════════════════════════ */
-async function handleAdminStop(request, env, ctx) {
+async function handleAdminStop(request, env, ctx, cors) {
   let body;
-  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400); }
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
 
   const { streamId, adminUid } = body;
-  if (!streamId || !adminUid) return jsonErr('streamId and adminUid required', 400);
+  if (!streamId || !adminUid) return jsonErr('streamId and adminUid required', 400, cors);
 
   // ── Require a valid Firebase ID token ────────────────────────────────────
   const idToken = _extractBearerToken(request);
-  if (!idToken) return jsonErr('Unauthorized: Authorization header required', 401);
+  if (!idToken) return jsonErr('Unauthorized: Authorization header required', 401, cors);
   try {
     const verified = await verifyFirebaseIdToken(idToken, env);
     if (!verified || verified.uid !== adminUid) {
-      return jsonErr('Unauthorized: token UID does not match adminUid', 403);
+      return jsonErr('Unauthorized: token UID does not match adminUid', 403, cors);
     }
     // Verify founder role via Firestore REST
     const isAdmin = await _verifyFounderRole(verified.uid, env);
-    if (!isAdmin) return jsonErr('Unauthorized: founder role required', 403);
+    if (!isAdmin) return jsonErr('Unauthorized: founder role required', 403, cors);
   } catch (e) {
-    return jsonErr('Unauthorized: ' + e.message, 401);
+    return jsonErr('Unauthorized: ' + e.message, 401, cors);
   }
 
   const stream = await getStream(streamId, env);
-  if (!stream) return jsonErr('Stream not found', 404);
+  if (!stream) return jsonErr('Stream not found', 404, cors);
 
   stream.status      = 'stopped';
   stream.stoppedBy   = 'admin';
@@ -385,27 +387,27 @@ async function handleAdminStop(request, env, ctx) {
     await env.cloudStreamKV.put(`stream:${streamId}`, JSON.stringify(stream), { expirationTtl: 3600 });
   }
 
-  return jsonOK({ success: true, message: 'Stream force-stopped by admin.' });
+  return jsonOK({ success: true, message: 'Stream force-stopped by admin.' }, cors);
 }
 
 /* ═══════════════════════════════════════════════════════
    ADMIN: LIST ACTIVE STREAMS
    Requires a valid Firebase ID token with founder role.
 ═══════════════════════════════════════════════════════ */
-async function handleAdminList(request, env) {
+async function handleAdminList(request, env, cors) {
   // ── Require a valid Firebase ID token ────────────────────────────────────
   const idToken = _extractBearerToken(request);
-  if (!idToken) return jsonErr('Unauthorized: Authorization header required', 401);
+  if (!idToken) return jsonErr('Unauthorized: Authorization header required', 401, cors);
   try {
     const verified = await verifyFirebaseIdToken(idToken, env);
-    if (!verified) return jsonErr('Unauthorized: invalid token', 403);
+    if (!verified) return jsonErr('Unauthorized: invalid token', 403, cors);
     const isAdmin = await _verifyFounderRole(verified.uid, env);
-    if (!isAdmin) return jsonErr('Unauthorized: founder role required', 403);
+    if (!isAdmin) return jsonErr('Unauthorized: founder role required', 403, cors);
   } catch (e) {
-    return jsonErr('Unauthorized: ' + e.message, 401);
+    return jsonErr('Unauthorized: ' + e.message, 401, cors);
   }
 
-  if (!env.cloudStreamKV) return jsonOK({ streams: [], note: 'KV not configured' });
+  if (!env.cloudStreamKV) return jsonOK({ streams: [], note: 'KV not configured' }, cors);
 
   // List all keys with "stream:" prefix
   const list = await env.cloudStreamKV.list({ prefix: 'stream:' });
@@ -417,7 +419,7 @@ async function handleAdminList(request, env) {
 
   return jsonOK({ streams: streams.filter(function(s) {
     return s.status === 'active' || s.status === 'starting' || s.status === 'recovering';
-  }) });
+  }) }, cors);
 }
 
 /* ── Verify founder role via Firestore REST ──────────────────────────────
@@ -478,29 +480,29 @@ async function runAutomationEngine(stream, env) {
    MUSIC SET — Replace/update the music queue for a stream
    Called when creator selects a new playlist while active.
 ═══════════════════════════════════════════════════════ */
-async function handleMusicSet(request, env, ctx) {
+async function handleMusicSet(request, env, ctx, cors) {
   let body;
-  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400); }
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
 
   const { streamId, uid, queue, shuffle, repeat, crossfade, volume, playlistId, queueIndex } = body;
-  if (!streamId || !uid) return jsonErr('streamId and uid required', 400);
+  if (!streamId || !uid) return jsonErr('streamId and uid required', 400, cors);
 
   // ── Verify Firebase ID token ──────────────────────────────────────────────
   const idToken = _extractBearerToken(request);
   if (idToken) {
     try {
       const verified = await verifyFirebaseIdToken(idToken, env);
-      if (verified && verified.uid !== uid) return jsonErr('Unauthorized: token UID mismatch', 403);
-    } catch (e) { return jsonErr('Unauthorized: ' + e.message, 401); }
+      if (verified && verified.uid !== uid) return jsonErr('Unauthorized: token UID mismatch', 403, cors);
+    } catch (e) { return jsonErr('Unauthorized: ' + e.message, 401, cors); }
   } else if (env.FIREBASE_PROJECT_ID && env.FIREBASE_API_KEY) {
-    return jsonErr('Unauthorized: Authorization header required', 401);
+    return jsonErr('Unauthorized: Authorization header required', 401, cors);
   }
 
   const stream = await getStream(streamId, env);
-  if (!stream) return jsonErr('Stream not found', 404);
-  if (stream.uid !== uid) return jsonErr('Unauthorized', 403);
+  if (!stream) return jsonErr('Stream not found', 404, cors);
+  if (stream.uid !== uid) return jsonErr('Unauthorized', 403, cors);
 
-  if (!env.cloudStreamKV) return jsonErr('KV not configured', 503);
+  if (!env.cloudStreamKV) return jsonErr('KV not configured', 503, cors);
 
   // Build or update music state
   const existing = await env.cloudStreamKV.get(`music:${streamId}`, { type: 'json' }) || {};
@@ -553,37 +555,37 @@ async function handleMusicSet(request, env, ctx) {
     currentArtist: cur.artist || '',
     nextTitle:     next.title || '',
     queueLength:   musicState.queue.length
-  });
+  }, cors);
 }
 
 /* ═══════════════════════════════════════════════════════
    MUSIC CONTROL — Playback actions (next, pause, etc.)
 ═══════════════════════════════════════════════════════ */
-async function handleMusicControl(request, env, ctx) {
+async function handleMusicControl(request, env, ctx, cors) {
   let body;
-  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400); }
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
 
   const { streamId, uid, action } = body;
-  if (!streamId || !uid || !action) return jsonErr('streamId, uid and action required', 400);
+  if (!streamId || !uid || !action) return jsonErr('streamId, uid and action required', 400, cors);
 
   // ── Verify Firebase ID token ──────────────────────────────────────────────
   const idToken = _extractBearerToken(request);
   if (idToken) {
     try {
       const verified = await verifyFirebaseIdToken(idToken, env);
-      if (verified && verified.uid !== uid) return jsonErr('Unauthorized: token UID mismatch', 403);
-    } catch (e) { return jsonErr('Unauthorized: ' + e.message, 401); }
+      if (verified && verified.uid !== uid) return jsonErr('Unauthorized: token UID mismatch', 403, cors);
+    } catch (e) { return jsonErr('Unauthorized: ' + e.message, 401, cors); }
   } else if (env.FIREBASE_PROJECT_ID && env.FIREBASE_API_KEY) {
-    return jsonErr('Unauthorized: Authorization header required', 401);
+    return jsonErr('Unauthorized: Authorization header required', 401, cors);
   }
 
   const stream = await getStream(streamId, env);
-  if (!stream) return jsonErr('Stream not found', 404);
-  if (stream.uid !== uid) return jsonErr('Unauthorized', 403);
+  if (!stream) return jsonErr('Stream not found', 404, cors);
+  if (stream.uid !== uid) return jsonErr('Unauthorized', 403, cors);
 
-  if (!env.cloudStreamKV) return jsonErr('KV not configured', 503);
+  if (!env.cloudStreamKV) return jsonErr('KV not configured', 503, cors);
   const musicState = await env.cloudStreamKV.get(`music:${streamId}`, { type: 'json' });
-  if (!musicState) return jsonErr('No music state found for stream', 404);
+  if (!musicState) return jsonErr('No music state found for stream', 404, cors);
 
   switch (action) {
     case 'musicNext':
@@ -622,7 +624,7 @@ async function handleMusicControl(request, env, ctx) {
       musicState.crossfade = typeof body.value === 'number' ? body.value : musicState.crossfade;
       break;
     default:
-      return jsonErr('Unknown music action: ' + action, 400);
+      return jsonErr('Unknown music action: ' + action, 400, cors);
   }
 
   const ttlSeconds = (stream.durationMinutes + 60) * 60;
@@ -631,21 +633,21 @@ async function handleMusicControl(request, env, ctx) {
   if (ctx) ctx.waitUntil(pushNowPlayingToFirestore(env, streamId, musicState));
 
   const cur  = musicState.queue[musicState.queueIndex] || {};
-  return jsonOK({ success: true, currentTitle: cur.title || '', queueIndex: musicState.queueIndex, status: musicState.status });
+  return jsonOK({ success: true, currentTitle: cur.title || '', queueIndex: musicState.queueIndex, status: musicState.status }, cors);
 }
 
 /* ═══════════════════════════════════════════════════════
    MUSIC GET — Read current music state
 ═══════════════════════════════════════════════════════ */
-async function handleMusicGet(request, env, url) {
+async function handleMusicGet(request, env, url, cors) {
   const streamId = url.pathname.replace('/api/stream/music/', '');
-  if (!streamId) return jsonErr('streamId required', 400);
+  if (!streamId) return jsonErr('streamId required', 400, cors);
 
   const musicState = env.cloudStreamKV
     ? await env.cloudStreamKV.get(`music:${streamId}`, { type: 'json' })
     : null;
 
-  if (!musicState) return jsonOK({ success: true, status: 'no_music', currentTitle: '', currentArtist: '', nextTitle: '' });
+  if (!musicState) return jsonOK({ success: true, status: 'no_music', currentTitle: '', currentArtist: '', nextTitle: '' }, cors);
 
   const cur  = musicState.queue[musicState.queueIndex] || {};
   const next = musicState.queue[(musicState.queueIndex + 1) % (musicState.queue.length || 1)] || {};
@@ -663,7 +665,7 @@ async function handleMusicGet(request, env, url) {
     repeat:        musicState.repeat,
     volume:        musicState.volume,
     crossfade:     musicState.crossfade
-  });
+  }, cors);
 }
 
 /* ── Push Now Playing to Firestore via REST ── */
@@ -836,12 +838,26 @@ export class CloudStreamScheduler {
       return;
     }
 
-    // Advance to next track
+    // ── Guard: if queue is now empty (all tracks deleted), put stream into safe
+    //    idle state rather than crashing.  The broadcast stays alive.
+    if (!musicState.queue || !musicState.queue.length) {
+      musicState.status = 'paused';
+      if (this.env.cloudStreamKV) {
+        await this.env.cloudStreamKV.put(`music:${streamId}`, JSON.stringify(musicState));
+      }
+      await logStreamEvent(this.env, streamId, 'music_queue_empty', { reason: 'all_tracks_removed' });
+      await this.state.storage.setAlarm(Date.now() + 60000); // re-check in 1 min
+      return;
+    }
+
+    // Advance to next track, skipping any tracks with empty/missing URLs
     let nextIndex;
+    const qLen = musicState.queue.length;
+
     if (musicState.shuffle) {
-      nextIndex = Math.floor(Math.random() * musicState.queue.length);
+      nextIndex = Math.floor(Math.random() * qLen);
     } else {
-      nextIndex = (musicState.queueIndex + 1) % musicState.queue.length;
+      nextIndex = (musicState.queueIndex + 1) % qLen;
       if (nextIndex === 0 && !musicState.repeat) {
         musicState.status = 'ended';
         if (this.env.cloudStreamKV) {
@@ -850,6 +866,32 @@ export class CloudStreamScheduler {
         await logStreamEvent(this.env, streamId, 'music_ended', { reason: 'repeat_off' });
         return;
       }
+    }
+
+    // Skip tracks that have no URL (deleted or broken) — try up to qLen candidates
+    let skipped = 0;
+    while (skipped < qLen) {
+      const candidate = musicState.queue[nextIndex];
+      if (candidate && candidate.url) break; // valid track found
+      // Track is missing/deleted — skip it
+      await logStreamEvent(this.env, streamId, 'track_skipped', {
+        reason: 'no_url',
+        index:  nextIndex,
+        title:  (candidate && candidate.title) || ''
+      });
+      nextIndex = (nextIndex + 1) % qLen;
+      skipped++;
+    }
+
+    // If every track in the queue is missing, pause rather than crash
+    if (skipped >= qLen) {
+      musicState.status = 'paused';
+      if (this.env.cloudStreamKV) {
+        await this.env.cloudStreamKV.put(`music:${streamId}`, JSON.stringify(musicState));
+      }
+      await logStreamEvent(this.env, streamId, 'music_queue_all_invalid', { reason: 'all_tracks_missing_url' });
+      await this.state.storage.setAlarm(Date.now() + 60000);
+      return;
     }
 
     musicState.queueIndex     = nextIndex;
@@ -1074,6 +1116,104 @@ async function logStreamEvent(env, streamId, event, data) {
   }), { expirationTtl: 86400 * 7 }); // keep events for 7 days
 }
 
+/* ═══════════════════════════════════════════════════════
+   STREAM SYNC — returns current track + server timestamp for
+   synchronized playback across all listeners.
+   Called by the listener's browser to compute seek offset.
+   Public endpoint — no auth required (track URLs already in Firestore).
+═══════════════════════════════════════════════════════ */
+async function handleStreamSync(request, env, url, cors) {
+  const streamId = url.pathname.replace('/api/stream/sync/', '');
+  if (!streamId) return jsonErr('streamId required', 400, cors);
+
+  const stream = await getStream(streamId, env);
+  if (!stream) return jsonErr('Stream not found', 404, cors);
+
+  if (stream.endsAt && Date.now() > stream.endsAt && stream.status === 'active') {
+    stream.status = 'stopped';
+    if (env.cloudStreamKV) {
+      await env.cloudStreamKV.put(`stream:${streamId}`, JSON.stringify(stream), { expirationTtl: 3600 });
+    }
+  }
+
+  let musicInfo = {
+    currentMusicTitle: '', currentMusicArtist: '', currentMusicUrl: '',
+    currentMusicId: '', currentMusicDuration: 0,
+    nextMusicTitle: '', nextMusicArtist: '',
+    queueIndex: 0, musicStatus: 'no_music',
+    lastAdvancedAt: 0
+  };
+
+  if (env.cloudStreamKV) {
+    const ms = await env.cloudStreamKV.get(`music:${streamId}`, { type: 'json' });
+    if (ms && ms.queue && ms.queue.length) {
+      const cur = ms.queue[ms.queueIndex || 0] || {};
+      const nxt = ms.queue[((ms.queueIndex || 0) + 1) % ms.queue.length] || {};
+      musicInfo = {
+        currentMusicTitle:   cur.title    || '',
+        currentMusicArtist:  cur.artist   || '',
+        currentMusicUrl:     cur.url      || '',
+        currentMusicId:      cur.id       || '',
+        currentMusicDuration: cur.duration || 0,
+        nextMusicTitle:      nxt.title    || '',
+        nextMusicArtist:     nxt.artist   || '',
+        queueIndex:          ms.queueIndex || 0,
+        musicStatus:         ms.status    || 'playing',
+        lastAdvancedAt:      ms.lastAdvancedAt || 0
+      };
+    }
+  }
+
+  return jsonOK({
+    success:       true,
+    streamId,
+    status:        stream.status,
+    streamName:    stream.streamName  || '',
+    displayName:   stream.displayName || '',
+    category:      stream.category    || '',
+    viewerCount:   stream.viewerCount || 0,
+    startedAt:     stream.startedAt   || 0,
+    endsAt:        stream.endsAt      || 0,
+    serverTime:    Date.now(),
+    ...musicInfo
+  }, cors);
+}
+
+/* ═══════════════════════════════════════════════════════
+   ACTIVE CHECK — check if a uid already has an active stream
+   Used by the cloud-stream.html to prevent duplicate broadcasts.
+   Requires Firebase ID token — prevents checking other users' streams.
+═══════════════════════════════════════════════════════ */
+async function handleActiveCheck(request, env, url, cors) {
+  const uid = url.pathname.replace('/api/stream/active/', '');
+  if (!uid) return jsonErr('uid required', 400, cors);
+
+  // Require auth token to prevent enumeration
+  const idToken = _extractBearerToken(request);
+  if (idToken && env.FIREBASE_PROJECT_ID && env.FIREBASE_API_KEY) {
+    try {
+      const verified = await verifyFirebaseIdToken(idToken, env);
+      if (!verified || verified.uid !== uid) {
+        return jsonErr('Unauthorized: token UID does not match path uid', 403, cors);
+      }
+    } catch (e) { return jsonErr('Unauthorized: ' + e.message, 401, cors); }
+  }
+
+  if (!env.cloudStreamKV) return jsonOK({ active: false, streamId: null }, cors);
+
+  // Scan KV for active streams belonging to this uid
+  const list = await env.cloudStreamKV.list({ prefix: 'stream:' });
+  for (const key of (list.keys || [])) {
+    const val = await env.cloudStreamKV.get(key.name, { type: 'json' });
+    if (val && val.uid === uid && (val.status === 'active' || val.status === 'starting' || val.status === 'recovering')) {
+      const streamId = key.name.replace('stream:', '');
+      return jsonOK({ active: true, streamId, status: val.status, streamName: val.streamName || '' }, cors);
+    }
+  }
+
+  return jsonOK({ active: false, streamId: null }, cors);
+}
+
 function jsonOK(data, cors) {
   return new Response(JSON.stringify(data), {
     status: 200,
@@ -1094,31 +1234,31 @@ function jsonErr(message, status, cors) {
    They are NEVER returned to the browser after being saved.
 ═══════════════════════════════════════════════════════ */
 
-async function handleDestinationsSave(request, env) {
+async function handleDestinationsSave(request, env, cors) {
   let body;
-  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400); }
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
 
   const { uid, type, rtmpUrl, streamKey } = body;
-  if (!uid || !type || !rtmpUrl || !streamKey) return jsonErr('uid, type, rtmpUrl and streamKey are required', 400);
+  if (!uid || !type || !rtmpUrl || !streamKey) return jsonErr('uid, type, rtmpUrl and streamKey are required', 400, cors);
 
   // ── Verify Firebase ID token ──────────────────────────────────────────────
   const idToken = _extractBearerToken(request);
   if (idToken) {
     try {
       const verified = await verifyFirebaseIdToken(idToken, env);
-      if (verified && verified.uid !== uid) return jsonErr('Unauthorized: token UID mismatch', 403);
-    } catch (e) { return jsonErr('Unauthorized: ' + e.message, 401); }
+      if (verified && verified.uid !== uid) return jsonErr('Unauthorized: token UID mismatch', 403, cors);
+    } catch (e) { return jsonErr('Unauthorized: ' + e.message, 401, cors); }
   } else if (env.FIREBASE_PROJECT_ID && env.FIREBASE_API_KEY) {
-    return jsonErr('Unauthorized: Authorization header required', 401);
+    return jsonErr('Unauthorized: Authorization header required', 401, cors);
   }
 
   const ALLOWED_TYPES = ['youtube', 'facebook', 'custom'];
-  if (!ALLOWED_TYPES.includes(type)) return jsonErr('Unknown destination type: ' + type, 400);
+  if (!ALLOWED_TYPES.includes(type)) return jsonErr('Unknown destination type: ' + type, 400, cors);
 
   // Validate RTMP URL format (must start with rtmp:// or rtmps://)
-  if (!/^rtmps?:\/\//i.test(rtmpUrl)) return jsonErr('rtmpUrl must start with rtmp:// or rtmps://', 400);
+  if (!/^rtmps?:\/\//i.test(rtmpUrl)) return jsonErr('rtmpUrl must start with rtmp:// or rtmps://', 400, cors);
 
-  if (!env.cloudStreamKV) return jsonErr('KV not configured', 500);
+  if (!env.cloudStreamKV) return jsonErr('KV not configured', 500, cors);
 
   const kvKey = `dest:${uid}:${type}`;
   const record = {
@@ -1136,25 +1276,25 @@ async function handleDestinationsSave(request, env) {
   // Store the metadata (no raw key)
   await env.cloudStreamKV.put(kvKey, JSON.stringify(record), { expirationTtl: 86400 * 365 });
 
-  return jsonOK({ success: true, message: type + ' destination saved.' });
+  return jsonOK({ success: true, message: type + ' destination saved.' }, cors);
 }
 
-async function handleDestinationsRemove(request, env) {
+async function handleDestinationsRemove(request, env, cors) {
   let body;
-  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400); }
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
 
   const { uid, type } = body;
-  if (!uid || !type) return jsonErr('uid and type required', 400);
+  if (!uid || !type) return jsonErr('uid and type required', 400, cors);
 
   // ── Verify Firebase ID token ──────────────────────────────────────────────
   const idToken = _extractBearerToken(request);
   if (idToken) {
     try {
       const verified = await verifyFirebaseIdToken(idToken, env);
-      if (verified && verified.uid !== uid) return jsonErr('Unauthorized: token UID mismatch', 403);
-    } catch (e) { return jsonErr('Unauthorized: ' + e.message, 401); }
+      if (verified && verified.uid !== uid) return jsonErr('Unauthorized: token UID mismatch', 403, cors);
+    } catch (e) { return jsonErr('Unauthorized: ' + e.message, 401, cors); }
   } else if (env.FIREBASE_PROJECT_ID && env.FIREBASE_API_KEY) {
-    return jsonErr('Unauthorized: Authorization header required', 401);
+    return jsonErr('Unauthorized: Authorization header required', 401, cors);
   }
 
   if (env.cloudStreamKV) {
@@ -1162,14 +1302,14 @@ async function handleDestinationsRemove(request, env) {
     await env.cloudStreamKV.delete(`destkey:${uid}:${type}`);
   }
 
-  return jsonOK({ success: true, message: type + ' destination removed.' });
+  return jsonOK({ success: true, message: type + ' destination removed.' }, cors);
 }
 
-async function handleDestinationsList(request, env, url) {
+async function handleDestinationsList(request, env, url, cors) {
   const uid = url.searchParams.get('uid');
-  if (!uid) return jsonErr('uid required', 400);
+  if (!uid) return jsonErr('uid required', 400, cors);
 
-  if (!env.cloudStreamKV) return jsonOK({ destinations: [] });
+  if (!env.cloudStreamKV) return jsonOK({ destinations: [] }, cors);
 
   const types = ['youtube', 'facebook', 'custom'];
   const destinations = [];
@@ -1188,7 +1328,7 @@ async function handleDestinationsList(request, env, url) {
     }
   }
 
-  return jsonOK({ destinations });
+  return jsonOK({ destinations }, cors);
 }
 
 // Helper: SHA-256 hash of a string (for auditing only, key itself stored separately)
@@ -1205,12 +1345,12 @@ async function hashKey(str) {
 // Extend handleControl to support setSchedule and setVisualizer
 const _originalHandleControlRef = handleControl;
 
-async function handleControlExtended(request, env, ctx) {
+async function handleControlExtended(request, env, ctx, cors) {
   let body;
-  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400); }
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
 
   const { streamId, uid, action } = body;
-  if (!streamId || !uid || !action) return jsonErr('streamId, uid and action required', 400);
+  if (!streamId || !uid || !action) return jsonErr('streamId, uid and action required', 400, cors);
 
   // ── Verify Firebase ID token — prevents UID spoofing ─────────────────────
   const idToken = _extractBearerToken(request);
@@ -1218,74 +1358,74 @@ async function handleControlExtended(request, env, ctx) {
     try {
       const verified = await verifyFirebaseIdToken(idToken, env);
       if (verified && verified.uid !== uid) {
-        return jsonErr('Unauthorized: token UID does not match request uid', 403);
+        return jsonErr('Unauthorized: token UID does not match request uid', 403, cors);
       }
     } catch (verifyErr) {
-      return jsonErr('Unauthorized: ' + verifyErr.message, 401);
+      return jsonErr('Unauthorized: ' + verifyErr.message, 401, cors);
     }
   } else if (env.FIREBASE_PROJECT_ID && env.FIREBASE_API_KEY) {
-    return jsonErr('Unauthorized: Authorization header with Firebase ID token required', 401);
+    return jsonErr('Unauthorized: Authorization header with Firebase ID token required', 401, cors);
   }
 
   // Handle new actions first, fall through to base for others
   if (action === 'setSchedule') {
     const stream = await getStream(streamId, env);
-    if (!stream) return jsonErr('Stream not found', 404);
-    if (stream.uid !== uid) return jsonErr('Unauthorized', 403);
+    if (!stream) return jsonErr('Stream not found', 404, cors);
+    if (stream.uid !== uid) return jsonErr('Unauthorized', 403, cors);
     stream.musicSchedule = body.schedule || [];
     if (env.cloudStreamKV) {
       await env.cloudStreamKV.put(`stream:${streamId}`, JSON.stringify(stream));
     }
-    return jsonOK({ success: true });
+    return jsonOK({ success: true }, cors);
   }
 
   if (action === 'setVisualizer') {
     const stream = await getStream(streamId, env);
-    if (!stream) return jsonErr('Stream not found', 404);
-    if (stream.uid !== uid) return jsonErr('Unauthorized', 403);
+    if (!stream) return jsonErr('Stream not found', 404, cors);
+    if (stream.uid !== uid) return jsonErr('Unauthorized', 403, cors);
     stream.visualizerPreset = body.preset || 'bars';
     if (env.cloudStreamKV) {
       await env.cloudStreamKV.put(`stream:${streamId}`, JSON.stringify(stream));
     }
-    return jsonOK({ success: true });
+    return jsonOK({ success: true }, cors);
   }
 
   if (action === 'setMusicQueue') {
     const stream = await getStream(streamId, env);
-    if (!stream) return jsonErr('Stream not found', 404);
-    if (stream.uid !== uid) return jsonErr('Unauthorized', 403);
+    if (!stream) return jsonErr('Stream not found', 404, cors);
+    if (stream.uid !== uid) return jsonErr('Unauthorized', 403, cors);
     stream.musicQueue     = body.queue || [];
     stream.musicQueueIdx  = 0;
     if (env.cloudStreamKV) {
       await env.cloudStreamKV.put(`stream:${streamId}`, JSON.stringify(stream));
     }
-    return jsonOK({ success: true });
+    return jsonOK({ success: true }, cors);
   }
 
   // Music playback actions — handle inline with the already-parsed body
   // (cannot re-read request.json() after it has been consumed above).
   const musicActions = ['musicNext','musicPause','musicResume','musicShuffle','musicRepeat','musicVolume','musicCrossfade','next','pause','resume'];
   if (musicActions.includes(action)) {
-    return _handleMusicControlBody(body, request, env, ctx);
+    return _handleMusicControlBody(body, request, env, ctx, cors);
   }
 
   // Delegate all other actions to handleControl inline with the already-parsed body.
-  return _handleControlBody(body, request, env, ctx);
+  return _handleControlBody(body, request, env, ctx, cors);
 }
 
 /* ── Inline helpers for handleControlExtended delegates
    These accept the already-parsed body so request.json() is not called twice. ── */
 
-async function _handleMusicControlBody(body, request, env, ctx) {
+async function _handleMusicControlBody(body, request, env, ctx, cors) {
   const { streamId, uid, action } = body;
 
   const stream = await getStream(streamId, env);
-  if (!stream) return jsonErr('Stream not found', 404);
-  if (stream.uid !== uid) return jsonErr('Unauthorized', 403);
+  if (!stream) return jsonErr('Stream not found', 404, cors);
+  if (stream.uid !== uid) return jsonErr('Unauthorized', 403, cors);
 
-  if (!env.cloudStreamKV) return jsonErr('KV not configured', 503);
+  if (!env.cloudStreamKV) return jsonErr('KV not configured', 503, cors);
   const musicState = await env.cloudStreamKV.get(`music:${streamId}`, { type: 'json' });
-  if (!musicState) return jsonErr('No music state found for stream', 404);
+  if (!musicState) return jsonErr('No music state found for stream', 404, cors);
 
   switch (action) {
     case 'musicNext':
@@ -1306,7 +1446,7 @@ async function _handleMusicControlBody(body, request, env, ctx) {
     case 'musicRepeat':    musicState.repeat    = typeof body.value === 'boolean' ? body.value : !musicState.repeat;  break;
     case 'musicVolume':    musicState.volume    = typeof body.value === 'number'  ? body.value : musicState.volume;   break;
     case 'musicCrossfade': musicState.crossfade = typeof body.value === 'number'  ? body.value : musicState.crossfade; break;
-    default: return jsonErr('Unknown music action: ' + action, 400);
+    default: return jsonErr('Unknown music action: ' + action, 400, cors);
   }
 
   const ttlSeconds = (stream.durationMinutes + 60) * 60;
@@ -1315,17 +1455,18 @@ async function _handleMusicControlBody(body, request, env, ctx) {
   if (ctx) ctx.waitUntil(pushNowPlayingToFirestore(env, streamId, musicState));
 
   const cur = musicState.queue[musicState.queueIndex] || {};
-  return jsonOK({ success: true, currentTitle: cur.title || '', queueIndex: musicState.queueIndex, status: musicState.status });
+  return jsonOK({ success: true, currentTitle: cur.title || '', queueIndex: musicState.queueIndex, status: musicState.status }, cors);
 }
 
-async function _handleControlBody(body, request, env, ctx) {
+
+async function _handleControlBody(body, request, env, ctx, cors) {
   const { streamId, uid, action } = body;
 
   const stream = await getStream(streamId, env);
-  if (!stream) return jsonErr('Stream not found', 404);
-  if (stream.uid !== uid) return jsonErr('Unauthorized', 403);
+  if (!stream) return jsonErr('Stream not found', 404, cors);
+  if (stream.uid !== uid) return jsonErr('Unauthorized', 403, cors);
   if (stream.status !== 'active' && stream.status !== 'recovering') {
-    return jsonErr('Stream is not active. Status: ' + stream.status, 409);
+    return jsonErr('Stream is not active. Status: ' + stream.status, 409, cors);
   }
 
   switch (action) {
@@ -1339,13 +1480,12 @@ async function _handleControlBody(body, request, env, ctx) {
         stream.currentScene = stream.scenePlaylist[stream.sceneIndex].name;
       }
       break;
-    default: return jsonErr('Unknown action: ' + action, 400);
+    default: return jsonErr('Unknown action: ' + action, 400, cors);
   }
 
   stream.lastControlAt = Date.now();
   if (env.cloudStreamKV) {
     await env.cloudStreamKV.put(`stream:${streamId}`, JSON.stringify(stream), { expirationTtl: (stream.durationMinutes + 60) * 60 });
   }
-  return jsonOK({ success: true, stream });
+  return jsonOK({ success: true, stream }, cors);
 }
-

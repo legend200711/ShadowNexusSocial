@@ -37,7 +37,9 @@ const SHELL_FILES = [
   'snx-gifts.css',
   'studio.css',
   'studio.js',
-  'studio-viewer.html',
+  'cloud-stream.html',
+  'cloud-stream.js',
+  'cloud-stream.css',
   'manifest.json',
   'icon-192.png',
   'icon-512.png',
@@ -55,7 +57,7 @@ const MEDIA_CACHE_MAX = 100;
 const MEDIA_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** Paths that must always go to the network (never served from cache) */
-const NETWORK_FIRST_PATHS = ['live.html', 'live.js', 'live.css'];
+const NETWORK_FIRST_PATHS = ['live.html', 'live.js', 'live.css', 'cloud-stream.html', 'cloud-stream.js'];
 
 const PRECACHE_URLS = SHELL_FILES.map(f => BASE + f);
 

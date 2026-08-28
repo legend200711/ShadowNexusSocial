@@ -9842,20 +9842,29 @@ body.arcade-fs-ios body::after { display:none !important; }
 ══════════════════════════════════ -->
 <div class="admin-tab-content" id="adminTab-cloudstreams">
     <div class="section-card">
-        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">&#9925; Active CloudStreams</h3>
-        <p style="font-size:12px;color:#3a5a7a;margin:0 0 12px;">Monitor active cloud broadcasts. Only active, starting, recovering, and failed streams are shown.</p>
-        <button onclick="snxAdminLoadCloudStreams()" style="margin-bottom:12px;padding:7px 16px;border-radius:8px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.30);color:#00AEEF;font-size:12px;font-weight:700;cursor:pointer;">&#8635; Refresh</button>
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">&#9925; Active Cloud Radio Broadcasts</h3>
+        <p style="font-size:12px;color:#3a5a7a;margin:0 0 12px;">Monitor active cloud audio broadcasts. Founder-only controls.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <button onclick="snxAdminLoadCloudStreams()" style="padding:7px 16px;border-radius:8px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.30);color:#00AEEF;font-size:12px;font-weight:700;cursor:pointer;">&#8635; Refresh List</button>
+          <a href="cloud-stream.html" target="_blank" style="padding:7px 16px;border-radius:8px;background:rgba(57,255,20,0.08);border:1px solid rgba(57,255,20,0.25);color:#39ff14;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;">&#9654; Open Cloud Radio</a>
+        </div>
         <div id="snxAdminCloudStreamList">
-            <div style="text-align:center;padding:30px 0;color:#3a5a7a;font-size:13px;">Click Refresh to load active CloudStreams.</div>
+            <div style="text-align:center;padding:30px 0;color:#3a5a7a;font-size:13px;">Click Refresh to load active Cloud Radio broadcasts.</div>
         </div>
     </div>
     <div class="section-card" style="margin-top:12px;">
-        <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">&#128202; CloudStream Worker</h3>
+        <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">&#128202; Cloud Radio Worker</h3>
         <div style="font-size:12px;color:#5a80a8;line-height:1.8;">
-            <div>Worker URL: <strong style="color:#d8eeff;">snx-cloudstream.shadownexussocial.online</strong></div>
+            <div>Worker URL: <strong style="color:#d8eeff;">snx-cloudstream.nthntjrn.workers.dev</strong></div>
+            <div>Worker Config: <strong style="color:#d8eeff;">wrangler-studio.jsonc</strong></div>
             <div>KV Namespace: <strong style="color:#d8eeff;">cloudStreamKV</strong></div>
-            <div>Collections: cloudStreams / cloudStreamEvents / cloudStreamLogs</div>
+            <div>Durable Object: <strong style="color:#d8eeff;">CloudStreamScheduler (music alarm)</strong></div>
+            <div>Collections: cloudStreams / studioCloudStreamMusic / cloudStreamEvents</div>
+            <div>Audio Storage: <strong style="color:#d8eeff;">Cloudflare R2 (cloudStreamTracks)</strong></div>
+            <div>Deploy: <strong style="color:#d8eeff;">npx wrangler deploy --config wrangler-studio.jsonc</strong></div>
         </div>
+        <button onclick="snxAdminPingWorker()" style="margin-top:10px;padding:7px 16px;border-radius:8px;background:rgba(0,174,239,0.08);border:1px solid rgba(0,174,239,0.22);color:#00AEEF;font-size:11px;font-weight:700;cursor:pointer;">&#9889; Ping Worker</button>
+        <div id="snxAdminWorkerPing" style="font-size:11px;color:#3a5a7a;margin-top:6px;"></div>
     </div>
 </div><!-- end adminTab-cloudstreams -->
 
@@ -10393,13 +10402,13 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="snx-section-card-cta">Open Live Studio ›</div>
       </div>
 
-      <!-- 24-Hour Cloud Stream Card -->
-      <div class="snx-section-card snx-section-card--cloud" onclick="snxStudioSwitchSection('cloudstream')">
+      <!-- 24-Hour Cloud Stream Card — opens the dedicated cloud-stream.html page -->
+      <a class="snx-section-card snx-section-card--cloud" href="cloud-stream.html" style="text-decoration:none;display:block;">
         <div class="snx-section-card-icon">&#9925;</div>
         <div class="snx-section-card-title">24-Hour Cloud Stream</div>
         <div class="snx-section-card-desc">Set up &amp; launch your always-on cloud broadcast</div>
         <div class="snx-section-card-cta">Open Cloud Stream ›</div>
-      </div>
+      </a>
 
     </div>
   </div><!-- end section main -->
@@ -11119,7 +11128,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     <div class="sbn-item" data-sbn="live-music" onclick="snxStudioSwitchSection('livestudio');snxStudioSwitchMode('music')">
       <span class="sbn-icon">&#127925;</span>Music
     </div>
-    <div class="sbn-item" data-sbn="cloud" onclick="snxStudioSwitchSection('cloudstream')">
+    <div class="sbn-item" data-sbn="cloud" onclick="window.location.href='cloud-stream.html'">
       <span class="sbn-icon">&#9925;</span>Cloud
     </div>
   </div>
@@ -11572,14 +11581,15 @@ body.arcade-fs-ios body::after { display:none !important; }
       const initial  = (room.hostName || room.hostUsername || '?')[0].toUpperCase();
       const isCloudStream    = room.type === '24hour_cloudstream';
       const isStudioLive     = room.type === '24hour_studio_live';
-      // Studio Live routes through the existing live.html viewer (same proven system).
-      // Cloud Stream uses studio-viewer.html which handles the worker-based broadcast.
+      // Cloud Stream: opens dedicated cloud-stream.html player with stream ID.
+      // Studio Live: routes through the existing live.html viewer.
+      const csId     = room.cloudStreamId || room.hostId || roomId;
       const watchUrl = isCloudStream
-        ? 'studio-viewer.html#watch=' + roomId
+        ? 'cloud-stream.html?id=' + encodeURIComponent(csId)
         : 'live.html#watch=' + roomId;
       const tsRaw    = room.createdAt ? (room.createdAt.toMillis ? room.createdAt.toMillis() : room.createdAt) : '';
-      const livePill = isCloudStream ? '☁️ CLOUDSTREAM' : isStudioLive ? '🎬 STUDIO LIVE' : 'LIVE';
-      const watchBtnLabel = isCloudStream ? '▶ Watch CloudStream' : isStudioLive ? '▶ Join Studio' : '▶ Watch Live';
+      const livePill = isCloudStream ? '☁️ CLOUD RADIO' : isStudioLive ? '🎬 STUDIO LIVE' : 'LIVE';
+      const watchBtnLabel = isCloudStream ? '▶ Listen Live' : isStudioLive ? '▶ Join Studio' : '▶ Watch Live';
 
       const card = document.createElement('a');
       // V2: use neon-border card class + is-live animation
@@ -11837,12 +11847,13 @@ body.arcade-fs-ios body::after { display:none !important; }
         ? `<img class="flc-thumb-img" src="${escL(avatar)}" alt="${name}" loading="lazy">`
         : `<div class="flc-thumb-initial">${initial}</div>`;
 
-      // Studio Live routes through the existing live.html viewer (same proven system).
-      // Cloud Stream uses studio-viewer.html which handles the worker-based broadcast.
+      // Cloud Stream: opens dedicated cloud-stream.html player with stream ID.
+      // Studio Live: routes through the existing live.html viewer.
       const isCloudStream = room.type === '24hour_cloudstream';
       const isStudioLive  = room.type === '24hour_studio_live';
-      const watchUrl      = isCloudStream
-        ? 'studio-viewer.html#watch=' + roomId
+      const feedCsId  = room.cloudStreamId || room.hostId || roomId;
+      const watchUrl  = isCloudStream
+        ? 'cloud-stream.html?id=' + encodeURIComponent(feedCsId)
         : 'live.html#watch=' + roomId;
 
       const card = document.createElement('a');
@@ -11852,8 +11863,8 @@ body.arcade-fs-ios body::after { display:none !important; }
       card.dataset.rid     = room.roomId;
       card.setAttribute('aria-label', `Watch ${name} live`);
 
-      const livePillLabel = isCloudStream ? '☁️ CLOUDSTREAM' : isStudioLive ? '🎬 STUDIO LIVE' : 'LIVE';
-      const joinBtnLabel  = isCloudStream ? '▶ JOIN CLOUDSTREAM' : isStudioLive ? '▶ JOIN STUDIO' : '▶ JOIN LIVE';
+      const livePillLabel = isCloudStream ? '☁️ CLOUD RADIO' : isStudioLive ? '🎬 STUDIO LIVE' : 'LIVE';
+      const joinBtnLabel  = isCloudStream ? '&#9654; LISTEN LIVE' : isStudioLive ? '▶ JOIN STUDIO' : '▶ JOIN LIVE';
 
       card.innerHTML = `
         <div class="flc-thumb">
@@ -12396,7 +12407,15 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (window._snxPendingPage && typeof navTo === 'function') {
               const _pendPage = window._snxPendingPage;
               window._snxPendingPage = null;
-              setTimeout(() => navTo(_pendPage), 700);
+              setTimeout(() => {
+                  // Use realmNavTo when available so per-page init hooks fire
+                  // (e.g. studioPage triggers snxStudioInit via the realmNavTo patch)
+                  if (typeof window.realmNavTo === 'function') {
+                      window.realmNavTo(_pendPage);
+                  } else {
+                      navTo(_pendPage);
+                  }
+              }, 700);
           }
           if (typeof window._initStorySystem === 'function') window._initStorySystem();
           // Check if user has earned the OG badge (first 100 users, 50+ days old account)
