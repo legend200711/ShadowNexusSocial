@@ -6484,17 +6484,17 @@ body.arcade-fs-ios body::after { display:none !important; }
      screen from flashing for returning (logged-in) users.
      ══════════════════════════════════════════════════════════ -->
 <style>
-/* Auth gate — invisible backdrop only; no visible spinner or label.
-   The welcome overlay (snxEnterOverlay) covers the page during startup.
-   This element stays in the DOM so the auth callback can .resolved it,
-   preventing the login-screen flash for returning users. */
 #snx-auth-gate {
     position: fixed;
     inset: 0;
-    /* Sits below the welcome overlay (z-index 99999) */
-    z-index: 99990;
+    z-index: 99999;
     background: #0B1F3A;
-    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    /* Gate fades out instead of snapping away */
     transition: opacity 0.28s ease, visibility 0.28s ease;
 }
 #snx-auth-gate.resolved {
@@ -6502,70 +6502,43 @@ body.arcade-fs-ios body::after { display:none !important; }
     visibility: hidden;
     pointer-events: none;
 }
-/* Children hidden — no second loading screen visible to the user */
-.snx-gate-logo,
-.snx-gate-spinner,
+.snx-gate-logo {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 35%, #003d99 0%, #071428 100%);
+    border: 2.5px solid rgba(0,174,239,0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    box-shadow: 0 0 36px rgba(0,174,239,0.58), 0 0 0 1px rgba(0,174,239,0.14);
+    animation: blueFlame 3s infinite;
+}
+.snx-gate-spinner {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid rgba(0,174,239,0.18);
+    border-top-color: #00AEEF;
+    animation: spin360 0.75s linear infinite;
+}
 .snx-gate-label {
-    display: none;
+    font-size: 12px;
+    color: #3a6a9a;
+    letter-spacing: 1px;
+    text-transform: uppercase;
 }
 </style>
 
 <body>
 
-<!-- Auth gate — invisible backdrop; dismissed by onAuthStateChanged.
-     No visible spinner or "Loading…" label. The welcome screen (snxEnterOverlay)
-     covers the page during startup so no second loading screen is shown. -->
+<!-- Auth gate — rendered before anything else, removed after Firebase resolves -->
 <div id="snx-auth-gate" aria-hidden="true">
     <div class="snx-gate-logo">🌑</div>
     <div class="snx-gate-spinner"></div>
-    <div class="snx-gate-label" id="snxGateLabel"></div>
+    <div class="snx-gate-label">Loading…</div>
 </div>
-
-<!-- ── Auth gate timeout fallback ──────────────────────────────────────
-     If Firebase Auth has not resolved within 12 seconds the gate shows
-     a retry button so the user is never permanently stuck at "Loading…".
-     This fires independently of any Firebase SDK call — it is purely a
-     UI safety net.  The gate is still dismissed normally by the
-     onAuthStateChanged callback when auth does eventually resolve.
-     ──────────────────────────────────────────────────────────────────── -->
-<script>
-(function() {
-  var _gateTimeout = setTimeout(function() {
-    // If auth has already resolved, the gate is already dismissed — do nothing.
-    if (window._snxAuthResolved) return;
-    var label = document.getElementById('snxGateLabel');
-    var gate  = document.getElementById('snx-auth-gate');
-    if (!gate || gate.classList.contains('resolved')) return;
-    // Make the gate and label visible so the retry UI is actually seen
-    gate.style.display = 'flex';
-    gate.style.flexDirection = 'column';
-    gate.style.alignItems = 'center';
-    gate.style.justifyContent = 'center';
-    gate.style.gap = '20px';
-    gate.style.pointerEvents = 'all';
-    gate.style.zIndex = '99999';
-    if (label) {
-      label.style.display = 'block';
-      label.style.textAlign = 'center';
-      label.innerHTML =
-        '<span style="color:#ff5566;font-size:12px;letter-spacing:0.5px;">Connection taking too long.</span>' +
-        '<button onclick="window.location.reload()" style="margin-top:14px;background:rgba(0,120,255,0.18);' +
-        'border:1px solid rgba(0,174,239,0.55);color:#00d4ff;padding:9px 22px;border-radius:8px;' +
-        'font-size:13px;font-weight:700;cursor:pointer;display:block;width:auto;letter-spacing:0.5px;">' +
-        '🔄 Retry</button>';
-    }
-  }, 12000);
-  // Cancel the timeout as soon as auth resolves
-  Object.defineProperty(window, '_snxAuthResolved', {
-    get: function() { return window.__snxAuthResolvedVal; },
-    set: function(v) {
-      window.__snxAuthResolvedVal = v;
-      if (v) clearTimeout(_gateTimeout);
-    },
-    configurable: true
-  });
-})();
-</script>
 
 <!-- ████ SHADOW NEXUS REALM — Entering Animation ████ -->
 <div id="snxEnterOverlay">
@@ -9869,29 +9842,20 @@ body.arcade-fs-ios body::after { display:none !important; }
 ══════════════════════════════════ -->
 <div class="admin-tab-content" id="adminTab-cloudstreams">
     <div class="section-card">
-        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">&#9925; Active Cloud Radio Broadcasts</h3>
-        <p style="font-size:12px;color:#3a5a7a;margin:0 0 12px;">Monitor active cloud audio broadcasts. Founder-only controls.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-          <button onclick="snxAdminLoadCloudStreams()" style="padding:7px 16px;border-radius:8px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.30);color:#00AEEF;font-size:12px;font-weight:700;cursor:pointer;">&#8635; Refresh List</button>
-          <a href="cloud-stream.html" target="_blank" style="padding:7px 16px;border-radius:8px;background:rgba(57,255,20,0.08);border:1px solid rgba(57,255,20,0.25);color:#39ff14;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;">&#9654; Open Cloud Radio</a>
-        </div>
+        <h3 style="margin:0 0 12px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">&#9925; Active CloudStreams</h3>
+        <p style="font-size:12px;color:#3a5a7a;margin:0 0 12px;">Monitor active cloud broadcasts. Only active, starting, recovering, and failed streams are shown.</p>
+        <button onclick="snxAdminLoadCloudStreams()" style="margin-bottom:12px;padding:7px 16px;border-radius:8px;background:rgba(0,174,239,0.12);border:1px solid rgba(0,174,239,0.30);color:#00AEEF;font-size:12px;font-weight:700;cursor:pointer;">&#8635; Refresh</button>
         <div id="snxAdminCloudStreamList">
-            <div style="text-align:center;padding:30px 0;color:#3a5a7a;font-size:13px;">Click Refresh to load active Cloud Radio broadcasts.</div>
+            <div style="text-align:center;padding:30px 0;color:#3a5a7a;font-size:13px;">Click Refresh to load active CloudStreams.</div>
         </div>
     </div>
     <div class="section-card" style="margin-top:12px;">
-        <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">&#128202; Cloud Radio Worker</h3>
+        <h3 style="margin:0 0 10px;font-size:13px;color:#00d4ff;text-transform:uppercase;letter-spacing:0.8px;">&#128202; CloudStream Worker</h3>
         <div style="font-size:12px;color:#5a80a8;line-height:1.8;">
-            <div>Worker URL: <strong style="color:#d8eeff;">snx-cloudstream.nthntjrn.workers.dev</strong></div>
-            <div>Worker Config: <strong style="color:#d8eeff;">wrangler-studio.jsonc</strong></div>
+            <div>Worker URL: <strong style="color:#d8eeff;">snx-cloudstream.shadownexussocial.online</strong></div>
             <div>KV Namespace: <strong style="color:#d8eeff;">cloudStreamKV</strong></div>
-            <div>Durable Object: <strong style="color:#d8eeff;">CloudStreamScheduler (music alarm)</strong></div>
-            <div>Collections: cloudStreams / studioCloudStreamMusic / cloudStreamEvents</div>
-            <div>Audio Storage: <strong style="color:#d8eeff;">Cloudflare R2 (cloudStreamTracks)</strong></div>
-            <div>Deploy: <strong style="color:#d8eeff;">npx wrangler deploy --config wrangler-studio.jsonc</strong></div>
+            <div>Collections: cloudStreams / cloudStreamEvents / cloudStreamLogs</div>
         </div>
-        <button onclick="snxAdminPingWorker()" style="margin-top:10px;padding:7px 16px;border-radius:8px;background:rgba(0,174,239,0.08);border:1px solid rgba(0,174,239,0.22);color:#00AEEF;font-size:11px;font-weight:700;cursor:pointer;">&#9889; Ping Worker</button>
-        <div id="snxAdminWorkerPing" style="font-size:11px;color:#3a5a7a;margin-top:6px;"></div>
     </div>
 </div><!-- end adminTab-cloudstreams -->
 
@@ -10429,13 +10393,13 @@ body.arcade-fs-ios body::after { display:none !important; }
         <div class="snx-section-card-cta">Open Live Studio ›</div>
       </div>
 
-      <!-- 24-Hour Cloud Stream Card — opens the dedicated cloud-stream.html page -->
-      <a class="snx-section-card snx-section-card--cloud" href="cloud-stream.html" style="text-decoration:none;display:block;">
+      <!-- 24-Hour Cloud Stream Card -->
+      <div class="snx-section-card snx-section-card--cloud" onclick="snxStudioSwitchSection('cloudstream')">
         <div class="snx-section-card-icon">&#9925;</div>
         <div class="snx-section-card-title">24-Hour Cloud Stream</div>
         <div class="snx-section-card-desc">Set up &amp; launch your always-on cloud broadcast</div>
         <div class="snx-section-card-cta">Open Cloud Stream ›</div>
-      </a>
+      </div>
 
     </div>
   </div><!-- end section main -->
@@ -11058,22 +11022,12 @@ body.arcade-fs-ios body::after { display:none !important; }
         </div>
       </div>
 
-      <!-- STREAM NAME / DESCRIPTION / CATEGORY -->
+      <!-- STREAM NAME (minimal — required for the worker) -->
       <div class="snxs-card">
-        <div class="snxs-card-title">&#9881; Stream Info</div>
-        <input class="snxs-input" id="snxCSStreamName" placeholder="Stream title (optional)" maxlength="100">
-        <input class="snxs-input" id="snxCSDescription" placeholder="Description (optional)" maxlength="300" style="margin-top:8px;">
-        <select class="snxs-input snxs-select" id="snxCSCategory" style="margin-top:8px;">
-          <option value="Music">🎵 Music</option>
-          <option value="Talk">🎙 Talk / Podcast</option>
-          <option value="Gaming">🎮 Gaming</option>
-          <option value="Art">🎨 Art</option>
-          <option value="News">📰 News</option>
-          <option value="Education">📚 Education</option>
-          <option value="Entertainment">🎬 Entertainment</option>
-          <option value="Sports">⚽ Sports</option>
-          <option value="General">🌐 General</option>
-        </select>
+        <div class="snxs-card-title">&#9881; Stream</div>
+        <input class="snxs-input" id="snxCSStreamName" placeholder="Stream name (optional)" maxlength="100">
+        <input type="hidden" id="snxCSDescription" value="">
+        <input type="hidden" id="snxCSCategory" value="Music">
         <select class="snxs-input snxs-select" id="snxCSDuration" style="margin-top:8px;">
           <option value="60">1 Hour</option>
           <option value="360">6 Hours</option>
@@ -11155,7 +11109,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     <div class="sbn-item" data-sbn="live-music" onclick="snxStudioSwitchSection('livestudio');snxStudioSwitchMode('music')">
       <span class="sbn-icon">&#127925;</span>Music
     </div>
-    <div class="sbn-item" data-sbn="cloud" onclick="window.location.href='cloud-stream.html'">
+    <div class="sbn-item" data-sbn="cloud" onclick="snxStudioSwitchSection('cloudstream')">
       <span class="sbn-icon">&#9925;</span>Cloud
     </div>
   </div>
@@ -11164,7 +11118,7 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 
 <script type="module">
-  import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, browserLocalPersistence, setPersistence, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, getDocFromCache, getDocFromServer, updateDoc, deleteDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, arrayRemove, runTransaction, where, getDocs, writeBatch, increment, serverTimestamp, enableNetwork, disableNetwork } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
   import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
@@ -11180,8 +11134,7 @@ body.arcade-fs-ios body::after { display:none !important; }
     appId: "1:933810617818:web:efb24f123337dd987c14e3"
   };
 
-  // Guard against double-init (e.g. module evaluated twice in some browser contexts)
-  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
   const _presenceRtdb = _getRtdb(app);
@@ -11609,15 +11562,14 @@ body.arcade-fs-ios body::after { display:none !important; }
       const initial  = (room.hostName || room.hostUsername || '?')[0].toUpperCase();
       const isCloudStream    = room.type === '24hour_cloudstream';
       const isStudioLive     = room.type === '24hour_studio_live';
-      // Cloud Stream: opens dedicated cloud-stream.html player with stream ID.
-      // Studio Live: routes through the existing live.html viewer.
-      const csId     = room.cloudStreamId || room.hostId || roomId;
+      // Studio Live routes through the existing live.html viewer (same proven system).
+      // Cloud Stream uses studio-viewer.html which handles the worker-based broadcast.
       const watchUrl = isCloudStream
-        ? 'cloud-stream.html?id=' + encodeURIComponent(csId)
+        ? 'studio-viewer.html#watch=' + roomId
         : 'live.html#watch=' + roomId;
       const tsRaw    = room.createdAt ? (room.createdAt.toMillis ? room.createdAt.toMillis() : room.createdAt) : '';
-      const livePill = isCloudStream ? '☁️ CLOUD RADIO' : isStudioLive ? '🎬 STUDIO LIVE' : 'LIVE';
-      const watchBtnLabel = isCloudStream ? '▶ Listen Live' : isStudioLive ? '▶ Join Studio' : '▶ Watch Live';
+      const livePill = isCloudStream ? '☁️ CLOUDSTREAM' : isStudioLive ? '🎬 STUDIO LIVE' : 'LIVE';
+      const watchBtnLabel = isCloudStream ? '▶ Watch CloudStream' : isStudioLive ? '▶ Join Studio' : '▶ Watch Live';
 
       const card = document.createElement('a');
       // V2: use neon-border card class + is-live animation
@@ -11695,16 +11647,11 @@ body.arcade-fs-ios body::after { display:none !important; }
     }
 
     // Auto-purge Firestore docs for streams started > STALE_MS ago
-    // 24-Hour Cloud Streams use their own 24h stale window — never purge under that.
-    const CLOUD_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours for cloud streams
     async function _purgeStale(rooms) {
-      const cutoff       = Date.now() - STALE_MS;
-      const cloudCutoff  = Date.now() - CLOUD_STALE_MS;
+      const cutoff = Date.now() - STALE_MS;
       for (const r of rooms) {
-        const ts        = r.createdAt?.toMillis ? r.createdAt.toMillis() : (r.createdAt || 0);
-        const isCloud   = r.type === '24hour_cloudstream';
-        const threshold = isCloud ? cloudCutoff : cutoff;
-        if (ts && ts < threshold) {
+        const ts = r.createdAt?.toMillis ? r.createdAt.toMillis() : (r.createdAt || 0);
+        if (ts && ts < cutoff) {
           // r.id is the Firestore doc key (uid in new schema, roomId in legacy schema)
           // also try deleting by roomId field in case it differs from the key
           try { await deleteDoc(doc(db, 'liveRooms', r.id)); } catch(_) {}
@@ -11875,13 +11822,12 @@ body.arcade-fs-ios body::after { display:none !important; }
         ? `<img class="flc-thumb-img" src="${escL(avatar)}" alt="${name}" loading="lazy">`
         : `<div class="flc-thumb-initial">${initial}</div>`;
 
-      // Cloud Stream: opens dedicated cloud-stream.html player with stream ID.
-      // Studio Live: routes through the existing live.html viewer.
+      // Studio Live routes through the existing live.html viewer (same proven system).
+      // Cloud Stream uses studio-viewer.html which handles the worker-based broadcast.
       const isCloudStream = room.type === '24hour_cloudstream';
       const isStudioLive  = room.type === '24hour_studio_live';
-      const feedCsId  = room.cloudStreamId || room.hostId || roomId;
-      const watchUrl  = isCloudStream
-        ? 'cloud-stream.html?id=' + encodeURIComponent(feedCsId)
+      const watchUrl      = isCloudStream
+        ? 'studio-viewer.html#watch=' + roomId
         : 'live.html#watch=' + roomId;
 
       const card = document.createElement('a');
@@ -11891,8 +11837,8 @@ body.arcade-fs-ios body::after { display:none !important; }
       card.dataset.rid     = room.roomId;
       card.setAttribute('aria-label', `Watch ${name} live`);
 
-      const livePillLabel = isCloudStream ? '☁️ CLOUD RADIO' : isStudioLive ? '🎬 STUDIO LIVE' : 'LIVE';
-      const joinBtnLabel  = isCloudStream ? '&#9654; LISTEN LIVE' : isStudioLive ? '▶ JOIN STUDIO' : '▶ JOIN LIVE';
+      const livePillLabel = isCloudStream ? '☁️ CLOUDSTREAM' : isStudioLive ? '🎬 STUDIO LIVE' : 'LIVE';
+      const joinBtnLabel  = isCloudStream ? '▶ JOIN CLOUDSTREAM' : isStudioLive ? '▶ JOIN STUDIO' : '▶ JOIN LIVE';
 
       card.innerHTML = `
         <div class="flc-thumb">
@@ -12164,59 +12110,58 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (user) {
           currentUser = user;
 
+          // ── Enforce Founder role — runs on every sign-in ──
+          // If this is the founder email, make sure the Firestore doc always has
+          // role:"founder" and the Founder badge, regardless of how the account
+          // was created. No other account can ever receive this role.
           // ── Founder role — set immediately from email, never overridden ──
           const _isFounder = user.email && user.email.toLowerCase() === FOUNDER_EMAIL.toLowerCase();
-          if (_isFounder) window._snxRole = 'founder';
-
-          // ── Expose identity and dismiss the auth gate immediately ──
-          // The gate's only job is preventing a login-screen flash for returning
-          // users.  All presence writes / role fetches happen in the background.
-          window._snxCurrentUser = user;
-          if (userData) window._snxUserData = userData;
-          if (Array.isArray(window._snxAuthReadyQueue)) {
-            window._snxAuthReadyQueue.forEach(fn => { try { fn(); } catch(e){} });
-            window._snxAuthReadyQueue = [];
-          }
-          window._snxAuthResolved = true;
-
-          // Dismiss the gate NOW — before any async background work
-          const _gate = document.getElementById('snx-auth-gate');
-          if (_gate) _gate.classList.add('resolved');
-
-          // ── All background writes / fetches run concurrently, non-blocking ──
-          // None of these need to complete before the app shell renders.
-
-          // Founder badge sync (background)
           if (_isFounder) {
-              getDoc(doc(db, 'users', user.uid)).then(founderSnap => {
+              window._snxRole = 'founder';
+              // Best-effort: keep Firestore doc in sync
+              try {
+                  const founderSnap = await getDoc(doc(db, 'users', user.uid));
                   const currentBadges = founderSnap.exists() ? (founderSnap.data().badges || []) : [];
-                  return updateDoc(doc(db, 'users', user.uid), {
+                  await updateDoc(doc(db, 'users', user.uid), {
                       role: 'founder',
                       badges: Array.from(new Set(['Founder', ...currentBadges]))
                   });
-              }).catch(() => {});
+              } catch(_) {}
           }
 
-          // Status "online" write (background)
-          updateDoc(doc(db, "users", user.uid), { status: "online", lastSeen: Date.now() }).catch(() => {});
+          try { await updateDoc(doc(db, "users", user.uid), { status: "online", lastSeen: Date.now() }); } catch(_) {}
 
-          // RTDB presence (background)
+          // ── RTDB presence: users/{uid} — online/live status for friends list ──
           try {
               const _uStatusRef = _rtdbRef(_presenceRtdb, 'users/' + user.uid);
-              _rtdbSet(_uStatusRef, { online: true, live: false, lastSeen: _rtdbServerTimestamp() }).then(() => {
-                  _rtdbOnDisconnect(_uStatusRef).set({ online: false, live: false, lastSeen: _rtdbServerTimestamp() });
-              }).catch(() => {});
+              await _rtdbSet(_uStatusRef, { online: true, live: false, lastSeen: _rtdbServerTimestamp() });
+              _rtdbOnDisconnect(_uStatusRef).set({ online: false, live: false, lastSeen: _rtdbServerTimestamp() });
           } catch(_) {}
 
-          // Heartbeat every 30 s (background)
+          // ── Heartbeat: keep RTDB presence alive every 30 s ──
           setInterval(() => {
               if (auth.currentUser) {
                   try { _rtdbSet(_rtdbRef(_presenceRtdb, 'users/' + auth.currentUser.uid), { online: true, live: false, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
               }
           }, 30000);
 
-          // Email save for username-login (background)
-          if (user.email) updateDoc(doc(db, "users", user.uid), { email: user.email.toLowerCase() }).catch(() => {});
+          // Save email to Firestore so username login works for existing accounts
+          try {
+              if (user.email) await updateDoc(doc(db, "users", user.uid), { email: user.email.toLowerCase() });
+          } catch(_) {}
+
+          // Expose current user for non-module scripts (notification settings)
+          window._snxCurrentUser = user;
+          // Do NOT overwrite _snxUserData with null here — userData is only
+          // populated once the onSnapshot listener below fires. We only assign
+          // it if the snapshot has already returned real data from a prior run.
+          if (userData) window._snxUserData = userData;
+          // Flush any auth-ready callbacks registered before auth resolved
+          if (Array.isArray(window._snxAuthReadyQueue)) {
+            window._snxAuthReadyQueue.forEach(fn => { try { fn(); } catch(e){} });
+            window._snxAuthReadyQueue = [];
+          }
+          window._snxAuthResolved = true;
           // Start passive invite listener for sidebar badge (deferred so arcade IIFE has loaded)
           setTimeout(() => {
             if (typeof window._snxArcadeSubscribeInvites === 'function') window._snxArcadeSubscribeInvites();
@@ -12230,12 +12175,14 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Handles: settings sync, notification bell + badge, friend badges,
           // and push-queue processing.  One snapshot instead of two.
           const _seenPushIds = new Set();
-          // Seed seen push-IDs from cache in background — does not block rendering.
-          getDoc(doc(db, 'users', user.uid)).then(_initSnap => {
+          // Seed with IDs already in the queue so a page-reload never re-fires
+          // notifications that were already shown in a previous session.
+          try {
+              const _initSnap = await getDoc(doc(db, 'users', user.uid));
               if (_initSnap.exists()) {
                   (_initSnap.data().pushQueue || []).forEach(n => { if (n.id) _seenPushIds.add(n.id); });
               }
-          }).catch(() => {});
+          } catch(_) {}
 
           userDataUnsubscribe = onSnapshot(doc(db, "users", user.uid), async (docSnap) => {
               if (!docSnap.exists()) return;
@@ -12382,38 +12329,43 @@ body.arcade-fs-ios body::after { display:none !important; }
           });
 
           document.getElementById("menuButton").style.display = "flex";
-          // Role fetch + nav panel sync — background, does not block navTo('feed').
-          // The userDataUnsubscribe onSnapshot above will also update the role as
-          // soon as it fires, so role panels are corrected within ~1 second anyway.
-          if (!_isFounder) {
-              getDoc(doc(db, 'users', user.uid)).then(snap2 => {
-                  window._snxRole = snap2.exists() ? (snap2.data().role || 'member') : 'member';
-                  if (typeof window._showRolePanels === 'function') window._showRolePanels();
-                  if (typeof window._snxReapplyNavVisibility === 'function') window._snxReapplyNavVisibility();
-              }).catch(() => {});
-          } else {
+          // Sync nav admin button after login
+          try {
+              if (!_isFounder) {
+                  const snap2 = await getDoc(doc(db, 'users', user.uid));
+                  const r2 = snap2.exists() ? (snap2.data().role || 'member') : 'member';
+                  window._snxRole = r2;
+              }
               if (typeof window._showRolePanels === 'function') window._showRolePanels();
-              if (typeof window._snxReapplyNavVisibility === 'function') window._snxReapplyNavVisibility();
+          } catch(_) {}
+          // Re-apply nav visibility now that window._snxRole is confirmed.
+          // Firestore onSnapshot listeners may have fired before auth resolved
+          // (role was unknown), so this replays the cached settings correctly.
+          if (typeof window._snxReapplyNavVisibility === 'function') {
+              window._snxReapplyNavVisibility();
           }
-          // _hideLoginLoading already called above; call again to be safe for any
-          // edge case where the login overlay is still visible at this point.
+          // Dismiss auth gate + login loading overlay, then navigate to feed
+          const _gate = document.getElementById('snx-auth-gate');
+          if (_gate) _gate.classList.add('resolved');
           _hideLoginLoading();
 
-          // ── Maintenance mode check — background, redirects if needed ──
-          // This is intentionally still async: if the site is in maintenance we
-          // must redirect before showing content.  It runs quickly from cache.
-          getDoc(doc(db, 'siteSettings', 'config')).then(async _cfgSnap => {
+          // ── Maintenance mode check ──
+          // Founders always bypass. Everyone else gets redirected if site is in maintenance.
+          try {
+              const _cfgSnap = await getDoc(doc(db, 'siteSettings', 'config'));
               if (_cfgSnap.exists() && _cfgSnap.data().maintenanceMode === true) {
                   const _isFndr = user.email && user.email.toLowerCase() === FOUNDER_EMAIL.toLowerCase();
                   if (!_isFndr) {
+                      // Read role directly — userData snapshot may not have fired yet
                       const _uSnap = await getDoc(doc(db, 'users', user.uid));
                       const _role  = _uSnap.exists() ? (_uSnap.data().role || 'member') : 'member';
                       if (_role !== 'founder') {
                           window.location.replace('maintenance.html');
+                          return;
                       }
                   }
               }
-          }).catch(() => {});
+          } catch(_) {}
 
           navTo('feed');
           initTimelineStream();
@@ -12429,15 +12381,7 @@ body.arcade-fs-ios body::after { display:none !important; }
           if (window._snxPendingPage && typeof navTo === 'function') {
               const _pendPage = window._snxPendingPage;
               window._snxPendingPage = null;
-              setTimeout(() => {
-                  // Use realmNavTo when available so per-page init hooks fire
-                  // (e.g. studioPage triggers snxStudioInit via the realmNavTo patch)
-                  if (typeof window.realmNavTo === 'function') {
-                      window.realmNavTo(_pendPage);
-                  } else {
-                      navTo(_pendPage);
-                  }
-              }, 700);
+              setTimeout(() => navTo(_pendPage), 700);
           }
           if (typeof window._initStorySystem === 'function') window._initStorySystem();
           // Check if user has earned the OG badge (first 100 users, 50+ days old account)
@@ -12520,11 +12464,16 @@ body.arcade-fs-ios body::after { display:none !important; }
       // Defaults to true when the field is absent so the inbox is enabled by default.
       // Set messagesTabEnabled = false in siteSettings/config via Founder Controls to hide it.
       // Cache the raw value so _snxReapplyNavVisibility() can replay it after role resolves.
-      // NOTE: The previous auto-heal write (setDoc messagesTabEnabled:true) was removed.
-      // It caused a write-on-every-read loop: onSnapshot fires → write → onSnapshot fires.
-      // If the field is absent or false, we treat it as enabled (default on).
-      // Only a Founder intentional action via the control panel ever sets it to false.
-      let _msgEnabled = cfg.messagesTabEnabled !== false;
+      // Auto-heal: if the field was set to false by a code bug (not by an intentional Founder
+      // toggle this session), reset it to true immediately so users aren't locked out.
+      let _msgEnabled;
+      if (cfg.messagesTabEnabled === false && !window._snxFounderTabDisabled) {
+          // Treat as enabled optimistically while the reset write propagates
+          _msgEnabled = true;
+          setDoc(doc(db, 'siteSettings', 'config'), { messagesTabEnabled: true }, { merge: true }).catch(() => {});
+      } else {
+          _msgEnabled = cfg.messagesTabEnabled !== false;
+      }
       window._snxMessagesTabEnabled = _msgEnabled;
       window._snxCfgMessagesTabEnabled = _msgEnabled; // persisted cache
       _syncMessagesTabUI(_msgEnabled);
@@ -31002,8 +30951,8 @@ document.addEventListener('click', function(e) {
   'use strict';
 
   /* ── Build identifier ─────────────────────────────────── */
-  var BUILD_ID = '2026-08-27-STABILITY-FIX';
-  var SW_VER   = 'v30';
+  var BUILD_ID = '2026-08-25-24H-STUDIO-HARD-UPDATE';
+  var SW_VER   = 'v28';
   window.SHADOW_NEXUS_BUILD_VERSION = BUILD_ID;
   window.SHADOW_NEXUS_SW_VERSION    = SW_VER;
 
