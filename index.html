@@ -6484,17 +6484,17 @@ body.arcade-fs-ios body::after { display:none !important; }
      screen from flashing for returning (logged-in) users.
      ══════════════════════════════════════════════════════════ -->
 <style>
+/* Auth gate — invisible backdrop only; no visible spinner or label.
+   The welcome overlay (snxEnterOverlay) covers the page during startup.
+   This element stays in the DOM so the auth callback can .resolved it,
+   preventing the login-screen flash for returning users. */
 #snx-auth-gate {
     position: fixed;
     inset: 0;
-    z-index: 99999;
+    /* Sits below the welcome overlay (z-index 99999) */
+    z-index: 99990;
     background: #0B1F3A;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 20px;
-    /* Gate fades out instead of snapping away */
+    pointer-events: none;
     transition: opacity 0.28s ease, visibility 0.28s ease;
 }
 #snx-auth-gate.resolved {
@@ -6502,42 +6502,23 @@ body.arcade-fs-ios body::after { display:none !important; }
     visibility: hidden;
     pointer-events: none;
 }
-.snx-gate-logo {
-    width: 76px;
-    height: 76px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 38% 35%, #003d99 0%, #071428 100%);
-    border: 2.5px solid rgba(0,174,239,0.72);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 36px;
-    box-shadow: 0 0 36px rgba(0,174,239,0.58), 0 0 0 1px rgba(0,174,239,0.14);
-    animation: blueFlame 3s infinite;
-}
-.snx-gate-spinner {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 3px solid rgba(0,174,239,0.18);
-    border-top-color: #00AEEF;
-    animation: spin360 0.75s linear infinite;
-}
+/* Children hidden — no second loading screen visible to the user */
+.snx-gate-logo,
+.snx-gate-spinner,
 .snx-gate-label {
-    font-size: 12px;
-    color: #3a6a9a;
-    letter-spacing: 1px;
-    text-transform: uppercase;
+    display: none;
 }
 </style>
 
 <body>
 
-<!-- Auth gate — rendered before anything else, removed after Firebase resolves -->
+<!-- Auth gate — invisible backdrop; dismissed by onAuthStateChanged.
+     No visible spinner or "Loading…" label. The welcome screen (snxEnterOverlay)
+     covers the page during startup so no second loading screen is shown. -->
 <div id="snx-auth-gate" aria-hidden="true">
     <div class="snx-gate-logo">🌑</div>
     <div class="snx-gate-spinner"></div>
-    <div class="snx-gate-label" id="snxGateLabel">Loading…</div>
+    <div class="snx-gate-label" id="snxGateLabel"></div>
 </div>
 
 <!-- ── Auth gate timeout fallback ──────────────────────────────────────
@@ -6555,13 +6536,24 @@ body.arcade-fs-ios body::after { display:none !important; }
     var label = document.getElementById('snxGateLabel');
     var gate  = document.getElementById('snx-auth-gate');
     if (!gate || gate.classList.contains('resolved')) return;
-    // Show a retry button instead of spinning forever
-    if (label) label.innerHTML =
-      '<span style="color:#ff5566;font-size:12px;letter-spacing:0.5px;">Connection taking too long.</span>' +
-      '<button onclick="window.location.reload()" style="margin-top:14px;background:rgba(0,120,255,0.18);' +
-      'border:1px solid rgba(0,174,239,0.55);color:#00d4ff;padding:9px 22px;border-radius:8px;' +
-      'font-size:13px;font-weight:700;cursor:pointer;display:block;width:auto;letter-spacing:0.5px;">' +
-      '🔄 Retry</button>';
+    // Make the gate and label visible so the retry UI is actually seen
+    gate.style.display = 'flex';
+    gate.style.flexDirection = 'column';
+    gate.style.alignItems = 'center';
+    gate.style.justifyContent = 'center';
+    gate.style.gap = '20px';
+    gate.style.pointerEvents = 'all';
+    gate.style.zIndex = '99999';
+    if (label) {
+      label.style.display = 'block';
+      label.style.textAlign = 'center';
+      label.innerHTML =
+        '<span style="color:#ff5566;font-size:12px;letter-spacing:0.5px;">Connection taking too long.</span>' +
+        '<button onclick="window.location.reload()" style="margin-top:14px;background:rgba(0,120,255,0.18);' +
+        'border:1px solid rgba(0,174,239,0.55);color:#00d4ff;padding:9px 22px;border-radius:8px;' +
+        'font-size:13px;font-weight:700;cursor:pointer;display:block;width:auto;letter-spacing:0.5px;">' +
+        '🔄 Retry</button>';
+    }
   }, 12000);
   // Cancel the timeout as soon as auth resolves
   Object.defineProperty(window, '_snxAuthResolved', {
