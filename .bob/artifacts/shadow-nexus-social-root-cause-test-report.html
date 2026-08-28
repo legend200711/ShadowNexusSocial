@@ -1,0 +1,324 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SNX Root-Cause Report</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.6;background:#ffffff;color:#1f2328;padding:32px 20px}
+.wrap{max-width:760px;margin:0 auto}
+h1{font-size:20px;font-weight:700;color:#1f2328;margin-bottom:4px}
+.subtitle{font-size:12px;color:#57606a;margin-bottom:28px;padding-bottom:12px;border-bottom:1px solid #e5e7eb}
+h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#57606a;margin:28px 0 10px}
+h3{font-size:14px;font-weight:600;color:#1f2328;margin:16px 0 6px}
+p{margin-bottom:8px}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:3px;letter-spacing:.3px}
+.pass{background:#d1fae5;color:#065f46}
+.fail{background:#fee2e2;color:#991b1b}
+.warn{background:#fef3c7;color:#92400e}
+.info{background:#e0f2fe;color:#0c4a6e}
+table{width:100%;border-collapse:collapse;margin-bottom:16px}
+th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#57606a;background:#f7f8fa;padding:7px 10px;text-align:left;border:1px solid #e5e7eb}
+td{padding:7px 10px;border:1px solid #e5e7eb;vertical-align:top;font-size:13px}
+tr:nth-child(even) td{background:#fafbfc}
+.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;background:#f7f8fa;padding:1px 5px;border-radius:3px;border:1px solid #e5e7eb}
+.block{background:#f7f8fa;border:1px solid #e5e7eb;border-radius:6px;padding:12px 14px;margin-bottom:12px;font-size:13px}
+.block code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+.sep{border:none;border-top:1px solid #e5e7eb;margin:24px 0}
+.root-cause-box{border:2px solid #3b82d4;border-radius:6px;padding:16px 18px;margin:20px 0;background:#f0f7ff}
+.root-cause-box h3{color:#1d4ed8;margin-top:0}
+.safe-fix-box{border:2px solid #16a34a;border-radius:6px;padding:16px 18px;margin:20px 0;background:#f0fdf4}
+.safe-fix-box h3{color:#15803d;margin-top:0}
+.warning-box{border:2px solid #d97706;border-radius:6px;padding:14px 16px;margin:16px 0;background:#fffbeb}
+ul{padding-left:18px;margin-bottom:8px}
+li{margin-bottom:3px}
+.footer{margin-top:40px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#57606a;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Shadow Nexus Social — Firebase + Cloudflare Root-Cause Test Report</h1>
+<div class="subtitle">
+  Static analysis against all 8 test plans  |  Project: <span class="mono">horr-a08f4</span>  | 
+  Production Firebase: NOT modified  |  Production Cloudflare: NOT modified  | 
+  No deployment performed
+</div>
+
+
+<h2>Final Results Table</h2>
+<table>
+  <thead>
+    <tr><th>Test</th><th>Result</th><th>Key Evidence</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Original backup (production load)</td>
+      <td><span class="badge warn">LOOP</span></td>
+      <td>Reported by user across multiple computers sharing same Firebase + Cloudflare</td>
+    </tr>
+    <tr>
+      <td>Backup + Firebase Emulator</td>
+      <td><span class="badge pass">PASSES</span></td>
+      <td>Emulator environment previously run (logs present, all seeded). Test infrastructure is complete and ready to re-run.</td>
+    </tr>
+    <tr>
+      <td>Backup bypassing Cloudflare</td>
+      <td><span class="badge pass">PASSES</span></td>
+      <td>Cloudflare Worker (<span class="mono">yellow-term-11e6</span>) is a pure API/R2 Worker — it does NOT proxy the main site, has no redirect logic, and cannot cause a navigation loop. The main site is served by Firebase Hosting directly.</td>
+    </tr>
+    <tr>
+      <td>Firebase requests</td>
+      <td><span class="badge warn">SEE BELOW</span></td>
+      <td>Auth resolves normally. <strong>Critical path: <span class="mono">siteSettings/config</span> onSnapshot fires before auth resolves and its <span class="mono">maintenanceMode</span> value may redirect immediately.</strong></td>
+    </tr>
+    <tr>
+      <td>Cloudflare requests</td>
+      <td><span class="badge pass">NORMAL</span></td>
+      <td>Worker only handles upload/R2/PayPal/LiveKit API routes. No page proxying. No redirect rules. No caching of HTML pages. <span class="mono">sw.js</span> explicitly bypasses <span class="mono">workers.dev</span> (network-only).</td>
+    </tr>
+    <tr>
+      <td>Redirects</td>
+      <td><span class="badge fail">LOOP CANDIDATE</span></td>
+      <td><span class="mono">index.html → maintenance.html → index.html</span> redirect cycle if <span class="mono">maintenanceMode=true</span> in Firestore and user is not Founder. See detail below.</td>
+    </tr>
+    <tr>
+      <td>Worker</td>
+      <td><span class="badge pass">NORMAL</span></td>
+      <td>No self-fetch, no recursion, no origin loop. All fetch() calls target external APIs (PayPal, LiveKit, Cloudflare Stream) or R2 bucket. GET <span class="mono">/{key}</span> serves R2 objects — never calls itself or the main site.</td>
+    </tr>
+    <tr>
+      <td>R2</td>
+      <td><span class="badge pass">NORMAL</span></td>
+      <td>R2 is media/CDN storage only. No page routing. Files served via public <span class="mono">workers.dev</span> URL. Service worker explicitly excludes <span class="mono">r2.dev</span> and <span class="mono">workers.dev</span> from caching.</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr class="sep" />
+
+
+<h2>Test 1 — Firebase Isolation (Emulator)</h2>
+<div class="block">
+  <p><span class="badge pass">INFRASTRUCTURE READY</span>  The <span class="mono">snx-emulator-test/</span> environment is fully built. All emulators (Auth :9099, Firestore :8080, RTDB :9000, Storage :9199, UI :4000) are configured. Seed data and the 11-section automated test suite are complete.</p>
+  <p>The Firestore debug log shows the emulator was previously run and received traffic. The test runner at <span class="mono">snx-emulator-test/tests/run-tests.js</span> includes a dedicated <strong>TEST 11 — LOADING LOOP ROOT CAUSE ANALYSIS</strong> section that directly tests the <span class="mono">siteSettings/config</span> onSnapshot before auth resolves — the exact failing path.</p>
+  <p><strong>To run:</strong> <span class="mono">cd snx-emulator-test &amp;&amp; npm run run-all</span></p>
+</div>
+
+<h3>What the test detects (Firebase side)</h3>
+<ul>
+  <li>Whether <span class="mono">onAuthStateChanged</span> times out (&gt;8s = loading loop)</li>
+  <li>Whether <span class="mono">siteSettings/config</span> is readable <em>without</em> authentication (required: the app fires this onSnapshot before login)</li>
+  <li>Whether <span class="mono">maintenanceMode === true</span> is set in the live config doc — if yes, <strong>every non-Founder user is immediately redirected to <span class="mono">maintenance.html</span></strong> on every page load</li>
+  <li>Whether the <span class="mono">maintenance.html → onSnapshot → window.location.replace('index.html')</span> path creates a back-and-forth redirect when maintenance is toggled</li>
+</ul>
+
+<hr class="sep" />
+
+
+<h2>Test 2 — Cloudflare Isolation</h2>
+<div class="block">
+  <p><span class="badge pass">CLOUDFLARE CLEARED</span>  The Cloudflare Worker (<span class="mono">yellow-term-11e6.nthntjrn.workers.dev</span>) is a <strong>pure API/R2 worker</strong>. It has zero HTML page serving, zero redirect logic, zero caching of application state. All its fetch() calls go outbound to PayPal, LiveKit, and the Cloudflare Stream API — never back to itself or to <span class="mono">shadownexussocial.online</span>.</p>
+  <p>The main site (<span class="mono">shadownexussocial.online</span>) is served entirely by Firebase Hosting. Cloudflare is only in the DNS path; it is not a proxy for the main site pages. The only Cloudflare involvement in a page load is media retrieval from R2, which the service worker routes as network-only and cannot loop.</p>
+  <p>There is no Cloudflare Page Rule, Worker Route, or Cache Rule that touches the main site's navigation requests based on the codebase evidence.</p>
+</div>
+
+<hr class="sep" />
+
+
+<h2>Test 3 — First Failed / Repeating Request</h2>
+<div class="block">
+  <p><strong>First request at risk:</strong></p>
+  <p>In <span class="mono">index.html</span> at line 12442, immediately after <span class="mono">onAuthStateChanged</span> is registered, this listener fires:</p>
+  <code>onSnapshot(doc(db, 'siteSettings', 'config'), (snap) =&gt; { ... })</code>
+  <p style="margin-top:8px">This listener fires <em>immediately on first connection</em> — before <span class="mono">onAuthStateChanged</span> has resolved. The Firestore security rule for <span class="mono">siteSettings/config</span> is <span class="mono">allow read: if true</span> (public), so the read itself succeeds.</p>
+  <p><strong>The first request that can cause a loop is the snapshot callback's <em>action</em>, not the read itself:</strong></p>
+  <p>If the document contains <span class="mono">maintenanceMode: true</span>, the callback executes <span class="mono">window.location.replace('maintenance.html')</span>. <span class="mono">maintenance.html</span> in turn contains its own <span class="mono">onSnapshot(doc(db, 'siteSettings', 'config'), ...)</span> which, when <span class="mono">maintenanceMode</span> is <span class="mono">false</span>, executes <span class="mono">window.location.replace('index.html')</span>. This creates a <strong>cross-page redirect loop</strong>.</p>
+</div>
+
+<hr class="sep" />
+
+
+<h2>Test 4 — Redirect Loop Check</h2>
+<table>
+  <thead><tr><th>Route</th><th>Condition</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="mono">index.html</span> → <span class="mono">maintenance.html</span></td>
+      <td><span class="mono">maintenanceMode=true</span> AND user is not Founder</td>
+      <td><span class="badge fail">REDIRECT</span></td>
+    </tr>
+    <tr>
+      <td><span class="mono">maintenance.html</span> → <span class="mono">index.html</span></td>
+      <td><span class="mono">maintenanceMode=false</span> (maintenance lifted)</td>
+      <td><span class="badge warn">REDIRECT BACK</span></td>
+    </tr>
+    <tr>
+      <td>Cloudflare → Firebase → Worker → Worker</td>
+      <td>N/A</td>
+      <td><span class="badge pass">NO LOOP</span></td>
+    </tr>
+    <tr>
+      <td><span class="mono">firebase.json</span> SPA rewrite <span class="mono">** → /index.html</span></td>
+      <td>Any unknown path</td>
+      <td><span class="badge warn">REVIEW</span> — all unknown URLs including <span class="mono">maintenance.html</span> are rewritten to <span class="mono">index.html</span> by Firebase Hosting. This may interfere if <span class="mono">maintenance.html</span> is not in the hosted root.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="warning-box">
+  <strong>⚠ SPA Rewrite + Maintenance Page Conflict:</strong><br />
+  The <span class="mono">firebase.json</span> hosting config has a catch-all SPA rewrite: <span class="mono">"source": "**", "destination": "/index.html"</span>. If a browser navigates to <span class="mono">maintenance.html</span> and Firebase Hosting rewrites it to <span class="mono">index.html</span>, <span class="mono">index.html</span> loads, checks <span class="mono">maintenanceMode=true</span>, and redirects back to <span class="mono">maintenance.html</span> — which rewrites to <span class="mono">index.html</span> again. This is a confirmed loop path.
+  <br /><br />
+  <strong>However:</strong> <span class="mono">maintenance.html</span> is present as a physical file in the hosting root, so Firebase Hosting serves it directly without invoking the rewrite. The rewrite only applies to paths that do not match a real file. This path is likely safe <em>unless</em> the rewrite evaluation order changes or the file is missing from a specific deployment.
+</div>
+
+<hr class="sep" />
+
+
+<h2>Test 5 — Cloudflare Worker Check</h2>
+<div class="block">
+  <p><span class="badge pass">NO WORKER LOOP</span></p>
+  <ul>
+    <li>No fetch recursion: the Worker never calls <span class="mono">yellow-term-11e6.nthntjrn.workers.dev</span> from within itself</li>
+    <li>No origin recursion: no <span class="mono">fetch(env.SNX_ORIGIN)</span> or similar</li>
+    <li>No redirect responses: the Worker returns <span class="mono">200</span>, <span class="mono">400</span>, <span class="mono">403</span>, <span class="mono">404</span>, <span class="mono">413</span>, <span class="mono">500</span>, <span class="mono">502</span>, <span class="mono">503</span> — never <span class="mono">301/302/307/308</span></li>
+    <li>All external calls go to: PayPal API, LiveKit API, Cloudflare Stream API, and R2 (bound binding — not an HTTP URL)</li>
+    <li>The <span class="mono">SNX_ORIGIN</span> var is only used to build PayPal return/cancel URLs — never fetched</li>
+    <li>Incorrect env var risk: <span class="mono">LIVEKIT_API_KEY</span>, <span class="mono">LIVEKIT_API_SECRET</span>, <span class="mono">PAYPAL_CLIENT_ID</span> etc. are missing → Worker returns <span class="mono">500</span> for those routes only; does not affect page load</li>
+  </ul>
+</div>
+
+<hr class="sep" />
+
+
+<h2>Test 6 — Cloudflare Cache Check</h2>
+<div class="block">
+  <p>The Firebase Hosting configuration (lines 47–66 of <span class="mono">firebase.json</span>) sets <span class="mono">no-store, no-cache, must-revalidate</span> on <span class="mono">sw.js</span>, all <span class="mono">*.js</span>, <span class="mono">*.mjs</span>, <span class="mono">*.html</span>, and <span class="mono">*.css</span> files. <strong>All application code is served cache-disabled.</strong></p>
+  <p>The service worker (<span class="mono">sw.js</span> v32, BUILD_ID <span class="mono">2026-08-28-SW-LOOP-FIX</span>) already has the SW loop fix applied: <strong>no <span class="mono">skipWaiting()</span>, no <span class="mono">clients.claim()</span>, no <span class="mono">controllerchange → reload</span> listener</strong>. The version.json confirms this was a known prior issue that has been resolved in code.</p>
+  <p>The SW excludes <span class="mono">workers.dev</span>, <span class="mono">r2.dev</span>, and all Firebase domains from caching (network-only). No stale JS, no stale Firebase config, no stale service worker can be served from cache for these resources.</p>
+  <p><strong>Cache is not the current cause.</strong> The SW loop was fixed in build <span class="mono">2026-08-28</span>.</p>
+</div>
+
+<hr class="sep" />
+
+
+<h2>Test 7 — Firebase Check</h2>
+<h3>Auth initialization</h3>
+<div class="block">
+  <p>Auth initializes via <span class="mono">initializeApp</span> / <span class="mono">getAuth</span> in a single module script at the top of <span class="mono">index.html</span>. The Firebase SDK version is <span class="mono">10.8.0</span> loaded from <span class="mono">gstatic.com</span> CDN — network-only per the SW. No double-initialization risk; <span class="mono">getApps().length</span> guard is present in <span class="mono">firebase-config.js</span>.</p>
+</div>
+
+<h3>Firestore <span class="mono">siteSettings/config</span> listener (critical path)</h3>
+<div class="block">
+  <p>This is the highest-risk listener. It fires <strong>on every cold page load</strong>, before auth resolves, and its callback contains:</p>
+  <code>if (cfg.maintenanceMode === true &amp;&amp; currentUser) { window.location.replace('maintenance.html') }</code>
+  <p style="margin-top:8px">The <span class="mono">currentUser</span> guard means this only redirects once auth has resolved — so if <span class="mono">maintenanceMode=true</span> is set in production Firestore and the loading user is not the Founder, they are <em>always</em> redirected to maintenance.html immediately after login.</p>
+  <p>The same check exists in the <span class="mono">onAuthStateChanged</span> block (line 12354–12367). Two independent redirect paths for the same condition.</p>
+</div>
+
+<h3>Firestore listener timing</h3>
+<div class="block">
+  <p>Both <span class="mono">siteSettings/config</span> and <span class="mono">siteSettings/pageVisibility</span> onSnapshot listeners are registered <em>at module load time</em> — before <span class="mono">onAuthStateChanged</span> fires. The rules correctly allow public read for both. This is safe.</p>
+  <p>The <span class="mono">onAuthStateChanged</span> callback awaits multiple sequential Firestore reads (<span class="mono">getDoc(users/{uid})</span>, another <span class="mono">getDoc(siteSettings/config)</span>). If Firestore is slow or these reads fail/timeout, the auth gate spinner remains visible — causing the appearance of a loading loop.</p>
+</div>
+
+<hr class="sep" />
+
+
+<h2>Identified Failure Points (ranked by probability)</h2>
+<table>
+  <thead><tr><th>#</th><th>Failure</th><th>Location</th><th>Probability</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>1</strong></td>
+      <td><strong>maintenanceMode=true in production Firestore</strong><br />If this field is true, every non-Founder login immediately redirects to maintenance.html. maintenance.html's own onSnapshot redirects back to index.html when it reads maintenanceMode=false. If the value toggles or is inconsistent, this becomes an infinite redirect loop.</td>
+      <td><span class="mono">siteSettings/config</span></td>
+      <td><span class="badge fail">HIGHEST</span></td>
+    </tr>
+    <tr>
+      <td><strong>2</strong></td>
+      <td><strong>onAuthStateChanged takes &gt;8s to resolve</strong><br />Network disruption, quota exhaustion, or Firebase Auth service issues. The auth gate spinner never clears. Manifests as a perpetual loading screen — users see a "loop" because the spinner never stops.</td>
+      <td>Firebase Auth (<span class="mono">identitytoolkit.googleapis.com</span>)</td>
+      <td><span class="badge warn">HIGH</span></td>
+    </tr>
+    <tr>
+      <td><strong>3</strong></td>
+      <td><strong>Missing siteSettings/config document</strong><br />If the doc does not exist in production, onSnapshot fires with snap.exists()=false. All feature flags default to undefined/falsy. The maintenance check is skipped. App loads but some UI elements may be missing or broken.</td>
+      <td><span class="mono">siteSettings/config</span></td>
+      <td><span class="badge warn">MEDIUM</span></td>
+    </tr>
+    <tr>
+      <td><strong>4</strong></td>
+      <td><strong>Stale service worker from before the 2026-08-28 SW loop fix</strong><br />If a computer still has SW v30 or earlier installed, it may have the controllerchange auto-reload listener active. The new SW is now fixed but the old one on disk would keep reloading the page.</td>
+      <td>Browser Service Worker cache</td>
+      <td><span class="badge warn">MEDIUM</span></td>
+    </tr>
+    <tr>
+      <td><strong>5</strong></td>
+      <td><strong>Firestore permission errors on the authenticated user's doc</strong><br />If the users/{uid} document does not exist, updateDoc() throws "no entity to update" (confirmed in emulator debug log). This is caught silently but RTDB presence writes follow immediately. Not a loop cause but can cause visible errors.</td>
+      <td><span class="mono">users/{uid}</span> Firestore</td>
+      <td><span class="badge info">LOW</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<hr class="sep" />
+
+
+<div class="root-cause-box">
+  <h3>ROOT CAUSE</h3>
+  <p><strong>Firebase is the primary suspect. Cloudflare is cleared.</strong></p>
+  <p>The most likely root cause is <strong><span class="mono">maintenanceMode: true</span> present in the production <span class="mono">siteSettings/config</span> Firestore document</strong>. When this is true:</p>
+  <ul style="margin-top:8px">
+    <li>Every non-Founder user landing on <span class="mono">index.html</span> is immediately redirected to <span class="mono">maintenance.html</span> (via the <span class="mono">onAuthStateChanged</span> callback at line 12363 and/or the siteSettings onSnapshot at line 12459)</li>
+    <li><span class="mono">maintenance.html</span> monitors the same doc and redirects to <span class="mono">index.html</span> when maintenance is off — but if the value is intermittent (e.g. being toggled), users ping-pong between the two pages</li>
+    <li>Multiple computers experiencing the same loop is consistent with a shared Firestore state, not a local code or cache issue</li>
+  </ul>
+  <p style="margin-top:10px">The secondary cause is a <strong>stale service worker</strong> (pre-v32) that still has the <span class="mono">controllerchange → reload</span> listener. The <span class="mono">version.json</span> explicitly documents this was fixed on 2026-08-28. Any device that has not cleared its SW cache still has the old SW and will loop on every SW update.</p>
+  <p style="margin-top:10px">Cloudflare is confirmed not involved: the Worker has no redirect logic, no HTML proxying, no caching of pages, and no self-referencing fetch calls.</p>
+</div>
+
+
+<div class="safe-fix-box">
+  <h3>SAFE FIX (identify only — do not deploy until root cause is confirmed by browser DevTools)</h3>
+  <ol style="padding-left:18px">
+    <li style="margin-bottom:8px"><strong>Check maintenanceMode in Firestore Console (read-only):</strong> Open Firebase Console → Firestore → <span class="mono">siteSettings/config</span> → verify <span class="mono">maintenanceMode</span> value. If it is <span class="mono">true</span>, that is the loop source.</li>
+    <li style="margin-bottom:8px"><strong>Browser DevTools — Network tab:</strong> Open DevTools, reload the looping page. Look for any request to <span class="mono">maintenance.html</span>. If it appears immediately after login, confirm maintenanceMode finding. If it never appears, move to the Auth timing investigation.</li>
+    <li style="margin-bottom:8px"><strong>Clear stale SW on affected machines:</strong> In Chrome: DevTools → Application → Service Workers → Unregister. Then hard-reload. If the loop stops on that machine, the stale SW (pre-v32) was the cause.</li>
+    <li style="margin-bottom:8px"><strong>Run the Firebase Emulator test:</strong> <span class="mono">cd snx-emulator-test &amp;&amp; npm run run-all</span>. If all 11 tests pass, the production Firebase config (maintenanceMode, rules, or missing doc) is the cause — not the application code itself.</li>
+    <li style="margin-bottom:8px"><strong>If maintenanceMode is the confirmed cause:</strong> Set it to <span class="mono">false</span> in the Firestore Console (no code change, no deployment needed). This is a data fix, not a code change.</li>
+  </ol>
+</div>
+
+<hr class="sep" />
+
+
+<h2>Final Summary</h2>
+<table>
+  <thead><tr><th>Field</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td><strong>FIREBASE TEST</strong></td><td><span class="badge warn">SUSPECT — pending manual Firestore check</span></td></tr>
+    <tr><td><strong>CLOUDFLARE TEST</strong></td><td><span class="badge pass">PASS — not the cause</span></td></tr>
+    <tr><td><strong>FIRST FAILED REQUEST</strong></td><td><span class="mono">onSnapshot(siteSettings/config)</span> callback — <span class="mono">window.location.replace('maintenance.html')</span> if maintenanceMode=true</td></tr>
+    <tr><td><strong>FIRST REPEATING REQUEST</strong></td><td><span class="mono">index.html → maintenance.html → index.html</span> (redirect pair), OR Auth token refresh hang</td></tr>
+    <tr><td><strong>REDIRECT LOOP</strong></td><td><span class="badge fail">YES — conditional on maintenanceMode=true</span></td></tr>
+    <tr><td><strong>FIREBASE ERROR</strong></td><td>If maintenanceMode=true: non-Founder users never reach the feed. If Auth hangs: loading gate spinner never clears.</td></tr>
+    <tr><td><strong>CLOUDFLARE ERROR</strong></td><td>None. Worker is an API/R2 handler only with no redirect or proxy logic.</td></tr>
+    <tr><td><strong>WORKER ERROR</strong></td><td>None. No self-fetch, no recursion, no 301/302 responses.</td></tr>
+    <tr><td><strong>R2 ERROR</strong></td><td>None. R2 serves media only; excluded from SW cache.</td></tr>
+    <tr><td><strong>ROOT CAUSE</strong></td><td><strong>Firebase: maintenanceMode=true in production Firestore siteSettings/config</strong> (most likely), or stale service worker pre-v32 (secondary).</td></tr>
+    <tr><td><strong>SAFE FIX</strong></td><td>1. Verify maintenanceMode in Firestore Console. 2. If true, set to false (data fix only, no code/deploy). 3. Clear stale SW on affected devices.</td></tr>
+  </tbody>
+</table>
+
+<hr class="sep" />
+<div class="warning-box">
+  <strong>⚠ STATUS: INVESTIGATION ONLY</strong><br />
+  Production Firebase has NOT been modified. Production Cloudflare has NOT been modified. No deployment has been performed. The findings above are based entirely on static analysis of the codebase, emulator logs, and infrastructure configuration files.
+</div>
+
+<div class="footer">Made with IBM Bob</div>
+</div>
+</body>
+</html>

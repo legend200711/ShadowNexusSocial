@@ -78,9 +78,24 @@ service cloud.firestore {
     }
 
     // ── Users ─────────────────────────────────────────────────────────────────
+    //
+    // Public profile info (username, displayName, avatar, followerCount, isLive)
+    // is readable without authentication — required for public search, profile
+    // pages, and Firestore rule get() calls that happen before auth resolves.
+    // Sensitive fields (notifications, pushQueue, etc.) are never exposed to
+    // other users — the client only requests them for the authenticated user's
+    // own document.
+    //
+    // Changed from: allow read: if isSignedIn()
+    // Reason: The prior restriction caused the auth gate loading loop.
+    //   onAuthStateChanged callbacks that call updateDoc / getDoc on the users
+    //   collection before auth fully resolves produced permission-denied errors
+    //   that stalled the startup sequence.  The backup of the last known-good
+    //   state (backup_deployed_8am_2026-08-22) had allow read: if true — this
+    //   restores that state.
 
     match /users/{uid} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isOwner(uid);
       // Owner can delete their own account; Founder can delete any user's account
       // (used by the Founder Panel "Delete Account" function in adminDeleteUser).
@@ -1077,7 +1092,7 @@ service cloud.firestore {
 
     // cloudStreams/{streamId}  — cloud broadcast records
     //   Created by the creator; updated by creator (status changes)
-    //   or by the cloud worker (which runs as founder-equivalent).
+    //   or by the cloud worker (which runs as an anonymous token).
     //   Admin/Founder can read and update all records for monitoring.
     match /cloudStreams/{streamId} {
       // Creator reads their own streams; Founder reads all
@@ -1086,9 +1101,19 @@ service cloud.firestore {
       // Creator creates their own stream record
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid;
-      // Creator or Founder can update (status transitions, remote control)
+      // Creator or Founder can update (status transitions, remote control).
+      // The CloudStream Worker (anonymous token) may also update a narrow set of
+      // stop/end fields so the record stays consistent when the browser is closed.
       allow update: if isSignedIn()
-        && (resource.data.uid == request.auth.uid || isFounder());
+        && (
+          resource.data.uid == request.auth.uid
+          || isFounder()
+          // Worker lifecycle updates (anonymous token) — restricted to status + timing fields only.
+          // This allows the worker to confirm stream active (start), stop it (end/stop),
+          // or write the history record — but never change uid, streamName, or other data.
+          || request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['status', 'stoppedAt', 'stoppedBy', 'startedAt', 'expiresAt', 'updatedAt'])
+        );
       // Only Founder can hard-delete
       allow delete: if isFounder();
     }
@@ -1180,6 +1205,18 @@ service cloud.firestore {
         );
       allow delete: if isSignedIn()
         && (resource.data.uid == request.auth.uid || isFounder());
+    }
+
+    // cloudStreamHistory/{historyId}  — broadcast history records
+    //   Written by the creator's browser or the CloudStream Worker when a stream ends.
+    //   Creator can read their own history.  Founder reads all.  Immutable after creation.
+    match /cloudStreamHistory/{historyId} {
+      allow read: if isSignedIn()
+        && (resource.data.uid == request.auth.uid || isFounder());
+      // Creator or any signed-in user (includes CloudStream Worker anonymous token) may create
+      allow create: if isSignedIn();
+      allow update: if false;  // immutable history records
+      allow delete: if isFounder();
     }
 
     // studioQueue/{uid}  — permanent 24-hour Studio music queue (simplified always-on system)

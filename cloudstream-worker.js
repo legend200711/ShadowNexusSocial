@@ -188,9 +188,18 @@ async function handleStart(request, env, ctx, cors) {
     await env.cloudStreamKV.put(`stream:${streamId}`, JSON.stringify(stream), { expirationTtl: ttlSeconds });
   }
 
-  // Schedule the automation engine using waitUntil
+  // Schedule the automation engine + write active status to Firestore using waitUntil
   if (ctx && typeof ctx.waitUntil === 'function') {
-    ctx.waitUntil(runAutomationEngine(stream, env));
+    ctx.waitUntil(Promise.all([
+      runAutomationEngine(stream, env),
+      // Write active status + startedAt to Firestore cloudStreams doc so the record
+      // stays current even if the creator's browser disconnects before the client write.
+      markCloudStreamInFirestore(env, streamId, {
+        status:    'active',
+        startedAt: new Date(stream.startedAt).toISOString(),
+        expiresAt: new Date(stream.endsAt).toISOString()
+      })
+    ]));
   }
 
   return jsonOK({ success: true, stream }, cors);
@@ -235,8 +244,19 @@ async function handleStop(request, env, ctx, cors) {
     await env.cloudStreamKV.put(`stream:${streamId}`, JSON.stringify(stream), { expirationTtl: 3600 });
   }
 
-  // Notify Firestore so the feed removes the live card (server-side — device may be off)
-  if (ctx) ctx.waitUntil(markLiveRoomOffline(env, stream.uid));
+  // Notify Firestore so the feed removes the live card AND updates the cloudStreams record.
+  // Also write a history record for the creator's broadcast history.
+  if (ctx) {
+    ctx.waitUntil(Promise.all([
+      markLiveRoomOffline(env, stream.uid),
+      markCloudStreamInFirestore(env, streamId, {
+        status:     'stopped',
+        stoppedAt:  new Date().toISOString(),
+        stoppedBy:  'creator'
+      }),
+      writeCloudStreamHistory(env, stream, 'creator_stop')
+    ]));
+  }
 
   return jsonOK({ success: true, message: 'Stream stopped.' }, cors);
 }
@@ -385,6 +405,18 @@ async function handleAdminStop(request, env, ctx, cors) {
 
   if (env.cloudStreamKV) {
     await env.cloudStreamKV.put(`stream:${streamId}`, JSON.stringify(stream), { expirationTtl: 3600 });
+  }
+
+  // Update Firestore cloudStreams record so creator sees the stopped status
+  if (ctx) {
+    ctx.waitUntil(Promise.all([
+      markLiveRoomOffline(env, stream.uid),
+      markCloudStreamInFirestore(env, streamId, {
+        status:    'stopped',
+        stoppedAt: new Date().toISOString(),
+        stoppedBy: 'admin'
+      })
+    ]));
   }
 
   return jsonOK({ success: true, message: 'Stream force-stopped by admin.' }, cors);
@@ -961,10 +993,12 @@ export class CloudStreamScheduler {
 
   async _endStream(streamId) {
     let uid = null;
+    let startedAt = null;
     if (this.env.cloudStreamKV) {
       const streamData = await this.env.cloudStreamKV.get(`stream:${streamId}`, { type: 'json' });
       if (streamData) {
         uid                  = streamData.uid;
+        startedAt            = streamData.startedAt;
         streamData.status    = 'stopped';
         streamData.stoppedAt = Date.now();
         streamData.reason    = 'scheduled_end';
@@ -972,8 +1006,19 @@ export class CloudStreamScheduler {
       }
     }
     await logStreamEvent(this.env, streamId, 'stream_ended', { reason: 'scheduled_end' });
-    // Take the liveRooms card offline in Firestore
-    if (uid) await markLiveRoomOffline(this.env, uid);
+    // Update Firestore: mark liveRooms offline, update cloudStreams doc, write history
+    const stoppedStreamData = this.env.cloudStreamKV
+      ? (await this.env.cloudStreamKV.get(`stream:${streamId}`, { type: 'json' })) || {}
+      : {};
+    await Promise.all([
+      uid ? markLiveRoomOffline(this.env, uid) : Promise.resolve(),
+      markCloudStreamInFirestore(this.env, streamId, {
+        status:    'stopped',
+        stoppedAt: new Date().toISOString(),
+        stoppedBy: 'scheduled_end'
+      }),
+      writeCloudStreamHistory(this.env, Object.assign({ streamId }, stoppedStreamData), 'scheduled_end')
+    ]);
   }
 }
 
@@ -1045,6 +1090,120 @@ async function markLiveRoomOffline(env, hostUid) {
     }
   } catch (e) {
     console.warn('[CloudStream Worker] markLiveRoomOffline error:', e.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   FIREBASE REST — update cloudStreams document
+   Called server-side when a stream stops/ends to keep the
+   Firestore record consistent even when the creator's device
+   is offline or the browser has been closed.
+═══════════════════════════════════════════════════════ */
+async function markCloudStreamInFirestore(env, streamId, fields) {
+  if (!env.FIREBASE_PROJECT_ID || !env.FIREBASE_API_KEY || !streamId) return;
+
+  try {
+    // Obtain a short-lived anonymous token for the Firestore REST write.
+    // The studioCloudStreamMusic rule already allows anon writes;
+    // the cloudStreams rule allows updates where resource.data.uid == request.auth.uid.
+    // Since we cannot impersonate the creator from the worker we use the anonymous
+    // token and rely on the Firestore rule that allows Founder to update any record.
+    // The update is intentionally narrow: only status + stoppedAt + stoppedBy fields.
+    const signInRes = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${env.FIREBASE_API_KEY}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnSecureToken: true }) }
+    );
+    if (!signInRes.ok) return;
+    const { idToken } = await signInRes.json();
+    if (!idToken) return;
+
+    // Build the Firestore REST fields object — support all lifecycle fields
+    const firestoreFields = {};
+    if (fields.status)    firestoreFields.status    = { stringValue: fields.status };
+    if (fields.stoppedAt) firestoreFields.stoppedAt = { stringValue: fields.stoppedAt };
+    if (fields.stoppedBy) firestoreFields.stoppedBy = { stringValue: fields.stoppedBy };
+    if (fields.startedAt) firestoreFields.startedAt = { stringValue: fields.startedAt };
+    if (fields.expiresAt) firestoreFields.expiresAt = { stringValue: fields.expiresAt };
+    firestoreFields.updatedAt = { timestampValue: new Date().toISOString() };
+
+    // Build updateMask so only these fields are written
+    const maskParams = Object.keys(firestoreFields)
+      .map(k => `updateMask.fieldPaths=${encodeURIComponent(k)}`)
+      .join('&');
+
+    const firestoreUrl =
+      `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/cloudStreams/${streamId}?${maskParams}`;
+
+    const patchRes = await fetch(firestoreUrl, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      body:    JSON.stringify({ fields: firestoreFields })
+    });
+
+    if (!patchRes.ok) {
+      const errBody = await patchRes.text().catch(() => '');
+      console.warn('[CloudStream Worker] markCloudStreamInFirestore PATCH failed:', patchRes.status, errBody.slice(0, 200));
+    }
+  } catch (e) {
+    console.warn('[CloudStream Worker] markCloudStreamInFirestore error:', e.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   FIREBASE REST — write broadcast history record
+   Called when a stream ends (scheduled or manual) to preserve
+   a permanent history record in cloudStreamHistory collection.
+═══════════════════════════════════════════════════════ */
+async function writeCloudStreamHistory(env, streamData, reason) {
+  if (!env.FIREBASE_PROJECT_ID || !env.FIREBASE_API_KEY || !streamData) return;
+
+  try {
+    const signInRes = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${env.FIREBASE_API_KEY}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnSecureToken: true }) }
+    );
+    if (!signInRes.ok) return;
+    const { idToken } = await signInRes.json();
+    if (!idToken) return;
+
+    const histId = `${streamData.streamId || 'unknown'}_${Date.now()}`;
+    const firestoreUrl =
+      `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/cloudStreamHistory/${histId}`;
+
+    const now       = new Date().toISOString();
+    const startedMs = streamData.startedAt || 0;
+    const stoppedMs = streamData.stoppedAt || Date.now();
+    const durSecs   = startedMs ? Math.max(0, Math.floor((stoppedMs - startedMs) / 1000)) : 0;
+
+    const res = await fetch(firestoreUrl, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      body: JSON.stringify({
+        fields: {
+          historyId:    { stringValue: histId },
+          streamId:     { stringValue: streamData.streamId   || '' },
+          uid:          { stringValue: streamData.uid        || '' },
+          displayName:  { stringValue: streamData.displayName|| '' },
+          streamName:   { stringValue: streamData.streamName || '' },
+          description:  { stringValue: streamData.description|| '' },
+          category:     { stringValue: streamData.category   || '' },
+          startedAt:    { stringValue: startedMs ? new Date(startedMs).toISOString() : now },
+          stoppedAt:    { stringValue: new Date(stoppedMs).toISOString() },
+          durationSecs: { integerValue: String(durSecs) },
+          peakListeners:{ integerValue: String(streamData.viewerCount || 0) },
+          finalStatus:  { stringValue: streamData.status   || 'stopped' },
+          stopReason:   { stringValue: reason              || 'unknown' },
+          createdAt:    { timestampValue: now }
+        }
+      })
+    });
+    if (!res.ok) {
+      console.warn('[CloudStream Worker] writeCloudStreamHistory PUT failed:', res.status);
+    }
+  } catch (e) {
+    console.warn('[CloudStream Worker] writeCloudStreamHistory error:', e.message);
   }
 }
 

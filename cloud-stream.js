@@ -439,8 +439,10 @@ window.csrStartBroadcast = async function() {
 
     // 2. Validate playlist
     if (!_creator.selectedPl) throw new Error('No audio tracks selected. Please select a playlist first.');
-    const validTracks = _creator.queue.filter(t => t.status === 'ready' && t.url);
-    if (!validTracks.length) throw new Error('No ready audio tracks in the selected playlist. Upload and process tracks first.');
+    // Accept any track that has a playable URL regardless of status field —
+    // different upload paths (Studio upload vs profile music) may not set status:'ready'.
+    const validTracks = _creator.queue.filter(t => t.url || t.downloadURL || t.musicUrl);
+    if (!validTracks.length) throw new Error('No playable audio tracks found in the selected playlist. Make sure uploaded tracks have a valid audio URL.');
 
     // 3. Duration limit
     const durEl = _el('csrFormDuration');
@@ -508,10 +510,10 @@ window.csrStartBroadcast = async function() {
     _renderHandoffStep(2, 'Starting cloud broadcast worker…');
     const musicQueue = validTracks.map(t => ({
       id:       t.id,
-      title:    t.title    || 'Untitled',
-      artist:   t.artist   || '',
-      url:      t.url      || '',
-      duration: t.duration || 0
+      title:    t.title    || t.name   || 'Untitled',
+      artist:   t.artist   || t.artist_name || '',
+      url:      t.url      || t.downloadURL || t.musicUrl || '',
+      duration: t.duration || t.durationSecs || 0
     }));
 
     const idToken = await _user.getIdToken();
