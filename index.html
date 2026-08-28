@@ -12451,11 +12451,12 @@ body.arcade-fs-ios body::after { display:none !important; }
       // Maintenance mode enforcement (live — fires whenever Firestore value changes)
       window._snxMaintenanceMode = cfg.maintenanceMode === true;
       _syncMaintUI(cfg.maintenanceMode === true);
-      if (cfg.maintenanceMode === true && currentUser) {
+      if (cfg.maintenanceMode === true && currentUser && !window._snxMaintRedirecting) {
           const _isFndr = currentUser.email &&
               currentUser.email.toLowerCase() === FOUNDER_EMAIL.toLowerCase();
           const _isFounderRole = userData && userData.role === 'founder';
           if (!_isFndr && !_isFounderRole) {
+              window._snxMaintRedirecting = true;
               window.location.replace('maintenance.html');
           }
       }
@@ -30965,9 +30966,9 @@ document.addEventListener('click', function(e) {
      ── Runs on every page load (no ?snxdebug required) ──
      ══════════════════════════════════════════════════════ */
   if ('serviceWorker' in navigator) {
-    /* Guard: only reload once per tab per new SW — prevents infinite loops.
-       localStorage key is set to the NEW sw version before reloading,
-       so if we reload and find the key already matches, we skip. */
+    /* Guard: only reload once per new SW version — prevents infinite loops.
+       Uses localStorage (not sessionStorage) so the guard survives
+       location.replace() and location.reload() across all redirect paths. */
     var RELOAD_KEY = 'snxSwReloadDone';
 
     navigator.serviceWorker.ready.then(function(reg) {
@@ -30981,11 +30982,16 @@ document.addEventListener('click', function(e) {
 
       /* ── When the SW controller changes, reload once ── */
       navigator.serviceWorker.addEventListener('controllerchange', function() {
-        var done = sessionStorage.getItem(RELOAD_KEY);
-        if (!done) {
-          sessionStorage.setItem(RELOAD_KEY, '1');
-          window.location.reload();
-        }
+        try {
+          var done = localStorage.getItem(RELOAD_KEY);
+          if (!done) {
+            localStorage.setItem(RELOAD_KEY, '1');
+            window.location.reload();
+          } else {
+            // Already reloaded for this SW — clear the guard for next update cycle
+            localStorage.removeItem(RELOAD_KEY);
+          }
+        } catch(_) {}
       });
 
       /* ── Check for an update now ── */
