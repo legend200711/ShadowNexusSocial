@@ -31,8 +31,8 @@ const ALLOWED_ORIGINS = [
   'https://www.shadownexussocial.online',
   'https://shadowfirelive.com',
   'https://www.shadowfirelive.com',
-  'https://horr-a08f4.web.app',
-  'https://horr-a08f4.firebaseapp.com',
+  'https://remix-studio-4bf8a.web.app',
+  'https://remix-studio-4bf8a.firebaseapp.com',
   'https://legend200711.github.io',
   'http://localhost',
   'http://127.0.0.1'
@@ -1076,7 +1076,7 @@ const _PP_MIN_PURCHASE_USD   = 0.01;
 const _PP_MAX_PURCHASE_USD   = 100.00;
 const _PP_MIN_PAYOUT_USD     = 1.00;
 const _PP_PAYOUT_COOLDOWN_MS = 24 * 60 * 60 * 1000;  // 24 hours
-const _PP_FIREBASE_PROJECT   = 'horr-a08f4';
+const _PP_FIREBASE_PROJECT   = 'remix-studio-4bf8a';
 const _PP_WORKER_BASE        = 'https://yellow-term-11e6.nthntjrn.workers.dev';
 
 // ── PayPal API helpers ────────────────────────────────────────────────────────
@@ -2328,7 +2328,7 @@ async function handleAdminDeleteUser(req, env, cors, sec) {
   // ── 6. Delete the Firebase Auth account via Identity Toolkit Admin API ──
   // Uses the service account OAuth2 token (scope: firebase + identitytoolkit).
   // DELETE https://identitytoolkit.googleapis.com/v1/projects/{project}/accounts/{localId}
-  const projectId = 'horr-a08f4';
+  const projectId = 'remix-studio-4bf8a';
   const deleteUrl = `https://identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts/${targetUid}`;
   let deleteRes;
   try {

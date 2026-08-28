@@ -2,7 +2,7 @@
   "buildId": "2026-08-28-SW-LOOP-FIX",
   "swVersion": "v32",
   "deployedAt": "2026-08-28T00:00:00Z",
-  "project": "horr-a08f4",
+  "project": "remix-studio-4bf8a",
   "studioVersion": "1.2.0",
   "note": "SW loop fix: removed all controllerchange auto-reload and skipWaiting. Updates apply on next natural navigation."
 }
