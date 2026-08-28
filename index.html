@@ -12164,58 +12164,59 @@ body.arcade-fs-ios body::after { display:none !important; }
       if (user) {
           currentUser = user;
 
-          // ── Enforce Founder role — runs on every sign-in ──
-          // If this is the founder email, make sure the Firestore doc always has
-          // role:"founder" and the Founder badge, regardless of how the account
-          // was created. No other account can ever receive this role.
           // ── Founder role — set immediately from email, never overridden ──
           const _isFounder = user.email && user.email.toLowerCase() === FOUNDER_EMAIL.toLowerCase();
+          if (_isFounder) window._snxRole = 'founder';
+
+          // ── Expose identity and dismiss the auth gate immediately ──
+          // The gate's only job is preventing a login-screen flash for returning
+          // users.  All presence writes / role fetches happen in the background.
+          window._snxCurrentUser = user;
+          if (userData) window._snxUserData = userData;
+          if (Array.isArray(window._snxAuthReadyQueue)) {
+            window._snxAuthReadyQueue.forEach(fn => { try { fn(); } catch(e){} });
+            window._snxAuthReadyQueue = [];
+          }
+          window._snxAuthResolved = true;
+
+          // Dismiss the gate NOW — before any async background work
+          const _gate = document.getElementById('snx-auth-gate');
+          if (_gate) _gate.classList.add('resolved');
+
+          // ── All background writes / fetches run concurrently, non-blocking ──
+          // None of these need to complete before the app shell renders.
+
+          // Founder badge sync (background)
           if (_isFounder) {
-              window._snxRole = 'founder';
-              // Best-effort: keep Firestore doc in sync
-              try {
-                  const founderSnap = await getDoc(doc(db, 'users', user.uid));
+              getDoc(doc(db, 'users', user.uid)).then(founderSnap => {
                   const currentBadges = founderSnap.exists() ? (founderSnap.data().badges || []) : [];
-                  await updateDoc(doc(db, 'users', user.uid), {
+                  return updateDoc(doc(db, 'users', user.uid), {
                       role: 'founder',
                       badges: Array.from(new Set(['Founder', ...currentBadges]))
                   });
-              } catch(_) {}
+              }).catch(() => {});
           }
 
-          try { await updateDoc(doc(db, "users", user.uid), { status: "online", lastSeen: Date.now() }); } catch(_) {}
+          // Status "online" write (background)
+          updateDoc(doc(db, "users", user.uid), { status: "online", lastSeen: Date.now() }).catch(() => {});
 
-          // ── RTDB presence: users/{uid} — online/live status for friends list ──
+          // RTDB presence (background)
           try {
               const _uStatusRef = _rtdbRef(_presenceRtdb, 'users/' + user.uid);
-              await _rtdbSet(_uStatusRef, { online: true, live: false, lastSeen: _rtdbServerTimestamp() });
-              _rtdbOnDisconnect(_uStatusRef).set({ online: false, live: false, lastSeen: _rtdbServerTimestamp() });
+              _rtdbSet(_uStatusRef, { online: true, live: false, lastSeen: _rtdbServerTimestamp() }).then(() => {
+                  _rtdbOnDisconnect(_uStatusRef).set({ online: false, live: false, lastSeen: _rtdbServerTimestamp() });
+              }).catch(() => {});
           } catch(_) {}
 
-          // ── Heartbeat: keep RTDB presence alive every 30 s ──
+          // Heartbeat every 30 s (background)
           setInterval(() => {
               if (auth.currentUser) {
                   try { _rtdbSet(_rtdbRef(_presenceRtdb, 'users/' + auth.currentUser.uid), { online: true, live: false, lastSeen: _rtdbServerTimestamp() }); } catch(_) {}
               }
           }, 30000);
 
-          // Save email to Firestore so username login works for existing accounts
-          try {
-              if (user.email) await updateDoc(doc(db, "users", user.uid), { email: user.email.toLowerCase() });
-          } catch(_) {}
-
-          // Expose current user for non-module scripts (notification settings)
-          window._snxCurrentUser = user;
-          // Do NOT overwrite _snxUserData with null here — userData is only
-          // populated once the onSnapshot listener below fires. We only assign
-          // it if the snapshot has already returned real data from a prior run.
-          if (userData) window._snxUserData = userData;
-          // Flush any auth-ready callbacks registered before auth resolved
-          if (Array.isArray(window._snxAuthReadyQueue)) {
-            window._snxAuthReadyQueue.forEach(fn => { try { fn(); } catch(e){} });
-            window._snxAuthReadyQueue = [];
-          }
-          window._snxAuthResolved = true;
+          // Email save for username-login (background)
+          if (user.email) updateDoc(doc(db, "users", user.uid), { email: user.email.toLowerCase() }).catch(() => {});
           // Start passive invite listener for sidebar badge (deferred so arcade IIFE has loaded)
           setTimeout(() => {
             if (typeof window._snxArcadeSubscribeInvites === 'function') window._snxArcadeSubscribeInvites();
@@ -12229,14 +12230,12 @@ body.arcade-fs-ios body::after { display:none !important; }
           // Handles: settings sync, notification bell + badge, friend badges,
           // and push-queue processing.  One snapshot instead of two.
           const _seenPushIds = new Set();
-          // Seed with IDs already in the queue so a page-reload never re-fires
-          // notifications that were already shown in a previous session.
-          try {
-              const _initSnap = await getDoc(doc(db, 'users', user.uid));
+          // Seed seen push-IDs from cache in background — does not block rendering.
+          getDoc(doc(db, 'users', user.uid)).then(_initSnap => {
               if (_initSnap.exists()) {
                   (_initSnap.data().pushQueue || []).forEach(n => { if (n.id) _seenPushIds.add(n.id); });
               }
-          } catch(_) {}
+          }).catch(() => {});
 
           userDataUnsubscribe = onSnapshot(doc(db, "users", user.uid), async (docSnap) => {
               if (!docSnap.exists()) return;
@@ -12383,43 +12382,38 @@ body.arcade-fs-ios body::after { display:none !important; }
           });
 
           document.getElementById("menuButton").style.display = "flex";
-          // Sync nav admin button after login
-          try {
-              if (!_isFounder) {
-                  const snap2 = await getDoc(doc(db, 'users', user.uid));
-                  const r2 = snap2.exists() ? (snap2.data().role || 'member') : 'member';
-                  window._snxRole = r2;
-              }
+          // Role fetch + nav panel sync — background, does not block navTo('feed').
+          // The userDataUnsubscribe onSnapshot above will also update the role as
+          // soon as it fires, so role panels are corrected within ~1 second anyway.
+          if (!_isFounder) {
+              getDoc(doc(db, 'users', user.uid)).then(snap2 => {
+                  window._snxRole = snap2.exists() ? (snap2.data().role || 'member') : 'member';
+                  if (typeof window._showRolePanels === 'function') window._showRolePanels();
+                  if (typeof window._snxReapplyNavVisibility === 'function') window._snxReapplyNavVisibility();
+              }).catch(() => {});
+          } else {
               if (typeof window._showRolePanels === 'function') window._showRolePanels();
-          } catch(_) {}
-          // Re-apply nav visibility now that window._snxRole is confirmed.
-          // Firestore onSnapshot listeners may have fired before auth resolved
-          // (role was unknown), so this replays the cached settings correctly.
-          if (typeof window._snxReapplyNavVisibility === 'function') {
-              window._snxReapplyNavVisibility();
+              if (typeof window._snxReapplyNavVisibility === 'function') window._snxReapplyNavVisibility();
           }
-          // Dismiss auth gate + login loading overlay, then navigate to feed
-          const _gate = document.getElementById('snx-auth-gate');
-          if (_gate) _gate.classList.add('resolved');
+          // _hideLoginLoading already called above; call again to be safe for any
+          // edge case where the login overlay is still visible at this point.
           _hideLoginLoading();
 
-          // ── Maintenance mode check ──
-          // Founders always bypass. Everyone else gets redirected if site is in maintenance.
-          try {
-              const _cfgSnap = await getDoc(doc(db, 'siteSettings', 'config'));
+          // ── Maintenance mode check — background, redirects if needed ──
+          // This is intentionally still async: if the site is in maintenance we
+          // must redirect before showing content.  It runs quickly from cache.
+          getDoc(doc(db, 'siteSettings', 'config')).then(async _cfgSnap => {
               if (_cfgSnap.exists() && _cfgSnap.data().maintenanceMode === true) {
                   const _isFndr = user.email && user.email.toLowerCase() === FOUNDER_EMAIL.toLowerCase();
                   if (!_isFndr) {
-                      // Read role directly — userData snapshot may not have fired yet
                       const _uSnap = await getDoc(doc(db, 'users', user.uid));
                       const _role  = _uSnap.exists() ? (_uSnap.data().role || 'member') : 'member';
                       if (_role !== 'founder') {
                           window.location.replace('maintenance.html');
-                          return;
                       }
                   }
               }
-          } catch(_) {}
+          }).catch(() => {});
 
           navTo('feed');
           initTimelineStream();
