@@ -52,8 +52,8 @@
 <link rel="stylesheet" href="mobile.css">
 <!-- ── Shadow Nexus Gifting & Monetization ── -->
 <link rel="stylesheet" href="snx-gifts.css">
-<!-- ── Shadow Nexus 24-Hour Studio ── -->
-<link rel="stylesheet" href="studio.css">
+<!-- ── Shadow Nexus 24-Hour Studio (Cloud Stream) ── -->
+<link rel="stylesheet" href="cloud-stream.css">
 
 <!-- ── Preconnect to Firebase + R2 CDN so first load is faster ── -->
 <link rel="preconnect" href="https://www.gstatic.com">
@@ -10363,693 +10363,228 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 <!-- ══════════════════════════════════════════════════════════
      24-HOUR STUDIO PAGE
+     Now powered by the 24-Hour Audio Cloud Stream.
      ══════════════════════════════════════════════════════════ -->
 <div class="page" id="studioPage">
 
-  <!-- Return banner (shown when creator comes back to an active CloudStream) -->
-  <div id="snxCSReturnBanner" style="display:none;"></div>
+  <!-- ══════════════════════════════════════════════════════════
+       24-HOUR STUDIO — powered by 24-Hour Audio Cloud Stream
+       Extracted from cloud-stream.html (cloud-stream.js v1.4.0)
+  ══════════════════════════════════════════════════════════ -->
 
-  <!-- ── Header ── -->
-  <div class="snx-studio-header">
-    <div class="snx-studio-title">24-Hour Studio</div>
-    <div class="snx-studio-subtitle">Create. Broadcast. Stay Legendary.</div>
+  <!-- ── Auth gate (shown before Firebase resolves) ── -->
+  <div id="csrAuthGate" class="csr-auth-gate" style="display:none;">
+    <div class="csr-card">
+      <div class="csr-card-icon">&#128274;</div>
+      <div class="csr-card-title">Sign In Required</div>
+      <p class="csr-card-desc">Please sign in to Shadow Nexus Social to manage or listen to Cloud Radio broadcasts.</p>
+      <button class="csr-btn csr-btn-primary" onclick="realmNavTo('login')">&#8592; Sign In</button>
+    </div>
   </div>
 
-  <!-- ── Status Bar ── -->
-  <div class="snx-studio-status-bar" id="snxStudioStatusBar"></div>
+  <!-- ── Loading state ── -->
+  <div id="csrLoading" class="csr-loading">
+    <div class="csr-spinner"></div>
+    <div class="csr-loading-text">Loading 24-Hour Studio…</div>
+  </div>
 
-  <!-- ══════════════════════════════════════════
-       SECTION: MAIN LANDING
-       Shown by default — user chooses Live Studio or Cloud Stream
-  ══════════════════════════════════════════ -->
-  <div id="snxSectionMain" class="snx-studio-section">
-    <div class="snx-section-landing">
+  <!-- ── Main app (shown after auth) ── -->
+  <div id="csrApp" style="display:none;">
 
-      <!-- Live Studio Card -->
-      <div class="snx-section-card snx-section-card--live" onclick="snxStudioSwitchSection('livestudio')">
-        <div class="snx-section-card-icon">&#128225;</div>
-        <div class="snx-section-card-title">Live Studio</div>
-        <div class="snx-section-card-desc">Camera, filters, effects, themes &amp; Go Live</div>
-        <div class="snx-section-card-cta">Open Live Studio ›</div>
-      </div>
-
-      <!-- 24-Hour Cloud Stream Card -->
-      <div class="snx-section-card snx-section-card--cloud" onclick="window.location.href='cloud-stream.html'" style="cursor:pointer;">
-        <div class="snx-section-card-icon">&#9925;</div>
-        <div class="snx-section-card-title">24-Hour Cloud Stream</div>
-        <div class="snx-section-card-desc">Set up &amp; launch your always-on cloud broadcast</div>
-        <div class="snx-section-card-cta">Open Cloud Stream ›</div>
-      </div>
-
-    </div>
-  </div><!-- end section main -->
-
-  <!-- ══════════════════════════════════════════
-       SECTION: LIVE STUDIO
-       Contains all camera/filters/music/theme/effects/events modes
-  ══════════════════════════════════════════ -->
-  <div id="snxSectionLiveStudio" class="snx-studio-section" style="display:none;">
-
-    <!-- Back button + section header -->
-    <div class="snx-section-back-bar">
-      <button class="snx-section-back-btn" onclick="snxStudioSwitchSection('main')">&#8592; 24-Hour Studio</button>
-      <span class="snx-section-back-title">&#128225; Live Studio</span>
+    <!-- Active return banner -->
+    <div id="csrActiveBanner" class="csr-active-banner" style="display:none;">
+      <span class="csr-live-dot-anim"></span>
+      <span id="csrActiveBannerText">Your cloud broadcast is LIVE</span>
+      <button class="csr-btn csr-btn-sm" onclick="csrScrollToStream()">Manage &#8595;</button>
     </div>
 
-    <!-- ── Mode Selector ── -->
-    <div class="snx-studio-modes">
-      <div class="snx-studio-modes-label">Studio Mode</div>
-      <div class="snx-modes-scroll">
-        <div class="snx-mode-tab active" data-mode="live" onclick="snxStudioSwitchMode('live')">
-          <span class="mode-icon">&#128225;</span>Live
+    <!-- Stream Status Panel (creator view when active) -->
+    <section id="csrStatusPanel" class="csr-section" style="display:none;">
+      <div class="csr-card csr-card-live">
+        <div class="csr-live-header">
+          <span id="csrStatusBadge" class="csr-status-badge csr-status-offline">OFFLINE</span>
+          <span id="csrStreamId" class="csr-stream-id-label"></span>
         </div>
-        <div class="snx-mode-tab" data-mode="filters" onclick="snxStudioSwitchMode('filters')">
-          <span class="mode-icon">&#127774;</span>Filters
+        <div class="csr-info-grid" id="csrInfoGrid">
+          <div class="csr-info-row"><span class="csr-info-label">Title</span><span class="csr-info-val" id="csrInfoTitle">—</span></div>
+          <div class="csr-info-row"><span class="csr-info-label">Host</span><span class="csr-info-val" id="csrInfoHost">—</span></div>
+          <div class="csr-info-row"><span class="csr-info-label">Category</span><span class="csr-info-val" id="csrInfoCategory">—</span></div>
+          <div class="csr-info-row"><span class="csr-info-label">Started</span><span class="csr-info-val" id="csrInfoStarted">—</span></div>
+          <div class="csr-info-row"><span class="csr-info-label">Expires</span><span class="csr-info-val" id="csrInfoExpires">—</span></div>
+          <div class="csr-info-row"><span class="csr-info-label">Remaining</span><span class="csr-info-val csr-info-remaining" id="csrInfoRemaining">—</span></div>
+          <div class="csr-info-row"><span class="csr-info-label">Listeners</span><span class="csr-info-val" id="csrInfoListeners">0</span></div>
+          <div class="csr-info-row"><span class="csr-info-label">Worker</span><span class="csr-info-val" id="csrInfoWorker">—</span></div>
         </div>
-        <div class="snx-mode-tab" data-mode="music" onclick="snxStudioSwitchMode('music')">
-          <span class="mode-icon">&#127925;</span>Music
+        <div class="csr-now-playing-strip" id="csrNowPlayingStrip">
+          <div class="csr-np-label">&#9834; NOW PLAYING</div>
+          <div class="csr-np-title" id="csrNpTitle">—</div>
+          <div class="csr-np-artist" id="csrNpArtist"></div>
+          <div class="csr-np-next" id="csrNpNext"></div>
         </div>
-        <div class="snx-mode-tab" data-mode="theme" onclick="snxStudioSwitchMode('theme')">
-          <span class="mode-icon">&#127912;</span>Themes
-        </div>
-        <div class="snx-mode-tab" data-mode="effects" onclick="snxStudioSwitchMode('effects')">
-          <span class="mode-icon">&#10024;</span>Effects
-        </div>
-        <div class="snx-mode-tab" data-mode="events" onclick="snxStudioSwitchMode('events')">
-          <span class="mode-icon">&#127917;</span>Events
+        <div class="csr-controls-row">
+          <button class="csr-btn csr-btn-music" onclick="csrScrollToPlaylist()">&#127925; Manage Playlist</button>
+          <button class="csr-btn csr-btn-next" id="csrNextBtn" onclick="csrSkipTrack()">&#9197; Skip Track</button>
+          <button class="csr-btn csr-btn-danger" onclick="csrConfirmStop()" id="csrStopBtn">&#9940; END CLOUD BROADCAST</button>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- MODE: LIVE — Pre-live setup + Live Control Room (shown when creator is live) -->
-    <div class="snx-mode-panel active" data-mode="live">
-
-      <!-- ══ PRE-LIVE SETUP (hidden when creator is live) ══ -->
-      <div id="snxLiveSetupPanel">
-        <div class="snx-studio-card">
-          <div class="snx-studio-card-title">&#128247; Studio Camera Preview</div>
-          <div class="snx-preview-wrap" id="snxPreviewWrap">
-            <video id="snxCamPreview" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover;transition:filter 0.3s ease;"></video>
-            <div id="snxCamOff" class="snx-preview-off">
-              <span class="cam-off-icon">&#128247;</span>
-              Camera is off
-            </div>
-            <div id="snxCamPermError" class="snx-preview-off" style="display:none;background:rgba(7,20,40,0.92);z-index:4;"></div>
-            <div class="snx-preview-live-badge" id="snxPreviewLiveBadge">&#9679; STUDIO LIVE</div>
-            <div class="snx-preview-viewer-count" id="snxPreviewViewerCount">&#128065; 0</div>
+    <!-- Listener Player (non-creators / public) -->
+    <section id="csrListenerPanel" class="csr-section" style="display:none;">
+      <div class="csr-card csr-card-player">
+        <div class="csr-player-artwork" id="csrPlayerArtwork">&#9835;</div>
+        <div class="csr-player-info">
+          <div class="csr-player-live-badge"><span class="csr-live-dot-anim"></span> LIVE</div>
+          <div class="csr-player-broadcast-title" id="csrPlayerBroadcastTitle">Shadow Nexus Cloud Radio</div>
+          <div class="csr-player-host" id="csrPlayerHost"></div>
+        </div>
+        <div class="csr-player-track-info">
+          <div class="csr-player-track-title" id="csrPlayerTrackTitle">—</div>
+          <div class="csr-player-track-artist" id="csrPlayerTrackArtist"></div>
+        </div>
+        <div class="csr-player-progress-row">
+          <span class="csr-player-time" id="csrPlayerCurrentTime">0:00</span>
+          <div class="csr-player-progress-bar">
+            <div class="csr-player-progress-fill" id="csrPlayerProgressFill"></div>
           </div>
-          <div class="snx-cam-controls">
-            <button class="snx-toggle-btn" id="snxCamBtn" onclick="snxStudioToggleCam()">&#128247; Start Cam</button>
-            <button class="snx-toggle-btn" id="snxMicBtn" onclick="snxStudioToggleMic()">&#127897; Mic Off</button>
-            <button class="snx-toggle-btn" id="snxFlipCamBtn" onclick="snxStudioFlipCamera()" title="Switch front/rear camera">&#128260; Front Cam</button>
-            <button class="snx-toggle-btn" onclick="snxStudioSwitchMode('filters')" title="Open camera filters">&#127774; Filters</button>
+          <span class="csr-player-time" id="csrPlayerTotalTime">—</span>
+        </div>
+        <div class="csr-player-controls">
+          <button class="csr-player-btn csr-player-play" id="csrPlayerPlayBtn" onclick="csrTogglePlay()">&#9654;</button>
+          <div class="csr-player-vol-row">
+            <span>&#128264;</span>
+            <input type="range" min="0" max="100" value="80" id="csrVolSlider" oninput="csrSetVolume(this.value)" class="csr-vol-slider">
+            <span>&#128266;</span>
           </div>
         </div>
+        <div class="csr-player-next-row" id="csrPlayerNextRow"></div>
+        <div class="csr-player-stats">
+          <span id="csrPlayerListeners">0 listeners</span>
+          <span class="csr-player-stats-sep">·</span>
+          <span id="csrPlayerUptime"></span>
+        </div>
+        <div id="csrPlayerOffline" class="csr-player-offline" style="display:none;">
+          <div class="csr-player-offline-icon">&#128262;</div>
+          <div class="csr-player-offline-msg">This broadcast has ended or is not currently live.</div>
+        </div>
+      </div>
+    </section>
 
-        <!-- Audio Meter -->
-        <div class="snx-studio-card">
-          <div class="snx-studio-card-title">&#127962; Audio Levels</div>
-          <div class="snx-audio-meter" id="snxAudioMeter">
-            <div class="snx-audio-bar"></div><div class="snx-audio-bar"></div>
-            <div class="snx-audio-bar"></div><div class="snx-audio-bar"></div>
-            <div class="snx-audio-bar"></div><div class="snx-audio-bar"></div>
-            <div class="snx-audio-bar"></div><div class="snx-audio-bar"></div>
-            <div class="snx-audio-bar"></div><div class="snx-audio-bar"></div>
-            <div class="snx-audio-bar"></div><div class="snx-audio-bar"></div>
+    <!-- Create Broadcast Form -->
+    <section id="csrCreatePanel" class="csr-section" style="display:none;">
+      <div class="csr-card">
+        <div class="csr-card-title">&#127925; CREATE 24-HOUR BROADCAST</div>
+        <div id="csrDuplicateWarn" class="csr-warn" style="display:none;">
+          &#9888; You already have an active or starting broadcast.
+          <button class="csr-btn csr-btn-sm" onclick="csrOpenExistingStream()" style="margin-left:8px;">View it &#8594;</button>
+        </div>
+        <div class="csr-form-group">
+          <label class="csr-label">&#127925; Playlist / Audio Queue</label>
+          <div id="csrPlaylistSelector" class="csr-playlist-selector">
+            <div class="csr-playlist-loading">Loading your playlists…</div>
+          </div>
+          <div id="csrPlaylistHint" class="csr-hint">
+            Select a playlist from your music library. Upload tracks via your profile or the 24-Hour Studio music upload.
           </div>
         </div>
-
-        <!-- Live Studio Media Diagnostics -->
-        <div class="snx-studio-card" id="snxLiveMediaDiagCard" style="padding:10px 14px;">
-          <div id="snxLiveMediaDiag" style="font-size:11px;color:#5a80a8;">Starting diagnostics…</div>
-        </div>
-
-        <!-- Stream Settings -->
-        <div class="snx-studio-card">
-          <div class="snx-studio-card-title">&#9881; Stream Settings</div>
-          <div class="snx-studio-field">
-            <div class="snx-studio-field-label">Live Title</div>
-            <input class="snx-studio-input" id="snxLiveTitle" placeholder="Give your live a title&#8230;" maxlength="120">
+        <div id="csrQueuePreview" class="csr-queue-preview" style="display:none;"></div>
+        <div class="csr-form-row">
+          <div class="csr-form-group">
+            <label class="csr-label">Broadcast Title</label>
+            <input class="csr-input" id="csrFormTitle" placeholder="My Cloud Radio" maxlength="100">
           </div>
-          <div class="snx-studio-field">
-            <div class="snx-studio-field-label">Description</div>
-            <textarea class="snx-studio-textarea" id="snxLiveDesc" placeholder="What are you streaming today?" maxlength="500"></textarea>
-          </div>
-          <div class="snx-studio-field">
-            <div class="snx-studio-field-label">Category / Topic</div>
-            <select class="snx-studio-select" id="snxLiveCat">
-              <option value="General">&#127760; General</option>
+          <div class="csr-form-group">
+            <label class="csr-label">Category</label>
+            <select class="csr-input csr-select" id="csrFormCategory">
               <option value="Music">&#127925; Music</option>
+              <option value="Talk">&#127897; Talk / Podcast</option>
               <option value="Gaming">&#127918; Gaming</option>
-              <option value="Chat">&#128172; Just Chatting</option>
-              <option value="Art">&#127912; Art &amp; Creative</option>
-              <option value="Fitness">&#128170; Fitness</option>
+              <option value="Art">&#127912; Art</option>
+              <option value="News">&#128240; News</option>
               <option value="Education">&#128218; Education</option>
-              <option value="News">&#128240; News &amp; Commentary</option>
-            </select>
-          </div>
-          <div class="snx-studio-field">
-            <div class="snx-studio-field-label">Privacy</div>
-            <select class="snx-studio-select" id="snxLivePrivacy">
-              <option value="public">&#127757; Public</option>
-              <option value="followers">&#128101; Followers Only</option>
+              <option value="Entertainment">&#127916; Entertainment</option>
+              <option value="General">&#127760; General</option>
             </select>
           </div>
         </div>
-
-        <!-- Go Live Button -->
-        <div style="padding:0 14px 14px;">
-          <button class="snx-action-btn" id="snxGoLiveBtn" onclick="snxStudioGoLive()">&#128308; GO LIVE</button>
+        <div class="csr-form-group">
+          <label class="csr-label">Description <span class="csr-optional">optional</span></label>
+          <input class="csr-input" id="csrFormDesc" placeholder="What are you broadcasting?" maxlength="300">
         </div>
-      </div><!-- end snxLiveSetupPanel -->
-
-      <!-- ══ LIVE CONTROL ROOM (shown when creator is live) ══ -->
-      <div id="snxLiveControlRoom" style="display:none;">
-
-        <!-- Live Video + Status Bar -->
-        <div class="snx-cr-video-wrap" id="snxCRVideoWrap">
-          <!-- Camera preview stays piped into snxCamPreview (from setup panel);
-               we show a re-attach placeholder here that shares the same stream -->
-          <video id="snxCRVideo" autoplay muted playsinline class="snx-cr-video"></video>
-          <div class="snx-cr-cam-off" id="snxCRCamOff" style="display:none;">
-            <span style="font-size:28px;">&#128247;</span>
-            <span>Camera off</span>
+        <div class="csr-form-row">
+          <div class="csr-form-group">
+            <label class="csr-label">Maximum Duration</label>
+            <select class="csr-input csr-select" id="csrFormDuration">
+              <option value="5">5 minutes (Test Mode)</option>
+              <option value="60">1 Hour</option>
+              <option value="360">6 Hours</option>
+              <option value="720">12 Hours</option>
+              <option value="1440" selected>24 Hours (max)</option>
+            </select>
+            <div class="csr-hint" id="csrTestModeHint" style="display:none;">&#9888; Test mode — 5 min broadcast (developer only)</div>
           </div>
-
-          <!-- LIVE badge -->
-          <div class="snx-cr-live-badge" id="snxCRLiveBadge">
-            <span class="snx-cr-badge-dot"></span> LIVE
-          </div>
-
-          <!-- Stats row overlaid on video -->
-          <div class="snx-cr-stats-overlay">
-            <div class="snx-cr-stat"><span class="snx-cr-stat-icon">&#128065;</span><span id="snxCRViewers">0</span></div>
-            <div class="snx-cr-stat"><span class="snx-cr-stat-icon">&#10084;</span><span id="snxCRLikes">0</span></div>
-            <div class="snx-cr-stat"><span class="snx-cr-stat-icon">&#9200;</span><span id="snxCRDuration">00:00:00</span></div>
-          </div>
-        </div>
-
-        <!-- Live Status Card -->
-        <div class="snx-studio-card snx-cr-status-card">
-          <div class="snx-cr-status-row">
-            <div class="snx-cr-status-dot-wrap">
-              <span class="snx-cr-status-dot"></span>
-              <span class="snx-cr-status-label">LIVE</span>
+          <div class="csr-form-group">
+            <label class="csr-label">Cover Artwork <span class="csr-optional">optional</span></label>
+            <div id="csrArtworkPreview" class="csr-artwork-preview" style="display:none;">
+              <img id="csrArtworkImg" src="" alt="Cover" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">
+              <button class="csr-artwork-remove" onclick="csrRemoveArtwork()">&#10005;</button>
             </div>
-            <div class="snx-cr-status-info">
-              <div id="snxCRTitle" class="snx-cr-stream-title">Shadow Nexus LIVE</div>
-              <div id="snxCRCreator" class="snx-cr-creator-name"></div>
-            </div>
-            <div class="snx-cr-status-badges">
-              <div class="snx-cr-badge-stat"><span>&#128065;</span><span id="snxCRViewers2">0</span></div>
-              <div class="snx-cr-badge-stat"><span>&#9200;</span><span id="snxCRDuration2">00:00</span></div>
-            </div>
+            <button class="csr-btn csr-btn-outline" onclick="document.getElementById('csrArtworkInput').click()" id="csrArtworkBtn">&#128444; Choose Image</button>
+            <input type="file" id="csrArtworkInput" accept="image/*" onchange="csrLoadArtwork(event)" style="display:none;">
           </div>
         </div>
-
-        <!-- Chat + Gifts row -->
-        <div class="snx-cr-panels-row">
-
-          <!-- Live Chat -->
-          <div class="snx-studio-card snx-cr-panel">
-            <div class="snx-cr-panel-title">&#128172; Live Chat</div>
-            <div class="snx-cr-chat-messages" id="snxCRChatMessages"></div>
-            <div class="snx-cr-chat-input-row">
-              <input class="snx-cr-chat-input" id="snxCRChatInput"
-                placeholder="Reply to viewers…" maxlength="200"
-                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();snxCRSendChat();}">
-              <button class="snx-cr-chat-send" onclick="snxCRSendChat()">&#10148;</button>
-            </div>
-          </div>
-
-          <!-- Gifts Received -->
-          <div class="snx-studio-card snx-cr-panel">
-            <div class="snx-cr-panel-title">&#127873; Gifts Received</div>
-            <div class="snx-cr-gift-total-row">
-              <span class="snx-cr-gift-total-label">Total gifts:</span>
-              <span class="snx-cr-gift-total" id="snxCRGiftTotal">0</span>
-            </div>
-            <div class="snx-cr-gift-list" id="snxCRGiftList">
-              <div class="snx-cr-gift-empty">&#127873; Gifts will appear here</div>
-            </div>
-          </div>
-
-        </div><!-- end panels row -->
-
-        <!-- Viewers + Live Controls row -->
-        <div class="snx-cr-panels-row">
-
-          <!-- Viewers Box -->
-          <div class="snx-studio-card snx-cr-panel">
-            <div class="snx-cr-panel-title">&#128065; Viewers</div>
-            <div class="snx-cr-viewer-count-big" id="snxCRViewersBig">0</div>
-            <div class="snx-cr-viewer-label">watching now</div>
-            <div class="snx-cr-viewer-stats">
-              <div class="snx-cr-viewer-stat">
-                <span class="snx-cr-viewer-stat-icon">&#10084;</span>
-                <span id="snxCRLikes2">0</span> likes
-              </div>
-            </div>
-          </div>
-
-          <!-- Live Controls Box -->
-          <div class="snx-studio-card snx-cr-panel snx-cr-controls-panel">
-            <div class="snx-cr-panel-title">&#127895; Controls</div>
-            <div class="snx-cr-ctrl-grid">
-              <button class="snx-cr-ctrl-btn" id="snxCRCamToggle" onclick="snxCRToggleCam()">
-                <span class="snx-cr-ctrl-icon">&#128247;</span>
-                <span class="snx-cr-ctrl-label" id="snxCRCamLabel">Cam On</span>
-              </button>
-              <button class="snx-cr-ctrl-btn" id="snxCRMicToggle" onclick="snxCRToggleMic()">
-                <span class="snx-cr-ctrl-icon">&#127897;</span>
-                <span class="snx-cr-ctrl-label" id="snxCRMicLabel">Mic On</span>
-              </button>
-              <button class="snx-cr-ctrl-btn" onclick="snxCRFlipCamera()">
-                <span class="snx-cr-ctrl-icon">&#128260;</span>
-                <span class="snx-cr-ctrl-label">Flip</span>
-              </button>
-              <button class="snx-cr-ctrl-btn" onclick="snxStudioSwitchMode('filters')">
-                <span class="snx-cr-ctrl-icon">&#127774;</span>
-                <span class="snx-cr-ctrl-label">Filters</span>
-              </button>
-            </div>
-          </div>
-
-        </div><!-- end viewers + controls row -->
-
-        <!-- End Live -->
-        <div class="snx-cr-end-row">
-          <button class="snx-cr-end-btn" id="snxCREndLiveBtn" onclick="snxCREndLive()">
-            &#9940; END LIVE
-          </button>
-        </div>
-
-        <!-- Manage Live button (go to full live.html for advanced controls) -->
-        <div style="padding:0 14px 14px;">
-          <button class="snx-action-btn" onclick="window.location.href='live.html'" style="background:rgba(0,174,239,0.08);border-color:rgba(0,174,239,0.3);font-size:13px;">
-            &#128225; Open Full Live Dashboard &#8594;
-          </button>
-        </div>
-
-      </div><!-- end snxLiveControlRoom -->
-
-    </div><!-- end live mode -->
-
-    <!-- Hidden live engine iframe — loads live.html?autostart=1 when creator clicks GO LIVE.
-         The iframe runs the actual WebRTC / Firebase streaming in the background while the
-         Studio shows the Live Control Room UI. It is never displayed to the user. -->
-    <iframe
-      id="snxLiveEngineFrame"
-      src=""
-      allow="camera; microphone; display-capture; autoplay"
-      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
-      style="display:none;width:0;height:0;border:none;position:absolute;left:-9999px;top:-9999px;"
-      aria-hidden="true"
-    ></iframe>
-
-    <!-- MODE: FILTERS -->
-    <div class="snx-mode-panel" data-mode="filters">
-      <div id="snxFiltersPanel"></div>
-    </div>
-
-    <!-- MODE: MUSIC -->
-    <div class="snx-mode-panel" data-mode="music">
-      <div class="snx-notice info" style="margin:0 14px 10px;">&#127925; Only upload and play music you own or are licensed to use. Shadow Nexus Social does not circumvent copyright.</div>
-      <div id="snxNowPlayingBarEl" style="padding:0 14px;"></div>
-      <div style="padding:0 14px;">
-        <div class="snx-lib-tabs">
-          <button class="snx-lib-tab active" onclick="snxMusicLibTab('library',this)">&#127925; Library</button>
-          <button class="snx-lib-tab" onclick="snxMusicLibTab('queue',this)">&#128203; Queue</button>
-          <button class="snx-lib-tab" onclick="snxMusicLibTab('upload',this)">&#11014; Upload</button>
-          <button class="snx-lib-tab" onclick="snxMusicLibTab('schedule',this)">&#128197; Schedule</button>
-          <button class="snx-lib-tab" onclick="snxMusicLibTab('visualizer',this)">&#128202; Visualizer</button>
-        </div>
-      </div>
-      <div id="snxMusicTab_library" style="padding:0 14px;">
-        <div class="snx-lib-search">
-          <input id="snxLibSearch" placeholder="&#128269; Search tracks…" oninput="snxLibSearch()">
-        </div>
-        <div class="snx-lib-count" id="snxTrackLibraryCount">0 tracks</div>
-        <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <button class="snx-toggle-btn" onclick="snxMusicAddAllToQueue()">+ Queue All</button>
-          <button class="snx-toggle-btn" onclick="snxLibToggleMultiSelect()">&#9776; Select</button>
-        </div>
-        <div id="snxLibMultiSelectBar" class="snx-lib-multiselect-bar" style="display:none;">
-          <span id="snxLibSelCount" style="font-size:11px;color:#00AEEF;font-weight:700;">0 selected</span>
-          <button class="snx-toggle-btn" onclick="snxLibSelectAll()">Select All</button>
-          <button class="snx-toggle-btn" onclick="snxLibBulkAddToPlaylist()">&#9868; Add to Playlist</button>
-          <button class="snx-toggle-btn" style="margin-left:auto;" onclick="snxLibToggleMultiSelect()">&#10005; Cancel</button>
-        </div>
-        <div id="snxTrackLibraryList" class="snx-track-list"></div>
-      </div>
-      <div id="snxMusicTab_queue" style="display:none;padding:0 14px;">
-        <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <span style="font-size:12px;color:#5a80a8;">Playback Queue</span>
-          <button class="snx-toggle-btn" style="margin-left:auto;" onclick="_music.queue=[];_music.queueIndex=0;_renderQueue();_renderNowPlayingBar();">Clear</button>
-        </div>
-        <div id="snxMusicQueueList" class="snx-track-list"></div>
-      </div>
-      <div id="snxMusicTab_upload" style="display:none;padding:0 14px;">
-        <input type="file" id="snxMusicFileInput" accept="audio/*,.mp3,.m4a,.aac,.ogg,.wav,.flac,.opus" multiple onchange="snxMusicFilesSelected(event)">
-        <div class="snx-upload-zone" id="snxUploadZone" onclick="snxMusicOpenFilePicker()">
-          <span class="snx-upload-zone-icon">&#11014;</span>
-          <p class="snx-upload-zone-title">Add Music</p>
-          <p class="snx-upload-zone-sub">Select up to 1,000 files &bull; MP3, M4A, AAC, OGG, WAV, FLAC<br>Drag &amp; drop supported</p>
-        </div>
-        <div id="snxUploadDashboard" style="display:none;"></div>
-      </div>
-      <div id="snxMusicTab_schedule" style="display:none;padding:0 14px;">
-        <div class="snx-studio-card">
-          <div class="snx-studio-card-title">&#128197; Automatic Music Rotation</div>
-          <p style="font-size:12px;color:#4a7a9a;margin:0 0 10px;">Set which playlist plays at each time. The schedule runs server-side — your device can be off.</p>
-          <div id="snxMusicScheduleList"></div>
-          <div class="snx-divider"></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
-            <div>
-              <div class="snx-studio-field-label">Time</div>
-              <input type="time" class="snx-studio-input" id="snxScheduleTime" style="width:100px;">
-            </div>
-            <div style="flex:1;min-width:120px;">
-              <div class="snx-studio-field-label">Playlist / Library</div>
-              <input class="snx-studio-input" id="snxSchedulePlaylistName" placeholder="e.g. Midnight Playlist">
-            </div>
-            <button class="snx-toggle-btn" onclick="snxScheduleAddEntry()" style="flex-shrink:0;">+ Add</button>
-          </div>
-          <div style="margin-top:10px;">
-            <div class="snx-studio-field-label">Example Schedule</div>
-            <div style="font-size:11px;color:#3a5a7a;line-height:2;">
-              12:00 AM — Midnight Playlist &bull; 6:00 AM — Morning Playlist<br>
-              12:00 PM — Creator Playlist &bull; 6:00 PM — Night Playlist
-            </div>
+        <div class="csr-form-group">
+          <label class="csr-label">Shuffle &amp; Repeat</label>
+          <div class="csr-toggle-row">
+            <label class="csr-toggle-label">
+              <input type="checkbox" id="csrFormShuffle"> Shuffle playlist
+            </label>
+            <label class="csr-toggle-label">
+              <input type="checkbox" id="csrFormRepeat" checked> Repeat (loop)
+            </label>
           </div>
         </div>
-      </div>
-      <div id="snxMusicTab_visualizer" style="display:none;padding:0 14px;">
-        <div class="snx-studio-card">
-          <div class="snx-studio-card-title">&#128202; Audio Visualizer</div>
-          <p style="font-size:12px;color:#4a7a9a;margin:0 0 10px;">Choose how the visualizer reacts to your audio in the CloudStream broadcast.</p>
-          <div class="snx-vis-presets">
-            <div class="snx-vis-preset-btn active" data-preset="bars" onclick="snxSelectVisPreset('bars')"><span class="vp-icon">&#9646;&#9646;&#9646;</span>Neon Bars</div>
-            <div class="snx-vis-preset-btn" data-preset="waveform" onclick="snxSelectVisPreset('waveform')"><span class="vp-icon">&#126;</span>Waveform</div>
-            <div class="snx-vis-preset-btn" data-preset="spectrum" onclick="snxSelectVisPreset('spectrum')"><span class="vp-icon">&#127771;</span>Spectrum</div>
-            <div class="snx-vis-preset-btn" data-preset="pulse" onclick="snxSelectVisPreset('pulse')"><span class="vp-icon">&#128308;</span>Pulse</div>
-            <div class="snx-vis-preset-btn" data-preset="circular" onclick="snxSelectVisPreset('circular')"><span class="vp-icon">&#9677;</span>Circular</div>
-            <div class="snx-vis-preset-btn" data-preset="shadow-nexus" onclick="snxSelectVisPreset('shadow-nexus')"><span class="vp-icon">&#127768;</span>Shadow Nexus</div>
-          </div>
-          <div id="snxVisualizer" class="snx-music-visualizer" style="margin-top:8px;">
-            <div class="snx-vis-bar"></div><div class="snx-vis-bar"></div>
-            <div class="snx-vis-bar"></div><div class="snx-vis-bar"></div>
-            <div class="snx-vis-bar"></div><div class="snx-vis-bar"></div>
-            <div class="snx-vis-bar"></div><div class="snx-vis-bar"></div>
-            <div class="snx-vis-bar"></div><div class="snx-vis-bar"></div>
-            <div class="snx-vis-bar"></div><div class="snx-vis-bar"></div>
-            <div class="snx-vis-bar"></div><div class="snx-vis-bar"></div>
-            <div class="snx-vis-bar"></div><div class="snx-vis-bar"></div>
-          </div>
+        <div id="csrValidationError" class="csr-error" style="display:none;"></div>
+        <button class="csr-btn csr-btn-start" id="csrStartBtn" onclick="csrStartBroadcast()">
+          &#128308; GO LIVE FOR 24 HOURS
+        </button>
+        <div id="csrStartingProgress" style="display:none;">
+          <div class="csr-handoff-steps" id="csrHandoffSteps"></div>
         </div>
       </div>
-    </div><!-- end music mode -->
+    </section>
 
-    <!-- MODE: THEME -->
-    <div class="snx-mode-panel" data-mode="theme">
-      <div class="snx-studio-card">
-        <div class="snx-studio-card-title">&#127912; Select Theme</div>
-        <div class="snx-theme-grid" id="snxThemeGrid"></div>
-      </div>
-      <div class="snx-studio-card">
-        <div class="snx-studio-card-title">&#127991; Custom Branding</div>
-        <div class="snx-studio-field">
-          <div class="snx-studio-field-label">Display Name (on stream)</div>
-          <input class="snx-studio-input" id="snxBrandingName" placeholder="Your display name">
-        </div>
-        <div class="snx-studio-field">
-          <div class="snx-studio-field-label">Stream Overlay Color</div>
-          <input type="color" id="snxBrandingColor" value="#00AEEF" style="width:100%;height:36px;border-radius:6px;border:1px solid rgba(0,174,239,0.30);background:transparent;cursor:pointer;">
-        </div>
-        <div class="snx-notice" style="margin-top:8px;">Shadow Nexus Social branding is required where specified by platform guidelines.</div>
-      </div>
-    </div><!-- end theme mode -->
-
-    <!-- MODE: EFFECTS -->
-    <div class="snx-mode-panel" data-mode="effects">
-      <div class="snx-studio-card">
-        <div class="snx-studio-card-title">&#10024; Real-Time Effects</div>
-        <div class="snx-effects-grid" id="snxEffectsGrid"></div>
-      </div>
-      <div class="snx-studio-card">
-        <div class="snx-studio-card-title">&#127916; Animation Presets</div>
-        <div class="snx-effects-grid">
-          <div class="snx-effect-btn" onclick="snxStudioToggleEffect('anim-start')"><span class="eff-icon">&#128994;</span>Live Start</div>
-          <div class="snx-effect-btn" onclick="snxStudioToggleEffect('anim-end')"><span class="eff-icon">&#128308;</span>Live End</div>
-          <div class="snx-effect-btn" onclick="snxStudioToggleEffect('anim-follow')"><span class="eff-icon">&#10084;</span>New Follower</div>
-          <div class="snx-effect-btn" onclick="snxStudioToggleEffect('anim-like')"><span class="eff-icon">&#128077;</span>New Like</div>
-          <div class="snx-effect-btn" onclick="snxStudioToggleEffect('anim-gift')"><span class="eff-icon">&#127873;</span>New Gift</div>
-          <div class="snx-effect-btn" onclick="snxStudioToggleEffect('anim-welcome')"><span class="eff-icon">&#128075;</span>Welcome</div>
-          <div class="snx-effect-btn" onclick="snxStudioToggleEffect('anim-countdown')"><span class="eff-icon">&#8987;</span>Countdown</div>
-          <div class="snx-effect-btn" onclick="snxStudioToggleEffect('anim-milestone')"><span class="eff-icon">&#127942;</span>Milestone</div>
-          <div class="snx-effect-btn" onclick="snxStudioToggleEffect('anim-break')"><span class="eff-icon">&#9749;</span>Break</div>
-          <div class="snx-effect-btn" onclick="snxStudioToggleEffect('anim-return')"><span class="eff-icon">&#128281;</span>Returning</div>
+    <!-- Broadcast History -->
+    <section id="csrHistoryPanel" class="csr-section" style="display:none;">
+      <div class="csr-card">
+        <div class="csr-card-title">&#128203; Broadcast History</div>
+        <div id="csrHistoryList" class="csr-history-list">
+          <div class="csr-loading-text">Loading history…</div>
         </div>
       </div>
-      <div class="snx-studio-card">
-        <div class="snx-ctrl-row">
-          <div class="snx-ctrl-label">&#9889; Performance Mode<small>Reduces effect quality on low-end devices</small></div>
-          <button class="snx-toggle-btn" id="snxPerfModeBtn" onclick="this.classList.toggle('active');this.textContent=this.classList.contains('active')?'ON':'OFF'">OFF</button>
-        </div>
+    </section>
+
+  </div><!-- end csrApp -->
+
+  <!-- Toast notification -->
+  <div id="csrToast" class="csr-toast" style="display:none;"></div>
+
+  <!-- Confirmation dialog -->
+  <div id="csrConfirmOverlay" class="csr-confirm-overlay" style="display:none;">
+    <div class="csr-confirm-dialog">
+      <div class="csr-confirm-title" id="csrConfirmTitle">Confirm</div>
+      <div class="csr-confirm-body" id="csrConfirmBody"></div>
+      <div class="csr-confirm-actions">
+        <button class="csr-btn csr-btn-outline" onclick="csrConfirmCancel()">Cancel</button>
+        <button class="csr-btn csr-btn-danger" id="csrConfirmOk" onclick="csrConfirmProceed()">Confirm</button>
       </div>
-    </div><!-- end effects mode -->
-
-    <!-- MODE: EVENTS -->
-    <div class="snx-mode-panel" data-mode="events">
-      <div class="snx-studio-card">
-        <div class="snx-studio-card-title">&#127917; Event Scenes</div>
-        <div class="snx-scene-list" id="snxEventSceneList"></div>
-      </div>
-      <div class="snx-studio-card">
-        <div class="snx-studio-card-title">&#128295; Scene Builder</div>
-        <div class="snx-scene-builder-canvas" id="snxSceneBuilderCanvas">
-          <div class="snx-scene-canvas-placeholder">
-            <span style="font-size:28px;">&#127916;</span>
-            Canvas &#8212; add elements below
-          </div>
-        </div>
-        <div style="font-size:11px;color:#4a7a9a;margin-bottom:8px;">Add Elements:</div>
-        <div class="snx-scene-elements-grid" id="snxSceneElementsGrid"></div>
-        <button class="snx-action-btn" style="margin-top:8px;" onclick="snxStudioSaveScene()">&#128190; Save Scene</button>
-      </div>
-      <div class="snx-studio-card">
-        <div class="snx-studio-card-title">&#128203; CloudStream Scene Playlist</div>
-        <p style="font-size:12px;color:#4a7a9a;margin:0 0 10px;">Build a sequence of scenes for your 24-hour broadcast. The cloud worker automatically switches scenes.</p>
-        <div id="snxScenePlaylistList"></div>
-        <div class="snx-divider"></div>
-        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-          <div style="flex:1;min-width:140px;">
-            <div class="snx-studio-field-label">Scene Name</div>
-            <input class="snx-studio-input" id="snxPlaylistSceneName" placeholder="e.g. Blue Flame Music">
-          </div>
-          <div style="width:80px;">
-            <div class="snx-studio-field-label">Duration (min)</div>
-            <input class="snx-studio-input" id="snxPlaylistDuration" type="number" min="1" max="240" placeholder="20">
-          </div>
-          <button class="snx-toggle-btn" onclick="snxStudioAddToPlaylist()" style="margin-bottom:0;flex-shrink:0;">+ Add</button>
-        </div>
-      </div>
-    </div><!-- end events mode -->
-
-  </div><!-- end section livestudio -->
-
-  <!-- ══════════════════════════════════════════
-       SECTION: 24-HOUR CLOUD STREAM — SIMPLIFIED
-       7 controls: Music · Output · Input · Both · Picture · Camera · Mic
-  ══════════════════════════════════════════ -->
-  <div id="snxSectionCloudStream" class="snx-studio-section" style="display:none;">
-
-    <!-- Back button -->
-    <div class="snx-section-back-bar">
-      <button class="snx-section-back-btn" onclick="snxStudioSwitchSection('main')">&#8592; Studio</button>
-      <span class="snx-section-back-title">&#9925; 24-Hour Cloud Stream</span>
-    </div>
-
-    <!-- Return banner (shown when returning to active stream) -->
-    <div id="snxCSReturnBannerInner"></div>
-
-    <!-- ── STARTING PROGRESS ── (hidden by default) -->
-    <div id="snxCSHandoff" style="display:none;">
-      <div class="snxs-card">
-        <div class="snxs-card-title">&#8987; Starting…</div>
-        <div id="snxCSHandoffSteps" class="snx-handoff-steps"></div>
-      </div>
-    </div>
-
-    <!-- ── ACTIVE STREAM CARD ── (rendered by existing JS) -->
-    <div id="snxCSActive" style="display:none;"></div>
-
-    <!-- ══════════ MAIN SIMPLE FORM ══════════ -->
-    <!-- ══════════════════════════════════════════
-         CLOUD STREAM CONTROL CENTER
-         The Cloud Stream itself lives at cloud-stream.html.
-         This panel shows live status and links to the separate system.
-    ══════════════════════════════════════════ -->
-
-    <!-- Stream Status -->
-    <div class="snxs-card">
-      <div class="snxs-card-title">&#9925; Cloud Stream Status</div>
-
-      <!-- Live status bar (updated by studio.js health monitor) -->
-      <div id="snxSimpleStatusBar" class="snxs-status-bar snxs-status-off">
-        <span id="snxSimpleStatusDot" class="snxs-status-dot"></span>
-        <span id="snxSimpleStatusText">Not streaming</span>
-        <span id="snxSimpleUptime" class="snxs-uptime"></span>
-      </div>
-
-      <!-- Listener count (populated by health monitor) -->
-      <div id="snxCSListenerCount" style="margin-top:10px;font-size:13px;color:#4a7a9a;">
-        <span id="snxCSListenerVal">0</span> listeners
-      </div>
-    </div>
-
-    <!-- Now Playing (populated by _csMusicStartSync when active) -->
-    <div class="snxs-card" id="snxsNowPlayingCard">
-      <div class="snxs-card-title">&#9834; Now Playing</div>
-      <div id="snxsNowPlaying" class="snxs-now-playing" style="display:none;">
-        <span class="snxs-np-icon">&#9654;&#xFE0E;</span>
-        <div class="snxs-np-info">
-          <div id="snxsNpTitle" class="snxs-np-title">—</div>
-          <div id="snxsNpArtist" class="snxs-np-artist"></div>
-        </div>
-        <button class="snxs-icon-btn" onclick="snxSQPlayPause()" title="Play / Pause" id="snxsPlayPauseBtn">&#9646;&#9646;</button>
-        <button class="snxs-icon-btn" onclick="snxSQSkip()" title="Next">&#9193;</button>
-      </div>
-      <div id="snxsNowPlayingIdle" style="font-size:12px;color:#3a5a7a;padding:6px 0;">No stream active.</div>
-    </div>
-
-    <!-- Open Cloud Stream -->
-    <div class="snxs-actions">
-      <a class="snxs-start-btn" href="cloud-stream.html" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;">
-        &#9925; OPEN 24-HOUR CLOUD STREAM
-      </a>
-      <button class="snxs-stop-btn" id="snxCSStopBtn" onclick="snxCSStop()" style="display:none;">
-        &#9940; STOP STREAM
-      </button>
-    </div>
-
-    <!-- Music library / upload — feeds the Studio Queue for the Cloud Stream -->
-    <div class="snxs-card">
-      <div class="snxs-card-title">&#127925; Music Library</div>
-      <div class="snxs-notice">Only use music you own or are licensed to broadcast.</div>
-
-      <!-- Track queue -->
-      <div id="snxSQQueueList" class="snxs-queue-list"></div>
-
-      <!-- Library / Upload tabs -->
-      <div class="snxs-lib-tabs">
-        <button class="snxs-lib-tab active" id="snxsLibTabLib" onclick="snxsLibTab('library')">&#127925; Library</button>
-        <button class="snxs-lib-tab" id="snxsLibTabUpload" onclick="snxsLibTab('upload')">&#11014; Upload</button>
-      </div>
-
-      <!-- Library list -->
-      <div id="snxsLibPane">
-        <div class="snxs-lib-search">
-          <input id="snxCSLibSearch" placeholder="&#128269; Search…" oninput="snxCSLibSearch()">
-        </div>
-        <div id="snxCSTrackLibraryList" class="snxs-track-list"></div>
-      </div>
-
-      <!-- Upload pane -->
-      <div id="snxsUploadPane" style="display:none;">
-        <input type="file" id="snxCSMusicFileInput" accept="audio/*,.mp3,.m4a,.aac,.ogg,.wav,.flac,.opus" multiple onchange="snxMusicFilesSelected(event)">
-        <div class="snxs-upload-zone" onclick="document.getElementById('snxCSMusicFileInput').click()">
-          <span style="font-size:26px;">&#11014;</span>
-          <div style="font-weight:700;margin-top:6px;">Add Music</div>
-          <div style="font-size:11px;color:#4a7a9a;margin-top:3px;">MP3 · M4A · AAC · OGG · WAV · FLAC</div>
-        </div>
-        <div id="snxUploadDashboard" style="display:none;"></div>
-      </div>
-    </div>
-
-    <!-- Hidden stubs — keep JS references valid without rendering UI -->
-    <div style="display:none;" aria-hidden="true">
-      <div id="snxCSPlaylistPanel"></div>
-      <div id="snxCSReturnBanner"></div>
-      <div id="snxCSDashboardIdle"></div>
-      <div id="snxCSAnalyticsGrid">
-        <div class="snx-health-tile"><div class="ht-value" id="snxCSAnaViewers">—</div><div class="ht-label">Viewers</div></div>
-        <div class="snx-health-tile"><div class="ht-value" id="snxCSAnaUptime">—</div><div class="ht-label">Uptime</div></div>
-        <div class="snx-health-tile"><div class="ht-value" id="snxCSAnaBitrate">—</div><div class="ht-label">Bitrate</div></div>
-        <div class="snx-health-tile"><div class="ht-value" id="snxCSAnaFps">—</div><div class="ht-label">FPS</div></div>
-      </div>
-      <div id="snxCSDiagBody"></div>
-      <div id="snxCSDiagPreBody"></div>
-      <input id="snxCSStreamName" type="hidden" value="">
-      <input id="snxCSDescription" type="hidden" value="">
-      <input id="snxCSCategory" type="hidden" value="Music">
-      <input id="snxCSDuration" type="hidden" value="1440">
-      <input id="snxCSPlaylistSceneName" type="hidden">
-      <input id="snxCSPlaylistDuration" type="hidden">
-      <div id="snxCSScenePlaylistList"></div>
-      <div id="snxCSEventSceneList"></div>
-      <div id="snxCSThemeGrid"></div>
-      <select id="snxCSPrivacy" style="display:none;"><option value="public">Public</option></select>
-      <div id="snxCSStatusBadge"></div>
-      <div id="snxCSTabBar"></div>
-      <div id="snxCSSetup"></div>
-      <div id="snxCSMusicTab_library" style="display:none;"></div>
-      <div id="snxCSMusicTab_queue" style="display:none;"><div id="snxCSMusicQueueList"></div></div>
-      <div id="snxCSMusicTab_upload" style="display:none;"><input type="file" id="snxCSMusicFileInput2" accept="audio/*" style="display:none;"></div>
-      <div id="snxCSSceneBuilderCanvas"></div>
-      <div id="snxCSSceneElementsGrid"></div>
-      <div id="snxCSPlaylistPreview"></div>
-      <div id="snxCSPreDiagCard"></div>
-      <div id="snxCSDiagToggleRow"></div>
-      <div id="snxDestinationList"></div>
-      <div id="snxMusicScheduleList"></div>
-      <input id="snxScheduleTime" type="hidden">
-      <input id="snxSchedulePlaylistName" type="hidden">
-      <input id="snxCSBrandingName" type="hidden">
-      <input id="snxCSBrandingColor" type="hidden" value="#00AEEF">
-      <div id="snxCSVisualizer"></div>
-      <div id="snxNowPlayingBarEl"></div>
-      <!-- Camera/Mic stubs — elements removed from UI but JS refs kept valid -->
-      <button id="snxsCamToggle" style="display:none;">OFF</button>
-      <button id="snxsFlipBtn" style="display:none;"></button>
-      <div id="snxsCamWrap" style="display:none;"><video id="snxsCamPreview" autoplay muted playsinline></video></div>
-      <div id="snxsCamPermErr" style="display:none;"></div>
-      <button id="snxsMicToggle" style="display:none;">OFF</button>
-      <div id="snxsMicPermErr" style="display:none;"></div>
-      <div id="snxsMicMeter" style="display:none;"><div class="snx-audio-meter" id="snxAudioMeter"></div></div>
-      <button id="snxsModeOutput" style="display:none;"></button>
-      <button id="snxsModeInput" style="display:none;"></button>
-      <button id="snxsModeBoth" style="display:none;"></button>
-      <div id="snxsMicVolRow" style="display:none;"><input id="snxsMicVolSlider" type="range"><span id="snxsMicVolVal"></span></div>
-      <input id="snxsMusicVolSlider" type="range" value="80" style="display:none;">
-      <span id="snxsMusicVolVal" style="display:none;"></span>
-      <div id="snxsPicPreview" style="display:none;"><img id="snxsPicImg" src="" alt=""><button onclick="snxsRemovePicture()"></button></div>
-      <input type="file" id="snxsPicInput" accept="image/*" onchange="snxsLoadPicture(event)" style="display:none;">
-      <button id="snxsStartBtn" style="display:none;"></button>
-    </div>
-
-
-  </div><!-- end section cloudstream -->
-
-  <!-- Mobile Bottom Nav (fixed, only shown when studio page is active) -->
-  <div class="snx-studio-bottom-nav" id="snxStudioBottomNav">
-    <!-- Contents updated dynamically by JS based on current section -->
-    <div class="sbn-item" data-sbn="home" onclick="snxStudioSwitchSection('main')">
-      <span class="sbn-icon">&#127968;</span>Studio
-    </div>
-    <div class="sbn-item" data-sbn="live-live" onclick="snxStudioSwitchSection('livestudio');snxStudioSwitchMode('live')">
-      <span class="sbn-icon">&#128225;</span>Live
-    </div>
-    <div class="sbn-item" data-sbn="live-filters" onclick="snxStudioSwitchSection('livestudio');snxStudioSwitchMode('filters')">
-      <span class="sbn-icon">&#127774;</span>Filters
-    </div>
-    <div class="sbn-item" data-sbn="live-music" onclick="snxStudioSwitchSection('livestudio');snxStudioSwitchMode('music')">
-      <span class="sbn-icon">&#127925;</span>Music
-    </div>
-    <div class="sbn-item" data-sbn="cloud" onclick="snxStudioSwitchSection('cloudstream')">
-      <span class="sbn-icon">&#9925;</span>Cloud
     </div>
   </div>
+
+  <!-- Stubs: hidden divs for studio.js _switchSection() null-check safety -->
+  <div id="snxSectionLiveStudio" style="display:none;" aria-hidden="true"></div>
+  <div id="snxSectionCloudStream" style="display:none;" aria-hidden="true"></div>
+  <div id="snxSectionMain" style="display:none;" aria-hidden="true"></div>
 
 </div><!-- end studioPage -->
 
