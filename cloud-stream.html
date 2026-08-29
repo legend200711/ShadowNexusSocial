@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shadow Nexus Cloud Radio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0066FF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SNX Cloud Radio">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<meta name="description" content="Shadow Nexus Cloud Radio — 24-hour cloud audio broadcasting">
+
+<!-- Firebase (CDN — same version as the rest of the app) -->
+<script type="importmap">
+{
+  "imports": {
+    "firebase/app":       "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js",
+    "firebase/auth":      "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"
+  }
+}
+</script>
+
+<link rel="stylesheet" href="cloud-stream.css">
+<link rel="preconnect" href="https://www.gstatic.com">
+<link rel="preconnect" href="https://firestore.googleapis.com">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     HEADER
+════════════════════════════════════════════════════ -->
+<header class="csr-header">
+  <a class="csr-back-btn" href="/?snxPage=studioPage" aria-label="Back to 24-Hour Studio">&#8592; Studio</a>
+  <div class="csr-header-center">
+    <div class="csr-logo">&#9925;</div>
+    <div>
+      <div class="csr-title">SHADOW NEXUS CLOUD RADIO</div>
+      <div class="csr-subtitle">Broadcast your audio continuously from the cloud.</div>
+    </div>
+  </div>
+  <div id="csrAuthBadge" class="csr-auth-badge">…</div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════
+     AUTH GATE — shown until signed in
+════════════════════════════════════════════════════ -->
+<div id="csrAuthGate" class="csr-auth-gate" style="display:none;">
+  <div class="csr-card">
+    <div class="csr-card-icon">&#128274;</div>
+    <div class="csr-card-title">Sign In Required</div>
+    <p class="csr-card-desc">Please sign in to Shadow Nexus Social to manage or listen to Cloud Radio broadcasts.</p>
+    <a class="csr-btn csr-btn-primary" href="/?snxPage=studioPage">&#8592; Go to Shadow Nexus Social</a>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     LOADING STATE
+════════════════════════════════════════════════════ -->
+<div id="csrLoading" class="csr-loading">
+  <div class="csr-spinner"></div>
+  <div class="csr-loading-text">Loading Cloud Radio…</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     MAIN APP (shown after auth)
+════════════════════════════════════════════════════ -->
+<main id="csrApp" style="display:none;">
+
+  <!-- ── ACTIVE RETURN BANNER (when creator already has a stream) ── -->
+  <div id="csrActiveBanner" class="csr-active-banner" style="display:none;">
+    <span class="csr-live-dot-anim"></span>
+    <span id="csrActiveBannerText">Your cloud broadcast is LIVE</span>
+    <button class="csr-btn csr-btn-sm" onclick="csrScrollToStream()">Manage &#8595;</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       STREAM STATUS PANEL (creator view when active)
+  ═══════════════════════════════════════════════════ -->
+  <section id="csrStatusPanel" class="csr-section" style="display:none;">
+    <div class="csr-card csr-card-live">
+      <!-- Live badge -->
+      <div class="csr-live-header">
+        <span id="csrStatusBadge" class="csr-status-badge csr-status-offline">OFFLINE</span>
+        <span id="csrStreamId" class="csr-stream-id-label"></span>
+      </div>
+
+      <!-- Stream info grid -->
+      <div class="csr-info-grid" id="csrInfoGrid">
+        <div class="csr-info-row"><span class="csr-info-label">Title</span><span class="csr-info-val" id="csrInfoTitle">—</span></div>
+        <div class="csr-info-row"><span class="csr-info-label">Host</span><span class="csr-info-val" id="csrInfoHost">—</span></div>
+        <div class="csr-info-row"><span class="csr-info-label">Category</span><span class="csr-info-val" id="csrInfoCategory">—</span></div>
+        <div class="csr-info-row"><span class="csr-info-label">Started</span><span class="csr-info-val" id="csrInfoStarted">—</span></div>
+        <div class="csr-info-row"><span class="csr-info-label">Expires</span><span class="csr-info-val" id="csrInfoExpires">—</span></div>
+        <div class="csr-info-row"><span class="csr-info-label">Remaining</span><span class="csr-info-val csr-info-remaining" id="csrInfoRemaining">—</span></div>
+        <div class="csr-info-row"><span class="csr-info-label">Listeners</span><span class="csr-info-val" id="csrInfoListeners">0</span></div>
+        <div class="csr-info-row"><span class="csr-info-label">Worker</span><span class="csr-info-val" id="csrInfoWorker">—</span></div>
+      </div>
+
+      <!-- Now Playing in-stream -->
+      <div class="csr-now-playing-strip" id="csrNowPlayingStrip">
+        <div class="csr-np-label">&#9834; NOW PLAYING</div>
+        <div class="csr-np-title" id="csrNpTitle">—</div>
+        <div class="csr-np-artist" id="csrNpArtist"></div>
+        <div class="csr-np-next" id="csrNpNext"></div>
+      </div>
+
+      <!-- Controls -->
+      <div class="csr-controls-row">
+        <button class="csr-btn csr-btn-music" onclick="csrScrollToPlaylist()">&#127925; Manage Playlist</button>
+        <button class="csr-btn csr-btn-next" id="csrNextBtn" onclick="csrSkipTrack()">&#9197; Skip Track</button>
+        <button class="csr-btn csr-btn-danger" onclick="csrConfirmStop()" id="csrStopBtn">&#9940; END CLOUD BROADCAST</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════
+       LISTENER PLAYER (for non-creators + public)
+  ═══════════════════════════════════════════════════ -->
+  <section id="csrListenerPanel" class="csr-section" style="display:none;">
+    <div class="csr-card csr-card-player">
+      <div class="csr-player-artwork" id="csrPlayerArtwork">&#9835;</div>
+      <div class="csr-player-info">
+        <div class="csr-player-live-badge"><span class="csr-live-dot-anim"></span> LIVE</div>
+        <div class="csr-player-broadcast-title" id="csrPlayerBroadcastTitle">Shadow Nexus Cloud Radio</div>
+        <div class="csr-player-host" id="csrPlayerHost"></div>
+      </div>
+      <div class="csr-player-track-info">
+        <div class="csr-player-track-title" id="csrPlayerTrackTitle">—</div>
+        <div class="csr-player-track-artist" id="csrPlayerTrackArtist"></div>
+      </div>
+      <div class="csr-player-progress-row">
+        <span class="csr-player-time" id="csrPlayerCurrentTime">0:00</span>
+        <div class="csr-player-progress-bar">
+          <div class="csr-player-progress-fill" id="csrPlayerProgressFill"></div>
+        </div>
+        <span class="csr-player-time" id="csrPlayerTotalTime">—</span>
+      </div>
+      <div class="csr-player-controls">
+        <button class="csr-player-btn csr-player-play" id="csrPlayerPlayBtn" onclick="csrTogglePlay()">&#9654;</button>
+        <div class="csr-player-vol-row">
+          <span>&#128264;</span>
+          <input type="range" min="0" max="100" value="80" id="csrVolSlider" oninput="csrSetVolume(this.value)" class="csr-vol-slider">
+          <span>&#128266;</span>
+        </div>
+      </div>
+      <div class="csr-player-next-row" id="csrPlayerNextRow"></div>
+      <div class="csr-player-stats">
+        <span id="csrPlayerListeners">0 listeners</span>
+        <span class="csr-player-stats-sep">·</span>
+        <span id="csrPlayerUptime"></span>
+      </div>
+      <!-- Error / offline state -->
+      <div id="csrPlayerOffline" class="csr-player-offline" style="display:none;">
+        <div class="csr-player-offline-icon">&#128262;</div>
+        <div class="csr-player-offline-msg">This broadcast has ended or is not currently live.</div>
+        <a href="/" class="csr-btn csr-btn-primary" style="margin-top:12px;">&#8592; Back to SNX</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════
+       CREATE BROADCAST FORM
+  ═══════════════════════════════════════════════════ -->
+  <section id="csrCreatePanel" class="csr-section" style="display:none;">
+    <div class="csr-card">
+      <div class="csr-card-title">&#127925; CREATE 24-HOUR BROADCAST</div>
+
+      <!-- Duplicate stream warning -->
+      <div id="csrDuplicateWarn" class="csr-warn" style="display:none;">
+        &#9888; You already have an active or starting broadcast.
+        <button class="csr-btn csr-btn-sm" onclick="csrOpenExistingStream()" style="margin-left:8px;">View it &#8594;</button>
+      </div>
+
+      <!-- Playlist selector (uses existing studioPlaylists/{uid}/playlists) -->
+      <div class="csr-form-group">
+        <label class="csr-label">&#127925; Playlist / Audio Queue</label>
+        <div id="csrPlaylistSelector" class="csr-playlist-selector">
+          <div class="csr-playlist-loading">Loading your playlists…</div>
+        </div>
+        <div id="csrPlaylistHint" class="csr-hint">
+          Select a playlist from your music library. Add or upload tracks in <a href="/" class="csr-link">24-Hour Studio</a> first.
+        </div>
+      </div>
+
+      <!-- Queue preview -->
+      <div id="csrQueuePreview" class="csr-queue-preview" style="display:none;"></div>
+
+      <div class="csr-form-row">
+        <div class="csr-form-group">
+          <label class="csr-label">Broadcast Title</label>
+          <input class="csr-input" id="csrFormTitle" placeholder="My Cloud Radio" maxlength="100">
+        </div>
+        <div class="csr-form-group">
+          <label class="csr-label">Category</label>
+          <select class="csr-input csr-select" id="csrFormCategory">
+            <option value="Music">&#127925; Music</option>
+            <option value="Talk">&#127897; Talk / Podcast</option>
+            <option value="Gaming">&#127918; Gaming</option>
+            <option value="Art">&#127912; Art</option>
+            <option value="News">&#128240; News</option>
+            <option value="Education">&#128218; Education</option>
+            <option value="Entertainment">&#127916; Entertainment</option>
+            <option value="General">&#127760; General</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="csr-form-group">
+        <label class="csr-label">Description <span class="csr-optional">optional</span></label>
+        <input class="csr-input" id="csrFormDesc" placeholder="What are you broadcasting?" maxlength="300">
+      </div>
+
+      <div class="csr-form-row">
+        <div class="csr-form-group">
+          <label class="csr-label">Maximum Duration</label>
+          <select class="csr-input csr-select" id="csrFormDuration">
+            <option value="5">5 minutes (Test Mode)</option>
+            <option value="60">1 Hour</option>
+            <option value="360">6 Hours</option>
+            <option value="720">12 Hours</option>
+            <option value="1440" selected>24 Hours (max)</option>
+          </select>
+          <div class="csr-hint" id="csrTestModeHint" style="display:none;">&#9888; Test mode — 5 min broadcast (developer only)</div>
+        </div>
+        <div class="csr-form-group">
+          <label class="csr-label">Cover Artwork <span class="csr-optional">optional</span></label>
+          <div id="csrArtworkPreview" class="csr-artwork-preview" style="display:none;">
+            <img id="csrArtworkImg" src="" alt="Cover" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">
+            <button class="csr-artwork-remove" onclick="csrRemoveArtwork()">&#10005;</button>
+          </div>
+          <button class="csr-btn csr-btn-outline" onclick="document.getElementById('csrArtworkInput').click()" id="csrArtworkBtn">&#128444; Choose Image</button>
+          <input type="file" id="csrArtworkInput" accept="image/*" onchange="csrLoadArtwork(event)" style="display:none;">
+        </div>
+      </div>
+
+      <div class="csr-form-group">
+        <label class="csr-label">Shuffle &amp; Repeat</label>
+        <div class="csr-toggle-row">
+          <label class="csr-toggle-label">
+            <input type="checkbox" id="csrFormShuffle"> Shuffle playlist
+          </label>
+          <label class="csr-toggle-label">
+            <input type="checkbox" id="csrFormRepeat" checked> Repeat (loop)
+          </label>
+        </div>
+      </div>
+
+      <div id="csrValidationError" class="csr-error" style="display:none;"></div>
+
+      <!-- Start button -->
+      <button class="csr-btn csr-btn-start" id="csrStartBtn" onclick="csrStartBroadcast()">
+        &#128308; GO LIVE FOR 24 HOURS
+      </button>
+
+      <!-- Starting progress -->
+      <div id="csrStartingProgress" style="display:none;">
+        <div class="csr-handoff-steps" id="csrHandoffSteps"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════
+       BROADCAST HISTORY
+  ═══════════════════════════════════════════════════ -->
+  <section id="csrHistoryPanel" class="csr-section" style="display:none;">
+    <div class="csr-card">
+      <div class="csr-card-title">&#128203; Broadcast History</div>
+      <div id="csrHistoryList" class="csr-history-list">
+        <div class="csr-loading-text">Loading history…</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Toast notification -->
+<div id="csrToast" class="csr-toast" style="display:none;"></div>
+
+<!-- Confirmation dialog -->
+<div id="csrConfirmOverlay" class="csr-confirm-overlay" style="display:none;">
+  <div class="csr-confirm-dialog">
+    <div class="csr-confirm-title" id="csrConfirmTitle">Confirm</div>
+    <div class="csr-confirm-body" id="csrConfirmBody"></div>
+    <div class="csr-confirm-actions">
+      <button class="csr-btn csr-btn-outline" onclick="csrConfirmCancel()">Cancel</button>
+      <button class="csr-btn csr-btn-danger" id="csrConfirmOk" onclick="csrConfirmProceed()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="cloud-stream.js"></script>
+</body>
+</html>

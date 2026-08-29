@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Grim Reaper Character Widget — Integration Demo</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--gold:#c8922a;--bg:#08060400}
+html,body{
+  width:100%;min-height:100%;
+  background:#09080500;
+  background:linear-gradient(160deg,#0d0b08 0%,#08060400 60%,#050403 100%);
+  color:#c0aa80;font-family:Georgia,serif;font-size:15px;line-height:1.7;
+  overflow-x:hidden;
+}
+
+/* ── Page sections ──────────────────────────────────────── */
+.hero{
+  min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:60px 24px;
+  background:radial-gradient(ellipse at 50% 30%,rgba(180,120,30,.1) 0%,rgba(0,0,0,0) 70%);
+}
+.hero h1{
+  font-size:clamp(2rem,7vw,4.2rem);
+  font-weight:900;letter-spacing:.3em;
+  color:#e8d090;
+  text-shadow:0 0 28px rgba(200,140,30,.6),0 0 80px rgba(160,100,10,.3);
+  margin-bottom:.3em;
+}
+.hero .sub{
+  font-style:italic;color:rgba(200,170,100,.45);
+  font-size:clamp(.8rem,2vw,1.05rem);letter-spacing:.14em;margin-bottom:2rem;
+}
+.hero p{
+  max-width:520px;color:rgba(190,160,90,.6);font-size:.9rem;
+  line-height:1.85;margin-bottom:1.6rem;
+}
+
+/* content */
+.content{max-width:740px;margin:0 auto;padding:0 24px 140px;}
+.section{
+  border-top:1px solid rgba(180,130,40,.12);
+  padding:54px 0;
+}
+.section h2{
+  font-size:1.22rem;letter-spacing:.22em;color:#e0c070;
+  text-transform:uppercase;margin-bottom:1rem;
+}
+.section p{color:rgba(190,160,90,.55);margin-bottom:.9rem;font-size:.9rem;}
+.section code{color:#c8a860;font-family:'Courier New',monospace;font-size:.88em;}
+
+/* code block */
+.code{
+  background:rgba(5,3,1,.92);border:1px solid rgba(100,75,20,.2);
+  border-radius:10px;padding:18px 20px;margin:1.2rem 0;
+  font-family:'Courier New',monospace;font-size:.8rem;
+  color:#c8c0a0;overflow-x:auto;white-space:pre;line-height:1.75;
+}
+.code .cm{color:rgba(150,120,60,.5);}
+.code .ck{color:#c8922a;}
+.code .cv{color:#90c060;}
+.code .cs{color:#70b8d0;}
+
+/* control demo buttons */
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:1rem;}
+.btn{
+  display:inline-block;
+  background:rgba(50,32,6,.75);
+  border:1px solid rgba(180,130,35,.32);
+  border-radius:22px;padding:9px 22px;
+  color:#ddc880;font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;
+  cursor:pointer;transition:background .2s,box-shadow .2s;
+  font-family:Georgia,serif;user-select:none;
+}
+.btn:hover{
+  background:rgba(90,56,10,.85);
+  box-shadow:0 0 16px rgba(200,140,30,.28);
+}
+
+/* tag row */
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:.8rem;}
+.tag{
+  background:rgba(50,32,6,.5);border:1px solid rgba(140,95,18,.22);
+  border-radius:18px;padding:3px 13px;font-size:.72rem;color:#b89050;
+}
+
+footer{
+  text-align:center;font-size:.62rem;
+  color:rgba(130,100,40,.25);padding:22px;letter-spacing:.06em;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     DEMO PAGE — represents any page on your website
+═══════════════════════════════════════════════════════ -->
+
+<div class="hero">
+  <h1>☠ &nbsp;GRIM</h1>
+  <p class="sub">Floating Character Widget &nbsp;·&nbsp; Zero Dependencies &nbsp;·&nbsp; One Script Tag</p>
+  <p>
+    The animated Grim Reaper character appears as a floating presence
+    on any page of your website — fully visible, uncropped, and animated.
+    No chat window. No buttons attached. Just the character.
+  </p>
+  <p>
+    Look towards the top-right corner of this page.
+  </p>
+</div>
+
+<div class="content">
+
+  <!-- Integration -->
+  <div class="section">
+    <h2>Integration — One Line</h2>
+    <p>
+      Place the script tag anywhere in your page — ideally in a shared layout template
+      so GRIM appears on every page automatically.
+    </p>
+    <div class="code"><span class="cm">&lt;!-- Drop this once into any page or shared layout --&gt;</span>
+<span class="ck">&lt;script</span> <span class="cv">src</span><span class="ck">=</span><span class="cs">"grim-reaper-character-widget.js"</span><span class="ck">&gt;&lt;/script&gt;</span></div>
+    <p>GRIM loads lazily after the page is interactive — it never blocks rendering.</p>
+  </div>
+
+  <!-- Configuration -->
+  <div class="section">
+    <h2>Optional Configuration</h2>
+    <p>
+      Set <code>window.GrimCharConfig</code> <em>before</em> the script tag to customise
+      position, size, and screen offset:
+    </p>
+    <div class="code"><span class="ck">&lt;script&gt;</span>
+  <span class="cv">window.GrimCharConfig</span> = {
+    <span class="cs">position</span> : <span class="cv">'top-right'</span>,     <span class="cm">// 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'</span>
+    <span class="cs">size</span>     : <span class="cv">'auto'</span>,          <span class="cm">// 'auto' (responsive) | 'small' | 'medium' | 'large'</span>
+    <span class="cs">offsetX</span>  : <span class="cv">0</span>,               <span class="cm">// pixels nudge from corner (horizontal)</span>
+    <span class="cs">offsetY</span>  : <span class="cv">0</span>                <span class="cm">// pixels nudge from corner (vertical)</span>
+  };
+<span class="ck">&lt;/script&gt;</span>
+<span class="ck">&lt;script</span> <span class="cv">src</span><span class="ck">=</span><span class="cs">"grim-reaper-character-widget.js"</span><span class="ck">&gt;&lt;/script&gt;</span></div>
+  </div>
+
+  <!-- JS API -->
+  <div class="section">
+    <h2>JavaScript API</h2>
+    <p>Control the widget at runtime from anywhere on your site:</p>
+    <div class="code"><span class="cm">// Change position</span>
+<span class="cv">GrimChar</span>.<span class="cs">setPosition</span>(<span class="cv">'bottom-left'</span>);
+<span class="cv">GrimChar</span>.<span class="cs">setPosition</span>(<span class="cv">'top-right'</span>);
+
+<span class="cm">// Change size</span>
+<span class="cv">GrimChar</span>.<span class="cs">setSize</span>(<span class="cv">'small'</span>);
+<span class="cv">GrimChar</span>.<span class="cs">setSize</span>(<span class="cv">'medium'</span>);
+<span class="cv">GrimChar</span>.<span class="cs">setSize</span>(<span class="cv">'large'</span>);
+
+<span class="cm">// Fine-tune position offset (pixels from corner)</span>
+<span class="cv">GrimChar</span>.<span class="cs">setOffset</span>(<span class="cv">20</span>, <span class="cv">40</span>);</div>
+
+    <p>Try the controls live on this page:</p>
+
+    <div class="btn-row">
+      <button class="btn" onclick="GrimChar.setPosition('bottom-right')">↘ Bottom-Right</button>
+      <button class="btn" onclick="GrimChar.setPosition('bottom-left')">↙ Bottom-Left</button>
+      <button class="btn" onclick="GrimChar.setPosition('top-right')">↗ Top-Right</button>
+      <button class="btn" onclick="GrimChar.setPosition('top-left')">↖ Top-Left</button>
+    </div>
+    <div class="btn-row" style="margin-top:.7rem">
+      <button class="btn" onclick="GrimChar.setSize('small')">◾ Small</button>
+      <button class="btn" onclick="GrimChar.setSize('medium')">◼ Medium</button>
+      <button class="btn" onclick="GrimChar.setSize('large')">⬛ Large</button>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <div class="section">
+    <h2>What's Included</h2>
+    <div class="tags">
+      <span class="tag">Full Grim Reaper artwork</span>
+      <span class="tag">All original animations</span>
+      <span class="tag">Glowing eye pulse</span>
+      <span class="tag">Cloak &amp; scythe physics</span>
+      <span class="tag">Floating ember particles</span>
+      <span class="tag">Animated background scene</span>
+      <span class="tag">Mouse/touch lean tracking</span>
+      <span class="tag">Walking idle animation</span>
+      <span class="tag">Breathing animation</span>
+      <span class="tag">Dust mote particles</span>
+      <span class="tag">Animated tree silhouettes</span>
+      <span class="tag">4 corner positions</span>
+      <span class="tag">3 size presets</span>
+      <span class="tag">Custom offset control</span>
+      <span class="tag">Auto-scales on resize</span>
+      <span class="tag">Mobile &amp; tablet ready</span>
+      <span class="tag">Lazy loads — zero render block</span>
+      <span class="tag">Zero dependencies</span>
+      <span class="tag">Fully self-contained</span>
+    </div>
+  </div>
+
+  <!-- Technical notes -->
+  <div class="section">
+    <h2>Technical Notes</h2>
+    <p>
+      The widget is a single JavaScript file — no external CSS, no images, no fonts.
+      All artwork is drawn procedurally using the Canvas 2D API.
+    </p>
+    <p>
+      It uses <code>requestIdleCallback</code> (or <code>setTimeout 0</code> fallback) to defer
+      initialisation until the browser is idle, so it never competes with your page's
+      critical rendering path.
+    </p>
+    <p>
+      The widget container has <code>pointer-events: none</code>, so it is purely decorative
+      and does not interfere with any clickable elements on your page.
+    </p>
+    <p>
+      On resize, the character automatically recalculates its stage dimensions and clamps
+      to at most 90% of the shorter viewport dimension to stay fully visible on any screen.
+    </p>
+  </div>
+
+</div>
+
+<footer>Grim Reaper Character Widget &nbsp;·&nbsp; grim-reaper-character-widget.js &nbsp;·&nbsp; Pure visual — no chat</footer>
+
+<!-- ═══════════════════════════════════════════════════════
+     THE ONLY LINE NEEDED TO ADD GRIM TO ANY PAGE
+═══════════════════════════════════════════════════════ -->
+<script src="grim-reaper-character-widget.js"></script>
+
+</body>
+</html>

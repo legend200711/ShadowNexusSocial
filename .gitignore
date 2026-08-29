@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Wrangler build output
+.wrangler/
+dist/
+
+# Secrets — NEVER commit
+.env
+.env.*
+*.env
+firebase-service-key*.json
+*service-account*.json
+*serviceAccount*.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

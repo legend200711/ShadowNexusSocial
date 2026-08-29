@@ -1,0 +1,685 @@
+/* ================================================================
+   GRIM REAPER WIDGET — Stylesheet
+   Drop-in companion widget. Scoped under #grim-widget-root.
+   All IDs/classes prefixed with "gw-" to avoid collisions.
+   Mobile-first responsive system — phones / tablets / desktop.
+================================================================ */
+
+/* ── CSS custom properties (widget-scoped) ─────────────────── */
+#grim-widget-root {
+  --gw-bg:     #0a0704;
+  --gw-panel:  rgba(8,5,2,0.95);
+  --gw-gold:   #c8922a;
+  --gw-border: rgba(180,130,40,0.22);
+  --gw-text:   #c8b89a;
+  --gw-font:   Georgia, serif;
+  --gw-radius: 18px;
+  /* widget dimensions — default (desktop) */
+  --gw-w:      420px;
+  --gw-h:      620px;
+  /* FAB offset */
+  --gw-fab-b:  24px;
+  --gw-fab-r:  24px;
+  /* window offset */
+  --gw-win-b:  100px;
+  --gw-win-r:  20px;
+  /* character viewport height */
+  --gw-char-h: 220px;
+  /* z-index layers */
+  --gw-z-btn:  999998;
+  --gw-z-win:  999999;
+  font-family: var(--gw-font);
+  /* isolate stacking context */
+  contain: layout style;
+}
+
+/* ── Floating toggle button ────────────────────────────────── */
+#gw-fab {
+  position: fixed;
+  bottom: var(--gw-fab-b);
+  right: var(--gw-fab-r);
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 38%, #2a1e08, #0e0b04);
+  border: 1.5px solid rgba(200,150,40,.45);
+  box-shadow:
+    0 0 18px rgba(200,140,30,.35),
+    0 0 40px rgba(160,100,10,.18),
+    0 4px 16px rgba(0,0,0,.65);
+  cursor: pointer;
+  z-index: var(--gw-z-btn);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: box-shadow .28s ease, transform .22s ease;
+  user-select: none;
+  /* touch: stop browser from stealing the tap / adding blue highlight */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+#gw-fab:hover {
+  box-shadow:
+    0 0 28px rgba(220,160,40,.55),
+    0 0 60px rgba(180,120,20,.28),
+    0 6px 22px rgba(0,0,0,.7);
+  transform: scale(1.07);
+}
+#gw-fab.gw-open {
+  box-shadow:
+    0 0 34px rgba(220,160,40,.65),
+    0 0 80px rgba(180,120,20,.35),
+    0 6px 22px rgba(0,0,0,.7);
+  transform: scale(1.08);
+}
+#gw-fab-canvas {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* ── Notification badge (unread messages) ──────────────────── */
+#gw-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 18px;
+  height: 18px;
+  background: #c84020;
+  border: 1.5px solid #0e0b04;
+  border-radius: 50%;
+  font-size: 9px;
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+  z-index: 1;
+}
+#gw-badge.gw-show { display: flex; }
+
+/* ── Widget window ─────────────────────────────────────────── */
+#gw-window {
+  position: fixed;
+  bottom: var(--gw-win-b);
+  right: var(--gw-win-r);
+  width: var(--gw-w);
+  /* clamp to viewport with safe margins */
+  max-width: calc(100vw - 12px);
+  height: var(--gw-h);
+  max-height: calc(100vh - 120px);
+  background: var(--gw-bg);
+  border: 1px solid var(--gw-border);
+  border-radius: var(--gw-radius);
+  box-shadow:
+    0 0 40px rgba(200,140,30,.18),
+    0 20px 60px rgba(0,0,0,.75),
+    inset 0 0 0 1px rgba(200,150,40,.06);
+  z-index: var(--gw-z-win);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* enter / exit animations */
+  transform-origin: bottom right;
+  transform: scale(.85) translateY(20px);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform .28s cubic-bezier(.34,1.4,.64,1),
+    opacity .22s ease;
+  /* tell iOS to not mess with fixed children when keyboard appears */
+  -webkit-overflow-scrolling: touch;
+}
+#gw-window.gw-visible {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+  pointer-events: all;
+}
+#gw-window.gw-minimized {
+  height: 48px !important;
+  min-height: 48px;
+  overflow: hidden;
+}
+
+/* ── Title bar ─────────────────────────────────────────────── */
+#gw-titlebar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 46px;
+  background: rgba(10,7,3,.96);
+  border-bottom: 1px solid var(--gw-border);
+  cursor: default;
+  user-select: none;
+  /* drag handle feel on mobile */
+  touch-action: manipulation;
+}
+#gw-titlebar-icon {
+  font-size: 1.1rem;
+  color: var(--gw-gold);
+  flex-shrink: 0;
+}
+#gw-titlebar-name {
+  flex: 1;
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .18em;
+  color: #e8d090;
+  text-shadow: 0 0 12px rgba(200,140,30,.5);
+  text-transform: uppercase;
+}
+#gw-titlebar-sub {
+  font-size: .58rem;
+  color: rgba(200,160,80,.38);
+  letter-spacing: .08em;
+  font-style: italic;
+  white-space: nowrap;
+}
+.gw-tb-btn {
+  background: rgba(40,25,6,.7);
+  border: 1px solid rgba(150,110,30,.28);
+  border-radius: 50%;
+  /* min 44×44 touch target per HIG/WCAG */
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: rgba(200,160,80,.7);
+  font-size: .85rem;
+  transition: background .18s, box-shadow .18s;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.gw-tb-btn:hover {
+  background: rgba(100,60,10,.8);
+  box-shadow: 0 0 8px rgba(200,140,30,.25);
+  color: #ddc880;
+}
+
+/* ── Character viewport ────────────────────────────────────── */
+#gw-char-wrap {
+  flex-shrink: 0;
+  position: relative;
+  height: var(--gw-char-h);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+#gw-scene-cv {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+#gw-char-cv {
+  position: relative;
+  z-index: 1;
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+#gw-tone-bar {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: .58rem;
+  letter-spacing: .12em;
+  color: rgba(200,160,60,.4);
+  text-transform: uppercase;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+/* ── Chat section ──────────────────────────────────────────── */
+#gw-chat-section {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 6px 10px 0;
+  gap: 5px;
+  /* allow this area to shrink when the mobile keyboard opens */
+  min-height: 0;
+}
+#gw-vst {
+  min-height: 14px;
+  font-size: .66rem;
+  color: rgba(200,160,60,.5);
+  text-align: center;
+  letter-spacing: .07em;
+  flex-shrink: 0;
+}
+#gw-chat-box {
+  flex: 1 1 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 8px 4px;
+  scroll-behavior: smooth;
+  min-height: 0;
+}
+#gw-chat-box::-webkit-scrollbar { width: 3px; }
+#gw-chat-box::-webkit-scrollbar-thumb {
+  background: rgba(200,140,30,.28);
+  border-radius: 3px;
+}
+.gw-msg { margin-bottom: 9px; animation: gw-fadeIn .32s ease; }
+@keyframes gw-fadeIn {
+  from { opacity:0; transform:translateY(4px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.gw-msg.gw-user { text-align: right; }
+.gw-msg.gw-user .gw-bubble {
+  display: inline-block;
+  background: rgba(100,60,10,.3);
+  border: 1px solid rgba(180,120,30,.22);
+  border-radius: 14px 14px 3px 14px;
+  padding: 6px 12px;
+  max-width: 84%;
+  color: #ddc890;
+  font-size: .84rem;
+  line-height: 1.52;
+  word-break: break-word;
+}
+.gw-msg.gw-grim .gw-lbl {
+  font-size: .6rem;
+  color: var(--gw-gold);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.gw-msg.gw-grim .gw-bubble {
+  display: inline-block;
+  background: rgba(40,20,5,.55);
+  border: 1px solid rgba(160,110,20,.18);
+  border-radius: 3px 14px 14px 14px;
+  padding: 7px 13px;
+  max-width: 92%;
+  color: #d8c49a;
+  font-size: .86rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.gw-typing-dots {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  height: 16px;
+}
+.gw-typing-dots span {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--gw-gold);
+  opacity: .7;
+  animation: gw-td .9s infinite;
+}
+.gw-typing-dots span:nth-child(2){ animation-delay:.22s; }
+.gw-typing-dots span:nth-child(3){ animation-delay:.44s; }
+@keyframes gw-td {
+  0%,80%,100%{ transform:scale(.7); opacity:.4; }
+  40%         { transform:scale(1.1); opacity:1; }
+}
+
+/* ── Quick chips ────────────────────────────────────────────── */
+#gw-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 3px 0;
+  flex-shrink: 0;
+}
+.gw-chip {
+  background: rgba(60,35,5,.6);
+  border: 1px solid rgba(160,110,20,.28);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: .7rem;
+  color: #c8a860;
+  cursor: pointer;
+  transition: background .18s, border-color .18s;
+  user-select: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.gw-chip:hover, .gw-chip:active {
+  background: rgba(100,60,10,.7);
+  border-color: rgba(200,150,40,.5);
+}
+
+/* ── API key bar ────────────────────────────────────────────── */
+#gw-api-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+  flex-shrink: 0;
+}
+#gw-api-bar label {
+  font-size: .62rem;
+  color: rgba(200,160,60,.38);
+  letter-spacing: .1em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#gw-api-key-in {
+  flex: 1;
+  background: rgba(10,6,2,.75);
+  border: 1px solid rgba(120,85,25,.22);
+  border-radius: 16px;
+  padding: 4px 12px;
+  color: rgba(220,190,110,.65);
+  font-size: .68rem;
+  outline: none;
+  font-family: Georgia, serif;
+  min-width: 0;
+  /* stop iOS auto-zoom (font must be ≥16px equivalent handled via scaling) */
+  font-size: max(.68rem, 16px);
+}
+#gw-api-key-in::placeholder { color: rgba(150,110,40,.3); }
+#gw-api-key-in:focus { border-color: rgba(180,130,35,.45); }
+#gw-api-status {
+  font-size: .62rem;
+  color: rgba(140,100,30,.5);
+  letter-spacing: .05em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Controls row ───────────────────────────────────────────── */
+#gw-controls {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 6px 0 env(safe-area-inset-bottom, 8px);
+  flex-shrink: 0;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+}
+#gw-usr-in {
+  flex: 1;
+  background: rgba(15,9,3,.82);
+  border: 1px solid rgba(160,110,20,.32);
+  border-radius: 24px;
+  padding: 10px 16px;
+  color: #ddc890;
+  font-family: Georgia, serif;
+  /* ≥16px prevents iOS auto-zoom when focusing input */
+  font-size: max(.86rem, 16px);
+  outline: none;
+  caret-color: var(--gw-gold);
+  min-width: 0;
+}
+#gw-usr-in::placeholder { color: rgba(180,140,60,.35); }
+#gw-usr-in:focus {
+  border-color: rgba(200,150,40,.55);
+  box-shadow: 0 0 0 2px rgba(180,120,20,.1);
+}
+#gw-mic-btn, #gw-snd-btn {
+  background: rgba(60,35,5,.7);
+  border: 1px solid rgba(160,110,20,.32);
+  border-radius: 50%;
+  /* 44px min touch target */
+  width: 44px; height: 44px;
+  font-size: .9rem;
+  cursor: pointer;
+  color: #c8a860;
+  transition: background .18s, box-shadow .18s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+#gw-snd-btn {
+  border-radius: 22px;
+  width: auto;
+  padding: 0 16px;
+  font-size: .7rem;
+  letter-spacing: .1em;
+  min-width: 56px;
+}
+#gw-mic-btn:hover, #gw-snd-btn:hover {
+  background: rgba(100,60,10,.8);
+  box-shadow: 0 0 10px rgba(200,140,30,.28);
+}
+#gw-mic-btn.gw-active {
+  background: rgba(160,40,10,.7);
+  border-color: rgba(255,80,40,.5);
+  box-shadow: 0 0 14px rgba(255,60,20,.4);
+}
+
+/* ── Settings panel ─────────────────────────────────────────── */
+#gw-settings {
+  position: absolute;
+  inset: 0;
+  background: rgba(8,5,2,.97);
+  border-radius: var(--gw-radius);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 12px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  transform: translateX(100%);
+  opacity: 0;
+  transition: transform .26s ease, opacity .22s ease;
+  pointer-events: none;
+}
+#gw-settings.gw-show {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: all;
+}
+#gw-settings h3 {
+  font-size: .82rem;
+  letter-spacing: .2em;
+  color: var(--gw-gold);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.gw-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: .78rem;
+  color: rgba(200,170,100,.7);
+  border-bottom: 1px solid rgba(180,130,40,.1);
+  padding-bottom: 8px;
+}
+.gw-setting-row label { flex: 1; cursor: pointer; }
+.gw-toggle {
+  position: relative;
+  width: 36px; height: 20px;
+  cursor: pointer;
+}
+.gw-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.gw-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: rgba(40,25,6,.8);
+  border: 1px solid rgba(160,110,20,.35);
+  border-radius: 20px;
+  transition: background .2s;
+}
+.gw-toggle input:checked + .gw-toggle-track {
+  background: rgba(180,120,25,.5);
+  border-color: rgba(200,150,40,.6);
+}
+.gw-toggle-thumb {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  background: #c8922a;
+  border-radius: 50%;
+  transition: left .2s;
+}
+.gw-toggle input:checked ~ .gw-toggle-thumb { left: 18px; }
+.gw-select {
+  background: rgba(15,9,3,.82);
+  border: 1px solid rgba(160,110,20,.32);
+  border-radius: 10px;
+  padding: 4px 10px;
+  color: #c8a860;
+  font-size: .75rem;
+  outline: none;
+  cursor: pointer;
+}
+#gw-settings-footer {
+  font-size: .6rem;
+  color: rgba(160,120,50,.25);
+  text-align: center;
+  margin-top: auto;
+  letter-spacing: .06em;
+}
+
+/* ================================================================
+   RESPONSIVE BREAKPOINTS
+   Cascade: desktop (default) → large tablet → small tablet →
+            large phone → small phone → landscape phone
+================================================================ */
+
+/* ── Large tablet (768–1024px) ──────────────────────────────── */
+@media (max-width: 1024px) and (min-width: 769px) {
+  #grim-widget-root {
+    --gw-w:      400px;
+    --gw-h:      600px;
+    --gw-char-h: 210px;
+  }
+}
+
+/* ── Small tablet (481–768px) ───────────────────────────────── */
+@media (max-width: 768px) and (min-width: 481px) {
+  #grim-widget-root {
+    --gw-w:      calc(100vw - 32px);
+    --gw-h:      72vh;
+    --gw-char-h: 200px;
+    --gw-fab-b:  20px;
+    --gw-fab-r:  20px;
+    --gw-win-b:  88px;
+    --gw-win-r:  16px;
+  }
+  #gw-window {
+    border-radius: 16px;
+  }
+  /* Show chips on tablets */
+  #gw-chips { display: flex; }
+}
+
+/* ── Phones (≤480px) ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  #grim-widget-root {
+    --gw-w:      calc(100vw - 10px);
+    --gw-h:      78svh;   /* svh = small-viewport height, avoids mobile chrome bar */
+    --gw-char-h: 185px;
+    --gw-fab-b:  16px;
+    --gw-fab-r:  16px;
+    --gw-win-b:  84px;
+    --gw-win-r:  5px;
+  }
+  #gw-window {
+    border-radius: 14px;
+    /* anchor to right edge with inset for notch/edge */
+    right: 5px;
+    max-height: calc(100svh - 100px);
+  }
+  #gw-fab {
+    width: 58px;
+    height: 58px;
+  }
+  /* Hide overflow subtitle text on narrow screens */
+  #gw-titlebar-sub { display: none; }
+  /* Compact chips row — horizontal scroll instead of wrap */
+  #gw-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  #gw-chips::-webkit-scrollbar { display: none; }
+}
+
+/* ── Very small phones (≤360px) ─────────────────────────────── */
+@media (max-width: 360px) {
+  #grim-widget-root {
+    --gw-w:      calc(100vw - 8px);
+    --gw-h:      80svh;
+    --gw-char-h: 165px;
+    --gw-win-r:  4px;
+  }
+  #gw-chips { display: none; }
+  #gw-titlebar { padding: 0 10px; gap: 6px; }
+}
+
+/* ── Landscape phone (short viewport ≤ 480px tall) ──────────── */
+@media (max-height: 480px) and (orientation: landscape) {
+  #grim-widget-root {
+    --gw-h:      calc(100svh - 16px);
+    --gw-char-h: 120px;
+    --gw-win-b:  0px;
+    --gw-win-r:  70px;   /* leave room for FAB */
+    --gw-fab-b:  8px;
+    --gw-fab-r:  8px;
+  }
+  #gw-window {
+    bottom: 8px;
+    right: 78px;
+    max-height: calc(100svh - 16px);
+    border-radius: 12px;
+  }
+  #gw-fab {
+    width: 54px;
+    height: 54px;
+    bottom: 8px;
+    right: 8px;
+  }
+  #gw-chips { display: none; }
+  #gw-titlebar-sub { display: none; }
+}
+
+/* ── Foldable phones: wide-folded state (641–880px) ─────────── */
+@media (min-width: 641px) and (max-width: 880px) and (max-height: 700px) {
+  #grim-widget-root {
+    --gw-w:      380px;
+    --gw-h:      calc(100svh - 110px);
+    --gw-char-h: 180px;
+    --gw-fab-b:  18px;
+    --gw-fab-r:  18px;
+  }
+}
+
+/* ── iOS safe-area: notch / home-indicator support ──────────── */
+@supports (padding: env(safe-area-inset-bottom)) {
+  #gw-fab {
+    bottom: calc(var(--gw-fab-b) + env(safe-area-inset-bottom, 0px));
+    right:  calc(var(--gw-fab-r) + env(safe-area-inset-right,  0px));
+  }
+  #gw-window {
+    bottom: calc(var(--gw-win-b) + env(safe-area-inset-bottom, 0px));
+    right:  calc(var(--gw-win-r) + env(safe-area-inset-right,  0px));
+  }
+}
+
+/* ── Reduced-motion ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  #gw-window, #gw-fab, #gw-settings { transition: none !important; }
+  .gw-msg { animation: none !important; }
+  .gw-typing-dots span { animation: none !important; }
+}

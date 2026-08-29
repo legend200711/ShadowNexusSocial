@@ -1,0 +1,141 @@
+{
+  "rules": {
+
+    "cohosts": {
+      "$liveId": {
+
+        "settings": {
+          ".read":  "auth != null",
+          ".write": "auth != null"
+        },
+
+        "requests": {
+          ".read": "auth != null",
+          "$uid": {
+            ".write": "auth != null"
+          }
+        },
+
+        "active": {
+          ".read": "auth != null",
+          "$uid": {
+            ".write": "auth != null"
+          }
+        },
+
+        "removed": {
+          ".read": "auth != null",
+          "$uid": {
+            ".write": "auth != null"
+          }
+        }
+      }
+    },
+
+    "liveRooms": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "liveSignaling": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "liveSignal": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "livePresence": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "liveConnections": {
+      "$hostUid": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "studioLiveConnections": {
+      "$hostUid": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "guestRequests": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "guestSignaling": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "liveGuests": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "guestViewerSignaling": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "stormRooms": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "supportRooms": {
+      "$roomId": {
+        ".read":  "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "presence": {
+      "$uid": {
+        ".read":  "auth != null",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+
+    "userLive": {
+      "$uid": {
+        ".read":  "auth != null",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+
+    "users": {
+      "$uid": {
+        ".read":  "auth != null",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    }
+
+  }
+}

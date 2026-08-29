@@ -1,0 +1,592 @@
+/* ================================================================
+   GRIM — UNIFIED SHADOW NEXUS ASSISTANT  —  grim-speech-bubble.css  v3.0
+   Attaches beside the full-size Grim Reaper character widget.
+   The character itself is NEVER replaced or shrunk.
+================================================================ */
+
+/* ── Wrapper ──────────────────────────────────────────────── */
+#grim-speech-root {
+  position: fixed;
+  z-index: 999995;           /* above the character (999990) */
+  pointer-events: none;
+  max-width: min(320px, calc(100vw - 32px));
+  transition: bottom .35s ease, top .35s ease, left .35s ease, right .35s ease;
+}
+
+/* ── Outer bubble ─────────────────────────────────────────── */
+#grim-speech-bubble {
+  position: relative;
+  pointer-events: all;
+  background: linear-gradient(145deg, rgba(6,4,2,.97) 0%, rgba(18,11,4,.97) 100%);
+  border: 1px solid rgba(200,140,40,.42);
+  border-radius: 14px;
+  padding: 12px 14px 12px;
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.7),
+    0 0 22px rgba(180,110,20,.22),
+    inset 0 0 18px rgba(0,0,0,.45);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #ddc880;
+
+  /* Pop-in / pop-out */
+  opacity: 0;
+  transform: scale(.86);
+  transform-origin: bottom right;
+  transition: opacity .28s ease, transform .28s cubic-bezier(.22,1.4,.52,1);
+  will-change: opacity, transform;
+}
+
+#grim-speech-bubble.gsb-show {
+  opacity: 1;
+  transform: scale(1);
+}
+
+#grim-speech-bubble.gsb-hide {
+  opacity: 0;
+  transform: scale(.86);
+  pointer-events: none;
+}
+
+/* ── Tail pointing toward the Grim Reaper ───────────────── */
+/* Default: bubble is to the LEFT of a right-side character — tail points RIGHT */
+#grim-speech-bubble::after {
+  content: '';
+  position: absolute;
+  top: 20px;
+  bottom: auto;
+  right: -11px;
+  width: 0; height: 0;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-left: 11px solid rgba(200,140,40,.42);
+}
+#grim-speech-bubble::before {
+  content: '';
+  position: absolute;
+  top: 21px;
+  bottom: auto;
+  right: -9px;
+  width: 0; height: 0;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 9px solid rgba(18,11,4,.97);
+  z-index: 1;
+}
+
+/* When character is at top the bubble drops down → use top-right transform-origin */
+#grim-speech-root.gsb-right #grim-speech-bubble {
+  transform-origin: top left;
+}
+
+/* Tail on the LEFT side when character is to the RIGHT of bubble */
+#grim-speech-root.gsb-right #grim-speech-bubble::after {
+  right: auto;
+  left: -11px;
+  border-left: none;
+  border-right: 11px solid rgba(200,140,40,.42);
+}
+#grim-speech-root.gsb-right #grim-speech-bubble::before {
+  right: auto;
+  left: -9px;
+  border-left: none;
+  border-right: 9px solid rgba(18,11,4,.97);
+}
+
+/* ── Header row ─────────────────────────────────────────── */
+#gsb-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 9px;
+  border-bottom: 1px solid rgba(180,120,30,.2);
+  padding-bottom: 8px;
+}
+
+#gsb-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #e8c860;
+  letter-spacing: .06em;
+  text-shadow: 0 0 10px rgba(200,150,30,.45);
+  flex-shrink: 0;
+}
+
+/* Tone label — compact subtitle in header */
+#gsb-tone-lbl {
+  flex: 1;
+  font-size: 9px;
+  color: rgba(180,140,50,.48);
+  font-style: italic;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 5px;
+}
+
+#gsb-settings-btn,
+#gsb-close {
+  background: rgba(50,32,4,.6);
+  border: 1px solid rgba(150,100,20,.28);
+  border-radius: 6px;
+  color: rgba(200,160,60,.75);
+  width: 24px; height: 24px;
+  padding: 0;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s, color .15s;
+  line-height: 1;
+}
+#gsb-settings-btn:hover,
+#gsb-close:hover {
+  background: rgba(100,62,6,.75);
+  color: #ddc880;
+}
+
+/* ── Message text ─────────────────────────────────────────── */
+#gsb-text {
+  margin: 0 0 8px;
+  min-height: 1.6em;
+  word-break: break-word;
+}
+
+/* Typing cursor */
+#gsb-text.gsb-typing::after {
+  content: '▍';
+  display: inline-block;
+  animation: gsbBlink .65s steps(1) infinite;
+  color: rgba(200,140,40,.7);
+  margin-left: 2px;
+}
+@keyframes gsbBlink {
+  0%,49%  { opacity: 1; }
+  50%,100%{ opacity: 0; }
+}
+
+/* ── Chat history (conversation view) ───────────────────── */
+#gsb-chat-history {
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(150,100,20,.3) transparent;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+#gsb-chat-history::-webkit-scrollbar { width: 3px; }
+#gsb-chat-history::-webkit-scrollbar-thumb { background: rgba(150,100,20,.3); border-radius: 3px; }
+
+.gsb-chat-msg { display: flex; flex-direction: column; animation: gsbFadeIn .28s ease; }
+@keyframes gsbFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+.gsb-chat-msg.gsb-user { align-items: flex-end; }
+.gsb-chat-msg.gsb-user .gsb-chat-bubble {
+  background: rgba(60,38,5,.75);
+  border: 1px solid rgba(160,110,25,.35);
+  border-radius: 12px 12px 4px 12px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #e4d08a;
+  max-width: 86%;
+  word-break: break-word;
+}
+
+.gsb-chat-msg.gsb-grim .gsb-chat-lbl {
+  font-size: 9px;
+  color: rgba(200,150,40,.55);
+  letter-spacing: .05em;
+  margin-bottom: 2px;
+}
+.gsb-chat-msg.gsb-grim .gsb-chat-bubble {
+  background: rgba(14,9,2,.75);
+  border: 1px solid rgba(180,120,30,.28);
+  border-radius: 4px 12px 12px 12px;
+  padding: 7px 11px;
+  font-size: 12px;
+  color: #ddc880;
+  line-height: 1.55;
+  max-width: 94%;
+  word-break: break-word;
+}
+
+/* ── Typing indicator (dot animation) ───────────────────── */
+#gsb-typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 0 2px;
+}
+#gsb-typing span {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(200,150,40,.55);
+  animation: gsbDot 1.2s ease-in-out infinite;
+}
+#gsb-typing span:nth-child(2) { animation-delay: .2s; }
+#gsb-typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes gsbDot { 0%,80%,100% { transform: scale(.6); opacity:.4; } 40% { transform: scale(1.1); opacity:1; } }
+
+/* ── API key bar ─────────────────────────────────────────── */
+#gsb-api-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(150,100,20,.12);
+}
+#gsb-api-key {
+  flex: 1;
+  background: rgba(8,5,1,.8);
+  border: 1px solid rgba(120,80,15,.28);
+  border-radius: 14px;
+  padding: 4px 10px;
+  font-size: 10px;
+  color: #ddc880;
+  font-family: Georgia, serif;
+  outline: none;
+  min-width: 0;
+}
+#gsb-api-key::placeholder { color: rgba(160,120,40,.3); }
+#gsb-api-key:focus { border-color: rgba(180,130,35,.42); }
+#gsb-api-status {
+  font-size: 9px;
+  color: rgba(140,100,30,.5);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Mic button ──────────────────────────────────────────── */
+#gsb-mic-btn {
+  background: rgba(30,18,2,.7);
+  border: 1px solid rgba(120,80,18,.28);
+  border-radius: 50%;
+  width: 28px; height: 28px;
+  cursor: pointer;
+  color: rgba(180,140,50,.7);
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+#gsb-mic-btn:hover { background: rgba(80,50,6,.8); color: #ddc880; }
+#gsb-mic-btn.gsb-mic-active {
+  background: rgba(180,40,10,.6);
+  border-color: rgba(255,80,40,.55);
+  color: #ffaaaa;
+  box-shadow: 0 0 10px rgba(220,60,20,.3);
+  animation: gsbMicPulse 1s ease-in-out infinite;
+}
+@keyframes gsbMicPulse {
+  0%,100% { box-shadow: 0 0 8px rgba(220,60,20,.3); }
+  50% { box-shadow: 0 0 18px rgba(220,60,20,.55); }
+}
+
+/* ── Action chips ────────────────────────────────────────── */
+#gsb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.gsb-chip {
+  background: rgba(80,50,8,.65);
+  border: 1px solid rgba(180,120,28,.38);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: #ddc070;
+  cursor: pointer;
+  font-family: Georgia, serif;
+  letter-spacing: .04em;
+  transition: background .18s, box-shadow .18s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  line-height: 1.4;
+}
+.gsb-chip:hover, .gsb-chip:active {
+  background: rgba(130,80,10,.8);
+  box-shadow: 0 0 10px rgba(200,140,20,.28);
+}
+
+/* ── Navigation row ─────────────────────────────────────── */
+#gsb-nav-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(150,100,20,.18);
+}
+
+.gsb-nav-label {
+  width: 100%;
+  font-size: 10px;
+  color: rgba(180,140,60,.5);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  font-family: Georgia, serif;
+}
+
+.gsb-nav-btn {
+  background: rgba(30,18,2,.7);
+  border: 1px solid rgba(120,80,18,.28);
+  border-radius: 18px;
+  padding: 3px 9px;
+  font-size: 10px;
+  color: rgba(200,160,60,.75);
+  cursor: pointer;
+  font-family: Georgia, serif;
+  transition: background .15s, color .15s, box-shadow .15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  line-height: 1.4;
+}
+.gsb-nav-btn:hover, .gsb-nav-btn:active {
+  background: rgba(80,50,6,.8);
+  color: #ddc880;
+  box-shadow: 0 0 8px rgba(180,130,20,.22);
+}
+
+/* ── User input row ────────────────────────────────────── */
+#gsb-input-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+#gsb-input {
+  flex: 1;
+  background: rgba(10,7,2,.8);
+  border: 1px solid rgba(140,90,18,.32);
+  border-radius: 18px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #ddc880;
+  font-family: Georgia, serif;
+  outline: none;
+  min-width: 0;
+  margin: 0;
+  width: auto;
+}
+#gsb-input::placeholder { color: rgba(180,140,60,.35); }
+#gsb-input:focus { border-color: rgba(200,140,40,.55); }
+
+#gsb-send {
+  background: rgba(80,50,8,.75);
+  border: 1px solid rgba(180,120,28,.38);
+  border-radius: 50%;
+  width: 28px; height: 28px;
+  cursor: pointer;
+  color: #ddc070;
+  font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  transition: background .18s, box-shadow .18s;
+}
+#gsb-send:hover { background: rgba(130,80,10,.8); box-shadow: 0 0 10px rgba(200,140,20,.28); }
+
+/* ── Voice control bar ─────────────────────────────────── */
+#gsb-voice-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(150,100,20,.18);
+}
+
+.gsb-toggle-btn {
+  background: rgba(30,18,2,.7);
+  border: 1px solid rgba(120,80,18,.32);
+  border-radius: 16px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: rgba(180,140,50,.65);
+  cursor: pointer;
+  font-family: Georgia, serif;
+  transition: background .15s, color .15s, border-color .15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+.gsb-toggle-btn.gsb-toggle-on {
+  background: rgba(80,52,6,.8);
+  border-color: rgba(200,140,30,.5);
+  color: #ddc070;
+  box-shadow: 0 0 8px rgba(180,130,20,.2);
+}
+.gsb-toggle-btn:hover { opacity: .85; }
+
+.gsb-vb-btn {
+  background: rgba(30,18,2,.7);
+  border: 1px solid rgba(120,80,18,.28);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 12px;
+  color: rgba(180,140,50,.7);
+  cursor: pointer;
+  line-height: 1;
+  transition: background .15s;
+}
+.gsb-vb-btn:hover { background: rgba(80,50,6,.8); color: #ddc880; }
+
+.gsb-vb-label {
+  font-size: 12px;
+  color: rgba(160,120,40,.6);
+  user-select: none;
+}
+
+.gsb-slider {
+  width: 60px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(100,70,12,.5);
+  border-radius: 4px;
+  outline: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.gsb-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #c89830;
+  cursor: pointer;
+  box-shadow: 0 0 4px rgba(180,130,20,.5);
+}
+.gsb-slider::-moz-range-thumb {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #c89830;
+  cursor: pointer;
+  border: none;
+}
+
+/* ── Control panel ─────────────────────────────────────── */
+#gsb-control-panel,
+#gsb-founder-panel {
+  display: none;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(150,100,20,.18);
+  max-height: 55vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(150,100,20,.3) transparent;
+}
+#gsb-control-panel::-webkit-scrollbar,
+#gsb-founder-panel::-webkit-scrollbar { width: 3px; }
+#gsb-control-panel::-webkit-scrollbar-thumb,
+#gsb-founder-panel::-webkit-scrollbar-thumb { background: rgba(150,100,20,.3); border-radius: 3px; }
+
+.gsb-panel-section-title {
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: rgba(200,150,50,.65);
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(150,100,20,.15);
+  font-family: Georgia, serif;
+}
+
+.gsb-panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.gsb-panel-lbl {
+  font-size: 11px;
+  color: rgba(180,140,50,.7);
+  font-family: Georgia, serif;
+  flex: 1;
+}
+
+.gsb-panel-sel {
+  background: rgba(10,7,2,.85);
+  border: 1px solid rgba(140,90,18,.32);
+  border-radius: 8px;
+  color: #ddc880;
+  font-size: 11px;
+  padding: 3px 6px;
+  font-family: Georgia, serif;
+  cursor: pointer;
+  outline: none;
+  flex-shrink: 0;
+}
+.gsb-panel-sel:focus { border-color: rgba(200,140,40,.5); }
+
+.gsb-panel-divider {
+  height: 1px;
+  background: rgba(150,100,20,.18);
+  margin: 8px 0;
+}
+
+#gsb-founder-btn,
+.gsb-founder-action-btn {
+  width: 100%;
+  background: rgba(60,35,4,.75);
+  border: 1px solid rgba(160,100,20,.35);
+  border-radius: 10px;
+  color: #ddc070;
+  font-size: 11px;
+  font-family: Georgia, serif;
+  padding: 6px 10px;
+  cursor: pointer;
+  text-align: center;
+  transition: background .15s, box-shadow .15s;
+}
+#gsb-founder-btn:hover,
+.gsb-founder-action-btn:hover {
+  background: rgba(100,60,6,.85);
+  box-shadow: 0 0 10px rgba(180,130,20,.22);
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 480px) {
+  #grim-speech-root {
+    /* On very small phones keep bubble from going off-screen */
+    max-width: calc(100vw - 16px);
+    /* Override JS-set right/left to clamp within viewport */
+    right: 8px !important;
+    left: auto !important;
+  }
+  #grim-speech-bubble {
+    font-size: 12px;
+    padding: 10px 11px 10px;
+    /* Hide lateral tail on phones — there's no space for it */
+  }
+  #grim-speech-bubble::after,
+  #grim-speech-bubble::before { display: none; }
+  .gsb-slider { width: 46px; }
+  #gsb-nav-row { gap: 3px; }
+  .gsb-nav-btn { font-size: 9.5px; padding: 2px 7px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #grim-speech-bubble { transition: none !important; }
+}

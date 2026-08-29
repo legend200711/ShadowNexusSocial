@@ -1,0 +1,8 @@
+{
+  "buildId": "2026-08-28-STUDIO-DECOUPLE",
+  "swVersion": "v33",
+  "deployedAt": "2026-08-28T00:00:00Z",
+  "project": "horr-a08f4",
+  "studioVersion": "1.2.1",
+  "note": "Studio Cloud Stream decoupled: embedded Cloud Stream form removed from Studio. Studio now links to cloud-stream.html. Extracted 24-hour-cloud-stream/ is the authoritative separate system."
+}

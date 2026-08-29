@@ -1,0 +1,15 @@
+22:48:05.475 [NamespaceSystem-akka.actor.default-dispatcher-5] INFO akka.event.slf4j.Slf4jLogger - Slf4jLogger started
+22:48:05.809 [main] INFO com.firebase.server.forge.App$ - Listening at 127.0.0.1:9000
+22:48:21.977 [NamespaceSystem-akka.actor.default-dispatcher-5] INFO com.firebase.core.namespace.NamespaceActor - horr-a08f4-default-rtdb successfully activated FBKV (SurveyIdle(0)) wait: 1463ms, init: 0ms
+22:48:27.792 [FirebaseWorkerPool-1-2] WARN com.firebase.core.persistence.backend.dummy.EmulatorMetadataPersistence - Multiple projectIds are not recommended in single project mode. Requested 
+namespace snx-emulator-test-default-rtdb, but the emulator is configured for horr-a08f4-default-rtdb. To 
+opt-out of single project mode add/set the singleProjectMode: false property in 
+the firebase.json emulators config. 
+22:48:27.813 [NamespaceSystem-akka.actor.default-dispatcher-6] INFO com.firebase.core.namespace.NamespaceActor - snx-emulator-test-default-rtdb successfully activated FBKV (SurveyIdle(0)) wait: 9ms, init: 0ms
+22:48:28.179 [NamespaceSystem-blocking-namespace-operation-dispatcher-8] INFO com.firebase.core.namespace.StateManager - Namespace snx-emulator-test-default-rtdb status Active to Active
+22:48:34.682 [FirebaseWorkerPool-1-3] WARN com.firebase.core.persistence.backend.dummy.EmulatorMetadataPersistence - Multiple projectIds are not recommended in single project mode. Requested 
+namespace snx-emulator-test, but the emulator is configured for horr-a08f4-default-rtdb,snx-emulator-test-default-rtdb. To 
+opt-out of single project mode add/set the singleProjectMode: false property in 
+the firebase.json emulators config. 
+22:48:34.699 [NamespaceSystem-akka.actor.default-dispatcher-5] INFO com.firebase.core.namespace.NamespaceActor - snx-emulator-test successfully activated FBKV (SurveyIdle(0)) wait: 9ms, init: 0ms
+22:55:01.285 [FirebaseWorkerPool-1-3] WARN com.firebase.server.forge.App$ - Received service account token eyJh...ifQ., assuming ownership.
