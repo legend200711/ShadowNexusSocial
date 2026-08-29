@@ -1115,3 +1115,18 @@ function _toast(msg, type) {
     setTimeout(() => { el.style.display = 'none'; }, 300);
   }, 4000);
 }
+
+/* ═══════════════════════════════════════════════════════
+   SPA RE-INIT — called by index.html realmNavTo hook
+   when the user navigates to the studioPage within the SPA.
+   Re-runs creator-mode check so the UI reflects current state.
+═══════════════════════════════════════════════════════ */
+window.csrSpaInit = async function() {
+  if (!_user) return; // not signed in — onAuthStateChanged will handle it
+  // Reset loading / panel visibility then re-check state
+  _show('csrLoading', false);
+  _show('csrAuthGate', false);
+  _show('csrApp', true);
+  _show('csrListenerPanel', false);
+  await _initCreatorMode();
+};

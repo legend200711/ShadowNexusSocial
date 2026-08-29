@@ -10363,14 +10363,21 @@ body.arcade-fs-ios body::after { display:none !important; }
 
 <!-- ══════════════════════════════════════════════════════════
      24-HOUR STUDIO PAGE
-     Now powered by the 24-Hour Audio Cloud Stream.
+     Powered by the 24-Hour Audio Cloud Stream (cloud-stream.js).
      ══════════════════════════════════════════════════════════ -->
 <div class="page" id="studioPage">
 
-  <!-- ══════════════════════════════════════════════════════════
-       24-HOUR STUDIO — powered by 24-Hour Audio Cloud Stream
-       Extracted from cloud-stream.html (cloud-stream.js v1.4.0)
-  ══════════════════════════════════════════════════════════ -->
+  <!-- ── Studio page header ── -->
+  <header class="csr-header" style="position:sticky;top:0;z-index:100;">
+    <div class="csr-header-center">
+      <div class="csr-logo">&#9925;</div>
+      <div>
+        <div class="csr-title">24-HOUR STUDIO</div>
+        <div class="csr-subtitle">24-Hour Audio Cloud Stream</div>
+      </div>
+    </div>
+    <div id="csrAuthBadge" class="csr-auth-badge">…</div>
+  </header>
 
   <!-- ── Auth gate (shown before Firebase resolves) ── -->
   <div id="csrAuthGate" class="csr-auth-gate" style="display:none;">
@@ -10581,10 +10588,8 @@ body.arcade-fs-ios body::after { display:none !important; }
     </div>
   </div>
 
-  <!-- Stubs: hidden divs for studio.js _switchSection() null-check safety -->
-  <div id="snxSectionLiveStudio" style="display:none;" aria-hidden="true"></div>
-  <div id="snxSectionCloudStream" style="display:none;" aria-hidden="true"></div>
-  <div id="snxSectionMain" style="display:none;" aria-hidden="true"></div>
+  <!-- ── 24-Hour Audio Cloud Stream module ── -->
+  <script type="module" src="cloud-stream.js"></script>
 
 </div><!-- end studioPage -->
 
@@ -30399,21 +30404,20 @@ document.addEventListener('click', function(e) {
 })();
 </script>
 
-<!-- ████ SHADOW NEXUS 24-HOUR STUDIO ████ -->
-<script src="studio.js"></script>
-
-<!-- Studio page: add admin tab for CloudStream monitor -->
+<!-- ████ SHADOW NEXUS 24-HOUR STUDIO — SPA re-init hook ████ -->
 <script>
 (function() {
   'use strict';
-  // Patch realmNavTo to init studio on navigate
+  // When the user navigates to studioPage within the SPA, re-run the
+  // Cloud Stream creator-mode check so the UI reflects current state.
+  // cloud-stream.js already boots via onAuthStateChanged on first load;
+  // this hook ensures subsequent in-app navigations also refresh state.
   var _origRNT = window.realmNavTo;
   window.realmNavTo = function(pageId) {
     if (_origRNT) _origRNT.apply(this, arguments);
     if (pageId === 'studioPage') {
       setTimeout(function() {
-        if (typeof snxStudioInit === 'function') snxStudioInit();
-        if (typeof snxStudioInitSceneBuilder === 'function') snxStudioInitSceneBuilder();
+        if (typeof window.csrSpaInit === 'function') window.csrSpaInit();
       }, 120);
     }
   };
@@ -30428,8 +30432,8 @@ document.addEventListener('click', function(e) {
   'use strict';
 
   /* ── Build identifier ─────────────────────────────────── */
-  var BUILD_ID = '2026-08-25-24H-STUDIO-HARD-UPDATE';
-  var SW_VER   = 'v28';
+  var BUILD_ID = '2026-08-29-CLOUD-STREAM-AS-STUDIO';
+  var SW_VER   = 'v34';
   window.SHADOW_NEXUS_BUILD_VERSION = BUILD_ID;
   window.SHADOW_NEXUS_SW_VERSION    = SW_VER;
 

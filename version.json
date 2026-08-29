@@ -1,8 +1,8 @@
 {
-  "buildId": "2026-08-28-STUDIO-DECOUPLE",
-  "swVersion": "v33",
-  "deployedAt": "2026-08-28T00:00:00Z",
+  "buildId": "2026-08-29-CLOUD-STREAM-AS-STUDIO",
+  "swVersion": "v34",
+  "deployedAt": "2026-08-29T00:00:00Z",
   "project": "horr-a08f4",
-  "studioVersion": "1.2.1",
-  "note": "Studio Cloud Stream decoupled: embedded Cloud Stream form removed from Studio. Studio now links to cloud-stream.html. Extracted 24-hour-cloud-stream/ is the authoritative separate system."
+  "studioVersion": "2.0.0",
+  "note": "24-Hour Studio is now exclusively the extracted 24-Hour Audio Cloud Stream (cloud-stream.js). studio.js removed. No camera, no video, no Live Studio. Audio-only with artwork."
 }
