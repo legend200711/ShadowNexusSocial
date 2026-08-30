@@ -80,14 +80,22 @@ export default {
       if (method === 'POST' && path === '/api/admin/stream/stop') return handleAdminStop(request, env, ctx, cors);
       if (method === 'GET'  && path === '/api/admin/streams')  return handleAdminList(request, env, cors);
       // ── Music API ──
-      if (method === 'POST' && path === '/api/stream/music/set')     return handleMusicSet(request, env, ctx, cors);
-      if (method === 'POST' && path === '/api/stream/music/control') return handleMusicControl(request, env, ctx, cors);
+      if (method === 'POST' && path === '/api/stream/music/set')      return handleMusicSet(request, env, ctx, cors);
+      if (method === 'POST' && path === '/api/stream/music/control')  return handleMusicControl(request, env, ctx, cors);
+      if (method === 'POST' && path === '/api/stream/music/watchdog') return handleMusicWatchdog(request, env, url, cors);
       if (method === 'GET'  && path.startsWith('/api/stream/music/')) return handleMusicGet(request, env, url, cors);
+      // ── Viewer/Listener presence API ──
+      if (method === 'POST' && path === '/api/stream/listener/join')      return handleListenerJoin(request, env, ctx, cors);
+      if (method === 'POST' && path === '/api/stream/listener/heartbeat') return handleListenerHeartbeat(request, env, ctx, cors);
+      if (method === 'POST' && path === '/api/stream/listener/leave')     return handleListenerLeave(request, env, ctx, cors);
+      // ── Likes API ──
+      if (method === 'POST' && path === '/api/stream/like')   return handleStreamLike(request, env, ctx, cors);
+      if (method === 'GET'  && path.startsWith('/api/stream/likes/')) return handleStreamLikesGet(request, env, url, cors);
       // ── Destinations API ──
       if (method === 'POST' && path === '/api/destinations/save')   return handleDestinationsSave(request, env, cors);
       if (method === 'POST' && path === '/api/destinations/remove') return handleDestinationsRemove(request, env, cors);
       if (method === 'GET'  && path === '/api/destinations/list')   return handleDestinationsList(request, env, url, cors);
-      if (method === 'GET'  && path === '/health')             return jsonOK({ ok: true, worker: 'cloudstream', v: '1.4.0' }, cors);
+      if (method === 'GET'  && path === '/health')             return jsonOK({ ok: true, worker: 'cloudstream', v: '1.5.0' }, cors);
 
       return jsonErr('Not found', 404, cors);
     } catch (err) {
@@ -334,22 +342,24 @@ async function handleHealth(request, env, url, cors) {
 
   // ── Read current music state so viewer can play the active track ──────────
   let musicInfo = { currentMusicTitle: '', currentMusicArtist: '', currentMusicUrl: '',
-                    nextMusicTitle: '', queueIndex: 0, musicStatus: 'no_music' };
+                    nextMusicTitle: '', queueIndex: 0, musicStatus: 'no_music',
+                    lastMusicAdvancedAt: 0, currentMusicDuration: 0 };
   if (env.cloudStreamKV) {
     const ms = await env.cloudStreamKV.get(`music:${streamId}`, { type: 'json' });
     if (ms && ms.queue && ms.queue.length) {
       const cur  = ms.queue[ms.queueIndex || 0] || {};
       const nxt  = ms.queue[((ms.queueIndex || 0) + 1) % ms.queue.length] || {};
       musicInfo = {
-        currentMusicTitle:  cur.title  || '',
-        currentMusicArtist: cur.artist || '',
-        currentMusicUrl:    cur.url    || '',
-        currentMusicId:     cur.id     || '',
+        currentMusicTitle:   cur.title    || '',
+        currentMusicArtist:  cur.artist   || '',
+        currentMusicUrl:     cur.url      || '',
+        currentMusicId:      cur.id       || '',
         currentMusicDuration: cur.duration || 0,
-        nextMusicTitle:     nxt.title  || '',
-        queueIndex:         ms.queueIndex || 0,
-        musicStatus:        ms.status  || 'playing',
-        musicVolume:        ms.volume  || 80
+        nextMusicTitle:      nxt.title    || '',
+        queueIndex:          ms.queueIndex || 0,
+        musicStatus:         ms.status    || 'playing',
+        musicVolume:         ms.volume    || 80,
+        lastMusicAdvancedAt: ms.lastAdvancedAt || 0
       };
     }
   }
@@ -762,6 +772,39 @@ async function pushNowPlayingToFirestore(env, streamId, musicState) {
 }
 
 /* ═══════════════════════════════════════════════════════
+   MUSIC WATCHDOG — external trigger to recover a stalled
+   DO alarm.  Called by the creator's browser health check
+   (or a Cron Trigger) when tracks stop advancing.
+   POST /api/stream/music/watchdog  { streamId, uid }
+═══════════════════════════════════════════════════════ */
+async function handleMusicWatchdog(request, env, url, cors) {
+  let body;
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
+  const { streamId, uid } = body;
+  if (!streamId) return jsonErr('streamId required', 400, cors);
+
+  // Verify caller owns the stream
+  const idToken = _extractBearerToken(request);
+  if (idToken && env.FIREBASE_PROJECT_ID && env.FIREBASE_API_KEY) {
+    try {
+      const verified = await verifyFirebaseIdToken(idToken, env);
+      if (!verified || verified.uid !== uid) return jsonErr('Unauthorized', 403, cors);
+    } catch(e) { return jsonErr('Unauthorized: ' + e.message, 401, cors); }
+  }
+
+  if (!env.CloudStreamDO) return jsonErr('DO not configured', 503, cors);
+  const id  = env.CloudStreamDO.idFromName(streamId + '_music');
+  const obj = env.CloudStreamDO.get(id);
+  const res = await obj.fetch('https://do/music-watchdog', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ streamId })
+  });
+  const data = await res.json().catch(() => ({}));
+  return jsonOK(data, cors);
+}
+
+/* ═══════════════════════════════════════════════════════
    DURABLE OBJECT — CloudStreamScheduler
    Enables persistent 24-hour scheduling via Cloudflare Alarms.
    Register this in wrangler-studio.jsonc as a Durable Object binding.
@@ -813,6 +856,7 @@ export class CloudStreamScheduler {
       await this.state.storage.put('m_shuffle',        shuffle ? 1 : 0);
       await this.state.storage.put('m_repeat',         (typeof repeat === 'boolean' ? repeat : true) ? 1 : 0);
       await this.state.storage.put('m_startedAt',      Date.now());
+      await this.state.storage.put('m_lastAlarmAt',    Date.now());
       await this.state.storage.put('m_durationMin',    durationMinutes || 1440);
       await this.state.storage.put('mode',             'music');
 
@@ -822,6 +866,41 @@ export class CloudStreamScheduler {
       const dur   = track && track.duration ? track.duration * 1000 : 240000; // default 4 min
       await this.state.storage.setAlarm(Date.now() + dur);
       return jsonOK({ scheduled: true, streamId, firstTrack: track ? track.title : '' });
+    }
+
+    // ── Music watchdog: called externally to detect & recover lost alarms ──
+    // If the DO alarm has not fired for > 10 minutes beyond the expected
+    // track duration, we re-trigger the alarm immediately.
+    if (request.method === 'POST' && path === '/music-watchdog') {
+      const streamId = await this.state.storage.get('m_streamId');
+      if (!streamId) return jsonOK({ ok: true, reason: 'no_stream' });
+
+      const mode = (await this.state.storage.get('mode')) || 'scene';
+      if (mode !== 'music') return jsonOK({ ok: true, reason: 'not_music_mode' });
+
+      // Check KV music state to see if tracks are advancing
+      let musicState = null;
+      if (this.env.cloudStreamKV) {
+        musicState = await this.env.cloudStreamKV.get(`music:${streamId}`, { type: 'json' });
+      }
+      if (!musicState) return jsonOK({ ok: true, reason: 'kv_no_state' });
+      if (musicState.status === 'stopped' || musicState.status === 'ended') {
+        return jsonOK({ ok: true, reason: 'stream_ended' });
+      }
+
+      // If lastAdvancedAt is too stale (track should have finished), re-trigger alarm now
+      const lastAdvanced = musicState.lastAdvancedAt || 0;
+      const trackDurMs   = ((musicState.queue && musicState.queue[musicState.queueIndex || 0] && musicState.queue[musicState.queueIndex || 0].duration) || 240) * 1000;
+      const staleness    = Date.now() - lastAdvanced;
+      // Stale if it's been > track duration + 10 minutes since last advancement
+      if (staleness > trackDurMs + 10 * 60 * 1000) {
+        await this.state.storage.put('m_lastAlarmAt', Date.now());
+        await this.state.storage.setAlarm(Date.now() + 1000); // fire in 1 second
+        await logStreamEvent(this.env, streamId, 'music_watchdog_triggered', { staleness, trackDurMs });
+        return jsonOK({ ok: true, reason: 'alarm_rescheduled', staleness });
+      }
+
+      return jsonOK({ ok: true, reason: 'alarm_healthy', staleness });
     }
 
     return jsonErr('Not found', 404);
@@ -848,26 +927,68 @@ export class CloudStreamScheduler {
 
     if (!streamId) return;
 
-    const musicQueue = queueJson ? JSON.parse(queueJson) : [];
-    if (!musicQueue.length) return;
+    // ── Watchdog: read music state from KV and sync if DO queue is stale ──────
+    let musicState = null;
+    if (this.env.cloudStreamKV) {
+      musicState = await this.env.cloudStreamKV.get(`music:${streamId}`, { type: 'json' });
+    }
 
-    // Check stream expiry
+    // If KV has no music state the stream was already ended/deleted — stop scheduling
+    if (!musicState) {
+      await logStreamEvent(this.env, streamId, 'music_alarm_no_state', { reason: 'kv_missing' });
+      return;
+    }
+
+    // Always authoritative: use KV queue over DO-stored queue (KV may have been updated mid-stream)
+    const musicQueue = (musicState.queue && musicState.queue.length)
+      ? musicState.queue
+      : (queueJson ? JSON.parse(queueJson) : []);
+
+    if (!musicQueue.length) {
+      // Save the empty-queue state but keep broadcasting (re-check in 60s)
+      musicState.status = 'paused';
+      if (this.env.cloudStreamKV) {
+        await this.env.cloudStreamKV.put(`music:${streamId}`, JSON.stringify(musicState));
+      }
+      await logStreamEvent(this.env, streamId, 'music_queue_empty', { reason: 'all_tracks_removed' });
+      await this.state.storage.setAlarm(Date.now() + 60000);
+      return;
+    }
+
+    // Keep KV queue authoritative
+    musicState.queue = musicQueue;
+
+    // Check stream expiry via KV stream record (more reliable than startedAt in DO storage)
+    const streamRec = this.env.cloudStreamKV
+      ? await this.env.cloudStreamKV.get(`stream:${streamId}`, { type: 'json' })
+      : null;
+    if (streamRec && streamRec.endsAt && Date.now() > streamRec.endsAt) {
+      await this._endStream(streamId);
+      return;
+    }
+    // Fallback expiry via DO startedAt
     const elapsed = (Date.now() - startedAt) / 60000;
     if (elapsed >= durationMin) {
       await this._endStream(streamId);
       return;
     }
 
-    // Read current music state from KV to respect any mid-stream updates
-    let musicState = null;
-    if (this.env.cloudStreamKV) {
-      musicState = await this.env.cloudStreamKV.get(`music:${streamId}`, { type: 'json' });
+    // Paused: reschedule watchdog in 30s instead of 60s so resume is snappy
+    if (musicState.status === 'paused') {
+      await this.state.storage.setAlarm(Date.now() + 30000);
+      return;
     }
 
-    if (!musicState || musicState.status === 'paused' || musicState.status === 'ended') {
-      // Paused or ended — don't advance, reschedule check in 60s
-      await this.state.storage.setAlarm(Date.now() + 60000);
-      return;
+    // Ended with repeat=false: if the stream is still active but music ended,
+    // restart from track 0 (override "ended" if stream hasn't expired — keeps broadcast alive)
+    if (musicState.status === 'ended') {
+      if (musicState.repeat === false) {
+        // Truly ended by design — log and stop rescheduling
+        await logStreamEvent(this.env, streamId, 'music_ended', { reason: 'repeat_off' });
+        return;
+      }
+      // repeat=true but somehow landed on 'ended' — recover
+      musicState.status = 'playing';
     }
 
     // ── Guard: if queue is now empty (all tracks deleted), put stream into safe
@@ -887,16 +1008,27 @@ export class CloudStreamScheduler {
     const qLen = musicState.queue.length;
 
     if (musicState.shuffle) {
-      nextIndex = Math.floor(Math.random() * qLen);
+      // Shuffle: pick random index different from current when possible
+      if (qLen > 1) {
+        do { nextIndex = Math.floor(Math.random() * qLen); }
+        while (nextIndex === (musicState.queueIndex || 0));
+      } else {
+        nextIndex = 0;
+      }
     } else {
-      nextIndex = (musicState.queueIndex + 1) % qLen;
-      if (nextIndex === 0 && !musicState.repeat) {
-        musicState.status = 'ended';
-        if (this.env.cloudStreamKV) {
-          await this.env.cloudStreamKV.put(`music:${streamId}`, JSON.stringify(musicState));
+      nextIndex = ((musicState.queueIndex || 0) + 1) % qLen;
+      // Reached end of playlist
+      if (nextIndex === 0) {
+        if (musicState.repeat === false) {
+          musicState.status = 'ended';
+          if (this.env.cloudStreamKV) {
+            await this.env.cloudStreamKV.put(`music:${streamId}`, JSON.stringify(musicState));
+          }
+          await logStreamEvent(this.env, streamId, 'music_ended', { reason: 'repeat_off' });
+          return;
         }
-        await logStreamEvent(this.env, streamId, 'music_ended', { reason: 'repeat_off' });
-        return;
+        // repeat=true (or undefined, default repeat) — loop back to beginning
+        await logStreamEvent(this.env, streamId, 'music_looped', { queueLength: qLen });
       }
     }
 
@@ -928,13 +1060,15 @@ export class CloudStreamScheduler {
 
     musicState.queueIndex     = nextIndex;
     musicState.lastAdvancedAt = Date.now();
+    musicState.status         = 'playing'; // ensure status is playing after advance
 
     if (this.env.cloudStreamKV) {
       await this.env.cloudStreamKV.put(`music:${streamId}`, JSON.stringify(musicState));
     }
 
     // Update Durable Object's local index for next alarm
-    await this.state.storage.put('m_queueIndex', nextIndex);
+    await this.state.storage.put('m_queueIndex',  nextIndex);
+    await this.state.storage.put('m_lastAlarmAt', Date.now());
 
     // Push Now Playing to Firestore
     await pushNowPlayingToFirestore(this.env, streamId, musicState);
@@ -948,7 +1082,9 @@ export class CloudStreamScheduler {
     });
 
     // Schedule alarm for end of next track
-    const nextDur = cur.duration ? cur.duration * 1000 : 240000;
+    // Guard: minimum 5s, maximum 6 hours, default 4 min if duration is 0/missing
+    const rawDur = cur.duration ? cur.duration * 1000 : 240000;
+    const nextDur = Math.max(5000, Math.min(rawDur, 6 * 60 * 60 * 1000));
     await this.state.storage.setAlarm(Date.now() + nextDur);
   }
 
@@ -1488,6 +1624,226 @@ async function handleDestinationsList(request, env, url, cors) {
   }
 
   return jsonOK({ destinations }, cors);
+}
+
+/* ═══════════════════════════════════════════════════════
+   LISTENER PRESENCE — join / heartbeat / leave
+   KV schema:
+     listener:{streamId}:{sessionId}  — { uid, sessionId, streamId, joinedAt, lastSeen, active }
+     listenerCount:{streamId}          — integer (cached count)
+
+   sessionId for authenticated users = uid (one record per real user).
+   sessionId for guests = generated UUID persisted in localStorage (one per device).
+
+   Heartbeat interval: 30s.  Stale threshold: 90s.
+   Join is idempotent: repeated calls only update lastSeen, never duplicate.
+   Leave marks active=false. Viewer count = active records with lastSeen < 90s.
+═══════════════════════════════════════════════════════ */
+
+const LISTENER_STALE_MS = 90 * 1000; // 90 seconds without heartbeat = stale
+
+async function _recomputeViewerCount(streamId, env) {
+  if (!env.cloudStreamKV) return 0;
+  const prefix = `listener:${streamId}:`;
+  const list   = await env.cloudStreamKV.list({ prefix });
+  let count = 0;
+  const now = Date.now();
+  for (const key of (list.keys || [])) {
+    const rec = await env.cloudStreamKV.get(key.name, { type: 'json' });
+    if (rec && rec.active && (now - (rec.lastSeen || 0)) < LISTENER_STALE_MS) {
+      count++;
+    }
+  }
+  // Cache the count + update stream record
+  await env.cloudStreamKV.put(`listenerCount:${streamId}`, String(count), { expirationTtl: 300 });
+  const stream = await env.cloudStreamKV.get(`stream:${streamId}`, { type: 'json' });
+  if (stream) {
+    stream.viewerCount = count;
+    await env.cloudStreamKV.put(`stream:${streamId}`, JSON.stringify(stream), { expirationTtl: (stream.durationMinutes + 60) * 60 });
+  }
+  return count;
+}
+
+async function handleListenerJoin(request, env, ctx, cors) {
+  let body;
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
+  const { streamId, sessionId, uid, displayName } = body;
+  if (!streamId || !sessionId) return jsonErr('streamId and sessionId required', 400, cors);
+
+  if (!env.cloudStreamKV) return jsonOK({ success: true, viewerCount: 0 }, cors);
+
+  const kvKey   = `listener:${streamId}:${sessionId}`;
+  const existing = await env.cloudStreamKV.get(kvKey, { type: 'json' });
+  const now = Date.now();
+
+  const record = {
+    sessionId,
+    uid:         uid         || null,
+    displayName: displayName || '',
+    streamId,
+    joinedAt:    existing ? (existing.joinedAt || now) : now,
+    lastSeen:    now,
+    active:      true
+  };
+
+  await env.cloudStreamKV.put(kvKey, JSON.stringify(record), { expirationTtl: 7200 });
+
+  // Recompute in background — use cached count for immediate response
+  if (ctx) ctx.waitUntil(_recomputeViewerCount(streamId, env));
+  else await _recomputeViewerCount(streamId, env);
+
+  const cached = await env.cloudStreamKV.get(`listenerCount:${streamId}`);
+  const viewerCount = cached ? parseInt(cached, 10) : 0;
+
+  return jsonOK({ success: true, viewerCount }, cors);
+}
+
+async function handleListenerHeartbeat(request, env, ctx, cors) {
+  let body;
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
+  const { streamId, sessionId } = body;
+  if (!streamId || !sessionId) return jsonErr('streamId and sessionId required', 400, cors);
+
+  if (!env.cloudStreamKV) return jsonOK({ success: true, viewerCount: 0 }, cors);
+
+  const kvKey   = `listener:${streamId}:${sessionId}`;
+  const existing = await env.cloudStreamKV.get(kvKey, { type: 'json' });
+  if (!existing) {
+    // Session not found in KV — client must re-join
+    return jsonOK({ success: false, rejoin: true, viewerCount: 0 }, cors);
+  }
+
+  existing.lastSeen = Date.now();
+  existing.active   = true;
+  await env.cloudStreamKV.put(kvKey, JSON.stringify(existing), { expirationTtl: 7200 });
+
+  // Recompute count periodically (~20% of heartbeats) to avoid KV list overhead on every call
+  if (Math.random() < 0.2) {
+    if (ctx) ctx.waitUntil(_recomputeViewerCount(streamId, env));
+    else await _recomputeViewerCount(streamId, env);
+  }
+
+  const cached = await env.cloudStreamKV.get(`listenerCount:${streamId}`);
+  const viewerCount = cached ? parseInt(cached, 10) : 0;
+
+  return jsonOK({ success: true, viewerCount }, cors);
+}
+
+async function handleListenerLeave(request, env, ctx, cors) {
+  let body;
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
+  const { streamId, sessionId } = body;
+  if (!streamId || !sessionId) return jsonOK({ success: true, viewerCount: 0 }, cors);
+
+  if (!env.cloudStreamKV) return jsonOK({ success: true, viewerCount: 0 }, cors);
+
+  const kvKey   = `listener:${streamId}:${sessionId}`;
+  const existing = await env.cloudStreamKV.get(kvKey, { type: 'json' });
+  if (existing) {
+    existing.active = false;
+    existing.leftAt = Date.now();
+    await env.cloudStreamKV.put(kvKey, JSON.stringify(existing), { expirationTtl: 300 });
+  }
+
+  let viewerCount = 0;
+  if (ctx) ctx.waitUntil(_recomputeViewerCount(streamId, env));
+  else viewerCount = await _recomputeViewerCount(streamId, env);
+
+  const cached = await env.cloudStreamKV.get(`listenerCount:${streamId}`);
+  viewerCount = cached ? parseInt(cached, 10) : viewerCount;
+
+  return jsonOK({ success: true, viewerCount }, cors);
+}
+
+/* ═══════════════════════════════════════════════════════
+   STREAM LIKES — one like per authenticated user per stream (idempotent toggle)
+   KV schema:
+     like:{streamId}:{uid}  — { uid, streamId, liked, likedAt }
+     likeCount:{streamId}   — integer (cached count)
+═══════════════════════════════════════════════════════ */
+
+async function _recomputeLikeCount(streamId, env) {
+  if (!env.cloudStreamKV) return 0;
+  const prefix = `like:${streamId}:`;
+  const list   = await env.cloudStreamKV.list({ prefix });
+  let count = 0;
+  for (const key of (list.keys || [])) {
+    const rec = await env.cloudStreamKV.get(key.name, { type: 'json' });
+    if (rec && rec.liked) count++;
+  }
+  await env.cloudStreamKV.put(`likeCount:${streamId}`, String(count), { expirationTtl: 3600 });
+  return count;
+}
+
+async function handleStreamLike(request, env, ctx, cors) {
+  let body;
+  try { body = await request.json(); } catch { return jsonErr('Invalid JSON', 400, cors); }
+  const { streamId, uid, action } = body; // action: 'like' | 'unlike'
+  if (!streamId || !uid) return jsonErr('streamId and uid required', 400, cors);
+
+  // Require Firebase ID token to prevent spoofing
+  const idToken = _extractBearerToken(request);
+  if (idToken && env.FIREBASE_PROJECT_ID && env.FIREBASE_API_KEY) {
+    try {
+      const verified = await verifyFirebaseIdToken(idToken, env);
+      if (!verified || verified.uid !== uid) return jsonErr('Unauthorized: token UID mismatch', 403, cors);
+    } catch (e) { return jsonErr('Unauthorized: ' + e.message, 401, cors); }
+  } else if (!idToken && env.FIREBASE_PROJECT_ID && env.FIREBASE_API_KEY) {
+    return jsonErr('Unauthorized: Authorization header required', 401, cors);
+  }
+
+  if (!env.cloudStreamKV) return jsonErr('KV not configured', 503, cors);
+
+  const kvKey    = `like:${streamId}:${uid}`;
+  const existing = await env.cloudStreamKV.get(kvKey, { type: 'json' });
+  const liked    = action !== 'unlike';
+
+  // Idempotent: same state, return cached count without recomputing
+  if (existing && existing.liked === liked) {
+    const cached   = await env.cloudStreamKV.get(`likeCount:${streamId}`);
+    const likeCount = cached ? parseInt(cached, 10) : await _recomputeLikeCount(streamId, env);
+    return jsonOK({ success: true, liked, likeCount, unchanged: true }, cors);
+  }
+
+  const record = {
+    uid,
+    streamId,
+    liked,
+    likedAt:   liked ? Date.now() : null,
+    unlikedAt: !liked ? Date.now() : (existing ? existing.unlikedAt : null)
+  };
+
+  const ttl = liked ? 86400 * 30 : 3600;
+  await env.cloudStreamKV.put(kvKey, JSON.stringify(record), { expirationTtl: ttl });
+
+  let likeCount = 0;
+  if (ctx) ctx.waitUntil(_recomputeLikeCount(streamId, env));
+  else likeCount = await _recomputeLikeCount(streamId, env);
+
+  const cached = await env.cloudStreamKV.get(`likeCount:${streamId}`);
+  likeCount = cached ? parseInt(cached, 10) : likeCount;
+
+  return jsonOK({ success: true, liked, likeCount }, cors);
+}
+
+async function handleStreamLikesGet(request, env, url, cors) {
+  const parts     = url.pathname.replace('/api/stream/likes/', '').split('/');
+  const streamId  = parts[0];
+  const uid       = parts[1] || null;
+  if (!streamId) return jsonErr('streamId required', 400, cors);
+
+  if (!env.cloudStreamKV) return jsonOK({ likeCount: 0, liked: false }, cors);
+
+  const cached    = await env.cloudStreamKV.get(`likeCount:${streamId}`);
+  const likeCount = cached ? parseInt(cached, 10) : await _recomputeLikeCount(streamId, env);
+
+  let liked = false;
+  if (uid) {
+    const rec = await env.cloudStreamKV.get(`like:${streamId}:${uid}`, { type: 'json' });
+    liked = !!(rec && rec.liked);
+  }
+
+  return jsonOK({ likeCount, liked }, cors);
 }
 
 // Helper: SHA-256 hash of a string (for auditing only, key itself stored separately)

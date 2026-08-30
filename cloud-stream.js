@@ -67,21 +67,44 @@ let _streamId     = null;   // active stream ID (creator's own)
 let _streamData   = null;   // cloudStreams Firestore doc data
 let _artworkDataUrl = null; // base64 cover artwork
 
+/* ── Stable session ID for viewer presence tracking ─────────────────
+   - Authenticated users: _user.uid (set after auth resolves)
+   - Guests: UUID generated once and stored in localStorage
+   Reusing the same ID means reconnects update, never duplicate.
+────────────────────────────────────────────────────────────────────── */
+function _getSessionId() {
+  if (_user) return _user.uid;
+  const KEY = 'snx_csr_guest_session';
+  let id = localStorage.getItem(KEY);
+  if (!id) {
+    id = 'g_' + Math.random().toString(36).slice(2) + '_' + Date.now().toString(36);
+    localStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
 /* Listener player state */
 let _player = {
-  audio:       null,      // HTMLAudioElement
-  playing:     false,
-  trackId:     null,
-  trackUrl:    null,
-  trackDur:    0,
-  trackStartedAt: 0,      // server timestamp when track started
-  volume:      0.8,
-  progressRaf: null,
-  unsub:       null,      // Firestore Now Playing snapshot unsubscribe
-  syncInterval: null,
-  listenerCount: 0,
-  broadcastTitle: '',
-  hostName:    '',
+  audio:           null,   // HTMLAudioElement
+  playing:         false,
+  trackId:         null,
+  trackUrl:        null,
+  trackDur:        0,
+  trackStartedAt:  0,      // server timestamp when track started
+  volume:          0.8,
+  progressRaf:     null,
+  unsub:           null,   // Firestore Now Playing snapshot unsubscribe
+  syncInterval:    null,
+  listenerCount:   0,
+  broadcastTitle:  '',
+  hostName:        '',
+  // Viewer presence
+  _streamId:       null,   // which stream we are listening to
+  _heartbeatTimer: null,   // setInterval id for heartbeat
+  _watchdogTimer:  null,   // setInterval id for audio watchdog
+  _audioStallAt:   0,      // timestamp when audio stall first noticed
+  _userInteracted: false,  // true after user clicked play (iOS gate)
+  _liked:          false,  // true if current user has liked this stream
 };
 
 /* Creator state */
@@ -238,7 +261,7 @@ function _stopHealthMonitor() {
   if (_creator.healthInterval) { clearInterval(_creator.healthInterval); _creator.healthInterval = null; }
 }
 
-async function _checkHealth() {
+async function _checkHealth() { // eslint-disable-line no-unused-vars
   if (!_streamId) return;
   try {
     const r    = await fetch(WORKER_URL + '/api/stream/health/' + _streamId);
@@ -249,13 +272,34 @@ async function _checkHealth() {
         _streamData.viewerCount = data.viewerCount || 0;
       }
       _setStatusBadge(data.status);
-      _el('csrInfoWorker').textContent = data.workerActive ? 'active' : 'offline';
-      _el('csrInfoListeners').textContent = data.viewerCount || '0';
+      const workerEl = _el('csrInfoWorker');
+      const listnEl  = _el('csrInfoListeners');
+      if (workerEl) workerEl.textContent = data.workerActive ? 'active' : 'offline';
+      if (listnEl)  listnEl.textContent  = data.viewerCount || '0';
       // Sync now playing from health response
       if (data.currentMusicTitle) {
-        _el('csrNpTitle').textContent  = data.currentMusicTitle;
-        _el('csrNpArtist').textContent = data.currentMusicArtist || '';
-        _el('csrNpNext').textContent   = data.nextMusicTitle ? 'Next: ' + data.nextMusicTitle : '';
+        const npTitle  = _el('csrNpTitle');
+        const npArtist = _el('csrNpArtist');
+        const npNext   = _el('csrNpNext');
+        if (npTitle)  npTitle.textContent  = data.currentMusicTitle;
+        if (npArtist) npArtist.textContent = data.currentMusicArtist || '';
+        if (npNext)   npNext.textContent   = data.nextMusicTitle ? 'Next: ' + data.nextMusicTitle : '';
+      }
+      // ── Watchdog: if music state has not advanced in > 10 min + track duration,
+      //    kick the DO watchdog to recover a potentially lost alarm ──────────────
+      const lastAdvanced = data.lastMusicAdvancedAt || 0;
+      if (lastAdvanced && data.status === 'active' && _user) {
+        const trackDurMs = (data.currentMusicDuration || 240) * 1000;
+        const staleness  = Date.now() - lastAdvanced;
+        if (staleness > trackDurMs + 10 * 60 * 1000) {
+          _user.getIdToken().then(idToken => {
+            fetch(WORKER_URL + '/api/stream/music/watchdog', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+              body:    JSON.stringify({ streamId: _streamId, uid: _user.uid })
+            }).catch(() => {});
+          }).catch(() => {});
+        }
       }
     }
     // Check expiry
@@ -796,6 +840,7 @@ async function _initListenerMode(streamId) {
 async function _initListenerForStream(streamId, streamData) {
   _player.broadcastTitle = streamData?.streamName || 'Shadow Nexus Cloud Radio';
   _player.hostName       = streamData?.displayName || streamData?.hostName || '';
+  _player._streamId      = streamId;
 
   // Update player UI header
   _setText('csrPlayerBroadcastTitle', _player.broadcastTitle);
@@ -806,6 +851,12 @@ async function _initListenerForStream(streamId, streamData) {
     const art = _el('csrPlayerArtwork');
     if (art) art.innerHTML = `<img src="${_esc(streamData.coverArt)}" alt="Cover" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
   }
+
+  // ── Show iOS "Tap to Listen" gate before subscribing ────────────────
+  // We detect if autoplay is likely blocked (iOS/Safari) and show the
+  // start button immediately. The user taps it; we then start audio.
+  // This runs before the Firestore subscription so the UI is ready.
+  _maybeShowTapToListen();
 
   // Subscribe to Now Playing from Firestore
   if (_player.unsub) { try { _player.unsub(); } catch(_) {} }
@@ -825,14 +876,23 @@ async function _initListenerForStream(streamId, streamData) {
     }
   );
 
-  // Note: listener count is maintained by the cloud worker via health heartbeats.
-  // Clients do not write to cloudStreams directly (permission denied for non-owners).
-
   // Try to load current Now Playing right away
   try {
     const np = await getDoc(doc(_db, 'studioCloudStreamMusic', streamId));
     if (np.exists()) _syncListenerToNowPlaying(np.data());
   } catch(_) {}
+
+  // ── Register as a viewer (idempotent — reconnects update, not duplicate) ──
+  _joinAsListener(streamId);
+
+  // ── Start heartbeat to keep viewer count live ──
+  _startListenerHeartbeat(streamId);
+
+  // ── Fetch initial likes count + current user like state ──
+  _fetchLikes(streamId);
+
+  // ── Audio watchdog: detects silent stalls and attempts recovery ──
+  _startAudioWatchdog(streamId);
 }
 
 function _syncListenerToNowPlaying(d) {
@@ -861,50 +921,101 @@ function _syncListenerToNowPlaying(d) {
 }
 
 function _loadAndPlayTrack(url, dur) {
-  _stopPlayerAudio();
-  const audio = new Audio(url);
-  audio.volume      = _player.volume;
-  audio.crossOrigin = 'anonymous';
-  audio.preload     = 'auto';
-  _player.audio     = audio;
-  _player.trackDur  = dur;
+  // Refuse to load an empty URL — watchdog will retry when state updates
+  if (!url) {
+    _player._audioStallAt = _player._audioStallAt || Date.now();
+    return;
+  }
 
-  // Seek to synchronized position based on server-side clock
-  // The worker sets updatedAt when the track starts; we skip ahead to match
+  _stopPlayerAudio();
+
+  // ── Create audio element with iOS-compatible attributes ──────────────
+  const audio        = new Audio();
+  audio.volume       = _player.volume;
+  audio.preload      = 'auto';
+  // playsinline prevents fullscreen takeover on iOS
+  audio.setAttribute('playsinline',        '');
+  audio.setAttribute('webkit-playsinline', '');
+  // x-webkit-airplay=allow allows AirPlay on iOS
+  audio.setAttribute('x-webkit-airplay',   'allow');
+  // DO NOT set crossOrigin='anonymous' — causes CORS failures with R2 CDN
+  _player.audio      = audio;
+  _player.trackDur   = dur;
+  _player._audioStallAt = 0;
+
+  // ── Synchronized seek (skip ahead to match server clock) ─────────────
   const elapsed = Math.max(0, (Date.now() - _player.trackStartedAt) / 1000);
   if (elapsed > 2 && dur > 0 && elapsed < dur - 2) {
     audio.addEventListener('loadedmetadata', () => {
       if (isFinite(audio.duration) && audio.duration > 0) {
-        // Clamp seek to valid range
         const seekTo = Math.min(elapsed, audio.duration - 1);
         try { audio.currentTime = seekTo; } catch(_) {}
       }
     }, { once: true });
   }
 
+  // ── Event listeners ───────────────────────────────────────────────────
   audio.addEventListener('timeupdate', _updatePlayerProgress);
-  audio.addEventListener('ended', _onTrackEnded);
+  audio.addEventListener('ended',      _onTrackEnded);
+
+  // stalled / waiting: mark the stall time; watchdog handles recovery
+  const _onStall = () => {
+    if (!_player._audioStallAt) _player._audioStallAt = Date.now();
+  };
+  audio.addEventListener('stalled',  _onStall);
+  audio.addEventListener('waiting',  _onStall);
+
+  // canplay / playing: clear stall flag
+  const _onCanPlay = () => { _player._audioStallAt = 0; };
+  audio.addEventListener('canplay',  _onCanPlay);
+  audio.addEventListener('playing',  _onCanPlay);
+
+  // error: distinguish network/decode errors from NotAllowedError
   audio.addEventListener('error', () => {
-    console.warn('[CSR] audio error for track:', url);
-    // Don't show error — the worker will advance and we'll get a new track
+    const code = audio.error ? audio.error.code : 'unknown';
+    // MEDIA_ERR_SRC_NOT_SUPPORTED (4) or MEDIA_ERR_NETWORK (2) — mark stall
+    console.warn('[CSR] audio error code=' + code + ' url=' + url);
+    _player._audioStallAt = _player._audioStallAt || Date.now();
   });
 
-  if (_player.playing) {
-    audio.play().catch(() => {
-      // Autoplay blocked — show play button
-      _setPlayBtn(false);
-    });
+  // ── Set src last (after all event listeners are attached) ─────────────
+  audio.src = url;
+  audio.load(); // explicit load() is required on iOS to start buffering
+
+  // ── Attempt play — only if user has already interacted or Tap overlay is hidden ─
+  const tapOverlay = _el('csrTapToListenOverlay');
+  const tapVisible = tapOverlay && tapOverlay.style.display !== 'none';
+
+  if (_player.playing && !tapVisible) {
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(err => {
+        if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+          // Autoplay blocked — show Tap to Listen; do NOT mark as a stream failure
+          _player.playing = false;
+          _setPlayBtn(false);
+          _showTapToListen();
+        } else {
+          // Network / decode error — watchdog will retry
+          console.warn('[CSR] play() rejected:', err.name, err.message);
+          _player._audioStallAt = _player._audioStallAt || Date.now();
+        }
+      });
+    }
   }
-  _setPlayBtn(_player.playing);
-  _startProgressRaf();
+
+  _setPlayBtn(_player.playing && !tapVisible);
+  if (_player.playing && !tapVisible) _startProgressRaf();
   _show('csrPlayerOffline', false);
 }
 
 function _onTrackEnded() {
-  // The Durable Object alarm will advance the track and write the new Now Playing.
-  // The Firestore snapshot listener (_syncListenerToNowPlaying) will pick it up.
-  // Nothing to do here — just wait for the next snapshot update.
+  // The Durable Object alarm advances the track and writes the new Now Playing.
+  // The Firestore snapshot listener will pick it up within seconds.
+  // As a local fallback: if no Firestore update arrives within 15 seconds,
+  // the audio watchdog will detect the stall and reload the track list.
   _stopProgressRaf();
+  _player._audioStallAt = Date.now(); // trigger watchdog if Firestore is slow
   _setPlayBtn(false);
 }
 
@@ -940,11 +1051,16 @@ function _stopPlayerAudio() {
   if (_player.audio) {
     _player.audio.removeEventListener('timeupdate', _updatePlayerProgress);
     _player.audio.removeEventListener('ended', _onTrackEnded);
-    _player.audio.pause();
+    try { _player.audio.pause(); } catch(_) {}
     _player.audio.src = '';
     _player.audio = null;
   }
   _player.playing = false;
+}
+
+function _stopAllTimers() {
+  if (_player._heartbeatTimer) { clearInterval(_player._heartbeatTimer); _player._heartbeatTimer = null; }
+  if (_player._watchdogTimer)  { clearInterval(_player._watchdogTimer);  _player._watchdogTimer  = null; }
 }
 
 function _showPlayerOffline(msg) {
@@ -957,10 +1073,319 @@ function _showPlayerOffline(msg) {
   _stopPlayerAudio();
 }
 
+/* ═══════════════════════════════════════════════════════
+   IOS / AUTOPLAY — Tap to Listen gate
+   Shown immediately when autoplay is likely blocked.
+   The user's tap provides the required user-gesture for
+   HTMLMediaElement.play() on iOS Safari / Chrome.
+═══════════════════════════════════════════════════════ */
+
+function _isAutoplayLikelyBlocked() {
+  // iOS (iPhone / iPad) and Safari on any platform block autoplay.
+  // We detect these reliably rather than guessing.
+  const ua = navigator.userAgent || '';
+  const isIOS      = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isSafari   = /Safari/.test(ua) && !/Chrome/.test(ua);
+  const isStandalone = window.navigator.standalone === true; // PWA on iOS
+  return isIOS || isSafari || isStandalone;
+}
+
+function _maybeShowTapToListen() {
+  // Show the overlay immediately on autoplay-restricted devices.
+  // On desktop/Android Chrome where autoplay usually succeeds we still
+  // check — if play() later rejects we call _showTapToListen() then.
+  if (_isAutoplayLikelyBlocked()) {
+    _show('csrTapToListenOverlay', true);
+    _player.playing = false; // do not attempt autoplay
+  }
+}
+
+function _showTapToListen() {
+  _show('csrTapToListenOverlay', true);
+  _player.playing = false;
+  _setPlayBtn(false);
+}
+
+/**
+ * Called when the user taps "Tap to Listen".
+ * Provides the user-gesture required by iOS / Safari for audio.
+ * Also exported as window.csrStartListening for the HTML onclick.
+ */
+window.csrStartListening = function() {
+  _show('csrTapToListenOverlay', false);
+  _player._userInteracted = true;
+  _player.playing = true;
+
+  if (_player.audio) {
+    // Audio element already exists — just play it
+    const p = _player.audio.play();
+    if (p !== undefined) {
+      p.catch(err => {
+        console.warn('[CSR] csrStartListening play() failed:', err.message);
+        // Reload the track under user gesture so iOS unblocks it
+        if (_player.trackUrl) {
+          _loadAndPlayTrack(_player.trackUrl, _player.trackDur);
+        }
+      });
+    }
+    _setPlayBtn(true);
+    _startProgressRaf();
+  } else if (_player.trackUrl) {
+    _loadAndPlayTrack(_player.trackUrl, _player.trackDur);
+  }
+};
+
+/* ═══════════════════════════════════════════════════════
+   VIEWER PRESENCE — join / heartbeat / leave
+   Uses the Cloudflare Worker as the authoritative counter.
+   One record per stable session ID:
+     • Authenticated: sessionId = user.uid
+     • Guest:         sessionId = stable guest UUID from localStorage
+   Reconnecting the same session updates lastSeen instead of
+   creating a new record, so counts stay accurate across refreshes.
+═══════════════════════════════════════════════════════ */
+
+const HEARTBEAT_INTERVAL_MS = 25000; // 25 s (stale threshold on server is 90 s)
+
+async function _joinAsListener(streamId) {
+  if (!streamId) return;
+  const sessionId = _getSessionId();
+  try {
+    await fetch(WORKER_URL + '/api/stream/listener/join', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        streamId,
+        sessionId,
+        uid:         _user ? _user.uid         : null,
+        displayName: _user ? (_userData?.displayName || _userData?.username || '') : 'Guest'
+      })
+    });
+  } catch(e) {
+    console.warn('[CSR] listener join failed:', e.message);
+  }
+}
+
+function _startListenerHeartbeat(streamId) {
+  if (!streamId) return;
+  // Clear any previous timer to prevent duplicates
+  if (_player._heartbeatTimer) {
+    clearInterval(_player._heartbeatTimer);
+    _player._heartbeatTimer = null;
+  }
+  const sessionId = _getSessionId();
+
+  const _beat = async () => {
+    try {
+      const r = await fetch(WORKER_URL + '/api/stream/listener/heartbeat', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ streamId, sessionId })
+      });
+      const d = await r.json().catch(() => ({}));
+      // Server says session expired — re-join (handles KV TTL flush)
+      if (d.rejoin) {
+        await _joinAsListener(streamId);
+        return;
+      }
+      // Update viewer count in the player UI
+      if (typeof d.viewerCount === 'number') {
+        _setText('csrPlayerListeners',
+          d.viewerCount + ' listener' + (d.viewerCount !== 1 ? 's' : ''));
+        _player.listenerCount = d.viewerCount;
+      }
+    } catch(e) {
+      // Heartbeat failed (network loss) — swallow silently; next beat will retry
+    }
+  };
+
+  // First beat immediately, then on interval
+  _beat();
+  _player._heartbeatTimer = setInterval(_beat, HEARTBEAT_INTERVAL_MS);
+
+  // Leave when the user closes/navigates away
+  window.addEventListener('beforeunload', () => _leaveAsListener(streamId), { once: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      // Page came back to focus — re-join in case the session expired while hidden
+      _joinAsListener(streamId);
+      _beat();
+    }
+  });
+}
+
+async function _leaveAsListener(streamId) {
+  if (!streamId) return;
+  const sessionId = _getSessionId();
+  try {
+    navigator.sendBeacon
+      ? navigator.sendBeacon(
+          WORKER_URL + '/api/stream/listener/leave',
+          JSON.stringify({ streamId, sessionId })
+        )
+      : await fetch(WORKER_URL + '/api/stream/listener/leave', {
+          method: 'POST', keepalive: true,
+          headers: { 'Content-Type': 'application/json' },
+          body:   JSON.stringify({ streamId, sessionId })
+        });
+  } catch(_) {}
+}
+
+/* ═══════════════════════════════════════════════════════
+   LIKES — one per authenticated user per stream.
+   State is stored in the Worker KV (one record per uid:streamId).
+   Reconnects / refreshes re-fetch the existing state — never duplicate.
+═══════════════════════════════════════════════════════ */
+
+async function _fetchLikes(streamId) {
+  if (!streamId) return;
+  try {
+    const uid = _user ? _user.uid : null;
+    const url = uid
+      ? WORKER_URL + '/api/stream/likes/' + streamId + '/' + uid
+      : WORKER_URL + '/api/stream/likes/' + streamId;
+    const r = await fetch(url);
+    if (!r.ok) return;
+    const d = await r.json();
+    _setText('csrLikeCount', String(d.likeCount || 0));
+    _player._liked = !!d.liked;
+    _updateLikeBtn();
+  } catch(e) {
+    console.warn('[CSR] fetchLikes failed:', e.message);
+  }
+}
+
+function _updateLikeBtn() {
+  const btn  = _el('csrLikeBtn');
+  const icon = _el('csrLikeIcon');
+  if (!btn || !icon) return;
+  if (_player._liked) {
+    btn.classList.add('liked');
+    icon.textContent = '♥'; // filled heart
+  } else {
+    btn.classList.remove('liked');
+    icon.textContent = '♡'; // empty heart (HTML entity ♡)
+  }
+}
+
+window.csrToggleLike = async function() {
+  if (!_user) { _toast('Sign in to like this broadcast.', 'info'); return; }
+  const streamId = _player._streamId;
+  if (!streamId) return;
+
+  // Optimistic UI update
+  const wasLiked = _player._liked;
+  _player._liked = !wasLiked;
+  _updateLikeBtn();
+  const countEl = _el('csrLikeCount');
+  const cur = parseInt(countEl?.textContent || '0', 10);
+  if (countEl) countEl.textContent = String(Math.max(0, cur + (_player._liked ? 1 : -1)));
+
+  try {
+    const idToken = await _user.getIdToken();
+    const r = await fetch(WORKER_URL + '/api/stream/like', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+      body:    JSON.stringify({
+        streamId,
+        uid:    _user.uid,
+        action: _player._liked ? 'like' : 'unlike'
+      })
+    });
+    const d = await r.json();
+    if (r.ok && typeof d.likeCount === 'number') {
+      _setText('csrLikeCount', String(d.likeCount));
+      _player._liked = !!d.liked;
+      _updateLikeBtn();
+    } else {
+      // Server rejected — roll back optimistic update
+      _player._liked = wasLiked;
+      _updateLikeBtn();
+      if (countEl) countEl.textContent = String(cur);
+      _toast(d.error || 'Could not update like.', 'error');
+    }
+  } catch(e) {
+    // Network error — roll back
+    _player._liked = wasLiked;
+    _updateLikeBtn();
+    if (countEl) countEl.textContent = String(cur);
+    _toast('Network error — please try again.', 'error');
+  }
+};
+
+/* ═══════════════════════════════════════════════════════
+   AUDIO WATCHDOG — detects stalls and recovers
+   Fires every 15 seconds. If audio has been stalled for
+   more than 20 seconds, the audio element is reloaded.
+   If the Firestore snapshot is healthy (track URL hasn't
+   changed), we reload from the same URL at the correct
+   seek position so the stream reconnects automatically.
+   Network recovery after iOS lock/unlock and Android
+   background tabs is handled here.
+═══════════════════════════════════════════════════════ */
+
+const WATCHDOG_INTERVAL_MS = 15000;
+const STALL_RELOAD_MS      = 20000; // reload after 20 s of stall
+
+function _startAudioWatchdog(streamId) {
+  if (_player._watchdogTimer) {
+    clearInterval(_player._watchdogTimer);
+    _player._watchdogTimer = null;
+  }
+
+  _player._watchdogTimer = setInterval(async () => {
+    const audio = _player.audio;
+
+    // If the Tap-to-Listen overlay is showing, don't try to auto-recover
+    const tapOverlay = _el('csrTapToListenOverlay');
+    if (tapOverlay && tapOverlay.style.display !== 'none') return;
+
+    // Only watch if user expects audio to be playing
+    if (!_player.playing || !_player.trackUrl) return;
+
+    // Stall detected?
+    const stallAge = _player._audioStallAt
+      ? Date.now() - _player._audioStallAt
+      : 0;
+
+    if (!audio || stallAge > STALL_RELOAD_MS) {
+      // Re-sync with Firestore before reloading — maybe the track changed
+      if (streamId && _player._streamId) {
+        try {
+          const np = await getDoc(doc(_db, 'studioCloudStreamMusic', streamId));
+          if (np.exists()) {
+            const d = np.data();
+            if (d.currentTrackUrl && d.currentTrackUrl !== _player.trackUrl) {
+              // Track changed server-side — let _syncListenerToNowPlaying handle it
+              _syncListenerToNowPlaying(d);
+              return;
+            }
+          }
+        } catch(_) {}
+      }
+      // Same track — reload it at the correct seek position
+      if (_player.trackUrl) {
+        console.warn('[CSR] watchdog: reloading stalled audio', _player.trackUrl);
+        _loadAndPlayTrack(_player.trackUrl, _player.trackDur);
+      }
+    } else if (audio && !audio.paused && audio.readyState >= 3) {
+      // Playing normally — clear stall flag
+      _player._audioStallAt = 0;
+    }
+  }, WATCHDOG_INTERVAL_MS);
+}
+
 /* ── Play/Pause controls ── */
 window.csrTogglePlay = function() {
+  // If Tap-to-Listen overlay is showing, the toggle acts as the user gesture
+  const tapOverlay = _el('csrTapToListenOverlay');
+  if (tapOverlay && tapOverlay.style.display !== 'none') {
+    window.csrStartListening();
+    return;
+  }
+
   if (!_player.audio) {
-    // If no audio loaded yet, try reloading current track
+    // No audio loaded — reload current track
     if (_player.trackUrl) {
       _player.playing = true;
       _loadAndPlayTrack(_player.trackUrl, _player.trackDur);
@@ -968,11 +1393,18 @@ window.csrTogglePlay = function() {
     return;
   }
   if (_player.playing) {
-    _player.audio.pause();
+    try { _player.audio.pause(); } catch(_) {}
     _player.playing = false;
     _stopProgressRaf();
   } else {
-    _player.audio.play().catch(() => {});
+    const p = _player.audio.play();
+    if (p !== undefined) {
+      p.catch(err => {
+        if (err.name === 'NotAllowedError') {
+          _showTapToListen();
+        }
+      });
+    }
     _player.playing = true;
     _startProgressRaf();
   }

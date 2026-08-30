@@ -152,6 +152,20 @@
         <span class="csr-player-stats-sep">·</span>
         <span id="csrPlayerUptime"></span>
       </div>
+      <!-- Like button row -->
+      <div class="csr-player-like-row" id="csrPlayerLikeRow">
+        <button class="csr-btn csr-btn-like" id="csrLikeBtn" onclick="csrToggleLike()" aria-label="Like this broadcast">
+          <span id="csrLikeIcon">&#9825;</span>
+          <span id="csrLikeCount">0</span>
+        </button>
+      </div>
+      <!-- iOS / autoplay-blocked Tap to Listen overlay -->
+      <div id="csrTapToListenOverlay" class="csr-tap-overlay" style="display:none;">
+        <button class="csr-btn csr-btn-primary csr-tap-btn" id="csrTapToListenBtn" onclick="csrStartListening()">
+          <span style="font-size:1.4em;">&#9654;</span> Tap to Listen
+        </button>
+        <div class="csr-tap-hint">Audio is paused — tap above to start</div>
+      </div>
       <!-- Error / offline state -->
       <div id="csrPlayerOffline" class="csr-player-offline" style="display:none;">
         <div class="csr-player-offline-icon">&#128262;</div>

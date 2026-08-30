@@ -1095,9 +1095,15 @@ service cloud.firestore {
     //   or by the cloud worker (which runs as an anonymous token).
     //   Admin/Founder can read and update all records for monitoring.
     match /cloudStreams/{streamId} {
-      // Creator reads their own streams; Founder reads all
+      // Creator reads their own streams; any signed-in user can read active streams
+      // (required for listener discovery via ?id=streamId URL).
+      // Founder reads all.
       allow read: if isSignedIn()
-        && (resource.data.uid == request.auth.uid || isFounder());
+        && (
+          resource.data.uid == request.auth.uid
+          || resource.data.status in ['active', 'starting', 'recovering']
+          || isFounder()
+        );
       // Creator creates their own stream record
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid;
