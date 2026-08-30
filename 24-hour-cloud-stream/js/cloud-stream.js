@@ -27,16 +27,16 @@
 'use strict';
 
 import { initializeApp, getApps, getApp }
-  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import {
   getAuth, onAuthStateChanged, browserLocalPersistence, setPersistence
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
   getFirestore,
   doc, getDoc, getDocs, setDoc, updateDoc, addDoc,
   collection, query, orderBy, limit, where, onSnapshot,
   serverTimestamp, documentId
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 /* ── Firebase config (matches firebase-config.js) ─────────────────── */
 const _CFG = {
