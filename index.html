@@ -54,6 +54,8 @@
 <link rel="stylesheet" href="snx-gifts.css">
 <!-- ── Shadow Nexus 24-Hour Studio (Cloud Stream) ── -->
 <link rel="stylesheet" href="cloud-stream.css">
+<!-- ── Shadow Nexus 24-Hour Studio — Music Library / Upload / Playlists / Queue ── -->
+<link rel="stylesheet" href="studio.css">
 
 <!-- ── Preconnect to Firebase + R2 CDN so first load is faster ── -->
 <link rel="preconnect" href="https://www.gstatic.com">
@@ -10373,13 +10375,201 @@ body.arcade-fs-ios body::after { display:none !important; }
       <div class="csr-logo">&#9925;</div>
       <div>
         <div class="csr-title">24-HOUR STUDIO</div>
-        <div class="csr-subtitle">24-Hour Audio Cloud Stream</div>
+        <div class="csr-subtitle">Music Library · Playlists · Cloud Stream</div>
       </div>
     </div>
     <div id="csrAuthBadge" class="csr-auth-badge">…</div>
   </header>
 
-  <!-- ── Auth gate (shown before Firebase resolves) ── -->
+  <!-- ── Studio bottom tab bar ── -->
+  <nav id="snxStudioTabBar" style="
+    display:flex;align-items:center;justify-content:space-around;
+    background:linear-gradient(180deg,#071428 0%,#050f1e 100%);
+    border-bottom:1px solid rgba(0,174,239,0.22);
+    padding:0;position:sticky;top:57px;z-index:99;overflow-x:auto;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+    <button class="snx-studio-tab active" id="snxStudioTabBtn_music"     onclick="snxStudioTabSwitch('music',this)"     style="flex:1;min-width:56px;padding:10px 4px 8px;background:none;border:none;border-bottom:2px solid #00AEEF;color:#00AEEF;font-size:10px;font-weight:700;text-align:center;cursor:pointer;white-space:nowrap;">&#127925;<br>Music</button>
+    <button class="snx-studio-tab"         id="snxStudioTabBtn_upload"   onclick="snxStudioTabSwitch('upload',this)"   style="flex:1;min-width:56px;padding:10px 4px 8px;background:none;border:none;border-bottom:2px solid transparent;color:#5a80a8;font-size:10px;font-weight:700;text-align:center;cursor:pointer;white-space:nowrap;">&#11014;<br>Upload</button>
+    <button class="snx-studio-tab"         id="snxStudioTabBtn_playlists" onclick="snxStudioTabSwitch('playlists',this)" style="flex:1;min-width:56px;padding:10px 4px 8px;background:none;border:none;border-bottom:2px solid transparent;color:#5a80a8;font-size:10px;font-weight:700;text-align:center;cursor:pointer;white-space:nowrap;">&#128203;<br>Playlists</button>
+    <button class="snx-studio-tab"         id="snxStudioTabBtn_queue"    onclick="snxStudioTabSwitch('queue',this)"    style="flex:1;min-width:56px;padding:10px 4px 8px;background:none;border:none;border-bottom:2px solid transparent;color:#5a80a8;font-size:10px;font-weight:700;text-align:center;cursor:pointer;white-space:nowrap;">&#127926;<br>Queue</button>
+    <button class="snx-studio-tab"         id="snxStudioTabBtn_nowplaying" onclick="snxStudioTabSwitch('nowplaying',this)" style="flex:1;min-width:56px;padding:10px 4px 8px;background:none;border:none;border-bottom:2px solid transparent;color:#5a80a8;font-size:10px;font-weight:700;text-align:center;cursor:pointer;white-space:nowrap;">&#9654;&#65039;<br>Playing</button>
+    <button class="snx-studio-tab"         id="snxStudioTabBtn_stream"   onclick="snxStudioTabSwitch('stream',this)"   style="flex:1;min-width:56px;padding:10px 4px 8px;background:none;border:none;border-bottom:2px solid transparent;color:#5a80a8;font-size:10px;font-weight:700;text-align:center;cursor:pointer;white-space:nowrap;">&#128251;<br>Stream</button>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════════
+       MUSIC LIBRARY TAB
+  ═══════════════════════════════════════════════════════ -->
+  <div id="snxStudioTab_music" style="padding:12px 14px 100px;">
+
+    <!-- Upload Music CTA -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:800;color:#00AEEF;letter-spacing:1px;">&#127925; MY MUSIC LIBRARY</div>
+      <button onclick="snxStudioTabSwitch('upload',document.getElementById('snxStudioTabBtn_upload'))"
+        style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:22px;
+        background:linear-gradient(135deg,rgba(0,174,239,0.20),rgba(0,174,239,0.10));
+        border:1px solid rgba(0,174,239,0.45);color:#00AEEF;font-size:12px;font-weight:700;
+        cursor:pointer;white-space:nowrap;">&#11014; UPLOAD MUSIC</button>
+    </div>
+
+    <!-- Search bar -->
+    <div style="margin-bottom:10px;">
+      <input id="snxLibSearch" type="search" placeholder="&#128269; Search tracks…"
+        oninput="snxLibSearch()"
+        style="width:100%;padding:9px 12px;border-radius:10px;background:rgba(13,36,68,0.90);
+        border:1px solid rgba(0,174,239,0.22);color:#d8eeff;font-size:13px;outline:none;">
+    </div>
+
+    <!-- Multi-select toolbar (hidden until activated) -->
+    <div id="snxLibMultiSelectBar" style="display:none;background:rgba(0,174,239,0.08);border:1px solid rgba(0,174,239,0.25);border-radius:10px;padding:8px 12px;margin-bottom:8px;display:none;flex-wrap:wrap;gap:8px;align-items:center;">
+      <span id="snxLibSelCount" style="font-size:12px;color:#00AEEF;font-weight:700;">0 selected</span>
+      <button onclick="snxLibSelectAll()" style="padding:4px 10px;border-radius:6px;font-size:11px;border:1px solid rgba(0,174,239,0.30);background:rgba(0,174,239,0.08);color:#00AEEF;cursor:pointer;">Select All</button>
+      <button onclick="snxLibBulkAddToPlaylist()" style="padding:4px 10px;border-radius:6px;font-size:11px;border:1px solid rgba(0,174,239,0.30);background:rgba(0,174,239,0.08);color:#00AEEF;cursor:pointer;">+ Add to Playlist</button>
+      <button onclick="snxLibToggleMultiSelect()" style="padding:4px 10px;border-radius:6px;font-size:11px;border:1px solid rgba(255,51,85,0.30);background:rgba(255,51,85,0.06);color:#ff3355;cursor:pointer;">Cancel</button>
+    </div>
+
+    <!-- Track count + multi-select toggle -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <span id="snxTrackLibraryCount" style="font-size:11px;color:#4a7a9a;">0 tracks</span>
+      <button onclick="snxLibToggleMultiSelect()" style="padding:3px 8px;border-radius:6px;font-size:10px;border:1px solid rgba(0,174,239,0.20);background:none;color:#4a7a9a;cursor:pointer;">&#9745; Select</button>
+    </div>
+
+    <!-- Track list -->
+    <div id="snxTrackLibraryList"></div>
+
+    <!-- Upload dashboard (shown during upload) -->
+    <div id="snxUploadDashboard" style="display:none;margin-top:12px;"></div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="snxMusicFileInput" accept="audio/*,.mp3,.m4a,.aac,.ogg,.wav,.flac,.opus"
+      multiple style="display:none;" onchange="snxMusicFilesSelected(event)">
+
+  </div><!-- end Music tab -->
+
+  <!-- ══════════════════════════════════════════════════════
+       UPLOAD TAB
+  ═══════════════════════════════════════════════════════ -->
+  <div id="snxStudioTab_upload" style="display:none;padding:16px 14px 100px;">
+
+    <div style="font-size:13px;font-weight:800;color:#00AEEF;letter-spacing:1px;margin-bottom:16px;">&#11014; UPLOAD MUSIC</div>
+
+    <!-- Drag-and-drop zone -->
+    <div id="snxUploadZone"
+      onclick="snxMusicOpenFilePicker()"
+      style="border:2px dashed rgba(0,174,239,0.40);border-radius:16px;padding:36px 20px;
+      text-align:center;cursor:pointer;background:rgba(0,174,239,0.04);
+      transition:background 0.2s,border-color 0.2s;margin-bottom:16px;"
+      ondragover="event.preventDefault();this.style.background='rgba(0,174,239,0.12)';this.style.borderColor='rgba(0,174,239,0.80)';"
+      ondragleave="this.style.background='rgba(0,174,239,0.04)';this.style.borderColor='rgba(0,174,239,0.40)';"
+      ondrop="event.preventDefault();this.style.background='rgba(0,174,239,0.04)';this.style.borderColor='rgba(0,174,239,0.40)';if(event.dataTransfer&&event.dataTransfer.files&&event.dataTransfer.files.length){var inp=document.getElementById('snxMusicFileInput');var fakeEvt={target:{files:event.dataTransfer.files}};snxMusicFilesSelected(fakeEvt);}">
+      <div style="font-size:40px;margin-bottom:12px;">&#11014;&#65039;</div>
+      <div style="font-size:15px;font-weight:800;color:#00AEEF;margin-bottom:6px;">Click or Drag &amp; Drop to Upload</div>
+      <div style="font-size:12px;color:#4a7a9a;">Supported: MP3, M4A, AAC, OGG, WAV, FLAC, OPUS<br>Up to 1,000 files at once</div>
+    </div>
+
+    <button onclick="snxMusicOpenFilePicker()"
+      style="width:100%;padding:14px;border-radius:14px;font-size:15px;font-weight:800;letter-spacing:1px;
+      background:linear-gradient(135deg,rgba(0,174,239,0.25),rgba(0,174,239,0.12));
+      border:1px solid rgba(0,174,239,0.50);color:#00AEEF;cursor:pointer;margin-bottom:16px;">
+      &#11014; SELECT MUSIC FILES
+    </button>
+
+    <!-- Upload progress (reuses snxUploadDashboard — same element as music tab) -->
+    <div style="font-size:12px;color:#4a7a9a;text-align:center;line-height:1.6;">
+      After upload, songs appear immediately in your <strong style="color:#00AEEF;">Music Library</strong>.<br>
+      Add them to a playlist then start the 24-Hour Cloud Stream.
+    </div>
+
+  </div><!-- end Upload tab -->
+
+  <!-- ══════════════════════════════════════════════════════
+       PLAYLISTS TAB
+  ═══════════════════════════════════════════════════════ -->
+  <div id="snxStudioTab_playlists" style="display:none;padding:12px 14px 100px;">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:800;color:#00AEEF;letter-spacing:1px;">&#128203; PLAYLISTS</div>
+      <button onclick="snxCSMusicCreatePlaylist()"
+        style="padding:8px 14px;border-radius:22px;background:linear-gradient(135deg,rgba(0,174,239,0.20),rgba(0,174,239,0.10));border:1px solid rgba(0,174,239,0.45);color:#00AEEF;font-size:12px;font-weight:700;cursor:pointer;">
+        &#43; NEW PLAYLIST
+      </button>
+    </div>
+
+    <!-- Playlist panel (studio.js renders here) -->
+    <div id="snxCSPlaylistPanel">
+      <div id="snxCSPlPanelInner" style="color:#4a7a9a;font-size:12px;text-align:center;padding:20px 0;">
+        Loading playlists…
+      </div>
+    </div>
+
+    <!-- CS Library list for adding tracks to playlists -->
+    <div style="margin-top:16px;border-top:1px solid rgba(0,174,239,0.12);padding-top:12px;">
+      <div style="font-size:11px;color:#4a7a9a;margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Add Library Tracks</div>
+      <div style="margin-bottom:8px;">
+        <input id="snxCSLibSearch" type="search" placeholder="&#128269; Search library…"
+          oninput="snxCSLibSearch()"
+          style="width:100%;padding:8px 12px;border-radius:10px;background:rgba(13,36,68,0.90);
+          border:1px solid rgba(0,174,239,0.18);color:#d8eeff;font-size:12px;outline:none;">
+      </div>
+      <div id="snxCSTrackLibraryList" style="max-height:300px;overflow-y:auto;"></div>
+    </div>
+
+  </div><!-- end Playlists tab -->
+
+  <!-- ══════════════════════════════════════════════════════
+       QUEUE TAB
+  ═══════════════════════════════════════════════════════ -->
+  <div id="snxStudioTab_queue" style="display:none;padding:12px 14px 100px;">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:800;color:#00AEEF;letter-spacing:1px;">&#127926; CLOUD STREAM QUEUE</div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="snxSQPlayPause()" style="padding:7px 12px;border-radius:20px;background:rgba(0,174,239,0.15);border:1px solid rgba(0,174,239,0.35);color:#00AEEF;font-size:12px;cursor:pointer;">&#9654;&#9646; Play</button>
+        <button onclick="snxSQSkip()" style="padding:7px 12px;border-radius:20px;background:rgba(0,174,239,0.08);border:1px solid rgba(0,174,239,0.22);color:#5a80a8;font-size:12px;cursor:pointer;">&#9197; Skip</button>
+        <button onclick="snxSQClear()" style="padding:7px 12px;border-radius:20px;background:rgba(255,51,85,0.07);border:1px solid rgba(255,51,85,0.25);color:#ff3355;font-size:12px;cursor:pointer;">&#10005; Clear</button>
+      </div>
+    </div>
+
+    <!-- Queue list (studio.js _sqRenderQueue renders here) -->
+    <div id="snxSQQueueList"></div>
+
+    <!-- Add from library section -->
+    <div style="margin-top:16px;border-top:1px solid rgba(0,174,239,0.12);padding-top:12px;">
+      <div style="font-size:11px;color:#4a7a9a;margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Add to Queue from Library</div>
+      <div style="margin-bottom:8px;">
+        <input id="snxCSLibSearchQ" type="search" placeholder="&#128269; Search library…"
+          oninput="(function(){var q=(document.getElementById('snxCSLibSearchQ')||{}).value||'';document.querySelectorAll('#snxSQLibraryList .snx-track-item').forEach(function(el){var t=(el.dataset.title||'').toLowerCase();var a=(el.dataset.artist||'').toLowerCase();el.style.display=(t.includes(q.toLowerCase())||a.includes(q.toLowerCase()))?'':'none';});})()"
+          style="width:100%;padding:8px 12px;border-radius:10px;background:rgba(13,36,68,0.90);
+          border:1px solid rgba(0,174,239,0.18);color:#d8eeff;font-size:12px;outline:none;">
+      </div>
+      <div id="snxSQLibraryList" style="max-height:320px;overflow-y:auto;"></div>
+    </div>
+
+  </div><!-- end Queue tab -->
+
+  <!-- ══════════════════════════════════════════════════════
+       NOW PLAYING TAB
+  ═══════════════════════════════════════════════════════ -->
+  <div id="snxStudioTab_nowplaying" style="display:none;padding:16px 14px 100px;">
+
+    <div style="font-size:13px;font-weight:800;color:#00AEEF;letter-spacing:1px;margin-bottom:12px;text-align:center;">&#9654;&#65039; NOW PLAYING</div>
+
+    <!-- Now Playing bar (studio.js _renderNowPlayingBar renders here) -->
+    <div id="snxNowPlayingBarEl"></div>
+
+    <!-- Tip -->
+    <div style="margin-top:16px;text-align:center;font-size:11px;color:#3a5a7a;line-height:1.6;">
+      Plays your personal queue via the Studio player.<br>
+      Use the <strong style="color:#4a7a9a;">Queue</strong> tab to add songs.
+    </div>
+
+  </div><!-- end Now Playing tab -->
+
+  <!-- ══════════════════════════════════════════════════════
+       STREAM TAB — 24-Hour Audio Cloud Stream (cloud-stream.js)
+  ═══════════════════════════════════════════════════════ -->
+  <div id="snxStudioTab_stream" style="display:none;">
+
+  <!-- ── Auth gate (shown if not signed in) ── -->
   <div id="csrAuthGate" class="csr-auth-gate" style="display:none;">
     <div class="csr-card">
       <div class="csr-card-icon">&#128274;</div>
@@ -10389,10 +10579,10 @@ body.arcade-fs-ios body::after { display:none !important; }
     </div>
   </div>
 
-  <!-- ── Loading state ── -->
-  <div id="csrLoading" class="csr-loading">
+  <!-- ── Loading state (hidden after cloud-stream.js auth resolves) ── -->
+  <div id="csrLoading" class="csr-loading" style="display:none;">
     <div class="csr-spinner"></div>
-    <div class="csr-loading-text">Loading 24-Hour Studio…</div>
+    <div class="csr-loading-text">Loading Stream…</div>
   </div>
 
   <!-- ── Main app (shown after auth) ── -->
@@ -10590,6 +10780,8 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   <!-- ── 24-Hour Audio Cloud Stream module ── -->
   <script type="module" src="cloud-stream.js"></script>
+
+  </div><!-- end snxStudioTab_stream -->
 
 </div><!-- end studioPage -->
 
@@ -23067,6 +23259,9 @@ function _supportStopCanvas() {
 <script src="snx-net.js"></script>
 
 <script src="script.js"></script>
+
+<!-- ── Shadow Nexus 24-Hour Studio — Music Library, Upload, Playlists, Queue ── -->
+<script src="studio.js"></script>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════

@@ -220,6 +220,10 @@ window.snxStudioInit = function() {
       // Always load the permanent queue — not gated on active stream
       // This ensures the queue persists across page refreshes for all users.
       _sqLoad();
+      // Init music library so tracks load when the Music tab opens
+      _initMusicLibrary();
+      // Load playlists so Add to Playlist works immediately
+      _csMusicLoadPlaylists();
     } catch(e) {
       console.error('[SNX Studio] init error (isolated — main app unaffected):', e);
       _showStudioError('Studio failed to load. Please refresh and try again.');
@@ -3680,6 +3684,12 @@ window.snxMusicFilesSelected = function(event) {
   _showUploadDashboard();
   _toast(accepted.length + ' track' + (accepted.length > 1 ? 's' : '') + ' selected — starting upload queue…');
   _processUploadQueue();
+  // Auto-switch to Music tab so the user can see upload progress and library
+  if (typeof window.snxStudioTabSwitch === 'function') {
+    setTimeout(function() {
+      window.snxStudioTabSwitch('music', document.getElementById('snxStudioTabBtn_music'));
+    }, 300);
+  }
 };
 
 function _processUploadQueue() {
@@ -5262,6 +5272,25 @@ window.snxSQJumpTo = function(idx) {
   _sqPlay();
 };
 
+/* ── Bridge: expose internal track/queue state to outer IIFEs ── */
+window._snxStudioTracks        = function() { return _music ? (_music.tracks || []) : []; };
+window._snxSQHasTrack          = function(id) { return _sq && Array.isArray(_sq.queue) && _sq.queue.some(function(q) { return q.id === id; }); };
+window._snxInitMusicLibrary    = function() { _initMusicLibrary(); };
+window._snxCsMusicLoadPl       = function() { _csMusicLoadPlaylists(); };
+window._snxSqLoad              = function() { _sqLoad(); };
+window._snxRenderLib           = function() { _renderLibrary(); };
+window._snxRenderCSPl          = function() { _renderCSPlaylistPanel(); };
+window._snxRenderCSLib         = function() { _renderCSLibrary(); };
+window._snxSqRenderQueue       = function() { _sqRenderQueue(); };
+window._snxRenderNowPlaying    = function() { _renderNowPlayingBar(); };
+
+// After track list changes, refresh the Queue tab library list if it's open
+var _origRenderLibrary = _renderLibrary;
+_renderLibrary = function() {
+  _origRenderLibrary.apply(this, arguments);
+  if (typeof window.snxStudioRefreshQueueLib === 'function') window.snxStudioRefreshQueueLib();
+};
+
 })(); // end IIFE
 
 /* ═══════════════════════════════════════════════════════
@@ -5754,3 +5783,170 @@ window.snxStudioSwitchSection = function(section) {
 };
 
 })(); // end simplified controller IIFE
+
+/* ═══════════════════════════════════════════════════════
+   32. STUDIO PAGE TAB SYSTEM
+   ─────────────────────────────────────────────────────
+   Drives the 6-tab bottom bar inside the studioPage SPA panel:
+     music · upload · playlists · queue · nowplaying · stream
+
+   Also renders the "Add to Queue from Library" list inside
+   the Queue tab (#snxSQLibraryList).
+═══════════════════════════════════════════════════════ */
+
+(function() {
+
+var _STUDIO_TABS = ['music', 'upload', 'playlists', 'queue', 'nowplaying', 'stream'];
+var _studioTabLibInit = false;
+
+/* ── Public tab switch function ─────────────────────── */
+window.snxStudioTabSwitch = function(tab, btn) {
+  // Show/hide panels
+  _STUDIO_TABS.forEach(function(t) {
+    var el = document.getElementById('snxStudioTab_' + t);
+    if (el) el.style.display = (t === tab) ? '' : 'none';
+  });
+
+  // Update bottom bar button styles
+  document.querySelectorAll('#snxStudioTabBar .snx-studio-tab').forEach(function(b) {
+    b.style.borderBottomColor = 'transparent';
+    b.style.color = '#5a80a8';
+  });
+  if (btn) {
+    btn.style.borderBottomColor = '#00AEEF';
+    btn.style.color = '#00AEEF';
+  } else {
+    var activeBtn = document.getElementById('snxStudioTabBtn_' + tab);
+    if (activeBtn) {
+      activeBtn.style.borderBottomColor = '#00AEEF';
+      activeBtn.style.color = '#00AEEF';
+    }
+  }
+
+  // Lazy-init music library on first visit to any music-related tab
+  if (!_studioTabLibInit && (tab === 'music' || tab === 'upload' || tab === 'playlists' || tab === 'queue' || tab === 'nowplaying')) {
+    _studioTabLibInit = true;
+    if (typeof window._snxInitMusicLibrary === 'function') setTimeout(window._snxInitMusicLibrary, 60);
+    if (typeof window._snxCsMusicLoadPl    === 'function') setTimeout(window._snxCsMusicLoadPl, 80);
+    if (typeof window._snxSqLoad           === 'function') setTimeout(window._snxSqLoad, 100);
+  }
+
+  // Tab-specific renders
+  if (tab === 'music') {
+    if (typeof window._snxRenderLib === 'function') setTimeout(window._snxRenderLib, 30);
+  }
+  if (tab === 'playlists') {
+    if (typeof window._snxRenderCSPl  === 'function') setTimeout(window._snxRenderCSPl, 30);
+    if (typeof window._snxRenderCSLib === 'function') setTimeout(window._snxRenderCSLib, 60);
+  }
+  if (tab === 'queue') {
+    if (typeof window._snxSqRenderQueue === 'function') setTimeout(window._snxSqRenderQueue, 30);
+    _snxRenderSQLibraryList();
+  }
+  if (tab === 'nowplaying') {
+    if (typeof window._snxRenderNowPlaying === 'function') setTimeout(window._snxRenderNowPlaying, 30);
+  }
+  if (tab === 'upload') {
+    // After upload, switch back to music tab automatically
+    // (no extra init needed — file input triggers upload from any tab)
+  }
+  if (tab === 'stream') {
+    // Trigger csrSpaInit so the cloud-stream UI reflects current auth state
+    if (typeof window.csrSpaInit === 'function') {
+      setTimeout(function() { window.csrSpaInit(); }, 80);
+    }
+    // Also load playlists in Stream tab if needed (cloud-stream.js _loadPlaylists)
+    if (typeof window.csrRefreshPlaylists === 'function') {
+      setTimeout(function() { window.csrRefreshPlaylists(); }, 200);
+    }
+  }
+};
+
+/* ── Render library tracks into the Queue tab "Add to Queue" list ── */
+function _snxRenderSQLibraryList() {
+  var el = document.getElementById('snxSQLibraryList');
+  if (!el) return;
+
+  // _music may not be accessible from inside this IIFE — use window reference
+  var tracks = (window._snxStudioTracks) ? window._snxStudioTracks() : [];
+  if (!tracks || !tracks.length) {
+    el.innerHTML = '<div class="snx-empty-state" style="padding:14px 0;"><div class="empty-icon">&#127925;</div>No tracks yet.<br>Upload music first.</div>';
+    return;
+  }
+
+  el.innerHTML = tracks.map(function(t) {
+    var inSQ  = (window._snxSQHasTrack) ? window._snxSQHasTrack(t.id) : false;
+    var isReady = t.status === 'ready';
+    var dur  = (t.duration && t.duration > 0) ? _snxFmtDur(t.duration) : '—';
+    return '<div class="snx-track-item" data-title="' + _snxEsc(t.title||'') + '" data-artist="' + _snxEsc(t.artist||'') + '">' +
+      '<div class="snx-track-artwork" style="font-size:16px;display:flex;align-items:center;justify-content:center;">&#127925;</div>' +
+      '<div class="snx-track-info">' +
+        '<div class="snx-track-title">' + _snxEsc(t.title || 'Untitled') + '</div>' +
+        '<div class="snx-track-artist">' + _snxEsc(t.artist || '') + '</div>' +
+      '</div>' +
+      '<div class="snx-track-meta">' +
+        '<span class="snx-track-dur">' + dur + '</span>' +
+        (isReady
+          ? '<div class="snx-track-add-btn' + (inSQ ? ' snx-sq-in-queue' : '') + '" onclick="snxSQAddToQueue(\'' + _snxEsc(t.id) + '\')" title="' + (inSQ ? 'In queue' : 'Add to queue') + '">' +
+              (inSQ ? '&#10003;' : '+') + '</div>'
+          : '<span style="font-size:10px;color:#4a7a9a;">' + (t.status || '…') + '</span>') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/* tiny helpers local to this IIFE */
+function _snxEsc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function _snxFmtDur(secs) {
+  secs = Math.floor(secs || 0);
+  var m = Math.floor(secs / 60), s = secs % 60;
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+/* ── Expose helpers for _snxRenderSQLibraryList to access inner state ── */
+// These are set by the main studio.js IIFE after this one loads — we hook
+// them lazily so the Queue tab always reflects current state.
+// The main IIFE exposes them via the window at the end of _mlLoadTracks and
+// whenever the track list changes.  We just need to call snxSQAddToQueue
+// (already window-global) and read _music.tracks indirectly.
+// Solution: expose a thin bridge from within the first IIFE.
+
+// This function is called from the Studio section of section 32 above.
+// It must be defined here so the tab switch can call it.
+window.snxStudioRefreshQueueLib = function() {
+  _snxRenderSQLibraryList();
+};
+
+/* ── Hook into page navigation — init tabs when studioPage opens ── */
+(function() {
+  function hookNav() {
+    var orig = window.realmNavTo;
+    if (typeof orig !== 'function') {
+      document.addEventListener('DOMContentLoaded', function() { setTimeout(hookNav, 200); });
+      return;
+    }
+    var _already = orig._snxTabHooked;
+    if (_already) return; // already hooked
+    var wrapped = function(pageId) {
+      orig.apply(this, arguments);
+      if (pageId === 'studioPage') {
+        // Show Music tab by default; init library
+        setTimeout(function() {
+          snxStudioTabSwitch('music', document.getElementById('snxStudioTabBtn_music'));
+        }, 150);
+      }
+    };
+    wrapped._snxTabHooked = true;
+    window.realmNavTo = wrapped;
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', hookNav);
+  } else {
+    hookNav();
+  }
+})();
+
+})(); // end tab system IIFE
+

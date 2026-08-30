@@ -167,7 +167,7 @@ body {
 /* ═══════════════════════════════════════════════════════
    SECTIONS & CARDS
 ═══════════════════════════════════════════════════════ */
-main { padding: 16px 16px 80px; max-width: 700px; margin: 0 auto; }
+main, #csrApp { padding: 16px 16px 80px; max-width: 700px; margin: 0 auto; }
 
 .csr-section { margin-bottom: 20px; }
 
@@ -754,7 +754,7 @@ main { padding: 16px 16px 80px; max-width: 700px; margin: 0 auto; }
 
 @media (min-width: 600px) {
   .csr-header { padding: 16px 24px; }
-  main { padding: 24px 24px 80px; }
+  main, #csrApp { padding: 24px 24px 80px; }
   .csr-card { padding: 24px 22px; }
   .csr-title { font-size: 17px; }
 }

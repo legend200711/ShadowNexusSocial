@@ -1130,3 +1130,9 @@ window.csrSpaInit = async function() {
   _show('csrListenerPanel', false);
   await _initCreatorMode();
 };
+
+/* ── Refresh playlist selector (called when user opens Stream tab) ── */
+window.csrRefreshPlaylists = function() {
+  if (!_user) return;
+  _loadPlaylists();
+};
