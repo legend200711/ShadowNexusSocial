@@ -62,6 +62,7 @@ import {
 import {
   getDatabase,
   ref, set, get, update, remove, push, onValue, off, onDisconnect,
+  runTransaction,
   serverTimestamp as rtdbTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
@@ -2930,13 +2931,12 @@ async function sendLike() {
 
   _spawnHeartBurst();
 
-  // Use RTDB transactions-style increment via set with existing value
-  // For RTDB we still need a get, but fire-and-forget to keep UI instant
+  // Use RTDB runTransaction for an atomic increment — avoids lost updates
+  // when multiple viewers like concurrently.
   (async () => {
     try {
       const likesRef = ref(_liveDB, `liveRooms/${_roomId}/likes`);
-      const snap = await get(likesRef);
-      await set(likesRef, (snap.val() || 0) + 1);
+      await runTransaction(likesRef, current => (current || 0) + 1);
     } catch (_) {}
   })();
 

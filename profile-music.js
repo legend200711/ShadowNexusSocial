@@ -231,13 +231,20 @@
     return d;
   }
   // ── R2 upload via Cloudflare Worker ──────────────────────────────
+  // Sends Authorization: Bearer <idToken> — the worker verifies this server-side.
+  // The client-supplied uid field is no longer used for authorization.
   async function uploadToR2(r2Key, file, uid, onProgress) {
+    // Obtain a fresh Firebase ID token
+    const user = window._snxCurrentUser;
+    if (!user || !user.getIdToken) throw new Error('You must be signed in to upload music.');
+    const idToken = await user.getIdToken(true);
+
     const formData = new FormData();
     // We pass the key as 'path' so the worker stores it at that exact key.
-    // The worker uses uid for security scoping — match the prefix we set.
+    // The server verifies the path prefix matches the authenticated UID.
     formData.append('file', file, file.name);
-    formData.append('uid', uid);
     formData.append('path', r2Key);
+    // Do NOT append 'uid' — the server derives UID from the verified Bearer token
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -247,6 +254,7 @@
       let lastTime = Date.now();
 
       xhr.open('POST', R2_WORKER_URL + '/upload-music');
+      xhr.setRequestHeader('Authorization', 'Bearer ' + idToken);
 
       xhr.upload.onprogress = e => {
         if (!e.lengthComputable) return;
@@ -269,6 +277,8 @@
         try { resp = JSON.parse(xhr.responseText); } catch { resp = {}; }
         if (xhr.status >= 200 && xhr.status < 300 && resp.url && resp.key) {
           resolve({ url: resp.url, key: resp.key });
+        } else if (xhr.status === 401) {
+          reject(new Error('Authentication required — please refresh and try again.'));
         } else if (xhr.status === 403) {
           reject(new Error('Permission denied — upload not authorized.'));
         } else if (xhr.status === 415) {
@@ -289,12 +299,22 @@
   }
 
   // ── R2 delete via Cloudflare Worker ──────────────────────────────
+  // Sends Authorization: Bearer <idToken> — the worker verifies ownership server-side.
   async function deleteR2File(r2Key) {
     if (!r2Key) return;
     try {
+      const user = window._snxCurrentUser;
+      if (!user || !user.getIdToken) {
+        console.warn('[SNX Music] deleteR2File: no signed-in user — skipping R2 delete');
+        return;
+      }
+      const idToken = await user.getIdToken(true);
       // Encode each path segment individually so slashes are preserved in the URL
       const encodedKey = r2Key.split('/').map(encodeURIComponent).join('/');
-      await fetch(`${R2_WORKER_URL}/${encodedKey}`, { method: 'DELETE' });
+      await fetch(`${R2_WORKER_URL}/${encodedKey}`, {
+        method:  'DELETE',
+        headers: { 'Authorization': 'Bearer ' + idToken },
+      });
     } catch (e) { console.warn('[SNX Music] R2 delete best-effort failed:', e); }
   }
 

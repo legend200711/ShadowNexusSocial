@@ -1,8 +1,8 @@
 {
-  "buildId": "2026-08-28-SW-LOOP-FIX",
-  "swVersion": "v32",
-  "deployedAt": "2026-08-28T00:00:00Z",
+  "buildId": "2026-08-29-CLOUD-STREAM-AS-STUDIO",
+  "swVersion": "v35",
+  "deployedAt": "2026-08-29T00:00:00Z",
   "project": "horr-a08f4",
-  "studioVersion": "1.2.0",
-  "note": "SW loop fix: removed all controllerchange auto-reload and skipWaiting. Updates apply on next natural navigation."
+  "studioVersion": "2.0.0",
+  "note": "24-Hour Cloud Stream integrated as Studio. studio.js active. CORS hardened (exact-origin matching). Live likes fixed with atomic runTransaction."
 }

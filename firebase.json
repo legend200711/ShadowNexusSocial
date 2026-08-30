@@ -21,6 +21,7 @@
       ".wrangler/**",
       "node_modules/**",
       "snx-emulator-test/**",
+      "archive/**",
       "push_to_github.ps1",
       "generate_icons.py",
       "wrangler.jsonc",

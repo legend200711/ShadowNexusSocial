@@ -167,7 +167,7 @@ body {
 /* ═══════════════════════════════════════════════════════
    SECTIONS & CARDS
 ═══════════════════════════════════════════════════════ */
-main { padding: 16px 16px 80px; max-width: 700px; margin: 0 auto; }
+main, #csrApp { padding: 16px 16px 80px; max-width: 700px; margin: 0 auto; }
 
 .csr-section { margin-bottom: 20px; }
 
@@ -652,6 +652,46 @@ main { padding: 16px 16px 80px; max-width: 700px; margin: 0 auto; }
 }
 .csr-player-stats-sep { color: var(--csr-text-sub); }
 
+.csr-player-like-row {
+  display: flex;
+  justify-content: center;
+  margin: 10px 0 6px;
+}
+.csr-btn-like {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 18px;
+  border: 1.5px solid rgba(0,174,239,0.35);
+  border-radius: 20px;
+  background: rgba(0,174,239,0.07);
+  color: var(--csr-text-sub);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+}
+.csr-btn-like.liked {
+  background: rgba(255,60,100,0.15);
+  border-color: rgba(255,60,100,0.6);
+  color: #ff3c64;
+}
+.csr-tap-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 18px 0 8px;
+}
+.csr-tap-btn {
+  font-size: 16px;
+  padding: 14px 32px;
+  border-radius: 30px;
+}
+.csr-tap-hint {
+  font-size: 11px;
+  color: var(--csr-text-muted);
+}
 .csr-player-offline {
   text-align: center;
   padding: 20px 0;
@@ -754,7 +794,7 @@ main { padding: 16px 16px 80px; max-width: 700px; margin: 0 auto; }
 
 @media (min-width: 600px) {
   .csr-header { padding: 16px 24px; }
-  main { padding: 24px 24px 80px; }
+  main, #csrApp { padding: 24px 24px 80px; }
   .csr-card { padding: 24px 22px; }
   .csr-title { font-size: 17px; }
 }

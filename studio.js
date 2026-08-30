@@ -220,6 +220,10 @@ window.snxStudioInit = function() {
       // Always load the permanent queue — not gated on active stream
       // This ensures the queue persists across page refreshes for all users.
       _sqLoad();
+      // Init music library so tracks load when the Music tab opens
+      _initMusicLibrary();
+      // Load playlists so Add to Playlist works immediately
+      _csMusicLoadPlaylists();
     } catch(e) {
       console.error('[SNX Studio] init error (isolated — main app unaffected):', e);
       _showStudioError('Studio failed to load. Please refresh and try again.');
@@ -2369,6 +2373,9 @@ function _updateHealthUI(data) {
     _renderCloudStreamActive();
     _renderCSAnalytics();
   }
+  // Update the control center listener count (always, not just when section is open)
+  var listenerVal = document.getElementById('snxCSListenerVal');
+  if (listenerVal) listenerVal.textContent = (data && data.viewerCount) ? data.viewerCount : '0';
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -3677,6 +3684,12 @@ window.snxMusicFilesSelected = function(event) {
   _showUploadDashboard();
   _toast(accepted.length + ' track' + (accepted.length > 1 ? 's' : '') + ' selected — starting upload queue…');
   _processUploadQueue();
+  // Auto-switch to Music tab so the user can see upload progress and library
+  if (typeof window.snxStudioTabSwitch === 'function') {
+    setTimeout(function() {
+      window.snxStudioTabSwitch('music', document.getElementById('snxStudioTabBtn_music'));
+    }, 300);
+  }
 };
 
 function _processUploadQueue() {
@@ -3698,7 +3711,7 @@ function _uploadOneTrack(job) {
   var key    = 'music/' + uid + '/' + job.trackId + '/' + job.file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   var form   = new FormData();
   form.append('file', job.file, job.file.name);
-  form.append('uid', uid);
+  // Do NOT append 'uid' — the server derives UID from the verified Bearer token
   form.append('path', key);
 
   // Extract client-side metadata (async duration detection via HTMLAudioElement)
@@ -3738,47 +3751,62 @@ function _uploadOneTrack(job) {
     }
   });
 
-  // XHR so we can track per-file progress
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', UPLOAD_WORKER_URL + '/');
-  xhr.setRequestHeader('X-User-UID', uid);
-
-  xhr.upload.onprogress = function(e) {
-    if (e.lengthComputable) { job.progress = Math.round((e.loaded / e.total) * 100); }
-    _renderUploadDashboard();
-  };
-
-  xhr.onload = function() {
+  // XHR so we can track per-file progress.
+  // Obtain a fresh Firebase ID token, wire all handlers, then send.
+  if (!_state.user || typeof _state.user.getIdToken !== 'function') {
     _music.uploadActive--;
-    if (xhr.status === 200) {
-      var res; try { res = JSON.parse(xhr.responseText); } catch(e) { res = {}; }
-      job.status = 'done';
-      _music.uploadDone++;
-      // Update track doc as 'ready' with public URL
-      trackDoc.status = 'ready';
-      trackDoc.url    = res.url || res.publicUrl || '';
-      _mlSaveTrack(trackDoc);
-      // Add to in-memory library
-      var existing = _music.tracks.findIndex(function(t) { return t.id === job.trackId; });
-      if (existing === -1) _music.tracks.unshift(Object.assign({}, trackDoc));
-      else _music.tracks[existing] = Object.assign({}, trackDoc);
-    } else {
-      _handleUploadFail(job, 'HTTP ' + xhr.status);
-    }
-    _renderUploadDashboard();
-    _renderLibrary();
-    if (typeof _renderCSLibrary === 'function') { _renderCSLibrary(); }
+    _handleUploadFail(job, 'Not signed in');
     _processUploadQueue();
-  };
+    return;
+  }
 
-  xhr.onerror = function() {
+  _state.user.getIdToken(true).then(function(idToken) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', UPLOAD_WORKER_URL + '/');
+    xhr.setRequestHeader('Authorization', 'Bearer ' + idToken);
+
+    xhr.upload.onprogress = function(e) {
+      if (e.lengthComputable) { job.progress = Math.round((e.loaded / e.total) * 100); }
+      _renderUploadDashboard();
+    };
+
+    xhr.onload = function() {
+      _music.uploadActive--;
+      if (xhr.status === 200) {
+        var res; try { res = JSON.parse(xhr.responseText); } catch(e) { res = {}; }
+        job.status = 'done';
+        _music.uploadDone++;
+        // Update track doc as 'ready' with public URL and the server-assigned R2 key
+        trackDoc.status = 'ready';
+        trackDoc.url    = res.url || res.publicUrl || '';
+        if (res.key) trackDoc.r2Key = res.key; // use the key the server actually stored
+        _mlSaveTrack(trackDoc);
+        // Add to in-memory library
+        var existing = _music.tracks.findIndex(function(t) { return t.id === job.trackId; });
+        if (existing === -1) _music.tracks.unshift(Object.assign({}, trackDoc));
+        else _music.tracks[existing] = Object.assign({}, trackDoc);
+      } else {
+        _handleUploadFail(job, 'HTTP ' + xhr.status);
+      }
+      _renderUploadDashboard();
+      _renderLibrary();
+      if (typeof _renderCSLibrary === 'function') { _renderCSLibrary(); }
+      _processUploadQueue();
+    };
+
+    xhr.onerror = function() {
+      _music.uploadActive--;
+      _handleUploadFail(job, 'Network error');
+      _processUploadQueue();
+    };
+
+    xhr.send(form);
+    job._xhr = xhr;
+  }).catch(function(e) {
     _music.uploadActive--;
-    _handleUploadFail(job, 'Network error');
+    _handleUploadFail(job, 'Auth error: ' + e.message);
     _processUploadQueue();
-  };
-
-  xhr.send(form);
-  job._xhr = xhr;
+  });
 }
 
 /* Detect actual audio duration using HTMLAudioElement (browser-native, no lib needed) */
@@ -5259,6 +5287,25 @@ window.snxSQJumpTo = function(idx) {
   _sqPlay();
 };
 
+/* ── Bridge: expose internal track/queue state to outer IIFEs ── */
+window._snxStudioTracks        = function() { return _music ? (_music.tracks || []) : []; };
+window._snxSQHasTrack          = function(id) { return _sq && Array.isArray(_sq.queue) && _sq.queue.some(function(q) { return q.id === id; }); };
+window._snxInitMusicLibrary    = function() { _initMusicLibrary(); };
+window._snxCsMusicLoadPl       = function() { _csMusicLoadPlaylists(); };
+window._snxSqLoad              = function() { _sqLoad(); };
+window._snxRenderLib           = function() { _renderLibrary(); };
+window._snxRenderCSPl          = function() { _renderCSPlaylistPanel(); };
+window._snxRenderCSLib         = function() { _renderCSLibrary(); };
+window._snxSqRenderQueue       = function() { _sqRenderQueue(); };
+window._snxRenderNowPlaying    = function() { _renderNowPlayingBar(); };
+
+// After track list changes, refresh the Queue tab library list if it's open
+var _origRenderLibrary = _renderLibrary;
+_renderLibrary = function() {
+  _origRenderLibrary.apply(this, arguments);
+  if (typeof window.snxStudioRefreshQueueLib === 'function') window.snxStudioRefreshQueueLib();
+};
+
 })(); // end IIFE
 
 /* ═══════════════════════════════════════════════════════
@@ -5636,57 +5683,10 @@ function _snxsUpdateStatus(state) {
 }
 
 /* ── START STREAM — bridges simplified UI to existing snxStartCloudStream ── */
+/* snxsStartStream — redirects to the separate Cloud Stream system (cloud-stream.html).
+   The embedded start flow has been removed; Go Live lives exclusively in cloud-stream.html. */
 window.snxsStartStream = function() {
-  if (!_state.user) {
-    _toastError('You must be signed in to start a stream.');
-    // Navigate to login page and mark intent to return to Cloud Stream
-    setTimeout(function() {
-      if (typeof realmNavTo === 'function') {
-        realmNavTo('login');
-      } else if (typeof navTo === 'function') {
-        navTo('login');
-      }
-    }, 800);
-    return;
-  }
-
-  // Validate: at least one audio source required
-  // Check both the Studio Queue (_sq) and the CS Playlist queue (_csMusic)
-  var hasMusic = _sq.queue.length > 0 || _csMusic.queue.length > 0 || _state.musicQueue.length > 0;
-  var hasMic   = _snxs.micOn || (_snxs.camOn && _snxs.camStream && _snxs.camStream.getAudioTracks().length > 0);
-
-  if (_snxs.audioMode === 'output' && !hasMusic) {
-    // Guide user to upload music rather than silently failing
-    _toastError('No music in queue. Upload tracks in the Music section below, or switch to INPUT or MIC mode.');
-    // Switch to upload tab so user can add tracks immediately
-    if (typeof snxsLibTab === 'function') { snxsLibTab('upload'); }
-    return;
-  }
-  if (_snxs.audioMode === 'input' && !hasMic) {
-    _toastError('Turn on your microphone (Mic section below) before starting INPUT mode.');
-    return;
-  }
-  if (_snxs.audioMode === 'both' && !hasMusic && !hasMic) {
-    _toastError('Add music to the queue or turn on your microphone before starting BOTH mode.');
-    return;
-  }
-
-  // Update status
-  _snxsUpdateStatus('starting');
-
-  // Disable start button during launch
-  var startBtn = document.getElementById('snxsStartBtn');
-  if (startBtn) { startBtn.disabled = true; startBtn.textContent = '⏳ Starting…'; }
-
-  // Delegate to the existing cloud stream start function
-  // It reads from snxCSStreamName, snxCSDescription, snxCSCategory, snxCSDuration, _sq.queue, etc.
-  try {
-    snxStartCloudStream();
-  } catch(e) {
-    _toastError('Could not start stream: ' + e.message);
-    _snxsUpdateStatus('off');
-    if (startBtn) { startBtn.disabled = false; startBtn.textContent = '⛅ START 24-HOUR CLOUD STREAM'; }
-  }
+  window.location.href = 'cloud-stream.html';
 };
 
 /* ── Patch _handoffComplete to update simplified UI on success ── */
@@ -5723,24 +5723,29 @@ var _origHandoffComplete = window._snxHandoffComplete || null;
 function _snxsOnStreamActive() {
   _snxsUpdateStatus('live');
   _snxsStartUptime();
-  var startBtn = document.getElementById('snxsStartBtn');
   var stopBtn  = document.getElementById('snxCSStopBtn');
-  if (startBtn) { startBtn.style.display = 'none'; }
   if (stopBtn)  { stopBtn.style.display  = ''; }
+  // Show now playing, hide idle message
+  var npEl   = document.getElementById('snxsNowPlaying');
+  var idleEl = document.getElementById('snxsNowPlayingIdle');
+  if (npEl)   npEl.style.display   = '';
+  if (idleEl) idleEl.style.display = 'none';
   _toast('☁️ Cloud Stream is LIVE! You may close the app.');
 }
 
 function _snxsOnStreamStopped() {
   _snxsUpdateStatus('off');
   _snxsStopUptime();
-  var startBtn = document.getElementById('snxsStartBtn');
-  var stopBtn  = document.getElementById('snxCSStopBtn');
-  if (startBtn) {
-    startBtn.style.display = '';
-    startBtn.disabled      = false;
-    startBtn.textContent   = '⛅ START 24-HOUR CLOUD STREAM';
-  }
+  var stopBtn = document.getElementById('snxCSStopBtn');
   if (stopBtn) stopBtn.style.display = 'none';
+  // Hide now playing, show idle message
+  var npEl   = document.getElementById('snxsNowPlaying');
+  var idleEl = document.getElementById('snxsNowPlayingIdle');
+  if (npEl)   npEl.style.display   = 'none';
+  if (idleEl) idleEl.style.display = '';
+  // Reset listener count
+  var listenerVal = document.getElementById('snxCSListenerVal');
+  if (listenerVal) listenerVal.textContent = '0';
 }
 
 /* ── Patch snxCSStop to update simplified UI ── */
@@ -5793,3 +5798,170 @@ window.snxStudioSwitchSection = function(section) {
 };
 
 })(); // end simplified controller IIFE
+
+/* ═══════════════════════════════════════════════════════
+   32. STUDIO PAGE TAB SYSTEM
+   ─────────────────────────────────────────────────────
+   Drives the 6-tab bottom bar inside the studioPage SPA panel:
+     music · upload · playlists · queue · nowplaying · stream
+
+   Also renders the "Add to Queue from Library" list inside
+   the Queue tab (#snxSQLibraryList).
+═══════════════════════════════════════════════════════ */
+
+(function() {
+
+var _STUDIO_TABS = ['music', 'upload', 'playlists', 'queue', 'nowplaying', 'stream'];
+var _studioTabLibInit = false;
+
+/* ── Public tab switch function ─────────────────────── */
+window.snxStudioTabSwitch = function(tab, btn) {
+  // Show/hide panels
+  _STUDIO_TABS.forEach(function(t) {
+    var el = document.getElementById('snxStudioTab_' + t);
+    if (el) el.style.display = (t === tab) ? '' : 'none';
+  });
+
+  // Update bottom bar button styles
+  document.querySelectorAll('#snxStudioTabBar .snx-studio-tab').forEach(function(b) {
+    b.style.borderBottomColor = 'transparent';
+    b.style.color = '#5a80a8';
+  });
+  if (btn) {
+    btn.style.borderBottomColor = '#00AEEF';
+    btn.style.color = '#00AEEF';
+  } else {
+    var activeBtn = document.getElementById('snxStudioTabBtn_' + tab);
+    if (activeBtn) {
+      activeBtn.style.borderBottomColor = '#00AEEF';
+      activeBtn.style.color = '#00AEEF';
+    }
+  }
+
+  // Lazy-init music library on first visit to any music-related tab
+  if (!_studioTabLibInit && (tab === 'music' || tab === 'upload' || tab === 'playlists' || tab === 'queue' || tab === 'nowplaying')) {
+    _studioTabLibInit = true;
+    if (typeof window._snxInitMusicLibrary === 'function') setTimeout(window._snxInitMusicLibrary, 60);
+    if (typeof window._snxCsMusicLoadPl    === 'function') setTimeout(window._snxCsMusicLoadPl, 80);
+    if (typeof window._snxSqLoad           === 'function') setTimeout(window._snxSqLoad, 100);
+  }
+
+  // Tab-specific renders
+  if (tab === 'music') {
+    if (typeof window._snxRenderLib === 'function') setTimeout(window._snxRenderLib, 30);
+  }
+  if (tab === 'playlists') {
+    if (typeof window._snxRenderCSPl  === 'function') setTimeout(window._snxRenderCSPl, 30);
+    if (typeof window._snxRenderCSLib === 'function') setTimeout(window._snxRenderCSLib, 60);
+  }
+  if (tab === 'queue') {
+    if (typeof window._snxSqRenderQueue === 'function') setTimeout(window._snxSqRenderQueue, 30);
+    _snxRenderSQLibraryList();
+  }
+  if (tab === 'nowplaying') {
+    if (typeof window._snxRenderNowPlaying === 'function') setTimeout(window._snxRenderNowPlaying, 30);
+  }
+  if (tab === 'upload') {
+    // After upload, switch back to music tab automatically
+    // (no extra init needed — file input triggers upload from any tab)
+  }
+  if (tab === 'stream') {
+    // Trigger csrSpaInit so the cloud-stream UI reflects current auth state
+    if (typeof window.csrSpaInit === 'function') {
+      setTimeout(function() { window.csrSpaInit(); }, 80);
+    }
+    // Also load playlists in Stream tab if needed (cloud-stream.js _loadPlaylists)
+    if (typeof window.csrRefreshPlaylists === 'function') {
+      setTimeout(function() { window.csrRefreshPlaylists(); }, 200);
+    }
+  }
+};
+
+/* ── Render library tracks into the Queue tab "Add to Queue" list ── */
+function _snxRenderSQLibraryList() {
+  var el = document.getElementById('snxSQLibraryList');
+  if (!el) return;
+
+  // _music may not be accessible from inside this IIFE — use window reference
+  var tracks = (window._snxStudioTracks) ? window._snxStudioTracks() : [];
+  if (!tracks || !tracks.length) {
+    el.innerHTML = '<div class="snx-empty-state" style="padding:14px 0;"><div class="empty-icon">&#127925;</div>No tracks yet.<br>Upload music first.</div>';
+    return;
+  }
+
+  el.innerHTML = tracks.map(function(t) {
+    var inSQ  = (window._snxSQHasTrack) ? window._snxSQHasTrack(t.id) : false;
+    var isReady = t.status === 'ready';
+    var dur  = (t.duration && t.duration > 0) ? _snxFmtDur(t.duration) : '—';
+    return '<div class="snx-track-item" data-title="' + _snxEsc(t.title||'') + '" data-artist="' + _snxEsc(t.artist||'') + '">' +
+      '<div class="snx-track-artwork" style="font-size:16px;display:flex;align-items:center;justify-content:center;">&#127925;</div>' +
+      '<div class="snx-track-info">' +
+        '<div class="snx-track-title">' + _snxEsc(t.title || 'Untitled') + '</div>' +
+        '<div class="snx-track-artist">' + _snxEsc(t.artist || '') + '</div>' +
+      '</div>' +
+      '<div class="snx-track-meta">' +
+        '<span class="snx-track-dur">' + dur + '</span>' +
+        (isReady
+          ? '<div class="snx-track-add-btn' + (inSQ ? ' snx-sq-in-queue' : '') + '" onclick="snxSQAddToQueue(\'' + _snxEsc(t.id) + '\')" title="' + (inSQ ? 'In queue' : 'Add to queue') + '">' +
+              (inSQ ? '&#10003;' : '+') + '</div>'
+          : '<span style="font-size:10px;color:#4a7a9a;">' + (t.status || '…') + '</span>') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/* tiny helpers local to this IIFE */
+function _snxEsc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function _snxFmtDur(secs) {
+  secs = Math.floor(secs || 0);
+  var m = Math.floor(secs / 60), s = secs % 60;
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+/* ── Expose helpers for _snxRenderSQLibraryList to access inner state ── */
+// These are set by the main studio.js IIFE after this one loads — we hook
+// them lazily so the Queue tab always reflects current state.
+// The main IIFE exposes them via the window at the end of _mlLoadTracks and
+// whenever the track list changes.  We just need to call snxSQAddToQueue
+// (already window-global) and read _music.tracks indirectly.
+// Solution: expose a thin bridge from within the first IIFE.
+
+// This function is called from the Studio section of section 32 above.
+// It must be defined here so the tab switch can call it.
+window.snxStudioRefreshQueueLib = function() {
+  _snxRenderSQLibraryList();
+};
+
+/* ── Hook into page navigation — init tabs when studioPage opens ── */
+(function() {
+  function hookNav() {
+    var orig = window.realmNavTo;
+    if (typeof orig !== 'function') {
+      document.addEventListener('DOMContentLoaded', function() { setTimeout(hookNav, 200); });
+      return;
+    }
+    var _already = orig._snxTabHooked;
+    if (_already) return; // already hooked
+    var wrapped = function(pageId) {
+      orig.apply(this, arguments);
+      if (pageId === 'studioPage') {
+        // Show Music tab by default; init library
+        setTimeout(function() {
+          snxStudioTabSwitch('music', document.getElementById('snxStudioTabBtn_music'));
+        }, 150);
+      }
+    };
+    wrapped._snxTabHooked = true;
+    window.realmNavTo = wrapped;
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', hookNav);
+  } else {
+    hookNav();
+  }
+})();
+
+})(); // end tab system IIFE
+

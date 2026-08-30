@@ -10,8 +10,8 @@
  * shadownexussocial.online (/) and any local dev server (/).
  */
 
-const CACHE_VERSION = 'v32';
-const BUILD_ID      = '2026-08-28-SW-LOOP-FIX';
+const CACHE_VERSION = 'v35';
+const BUILD_ID      = '2026-08-29-CLOUD-STREAM-AS-STUDIO';
 const CACHE_NAME    = `shadow-nexus-${CACHE_VERSION}`;
 const MEDIA_CACHE   = `shadow-nexus-media-${CACHE_VERSION}`;
 
@@ -36,7 +36,6 @@ const SHELL_FILES = [
   'snx-gifts.js',
   'snx-gifts.css',
   'studio.css',
-  'studio.js',
   'cloud-stream.html',
   'cloud-stream.js',
   'cloud-stream.css',

@@ -235,26 +235,25 @@ const fbApp = getApps().length ? getApps()[0] : initializeApp(FB_CONFIG);
 const auth  = getAuth(fbApp);
 const db    = getFirestore(fbApp);
 
-// Listen for maintenance lift — only redirect when the value changes TO false
-// (not on the first snapshot which may already be false and cause an instant loop)
-let _maintFirstSnap = true;
+// Listen for maintenanceMode — redirect to index as soon as it is false, including
+// on the first snapshot (if we arrived here while maintenance was already off).
 let _maintRedirecting = false;
 onSnapshot(doc(db, 'siteSettings', 'config'), snap => {
-  if (!snap.exists()) { _maintFirstSnap = false; return; }
+  if (!snap.exists()) return;
   const cfg = snap.data();
   // Update message if customised
   if (cfg.maintenanceMessage) {
     const el = document.getElementById('maintMsg');
     if (el) el.textContent = cfg.maintenanceMessage;
   }
-  // Only redirect when maintenance is lifted AFTER we first loaded this page.
-  // Skipping the very first snapshot prevents an instant loop if maintenanceMode
-  // was already false when we arrived (e.g. race between index redirect + Firestore).
-  if (!_maintFirstSnap && cfg.maintenanceMode === false && !_maintRedirecting) {
+  // Redirect back to index whenever maintenanceMode is false — whether that is
+  // on the first snapshot (maintenance was already off when we arrived, meaning
+  // we should never have been here) or on a subsequent one (maintenance was
+  // lifted while the user waited on this page).
+  if (cfg.maintenanceMode === false && !_maintRedirecting) {
     _maintRedirecting = true;
     window.location.replace('index.html');
   }
-  _maintFirstSnap = false;
 });
 
 // If the user is the founder, allow them back immediately
