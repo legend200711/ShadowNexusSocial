@@ -1368,6 +1368,15 @@ async function _ppCreateReferral(env, { creatorUid, returnUrl }) {
 // FIREBASE_WEB_API_KEY is already a secret on this worker.
 
 async function _fbVerifyToken(env, idToken) {
+  // Sanity-check token format before making an external call.
+  // A Firebase ID token is a compact JWT: three base64url segments separated by dots.
+  if (!idToken || idToken.split('.').length !== 3) {
+    throw Object.assign(
+      new Error('Malformed token: not a valid JWT (expected 3 dot-separated segments)'),
+      { status: 401 }
+    );
+  }
+
   const res = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${env.FIREBASE_WEB_API_KEY}`,
     {
@@ -1376,11 +1385,44 @@ async function _fbVerifyToken(env, idToken) {
       body:    JSON.stringify({ idToken }),
     }
   );
-  if (!res.ok) throw new Error('Invalid Firebase token');
+
+  if (!res.ok) {
+    // Log the HTTP status server-side for diagnosis; never expose the token or key.
+    let detail = '';
+    try {
+      const errBody = await res.json();
+      // Safe to log error codes/messages — never log the token itself.
+      const code = errBody?.error?.code || res.status;
+      const msg  = errBody?.error?.message || res.statusText;
+      detail = ` (identitytoolkit HTTP ${code}: ${msg})`;
+      console.error('[SNX Auth] Firebase token verification failed' + detail);
+    } catch (_) {
+      console.error('[SNX Auth] Firebase token verification failed — HTTP', res.status);
+    }
+    // Return a generic message to the client; detail stays server-side only.
+    throw Object.assign(new Error('Invalid Firebase token'), { status: 401 });
+  }
+
   const data = await res.json();
-  if (data.error) throw new Error('Token validation failed: ' + data.error.message);
+  if (data.error) {
+    const msg = data.error.message || 'unknown';
+    console.error('[SNX Auth] Token validation error from identitytoolkit:', msg);
+    // Surface safe message codes to client
+    if (msg === 'USER_NOT_FOUND') {
+      throw Object.assign(new Error('Firebase user not found — please sign in again'), { status: 401 });
+    }
+    if (msg === 'TOKEN_EXPIRED') {
+      throw Object.assign(new Error('Firebase token expired — please sign in again'), { status: 401 });
+    }
+    throw Object.assign(new Error('Token validation failed: ' + msg), { status: 401 });
+  }
+
   const user = data.users?.[0];
-  if (!user?.localId) throw new Error('Token has no UID');
+  if (!user?.localId) {
+    console.error('[SNX Auth] identitytoolkit returned no user for token');
+    throw Object.assign(new Error('Token has no UID'), { status: 401 });
+  }
+
   return user.localId;
 }
 

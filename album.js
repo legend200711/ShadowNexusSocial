@@ -915,20 +915,36 @@
     // Returns Promise<string> (URL) for backward compat; also writes to
     // Firestore /mediaFiles and resolves with the full { url, key } object
     // internally so callers that need r2Key can destructure it.
+    //
+    // FIX (2026): The worker requires Authorization: Bearer <Firebase ID token>.
+    // This function now obtains a fresh Firebase ID token via getIdToken(true)
+    // before each upload attempt and sends it in the Authorization header.
+    // The UID in FormData is kept as a hint only — the server derives the
+    // authoritative UID from the verified token.
     function uploadFileToR2(file, onProgress) {
         const R2_URL = 'https://yellow-term-11e6.nthntjrn.workers.dev';
-        // Always use the live UID so the Cloudflare worker receives the correct owner.
-        const uid    = (liveUser() || currentUser)?.uid || 'guest';
         const MAX_RETRIES = 3;
 
-        function attempt(retryNum) {
+        // Obtain a fresh Firebase ID token and then perform the XHR upload.
+        // This wraps attempt() so the token is always fresh on the first try.
+        // On a network-level retry the same token is reused (still valid for 1 h).
+        const user = liveUser() || currentUser || null;
+        if (!user || typeof user.getIdToken !== 'function') {
+            return Promise.reject(new Error('No authenticated Firebase session. Please sign in again.'));
+        }
+        const uid = user.uid || 'guest';
+
+        function attempt(retryNum, idToken) {
             return new Promise((resolve, reject) => {
                 const fd = new FormData();
                 fd.append('file', file);
+                // uid is informational only — the server verifies ownership via the token
                 fd.append('uid',  uid);
 
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', R2_URL);
+                // Send the Firebase ID token so the worker can verify the caller's identity
+                xhr.setRequestHeader('Authorization', 'Bearer ' + idToken);
 
                 // Real upload progress
                 xhr.upload.onprogress = (e) => {
@@ -951,6 +967,13 @@
                         } catch (_) {
                             reject(new Error('Invalid response from Cloudflare'));
                         }
+                    } else if (xhr.status === 401 || xhr.status === 403) {
+                        // Auth failure — do not retry with the same token; report clearly
+                        let msg = xhr.status === 401
+                            ? 'No authenticated Firebase session. Please sign in again.'
+                            : 'Upload authorization was rejected by the server.';
+                        try { msg = JSON.parse(xhr.responseText).error || msg; } catch (_) {}
+                        reject(new Error(msg));
                     } else {
                         let msg = `HTTP ${xhr.status}`;
                         try { msg = JSON.parse(xhr.responseText).error || msg; } catch (_) {}
@@ -961,7 +984,7 @@
                 xhr.onerror = () => {
                     if (retryNum < MAX_RETRIES) {
                         const delay = Math.pow(2, retryNum - 1) * 1000;
-                        setTimeout(() => attempt(retryNum + 1).then(resolve).catch(reject), delay);
+                        setTimeout(() => attempt(retryNum + 1, idToken).then(resolve).catch(reject), delay);
                     } else {
                         reject(new Error('Network error — check your connection'));
                     }
@@ -971,20 +994,27 @@
             });
         }
 
-        return attempt(1).then(result => {
-            // Save metadata to Firestore /mediaFiles (non-blocking)
-            _albumSaveMediaMeta({
-                ownerUid: uid,
-                fileName: file.name,
-                fileType: file.type || '',
-                fileSize: file.size,
-                r2Key:    result.key,
-                url:      result.url,
-                mediaKind:'album',
+        // Get a fresh token (forceRefresh: true) then start the upload
+        return user.getIdToken(true)
+            .then(idToken => attempt(1, idToken))
+            .then(result => {
+                // Save metadata to Firestore /mediaFiles (non-blocking)
+                _albumSaveMediaMeta({
+                    ownerUid: uid,
+                    fileName: file.name,
+                    fileType: file.type || '',
+                    fileSize: file.size,
+                    r2Key:    result.key,
+                    url:      result.url,
+                    mediaKind:'album',
+                });
+                // Return just the URL so existing callers (submitUpload) work unchanged
+                return result.url;
+            })
+            .catch(e => {
+                // Re-throw with a user-friendly prefix for album upload context
+                throw new Error('Upload failed: ' + e.message);
             });
-            // Return just the URL so existing callers (submitUpload) work unchanged
-            return result.url;
-        });
     }
 
     /** Write metadata to Firestore /mediaFiles. Non-blocking — errors are swallowed. */
