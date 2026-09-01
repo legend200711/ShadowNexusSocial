@@ -17,8 +17,8 @@
  *   GET  /health                      — Health check
  *
  * Required Cloudflare Secrets (set via: wrangler secret put <NAME> --config wrangler-paypal.toml):
- *   PAYPAL_CLIENT_ID         — BAA_f0dLIUnsqCYMCUKypUxef68PGf6RUCHlYk-Y9FFSf8VdHn3tpAYb6O7lEAkqNpWUL2ebmy4GKwmndw
- *   PAYPAL_CLIENT_SECRET     — BAA_f0dLIUnsqCYMCUKypUxef68PGf6RUCHlYk-Y9FFSf8VdHn3tpAYb6O7lEAkqNpWUL2ebmy4GKwmndw
+ *   PAYPAL_CLIENT_ID         — PayPal REST app Client ID
+ *   PAYPAL_CLIENT_SECRET     — PayPal REST app Client Secret
  *   PAYPAL_WEBHOOK_ID        — PayPal Webhook ID (from PayPal developer dashboard)
  *   PAYPAL_PARTNER_BN_CODE   — PayPal Partner BN code (for marketplace/platform)
  *   FIREBASE_SERVICE_KEY     — Firebase Admin SDK service account JSON (stringified)
@@ -54,12 +54,15 @@ const FIREBASE_PROJECT  = 'horr-a08f4';
 
 function corsHeaders(origin, env) {
   const allowed = env.SNX_ORIGIN || 'https://shadownexussocial.online';
-  const isAllowed = origin && (origin === allowed || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1'));
+  // Exact match for production origin; regex for any localhost/127.0.0.1 port in dev.
+  const isAllowed = origin && (origin === allowed || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin));
   return {
     'Access-Control-Allow-Origin':  isAllowed ? origin : allowed,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Firebase-UID, X-Firebase-Token',
     'Access-Control-Max-Age':       '86400',
+    // Required when Access-Control-Allow-Origin varies per request
+    'Vary':                         'Origin',
   };
 }
 

@@ -52,15 +52,22 @@ function isAllowedType(mime) {
 
 // ── CORS headers ──────────────────────────────────────────────────────────────
 function corsHeaders(origin) {
-  const allowed = ALLOWED_ORIGINS.some(o => origin && origin.startsWith(o))
-    ? origin : ALLOWED_ORIGINS[0];
+  // Exact-match production domains; allow any localhost/127.0.0.1 port for dev.
+  const isAllowed = origin && (
+    ALLOWED_ORIGINS.filter(o => !o.startsWith('http://localhost') && !o.startsWith('http://127.0.0.1')).includes(origin) ||
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+  );
+  const allowedOrigin = isAllowed ? origin : ALLOWED_ORIGINS[0];
   return {
-    'Access-Control-Allow-Origin':   allowed,
+    'Access-Control-Allow-Origin':   allowedOrigin,
     'Access-Control-Allow-Methods':  'GET, POST, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers':  'Content-Type, X-User-UID, Upload-Offset, Upload-Length, Tus-Resumable, Range',
+    // Authorization is required for all upload/delete endpoints.
+    'Access-Control-Allow-Headers':  'Content-Type, Authorization, X-User-UID, Upload-Offset, Upload-Length, Tus-Resumable, Range',
     // Expose byte-range headers so audio/video elements can read them cross-origin
     'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges, ETag',
     'Access-Control-Max-Age':        '86400',
+    // Required when Access-Control-Allow-Origin varies per request
+    'Vary':                          'Origin',
   };
 }
 
@@ -264,18 +271,34 @@ async function handleLiveKitToken(request, env, cors, sec) {
   });
 }
 
+// ── Auth helper: extract + verify Bearer token from Authorization header ──────
+// Returns { uid } on success, throws on failure.
+// Endpoints that need authentication call this before processing.
+async function _requireAuth(request, env) {
+  const authHeader = request.headers.get('Authorization') || '';
+  const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  if (!idToken) throw Object.assign(new Error('Authentication required'), { status: 401 });
+  if (!env.FIREBASE_WEB_API_KEY) throw Object.assign(new Error('Auth service not configured'), { status: 503 });
+  const uid = await _fbVerifyToken(env, idToken);
+  return uid;
+}
+
 // ── Resumable / chunked upload ────────────────────────────────────────────────
 //
 //  Phase 1 — POST /upload-chunk
-//    FormData: { uploadId, chunkIndex, totalChunks, uid, key, chunk(File) }
+//    Authorization: Bearer <firebase-id-token>
+//    FormData: { uploadId, chunkIndex, totalChunks, chunk(File) }
 //    Stores each chunk as a temporary R2 object at:
-//      _tmp/{uploadId}/chunk_{chunkIndex}
+//      _tmp/{verifiedUid}/{uploadId}/chunk_{chunkIndex}
+//    The UID is derived from the verified Firebase token — never trusted from the body.
 //    Returns { ok: true }
 //
 //  Phase 2 — POST /upload-complete
-//    FormData: { uploadId, totalChunks, key, uid, fileName, fileType, fileSize }
-//    Reads all chunks from R2 in order, concatenates them, stores the final
-//    object at `key`, deletes temp chunk objects, returns { url, key }.
+//    Authorization: Bearer <firebase-id-token>
+//    FormData: { uploadId, totalChunks, key, fileName, fileType, fileSize }
+//    Reads all chunks from R2 in order, assembles via R2 Multipart Upload
+//    (avoids loading entire file into Worker memory), stores final object at `key`,
+//    deletes temp chunk objects, returns { url, key }.
 //
 // This lets the client implement retry-per-chunk for mobile/slow connections.
 
@@ -283,6 +306,16 @@ async function handleUploadChunk(request, env, cors, sec) {
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405, headers: mergeHeaders(cors, sec) });
   }
+
+  // ── Verify Firebase ID token ──────────────────────────────────────────────
+  let verifiedUid;
+  try { verifiedUid = await _requireAuth(request, env); }
+  catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: e.status || 401, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
   let fd;
   try { fd = await request.formData(); }
   catch (e) {
@@ -294,11 +327,10 @@ async function handleUploadChunk(request, env, cors, sec) {
   const uploadId    = (fd.get('uploadId')    || '').replace(/[^a-zA-Z0-9_-]/g, '');
   const chunkIndex  = parseInt(fd.get('chunkIndex')  || '0', 10);
   const totalChunks = parseInt(fd.get('totalChunks') || '1', 10);
-  const userUid     = (fd.get('uid') || '').replace(/[^a-zA-Z0-9_-]/g, '');
   const chunk       = fd.get('chunk');
 
-  if (!uploadId || !userUid || !chunk || typeof chunk === 'string') {
-    return new Response(JSON.stringify({ error: 'uploadId, uid, and chunk are required' }), {
+  if (!uploadId || !chunk || typeof chunk === 'string') {
+    return new Response(JSON.stringify({ error: 'uploadId and chunk are required' }), {
       status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
     });
   }
@@ -315,10 +347,11 @@ async function handleUploadChunk(request, env, cors, sec) {
     });
   }
 
-  const tmpKey = `_tmp/${uploadId}/chunk_${String(chunkIndex).padStart(6, '0')}`;
+  // Key scoped to authenticated UID — prevents cross-user chunk injection
+  const tmpKey = `_tmp/${verifiedUid}/${uploadId}/chunk_${String(chunkIndex).padStart(6, '0')}`;
   try {
     await env.BUCKET.put(tmpKey, buffer, {
-      customMetadata: { uploaderUid: userUid, chunkIndex: String(chunkIndex) }
+      customMetadata: { uploaderUid: verifiedUid, chunkIndex: String(chunkIndex) }
     });
   } catch (e) {
     return new Response(JSON.stringify({ error: 'R2 chunk store failed: ' + e.message }), {
@@ -335,6 +368,16 @@ async function handleUploadComplete(request, env, cors, sec) {
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405, headers: mergeHeaders(cors, sec) });
   }
+
+  // ── Verify Firebase ID token ──────────────────────────────────────────────
+  let verifiedUid;
+  try { verifiedUid = await _requireAuth(request, env); }
+  catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: e.status || 401, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
   let fd;
   try { fd = await request.formData(); }
   catch (e) {
@@ -345,14 +388,24 @@ async function handleUploadComplete(request, env, cors, sec) {
 
   const uploadId    = (fd.get('uploadId')    || '').replace(/[^a-zA-Z0-9_-]/g, '');
   const totalChunks = parseInt(fd.get('totalChunks') || '1', 10);
-  const finalKey    = (fd.get('key')         || '').replace(/\.\./g, '');
-  const userUid     = (fd.get('uid')         || '').replace(/[^a-zA-Z0-9_-]/g, '');
   const fileName    = fd.get('fileName')    || 'upload';
   let   fileType    = fd.get('fileType')    || 'application/octet-stream';
   const fileSize    = parseInt(fd.get('fileSize') || '0', 10);
 
-  if (!uploadId || !finalKey || !userUid || totalChunks < 1) {
-    return new Response(JSON.stringify({ error: 'uploadId, key, uid, and totalChunks are required' }), {
+  // Derive the final key server-side from the verified UID — never accept it from the client
+  const ext      = (fileName.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const finalKey = (fd.get('key') || '').replace(/\.\./g, '') || `${verifiedUid}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
+
+  // Enforce: the final key must start with the authenticated user's UID namespace
+  const allowedPrefixes = [`${verifiedUid}/`, `profiles/${verifiedUid}/`, `videos/${verifiedUid}/`];
+  if (!allowedPrefixes.some(p => finalKey.startsWith(p))) {
+    return new Response(JSON.stringify({ error: 'Forbidden: key does not belong to your account' }), {
+      status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  if (!uploadId || totalChunks < 1) {
+    return new Response(JSON.stringify({ error: 'uploadId and totalChunks are required' }), {
       status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
     });
   }
@@ -378,49 +431,64 @@ async function handleUploadComplete(request, env, cors, sec) {
     });
   }
 
-  // Assemble all chunks in order
-  const parts = [];
+  const cleanMime = fileType.split(';')[0].trim();
+
+  // ── Assemble chunks via R2 Multipart Upload (memory-efficient) ──────────────
+  // Creates an MPU, streams each temp chunk as a part, then completes —
+  // avoids loading the entire file into Worker memory as a single Uint8Array.
+  let mpuUpload;
+  try {
+    mpuUpload = await env.BUCKET.createMultipartUpload(finalKey, {
+      httpMetadata:   { contentType: cleanMime },
+      customMetadata: { uploaderUid: verifiedUid, originalName: fileName },
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: 'Failed to start assembly: ' + e.message }), {
+      status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  const uploadedParts = [];
   for (let i = 0; i < totalChunks; i++) {
-    const tmpKey = `_tmp/${uploadId}/chunk_${String(i).padStart(6, '0')}`;
+    const tmpKey = `_tmp/${verifiedUid}/${uploadId}/chunk_${String(i).padStart(6, '0')}`;
     let obj;
     try { obj = await env.BUCKET.get(tmpKey); }
     catch (e) {
+      await mpuUpload.abort().catch(() => {});
       return new Response(JSON.stringify({ error: `Failed to read chunk ${i}: ` + e.message }), {
         status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
       });
     }
     if (!obj) {
+      await mpuUpload.abort().catch(() => {});
       return new Response(JSON.stringify({ error: `Chunk ${i} not found — upload may have expired` }), {
         status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
       });
     }
-    parts.push(await obj.arrayBuffer());
+    let part;
+    try {
+      part = await mpuUpload.uploadPart(i + 1, obj.body);
+    } catch (e) {
+      await mpuUpload.abort().catch(() => {});
+      return new Response(JSON.stringify({ error: `Failed to assemble chunk ${i}: ` + e.message }), {
+        status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+      });
+    }
+    uploadedParts.push({ partNumber: part.partNumber, etag: part.etag });
   }
 
-  // Concatenate
-  const totalBytes = parts.reduce((s, b) => s + b.byteLength, 0);
-  const assembled  = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const part of parts) {
-    assembled.set(new Uint8Array(part), offset);
-    offset += part.byteLength;
-  }
-
-  const cleanMime = fileType.split(';')[0].trim();
   try {
-    await env.BUCKET.put(finalKey, assembled.buffer, {
-      httpMetadata:   { contentType: cleanMime },
-      customMetadata: { uploaderUid: userUid, originalName: fileName }
-    });
+    await mpuUpload.complete(uploadedParts);
   } catch (e) {
-    return new Response(JSON.stringify({ error: 'R2 final write failed: ' + e.message }), {
+    await mpuUpload.abort().catch(() => {});
+    return new Response(JSON.stringify({ error: 'R2 assembly completion failed: ' + e.message }), {
       status: 500, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
     });
   }
 
   // Clean up temp chunks (best-effort — do not fail the response if this fails)
   for (let i = 0; i < totalChunks; i++) {
-    const tmpKey = `_tmp/${uploadId}/chunk_${String(i).padStart(6, '0')}`;
+    const tmpKey = `_tmp/${verifiedUid}/${uploadId}/chunk_${String(i).padStart(6, '0')}`;
     env.BUCKET.delete(tmpKey).catch(() => {});
   }
 
@@ -465,6 +533,16 @@ async function handleMpuCreate(request, env, cors, sec) {
       status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
     });
   }
+
+  // ── Verify Firebase ID token ──────────────────────────────────────────────
+  let uid;
+  try { uid = await _requireAuth(request, env); }
+  catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: e.status || 401, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
   let body;
   try { body = await request.json(); }
   catch(e) {
@@ -473,16 +551,9 @@ async function handleMpuCreate(request, env, cors, sec) {
     });
   }
 
-  const uid      = (body.uid      || '').replace(/[^a-zA-Z0-9_-]/g, '');
   const fileName = (body.fileName || 'upload').slice(0, 200);
   let   fileType =  body.fileType || 'application/octet-stream';
   const fileSize = parseInt(body.fileSize || '0', 10);
-
-  if (!uid) {
-    return new Response(JSON.stringify({ error: 'uid is required' }), {
-      status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
-    });
-  }
 
   const extMime = mimeFromExt(fileName);
   if (!fileType || fileType === 'application/octet-stream') fileType = extMime || fileType;
@@ -532,6 +603,15 @@ async function handleMpuPresign(request, env, cors, sec) {
     });
   }
 
+  // ── Verify Firebase ID token ──────────────────────────────────────────────
+  let presignUid;
+  try { presignUid = await _requireAuth(request, env); }
+  catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: e.status || 401, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
   if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY) {
     // Gracefully fall back to proxy path — browser will use /mpu/part instead
     return new Response(JSON.stringify({ error: 'R2 presign not configured — use /mpu/part instead', fallback: true }), {
@@ -554,6 +634,14 @@ async function handleMpuPresign(request, env, cors, sec) {
   if (!key || !r2UploadId || partNumber < 1 || partNumber > 10000) {
     return new Response(JSON.stringify({ error: 'key, r2UploadId, and partNumber (1–10000) are required' }), {
       status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  // Enforce ownership: key must belong to the authenticated user
+  const presignKeyOwned = key.startsWith(`${presignUid}/`) || key.startsWith(`profiles/${presignUid}/`) || key.startsWith(`videos/${presignUid}/`);
+  if (!presignKeyOwned) {
+    return new Response(JSON.stringify({ error: 'Forbidden: key does not belong to your account' }), {
+      status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
     });
   }
 
@@ -633,6 +721,15 @@ async function handleMpuPart(request, env, cors, sec) {
     });
   }
 
+  // ── Verify Firebase ID token ──────────────────────────────────────────────
+  let verifiedUid;
+  try { verifiedUid = await _requireAuth(request, env); }
+  catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: e.status || 401, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
   const url2       = new URL(request.url);
   const key        = decodeURIComponent(url2.searchParams.get('key')        || '').replace(/\.\./g, '');
   const r2UploadId = url2.searchParams.get('r2UploadId') || '';
@@ -646,6 +743,14 @@ async function handleMpuPart(request, env, cors, sec) {
   if (!request.body) {
     return new Response(JSON.stringify({ error: 'Request body (part bytes) is required' }), {
       status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  // Enforce ownership: key must belong to the authenticated user
+  const partKeyOwned = key.startsWith(`${verifiedUid}/`) || key.startsWith(`profiles/${verifiedUid}/`) || key.startsWith(`videos/${verifiedUid}/`);
+  if (!partKeyOwned) {
+    return new Response(JSON.stringify({ error: 'Forbidden: key does not belong to your account' }), {
+      status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
     });
   }
 
@@ -670,6 +775,16 @@ async function handleMpuComplete(request, env, cors, sec) {
       status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
     });
   }
+
+  // ── Verify Firebase ID token ──────────────────────────────────────────────
+  let verifiedUid;
+  try { verifiedUid = await _requireAuth(request, env); }
+  catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: e.status || 401, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
   let body;
   try { body = await request.json(); }
   catch(e) {
@@ -688,6 +803,14 @@ async function handleMpuComplete(request, env, cors, sec) {
     });
   }
 
+  // Enforce ownership on the key being completed
+  const completeKeyOwned = key.startsWith(`${verifiedUid}/`) || key.startsWith(`profiles/${verifiedUid}/`) || key.startsWith(`videos/${verifiedUid}/`);
+  if (!completeKeyOwned) {
+    return new Response(JSON.stringify({ error: 'Forbidden: key does not belong to your account' }), {
+      status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
   const upload = env.BUCKET.resumeMultipartUpload(key, r2UploadId);
   try {
     await upload.complete(parts);
@@ -698,7 +821,7 @@ async function handleMpuComplete(request, env, cors, sec) {
   }
 
   const publicUrl = `https://yellow-term-11e6.nthntjrn.workers.dev/${key}`;
-  console.log(`[MPU] Complete. key=${key} parts=${parts.length}`);
+  console.log(`[MPU] Complete. key=${key} parts=${parts.length} uid=${verifiedUid}`);
   return new Response(JSON.stringify({ url: publicUrl, key }), {
     status: 200, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
   });
@@ -710,6 +833,16 @@ async function handleMpuAbort(request, env, cors, sec) {
       status: 405, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
     });
   }
+
+  // ── Verify Firebase ID token ──────────────────────────────────────────────
+  let verifiedUid;
+  try { verifiedUid = await _requireAuth(request, env); }
+  catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: e.status || 401, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
   let body;
   try { body = await request.json(); }
   catch(e) {
@@ -723,6 +856,14 @@ async function handleMpuAbort(request, env, cors, sec) {
   if (!key || !r2UploadId) {
     return new Response(JSON.stringify({ error: 'key and r2UploadId are required' }), {
       status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+    });
+  }
+
+  // Enforce ownership on the key being aborted
+  const abortKeyOwned = key.startsWith(`${verifiedUid}/`) || key.startsWith(`profiles/${verifiedUid}/`) || key.startsWith(`videos/${verifiedUid}/`);
+  if (!abortKeyOwned) {
+    return new Response(JSON.stringify({ error: 'Forbidden: key does not belong to your account' }), {
+      status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
     });
   }
 
@@ -2391,10 +2532,11 @@ export default {
     // ── Shadow Fire Live: upload health check ──
     if (request.method === 'GET' && url.pathname === '/upload-health') {
       return new Response(JSON.stringify({
-        ok:     true,
-        worker: 'ok',
-        r2:     !!env.BUCKET,
-        stream: (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN) ? 'configured' : 'not_configured',
+        ok:             true,
+        worker:         'ok',
+        r2:             !!env.BUCKET,
+        authConfigured: !!env.FIREBASE_WEB_API_KEY,
+        stream:         (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN) ? 'configured' : 'not_configured',
       }), {
         status: 200,
         headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
@@ -2447,9 +2589,19 @@ export default {
     if (url.pathname === '/upload-complete') return handleUploadComplete(request, env, cors, sec);
 
     // ── POST /upload-music: upload a profile music file to R2 at a caller-supplied key ──
-    // The client sends: file, uid, path (the full R2 key)
-    // Path must start with profiles/{uid}/music/ — enforced server-side.
+    // The client sends: Authorization: Bearer <idToken>, file, path (the full R2 key)
+    // Path must start with profiles/{verifiedUid}/music/ — enforced server-side using
+    // the authenticated UID, never trusting the client-supplied uid field.
     if (request.method === 'POST' && url.pathname === '/upload-music') {
+      // ── Verify Firebase ID token ────────────────────────────────────────────
+      let musicUid;
+      try { musicUid = await _requireAuth(request, env); }
+      catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), {
+          status: e.status || 401, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+
       let formData;
       try { formData = await request.formData(); }
       catch (e) {
@@ -2459,7 +2611,6 @@ export default {
       }
 
       const file    = formData.get('file');
-      const userUid = (formData.get('uid') || '').replace(/[^a-zA-Z0-9_-]/g, '');
       const reqPath = (formData.get('path') || '').replace(/\.\./g, '');  // strip traversal
 
       if (!file || typeof file === 'string') {
@@ -2467,16 +2618,12 @@ export default {
           status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
         });
       }
-      if (!userUid) {
-        return new Response(JSON.stringify({ error: 'uid is required' }), {
-          status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
-        });
-      }
 
-      // Enforce: path must be scoped to this user under profiles/{uid}/music/
-      const expectedPrefix = `profiles/${userUid}/music/`;
+      // Enforce: path must be scoped to the AUTHENTICATED user under profiles/{uid}/music/
+      // Uses server-verified UID — ignores any uid sent in the form body
+      const expectedPrefix = `profiles/${musicUid}/music/`;
       if (!reqPath.startsWith(expectedPrefix)) {
-        return new Response(JSON.stringify({ error: 'Invalid path: must start with ' + expectedPrefix }), {
+        return new Response(JSON.stringify({ error: 'Invalid path: must start with profiles/{yourUid}/music/' }), {
           status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
         });
       }
@@ -2506,7 +2653,7 @@ export default {
       try {
         await env.BUCKET.put(reqPath, buffer, {
           httpMetadata:   { contentType: cleanMime },
-          customMetadata: { uploaderUid: userUid, originalName: file.name }
+          customMetadata: { uploaderUid: musicUid, originalName: file.name }
         });
       } catch (e) {
         return new Response(JSON.stringify({ error: 'R2 upload failed: ' + e.message }), {
@@ -2522,7 +2669,18 @@ export default {
     }
 
     // ── DELETE /{key}: delete a file from R2 (called when user deletes a song) ──
+    // Requires: Authorization: Bearer <firebase-id-token>
+    // Key must belong to the authenticated user (namespace enforced server-side).
     if (request.method === 'DELETE') {
+      // ── Verify Firebase ID token ──────────────────────────────────────────
+      let deleteUid;
+      try { deleteUid = await _requireAuth(request, env); }
+      catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), {
+          status: e.status || 401, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+
       // url.pathname is already decoded by the URL constructor; slice off the leading '/'
       const key = url.pathname.slice(1);
       if (!key) {
@@ -2530,8 +2688,21 @@ export default {
           status: 400, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
         });
       }
+
+      // Enforce ownership: only delete files under the caller's namespace
+      const deleteKeyOwned = key.startsWith(`${deleteUid}/`)
+                          || key.startsWith(`profiles/${deleteUid}/`)
+                          || key.startsWith(`videos/${deleteUid}/`)
+                          || key.startsWith(`music/${deleteUid}/`);
+      if (!deleteKeyOwned) {
+        return new Response(JSON.stringify({ error: 'Forbidden: key does not belong to your account' }), {
+          status: 403, headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
+        });
+      }
+
       try {
         await env.BUCKET.delete(key);
+        console.log(`[DELETE] Deleted key=${key} uid=${deleteUid}`);
         return new Response(JSON.stringify({ deleted: true, key }), {
           status: 200,
           headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
@@ -2638,10 +2809,23 @@ export default {
     }
 
     // ── POST /: generic upload (profile pics, posts, messages, etc.) ─────────
+    // Requires: Authorization: Bearer <firebase-id-token>
+    // The UID stored in R2 metadata and the key namespace comes from the
+    // verified token — client-supplied uid in FormData is ignored.
     if (request.method !== 'POST') {
       return new Response('Method not allowed', {
         status: 405,
         headers: mergeHeaders(cors, sec)
+      });
+    }
+
+    // ── Verify Firebase ID token ──────────────────────────────────────────────
+    let userUid;
+    try { userUid = await _requireAuth(request, env); }
+    catch (e) {
+      return new Response(JSON.stringify({ error: e.message }), {
+        status: e.status || 401,
+        headers: mergeHeaders(cors, sec, { 'Content-Type': 'application/json' })
       });
     }
 
@@ -2654,8 +2838,7 @@ export default {
       });
     }
 
-    const file    = formData.get('file');
-    const userUid = (formData.get('uid') || 'anonymous').replace(/[^a-zA-Z0-9_-]/g, '');
+    const file = formData.get('file');
 
     if (!file || typeof file === 'string') {
       return new Response(JSON.stringify({ error: 'No file received' }), {

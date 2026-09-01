@@ -10838,6 +10838,10 @@ body.arcade-fs-ios body::after { display:none !important; }
 
   // ── Auth-ready queue — lets non-module scripts register callbacks that
   //    run as soon as Firebase auth resolves (avoids the re-login requirement) ──
+  // Expose the Firebase Auth instance on window so external scripts (profile-music.js,
+  // studio.js, etc.) can always reach auth.currentUser for the live session state.
+  window._snxAuth = auth;
+
   window._snxAuthReadyQueue = window._snxAuthReadyQueue || [];
   window._snxOnAuthReady = function(fn) {
     if (window._snxAuthResolved) { try { fn(); } catch(e){} }
@@ -11773,7 +11777,20 @@ body.arcade-fs-ios body::after { display:none !important; }
       window.visualViewport.addEventListener('scroll', _vvHandler);
   }
 
+  // ── Safety net: dismiss the auth gate after 10 s even if onAuthStateChanged
+  //    never fires (e.g. Firebase CDN blocked, network error).
+  //    This prevents a permanent loading screen on bad networks.
+  const _authGateTimeout = setTimeout(() => {
+      if (!_authFirstResolved) {
+          _authFirstResolved = true;
+          const _gate = document.getElementById('snx-auth-gate');
+          if (_gate) _gate.classList.add('resolved');
+          show('login');
+      }
+  }, 10000);
+
   onAuthStateChanged(auth, async (user) => {
+      clearTimeout(_authGateTimeout);
       const _firstCall = !_authFirstResolved;
       _authFirstResolved = true;
       if (user) {
@@ -12081,6 +12098,10 @@ body.arcade-fs-ios body::after { display:none !important; }
           }
           // Explicit logout path — tear down listeners below.
           currentUser = null; userData = null;
+          // Clear the global auth state so upload guards correctly see the signed-out state
+          window._snxCurrentUser  = null;
+          window._snxUserData     = null;
+          window._snxAuthResolved = false;
           // ── Tear down EVERY real-time listener so nothing fires against a null user ──
           if (feedUnsubscribe)     { feedUnsubscribe();     feedUnsubscribe     = null; }
           if (presenceUnsubscribe) { presenceUnsubscribe(); presenceUnsubscribe = null; }
@@ -21581,19 +21602,60 @@ function _saveMediaFileMeta(meta) {
 }
 
 /**
+ * Get a fresh Firebase ID token for the current user.
+ *
+ * Uses auth.currentUser (Firebase Auth SDK) as the authoritative source so
+ * uploads are always gated on a real, live Firebase session — not on a stale
+ * window._snxCurrentUser reference that may have survived a sign-out.
+ *
+ * Error messages are intentionally user-friendly without exposing credentials.
+ * Throws if no user is signed in or if token refresh fails.
+ */
+async function _r2GetIdToken() {
+    // Prefer the live Firebase Auth SDK user over the cached window reference.
+    // auth is the Firebase Auth instance imported at page initialisation.
+    const liveUser = (typeof auth !== 'undefined' && auth.currentUser) ? auth.currentUser
+                   : window._snxCurrentUser || null;
+
+    if (!liveUser) {
+        throw new Error('No authenticated Firebase session. Please sign in again.');
+    }
+    if (typeof liveUser.getIdToken !== 'function') {
+        throw new Error('Your login session is invalid. Please sign in again.');
+    }
+
+    try {
+        // forceRefresh: true — always obtain a fresh token, never use an expired cached one.
+        return await liveUser.getIdToken(true);
+    } catch (e) {
+        // Firebase throws 'auth/network-request-failed', 'auth/user-token-expired', etc.
+        const code = e.code || '';
+        if (code === 'auth/user-token-expired' || code === 'auth/user-disabled') {
+            throw new Error('Your login session expired. Please sign in again.');
+        }
+        if (code === 'auth/network-request-failed') {
+            throw new Error('Upload service unavailable — check your connection and try again.');
+        }
+        throw new Error('Upload authentication failed. Please sign in again.');
+    }
+}
+
+/**
  * Single-request XHR upload (files ≤ 20 MB).
+ * Sends Authorization: Bearer <idToken> so the server can verify the caller's identity.
  * Returns Promise<{ url, key }>.
  */
-function _r2UploadSingle(file, uid, bar, wrap, attempt) {
+async function _r2UploadSingle(file, idToken, bar, wrap, attempt) {
     attempt = attempt || 1;
     const MAX_RETRIES = 3;
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('uid',  uid);
+    // Do NOT append 'uid' — the server derives UID from the verified token
 
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', R2_UPLOAD_URL);
+        xhr.setRequestHeader('Authorization', 'Bearer ' + idToken);
 
         xhr.upload.onprogress = (e) => {
             if (e.lengthComputable && bar) {
@@ -21613,8 +21675,26 @@ function _r2UploadSingle(file, uid, bar, wrap, attempt) {
             } else {
                 try {
                     const err = JSON.parse(xhr.responseText);
-                    reject(new Error(err.error || 'Upload failed'));
-                } catch (_) { reject(new Error('Upload failed: ' + xhr.status)); }
+                    const msg = err.error || '';
+                    // Translate server auth errors into user-friendly messages
+                    if (xhr.status === 401) {
+                        reject(new Error(msg || 'No authenticated Firebase session. Please sign in again.'));
+                    } else if (xhr.status === 403) {
+                        reject(new Error(msg || 'Upload authorization was rejected by the server.'));
+                    } else if (xhr.status === 503) {
+                        reject(new Error(msg || 'Upload service unavailable. Please try again later.'));
+                    } else {
+                        reject(new Error(msg || 'Upload failed (server error ' + xhr.status + ')'));
+                    }
+                } catch (_) {
+                    if (xhr.status === 401) {
+                        reject(new Error('No authenticated Firebase session. Please sign in again.'));
+                    } else if (xhr.status === 503) {
+                        reject(new Error('Upload service authentication failed. Please try again.'));
+                    } else {
+                        reject(new Error('Upload failed: ' + xhr.status));
+                    }
+                }
             }
         };
 
@@ -21624,7 +21704,7 @@ function _r2UploadSingle(file, uid, bar, wrap, attempt) {
                 const delay = Math.pow(2, attempt - 1) * 1000;
                 toastNotification(`⚠️ Upload interrupted — retrying (${attempt}/${MAX_RETRIES})…`);
                 setTimeout(() => {
-                    _r2UploadSingle(file, uid, bar, wrap, attempt + 1)
+                    _r2UploadSingle(file, idToken, bar, wrap, attempt + 1)
                         .then(resolve).catch(reject);
                 }, delay);
             } else {
@@ -21640,14 +21720,21 @@ function _r2UploadSingle(file, uid, bar, wrap, attempt) {
  * Chunked upload for large files (> 20 MB).
  * Splits the file into _R2_CHUNK_SIZE slices, POSTs each to /upload-chunk,
  * then POSTs to /upload-complete. Each chunk is retried up to 3 times.
+ * Authorization: Bearer <idToken> is sent with every request.
  * Returns Promise<{ url, key }>.
  */
-async function _r2UploadChunked(file, uid, bar, wrap) {
+async function _r2UploadChunked(file, idToken, bar, wrap) {
     const MAX_RETRIES  = 3;
     const totalChunks  = Math.ceil(file.size / _R2_CHUNK_SIZE);
     const uploadId     = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
     const ext          = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const finalKey     = `${uid}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
+    // The server will compute the final key from the authenticated UID, but we
+    // still supply a hint-key scoped to the user so the server can validate the prefix.
+    // The server's verifiedUid is the truth — it will reject mismatched prefixes.
+    const _chunkUser   = (typeof auth !== 'undefined' && auth.currentUser)
+                       ? auth.currentUser : (window._snxCurrentUser || null);
+    const uid          = _chunkUser ? _chunkUser.uid : '';
+    const finalKey     = uid ? `${uid}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}` : '';
 
     for (let i = 0; i < totalChunks; i++) {
         const start  = i * _R2_CHUNK_SIZE;
@@ -21663,15 +21750,26 @@ async function _r2UploadChunked(file, uid, bar, wrap) {
             fd.append('uploadId',    uploadId);
             fd.append('chunkIndex',  String(i));
             fd.append('totalChunks', String(totalChunks));
-            fd.append('uid',         uid);
-            fd.append('key',         finalKey);
+            // Do NOT append 'uid' — server derives from token
             fd.append('chunk',       slice, file.name);
 
             try {
-                const resp = await fetch(`${R2_UPLOAD_URL}/upload-chunk`, { method: 'POST', body: fd });
+                const resp = await fetch(`${R2_UPLOAD_URL}/upload-chunk`, {
+                    method:  'POST',
+                    headers: { 'Authorization': 'Bearer ' + idToken },
+                    body:    fd,
+                });
                 if (!resp.ok) {
                     const body = await resp.json().catch(() => ({}));
-                    throw new Error(body.error || `Chunk ${i} failed: HTTP ${resp.status}`);
+                    const chunkMsg = body.error || '';
+                    if (resp.status === 401) {
+                        throw new Error(chunkMsg || 'No authenticated Firebase session. Please sign in again.');
+                    } else if (resp.status === 403) {
+                        throw new Error(chunkMsg || 'Upload authorization was rejected by the server.');
+                    } else if (resp.status === 503) {
+                        throw new Error(chunkMsg || 'Upload service authentication failed. Please try again.');
+                    }
+                    throw new Error(chunkMsg || `Chunk ${i} failed: HTTP ${resp.status}`);
                 }
                 succeeded = true;
                 break;
@@ -21691,16 +21789,27 @@ async function _r2UploadChunked(file, uid, bar, wrap) {
     const complFd = new FormData();
     complFd.append('uploadId',    uploadId);
     complFd.append('totalChunks', String(totalChunks));
-    complFd.append('key',         finalKey);
-    complFd.append('uid',         uid);
+    if (finalKey) complFd.append('key', finalKey);  // hint only — server validates ownership
     complFd.append('fileName',    file.name);
     complFd.append('fileType',    file.type || '');
     complFd.append('fileSize',    String(file.size));
 
-    const complResp = await fetch(`${R2_UPLOAD_URL}/upload-complete`, { method: 'POST', body: complFd });
+    const complResp = await fetch(`${R2_UPLOAD_URL}/upload-complete`, {
+        method:  'POST',
+        headers: { 'Authorization': 'Bearer ' + idToken },
+        body:    complFd,
+    });
     if (!complResp.ok) {
         const body = await complResp.json().catch(() => ({}));
-        throw new Error(body.error || `Upload assembly failed: HTTP ${complResp.status}`);
+        const complMsg = body.error || '';
+        if (complResp.status === 401) {
+            throw new Error(complMsg || 'No authenticated Firebase session. Please sign in again.');
+        } else if (complResp.status === 403) {
+            throw new Error(complMsg || 'Upload authorization was rejected by the server.');
+        } else if (complResp.status === 503) {
+            throw new Error(complMsg || 'Upload service authentication failed. Please try again.');
+        }
+        throw new Error(complMsg || `Upload assembly failed: HTTP ${complResp.status}`);
     }
     const result = await complResp.json();
     if (!result.url) throw new Error(result.error || 'Assembly returned no URL');
@@ -21715,6 +21824,7 @@ async function _r2UploadChunked(file, uid, bar, wrap) {
  * Upload a File to Cloudflare R2 via the Worker.
  *
  * Automatically chooses single-request (≤ 20 MB) or chunked (> 20 MB) strategy.
+ * Fetches a fresh Firebase ID token and sends it as Authorization: Bearer.
  * After a successful upload, writes metadata to Firestore /mediaFiles.
  *
  * @param {File}   file           - The file to upload.
@@ -21725,6 +21835,16 @@ async function _r2UploadChunked(file, uid, bar, wrap) {
  * @returns {Promise<string>}     - The public Cloudflare R2 URL.
  */
 async function uploadToR2(file, progressBarId, progressWrapId, meta) {
+    // ── Must be signed in — use auth.currentUser (live) as the authoritative check ──
+    // auth.currentUser reflects the real Firebase Auth state; window._snxCurrentUser
+    // is a cached reference that may briefly outlive a sign-out event.
+    const _uploadAuthUser = (typeof auth !== 'undefined' && auth.currentUser)
+        ? auth.currentUser
+        : (window._snxCurrentUser || null);
+    if (!_uploadAuthUser) {
+        throw new Error('No authenticated Firebase session. Please sign in again.');
+    }
+
     // ── Client-side size limits ──
     const IMG_LIMIT   = 10  * 1024 * 1024;  // 10 MB
     const VIDEO_LIMIT = 100 * 1024 * 1024;  // 100 MB
@@ -21752,7 +21872,14 @@ async function uploadToR2(file, progressBarId, progressWrapId, meta) {
         try { file = await _compressImageFile(file); } catch(_) { /* use original on failure */ }
     }
 
-    const uid  = window._snxCurrentUser ? window._snxCurrentUser.uid : 'guest';
+    // ── Obtain a fresh Firebase ID token — server verifies this ──
+    const idToken = await _r2GetIdToken();
+    // Re-read the live user reference after token refresh (auth state may have changed)
+    const _postTokenUser = (typeof auth !== 'undefined' && auth.currentUser)
+        ? auth.currentUser : (window._snxCurrentUser || null);
+    if (!_postTokenUser) throw new Error('No authenticated Firebase session. Please sign in again.');
+    const uid = _postTokenUser.uid;
+
     const wrap = document.getElementById(progressWrapId);
     const bar  = document.getElementById(progressBarId);
     if (wrap) wrap.style.display = 'block';
@@ -21762,14 +21889,14 @@ async function uploadToR2(file, progressBarId, progressWrapId, meta) {
     const CHUNKED_THRESHOLD = 20 * 1024 * 1024; // 20 MB
     let result;
     if (file.size > CHUNKED_THRESHOLD) {
-        result = await _r2UploadChunked(file, uid, bar, wrap);
+        result = await _r2UploadChunked(file, idToken, bar, wrap);
     } else {
-        result = await _r2UploadSingle(file, uid, bar, wrap, 1);
+        result = await _r2UploadSingle(file, idToken, bar, wrap, 1);
     }
 
     // ── Save metadata to Firestore /mediaFiles ──
     _saveMediaFileMeta({
-        ownerUid:   uid,
+        ownerUid:   uid,  // local uid used only for metadata — server verified via token
         fileName:   file.name,
         fileType:   file.type || '',
         fileSize:   file.size,
@@ -30628,63 +30755,23 @@ document.addEventListener('click', function(e) {
 
   /* ── Build identifier ─────────────────────────────────── */
   var BUILD_ID = '2026-08-29-CLOUD-STREAM-AS-STUDIO';
-  var SW_VER   = 'v34';
+  var SW_VER   = 'v35';
   window.SHADOW_NEXUS_BUILD_VERSION = BUILD_ID;
   window.SHADOW_NEXUS_SW_VERSION    = SW_VER;
 
   /* ══════════════════════════════════════════════════════
-     SERVICE WORKER UPDATE-CHECK & AUTO-RELOAD
+     SERVICE WORKER UPDATE-CHECK
      ── Runs on every page load (no ?snxdebug required) ──
+     NOTE: Auto-activation and auto-reload have been removed
+     to prevent SW-triggered reload loops. The SW activates
+     naturally when all tabs are closed/reopened, or when
+     the user manually refreshes (see script.js). ──
      ══════════════════════════════════════════════════════ */
   if ('serviceWorker' in navigator) {
-    /* Guard: only reload once per new SW version — prevents infinite loops.
-       Uses localStorage (not sessionStorage) so the guard survives
-       location.replace() and location.reload() across all redirect paths. */
-    var RELOAD_KEY = 'snxSwReloadDone';
 
+    /* ── Check for an update now (passive — does not activate) ── */
     navigator.serviceWorker.ready.then(function(reg) {
-
-      /* ── Tell a waiting SW to take over immediately ── */
-      function _activateWaiting() {
-        if (reg.waiting) {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-      }
-
-      /* ── When the SW controller changes, reload once ── */
-      navigator.serviceWorker.addEventListener('controllerchange', function() {
-        try {
-          var done = localStorage.getItem(RELOAD_KEY);
-          if (!done) {
-            localStorage.setItem(RELOAD_KEY, '1');
-            window.location.reload();
-          } else {
-            // Already reloaded for this SW — clear the guard for next update cycle
-            localStorage.removeItem(RELOAD_KEY);
-          }
-        } catch(_) {}
-      });
-
-      /* ── Check for an update now ── */
       reg.update().catch(function() {});
-
-      /* ── If a new SW is already waiting, activate it ── */
-      if (reg.waiting) {
-        _activateWaiting();
-      }
-
-      /* ── Listen for future SW updates ── */
-      reg.addEventListener('updatefound', function() {
-        var newWorker = reg.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener('statechange', function() {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            /* New SW installed and old one still active — activate it */
-            _activateWaiting();
-          }
-        });
-      });
-
     }).catch(function() {});
 
     /* ── Periodic update check every 10 minutes ── */
@@ -30696,9 +30783,7 @@ document.addEventListener('click', function(e) {
 
     /* ── Version cross-check via /version.json ──
          Fetches the deployed manifest once per session (network-only, no-cache).
-         If the remote buildId differs from what this page has, the new SW will
-         have already installed via the controllerchange path above, so this
-         only serves as a diagnostic signal for the debug panel. */
+         Used as a diagnostic signal for the debug panel. */
     var _remoteBuildId = null;
     fetch('/version.json?_=' + Date.now(), { cache: 'no-store' })
       .then(function(r) { return r.json(); })

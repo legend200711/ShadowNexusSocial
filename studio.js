@@ -3711,7 +3711,7 @@ function _uploadOneTrack(job) {
   var key    = 'music/' + uid + '/' + job.trackId + '/' + job.file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   var form   = new FormData();
   form.append('file', job.file, job.file.name);
-  form.append('uid', uid);
+  // Do NOT append 'uid' — the server derives UID from the verified Bearer token
   form.append('path', key);
 
   // Extract client-side metadata (async duration detection via HTMLAudioElement)
@@ -3751,47 +3751,62 @@ function _uploadOneTrack(job) {
     }
   });
 
-  // XHR so we can track per-file progress
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', UPLOAD_WORKER_URL + '/');
-  xhr.setRequestHeader('X-User-UID', uid);
-
-  xhr.upload.onprogress = function(e) {
-    if (e.lengthComputable) { job.progress = Math.round((e.loaded / e.total) * 100); }
-    _renderUploadDashboard();
-  };
-
-  xhr.onload = function() {
+  // XHR so we can track per-file progress.
+  // Obtain a fresh Firebase ID token, wire all handlers, then send.
+  if (!_state.user || typeof _state.user.getIdToken !== 'function') {
     _music.uploadActive--;
-    if (xhr.status === 200) {
-      var res; try { res = JSON.parse(xhr.responseText); } catch(e) { res = {}; }
-      job.status = 'done';
-      _music.uploadDone++;
-      // Update track doc as 'ready' with public URL
-      trackDoc.status = 'ready';
-      trackDoc.url    = res.url || res.publicUrl || '';
-      _mlSaveTrack(trackDoc);
-      // Add to in-memory library
-      var existing = _music.tracks.findIndex(function(t) { return t.id === job.trackId; });
-      if (existing === -1) _music.tracks.unshift(Object.assign({}, trackDoc));
-      else _music.tracks[existing] = Object.assign({}, trackDoc);
-    } else {
-      _handleUploadFail(job, 'HTTP ' + xhr.status);
-    }
-    _renderUploadDashboard();
-    _renderLibrary();
-    if (typeof _renderCSLibrary === 'function') { _renderCSLibrary(); }
+    _handleUploadFail(job, 'Not signed in');
     _processUploadQueue();
-  };
+    return;
+  }
 
-  xhr.onerror = function() {
+  _state.user.getIdToken(true).then(function(idToken) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', UPLOAD_WORKER_URL + '/');
+    xhr.setRequestHeader('Authorization', 'Bearer ' + idToken);
+
+    xhr.upload.onprogress = function(e) {
+      if (e.lengthComputable) { job.progress = Math.round((e.loaded / e.total) * 100); }
+      _renderUploadDashboard();
+    };
+
+    xhr.onload = function() {
+      _music.uploadActive--;
+      if (xhr.status === 200) {
+        var res; try { res = JSON.parse(xhr.responseText); } catch(e) { res = {}; }
+        job.status = 'done';
+        _music.uploadDone++;
+        // Update track doc as 'ready' with public URL and the server-assigned R2 key
+        trackDoc.status = 'ready';
+        trackDoc.url    = res.url || res.publicUrl || '';
+        if (res.key) trackDoc.r2Key = res.key; // use the key the server actually stored
+        _mlSaveTrack(trackDoc);
+        // Add to in-memory library
+        var existing = _music.tracks.findIndex(function(t) { return t.id === job.trackId; });
+        if (existing === -1) _music.tracks.unshift(Object.assign({}, trackDoc));
+        else _music.tracks[existing] = Object.assign({}, trackDoc);
+      } else {
+        _handleUploadFail(job, 'HTTP ' + xhr.status);
+      }
+      _renderUploadDashboard();
+      _renderLibrary();
+      if (typeof _renderCSLibrary === 'function') { _renderCSLibrary(); }
+      _processUploadQueue();
+    };
+
+    xhr.onerror = function() {
+      _music.uploadActive--;
+      _handleUploadFail(job, 'Network error');
+      _processUploadQueue();
+    };
+
+    xhr.send(form);
+    job._xhr = xhr;
+  }).catch(function(e) {
     _music.uploadActive--;
-    _handleUploadFail(job, 'Network error');
+    _handleUploadFail(job, 'Auth error: ' + e.message);
     _processUploadQueue();
-  };
-
-  xhr.send(form);
-  job._xhr = xhr;
+  });
 }
 
 /* Detect actual audio duration using HTMLAudioElement (browser-native, no lib needed) */
