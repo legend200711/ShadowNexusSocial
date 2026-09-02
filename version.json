@@ -1,8 +1,8 @@
 {
-  "buildId": "2026-09-02-CORS-ORIGIN-FIX",
-  "swVersion": "v38",
+  "buildId": "2026-09-02-FIREBASE-KEY-FIX",
+  "swVersion": "v39",
   "deployedAt": "2026-09-02T00:00:00Z",
   "project": "horr-a08f4",
   "studioVersion": "2.0.0",
-  "note": "ROOT FIX: Cloudflare upload Worker ALLOWED_ORIGINS was missing chrislegendofshadows.com. Deployed Worker had aurenix.app as fallback origin, causing every upload from shadownexussocial.online and chrislegendofshadows.com to fail with a CORS-blocked onerror (reported as 'Network error'). Added both chrislegendofshadows.com domains. Redeployed Worker. SW bumped to v38 to force PWA refresh."
+  "note": "ROOT FIX: Cloudflare Worker FIREBASE_WEB_API_KEY secret was set to a key belonging to a different Firebase project (AIzaSyCc...). The live frontend uses project horr-a08f4 (key AIzaSyBy...). Every token issued by the live login was rejected by identitytoolkit with INVALID_ID_TOKEN because the Worker was calling identitytoolkit with the wrong project key. Fixed by updating the FIREBASE_WEB_API_KEY secret to match the frontend project. Verified with a real Firebase anonymous token: ok:true, uid returned. SW bumped to v39."
 }

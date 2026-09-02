@@ -10,8 +10,8 @@
  * shadownexussocial.online (/) and any local dev server (/).
  */
 
-const CACHE_VERSION = 'v38';
-const BUILD_ID      = '2026-09-02-CORS-ORIGIN-FIX';
+const CACHE_VERSION = 'v39';
+const BUILD_ID      = '2026-09-02-FIREBASE-KEY-FIX';
 const CACHE_NAME    = `shadow-nexus-${CACHE_VERSION}`;
 const MEDIA_CACHE   = `shadow-nexus-media-${CACHE_VERSION}`;
 
