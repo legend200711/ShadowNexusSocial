@@ -304,7 +304,15 @@
         }
       };
 
-      xhr.onerror  = () => reject(new Error('Network error — check your connection and try again.'));
+      xhr.onerror  = () => {
+        console.error('[SNX Music] XHR upload failed. Target:', R2_WORKER_URL + '/upload-music',
+          '| Origin:', location.origin, '| Status:', xhr.status,
+          '| If status=0 this is a CORS block or DNS failure.');
+        reject(new Error(
+          'Upload failed: the upload server rejected the request (CORS or network). ' +
+          'Status: ' + (xhr.status || 0) + '. See browser console for details.'
+        ));
+      };
       xhr.ontimeout = () => reject(new Error('Upload timed out — the file may be too large or the connection is too slow.'));
       xhr.onabort  = () => reject(new Error('Upload cancelled.'));
 
@@ -1439,6 +1447,7 @@
         // Identify the failed step from the error message
         let errMsg = err.message || String(err);
         if (errMsg.includes('Permission denied') || errMsg.includes('permission')) errMsg = 'Permission denied — check your account.';
+        else if (errMsg.includes('CORS or network') || errMsg.includes('upload server rejected')) errMsg = 'Upload failed: server rejected the request. See console for details.';
         else if (errMsg.includes('Network error') || errMsg.includes('network')) errMsg = 'Network error — check your connection.';
         else if (errMsg.includes('Database save') || errMsg.includes('Firestore') || errMsg.includes('PERMISSION_DENIED')) errMsg = 'Database save failed — ' + errMsg;
         results.push({ ok: false, name: f.name, err: errMsg });

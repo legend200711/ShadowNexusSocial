@@ -21708,7 +21708,17 @@ async function _r2UploadSingle(file, idToken, bar, wrap, attempt) {
                         .then(resolve).catch(reject);
                 }, delay);
             } else {
-                reject(new Error('Network error — check your connection and try again'));
+                // xhr.onerror fires for true network failures AND browser-blocked CORS.
+                // Log enough detail to diagnose without exposing the token.
+                console.error('[SNX R2] XHR upload failed after', MAX_RETRIES, 'attempts.',
+                    'Target:', R2_UPLOAD_URL,
+                    '| Origin:', location.origin,
+                    '| Status:', xhr.status,
+                    '| If status=0 this is a CORS block or DNS failure.');
+                reject(new Error(
+                    'Upload failed: the upload server rejected the request (CORS or network). ' +
+                    'Status: ' + (xhr.status || 0) + '. See browser console for details.'
+                ));
             }
         };
 

@@ -1,8 +1,8 @@
 {
-  "buildId": "2026-08-29-ALBUM-AUTH-FIX",
-  "swVersion": "v37",
-  "deployedAt": "2026-08-29T00:00:00Z",
+  "buildId": "2026-09-02-CORS-ORIGIN-FIX",
+  "swVersion": "v38",
+  "deployedAt": "2026-09-02T00:00:00Z",
   "project": "horr-a08f4",
   "studioVersion": "2.0.0",
-  "note": "ROOT FIX: album.js uploadFileToR2 was missing Authorization: Bearer header — now calls user.getIdToken(true) before every upload. Backend _fbVerifyToken improved with detailed server-side diagnostics and specific 401 error codes. SW cache bumped to v37 to force PWA refresh."
+  "note": "ROOT FIX: Cloudflare upload Worker ALLOWED_ORIGINS was missing chrislegendofshadows.com. Deployed Worker had aurenix.app as fallback origin, causing every upload from shadownexussocial.online and chrislegendofshadows.com to fail with a CORS-blocked onerror (reported as 'Network error'). Added both chrislegendofshadows.com domains. Redeployed Worker. SW bumped to v38 to force PWA refresh."
 }

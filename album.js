@@ -986,7 +986,13 @@
                         const delay = Math.pow(2, retryNum - 1) * 1000;
                         setTimeout(() => attempt(retryNum + 1, idToken).then(resolve).catch(reject), delay);
                     } else {
-                        reject(new Error('Network error — check your connection'));
+                        console.error('[SNX Album] XHR upload failed. Target:', R2_URL,
+                            '| Origin:', location.origin, '| Status:', xhr.status,
+                            '| If status=0 this is a CORS block or DNS failure.');
+                        reject(new Error(
+                            'Upload failed: the upload server rejected the request (CORS or network). ' +
+                            'Status: ' + (xhr.status || 0) + '. See browser console for details.'
+                        ));
                     }
                 };
 
