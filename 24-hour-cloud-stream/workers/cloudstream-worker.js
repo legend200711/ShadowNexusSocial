@@ -29,6 +29,8 @@
 const ALLOWED_ORIGINS = [
   'https://shadownexussocial.online',
   'https://www.shadownexussocial.online',
+  'https://chrislegendofshadows.com',
+  'https://www.chrislegendofshadows.com',
 ];
 
 function _corsHeaders(request) {
